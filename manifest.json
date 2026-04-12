@@ -1,0 +1,14 @@
+{
+  "name": "RISE — Mon Système",
+  "short_name": "RISE",
+  "description": "Planificateur journalier OMANAÏA — Habits, Vision, Deep Work",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#FAF6F0",
+  "theme_color": "#2C1F14",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
