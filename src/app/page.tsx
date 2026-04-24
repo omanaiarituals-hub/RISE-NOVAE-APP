@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { UserMenu } from '@/components/UserMenu'
+import { OnboardingTour } from '@/components/OnboardingTour'
 
 const modules = [
   { href: '/program',   emoji: '🎯', title: 'Programme 90 jours', description: 'Ta transformation en 3 phases',      color: '#F2E0D8', border: '#D4A090' },
@@ -32,6 +33,14 @@ export default function HomePage() {
   const [reflection, setReflection] = useState<DayReflection | null>(null)
   const [routineProgress, setRoutineProgress] = useState<{ morning: number; evening: number } | null>(null)
 
+// Forcer le tuto pour les utilisatrices existantes (one-shot)
+useEffect(() => {
+  const tourVersion = localStorage.getItem('novae-onboarding-version')
+  if (tourVersion !== 'v2') {
+    localStorage.removeItem('novae-onboarding-done')
+    localStorage.setItem('novae-onboarding-version', 'v2')
+  }
+}, [])
   useEffect(() => {
     const today = fmtDate(new Date())
 
@@ -58,10 +67,12 @@ export default function HomePage() {
   const hasIntention = reflection?.morningIntention && reflection.morningIntention.trim().length > 0
   const hasGratitude = reflection?.eveningGratitude && reflection.eveningGratitude.trim().length > 0
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir'
+const greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bonne après-midi' : 'Bonsoir'
 
   return (
-    <div style={{ minHeight: "100vh", background: "#FAF7F2", fontFamily: "'DM Sans', sans-serif" }}>
+    <>
+      <OnboardingTour />
+      <div style={{ minHeight: "100vh", background: "#FAF7F2", fontFamily: "'DM Sans', sans-serif" }}>
       {/* Top bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 32px", background: "#FFFFFF", borderBottom: "1px solid #E8E4DF" }}>
         <div>
@@ -82,8 +93,7 @@ export default function HomePage() {
         {/* Header */}
         <header style={{ marginBottom: 24 }}>
           <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 38, fontWeight: 700, color: "#1A1A1A", margin: "0 0 4px" }}>
-            {greeting} {user?.email?.split('@')[0] || ''} 👋
-          </h1>
+{greeting} {user?.user_metadata?.pseudo || user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''} 👋          </h1>
           <p style={{ fontSize: 14, color: "#6B6B6B", margin: 0 }}>
             {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
@@ -170,6 +180,7 @@ export default function HomePage() {
           </Link>
         ))}
       </div>
-    </div>
+      </div>
+    </>
   )
 }
