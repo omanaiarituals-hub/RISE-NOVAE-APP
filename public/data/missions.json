@@ -1,0 +1,222 @@
+[
+  {
+    "day": 1,
+    "title": "Le Scanner 360° : L'État des Lieux",
+    "guide": "Bienvenue dans ton parcours Novae. Avant de transformer ton futur, nous devons regarder ton présent avec une honnêteté radicale. Prends UN carnet neuf qui te suivra tout au long de cette aventure. Imagine que ta vie est un écosystème : si une zone est en friche, elle finit par impacter toutes les autres. Aujourd'hui, note chaque pilier de 1 à 10. Ne juge pas les chiffres bas, vois-les comme des opportunités de croissance prioritaires.",
+    "type": "audit",
+    "categories": ["Santé & Énergie", "Équilibre Mental", "Relations & Amour", "Carrière & Projets", "Finances", "Environnement", "Joie de Vivre"],
+    "question": "En regardant ces notes, quelle sphère réclame ton attention immédiate ?"
+  },
+  {
+    "day": 2,
+    "title": "L'Inventaire des Automatismes",
+    "guide": "Nous sommes ce que nous répétons. La plupart de nos gestes sont des programmes inconscients. Aujourd'hui, dans TON carnet, deviens l'observatrice de ta propre vie. Note tout : le café bu par habitude, le temps passé à scroller, ta réaction au stress. On ne peut pas modifier ce que l'on ne voit pas.",
+    "type": "text",
+    "question": "Identifie un automatisme qui te vole de l'énergie chaque jour :"
+  },
+  {
+    "day": 3,
+    "title": "Le Grand Tri des Habitudes",
+    "guide": "Tu es l'architecte de ton quotidien. Regarde ta liste d'hier dans TON carnet : certaines habitudes te servent (Garder), d'autres te desservent (Supprimer), et d'autres demandent un ajustement (Modifier). Choisir, c'est renoncer au superflu pour laisser de la place à l'essentiel.",
+    "type": "checklist",
+    "tasks": ["Cibler l'habitude toxique à éliminer", "Choisir l'habitude saine à protéger", "Ajuster une routine existante"],
+    "question": "Quelle est l'habitude la plus dure à laisser partir ?"
+  },
+  {
+    "day": 4,
+    "title": "Le Pacte & L'Objectif Majeur",
+    "guide": "Un voyage sans destination est une errance. Définis ton objectif principal pour ces 90 jours. Il doit être précis et te faire vibrer. Écris-le dans TON carnet comme si c'était déjà une réalité. Ce pacte est un engagement envers la femme que tu seras demain.",
+    "type": "text",
+    "question": "Quelle réussite transformerait radicalement ta vie en 90 jours ?"
+  },
+  {
+    "day": 5,
+    "title": "Le Séquençage du Succès",
+    "guide": "La clé est de découper ton but en micro-étapes. Dans TON carnet, décompose ton objectif en 3 actions simples quotidiennes. Le succès n'est pas un exploit unique, c'est une répétition de petites victoires invisibles.",
+    "type": "text",
+    "question": "Quelles sont tes 3 actions quotidiennes non-négociables ?"
+  },
+  {
+    "day": 6,
+    "title": "Digital Détox : Libérer l'Attention",
+    "guide": "Ton attention est ta ressource la plus précieuse. Aujourd'hui, fais le ménage numérique dans TON carnet et sur ton téléphone. Supprime les applications inutiles et coupe les notifications. Reprends le contrôle sur ce qui entre dans ton esprit.",
+    "type": "checklist",
+    "tasks": ["Supprimer les apps chronophages", "Couper les notifications", "Nettoyer l'écran d'accueil"],
+    "question": "Combien de temps estimes-tu gagner par jour sans ces distractions ?"
+  },
+  {
+    "day": 7,
+    "title": "GMH 1 : Libération de l'Espace Physique",
+    "guide": "Le désordre extérieur reflète l'encombrement intérieur. Aujourd'hui, prévois une grosse journée pour libérer ton espace. Ton placard ou ton bureau est le point de départ. Trie ce que tu jettes, gardes ou vends. Tu as besoin de créer du vide pour que le nouveau puisse entrer. Note tes ressentis dans TON carnet.",
+    "type": "checklist",
+    "tasks": ["Vider entièrement la zone cible", "Trier : Jeter / Garder / Vendre", "Nettoyer et réorganiser l'espace"],
+    "question": "Quelle sensation de clarté ressens-tu dans cet espace vide ?"
+  },
+  {
+    "day": 8,
+    "title": "Lancement de la Discipline",
+    "guide": "La motivation fait démarrer, la discipline fait durer. Tes 3 habitudes du J-5 deviennent ton cadre de vie. Note dans TON carnet chaque réussite. C'est le premier jour de ta nouvelle rigueur personnelle.",
+    "type": "checklist",
+    "tasks": ["Habitude 1 validée", "Habitude 2 validée", "Habitude 3 validée"],
+    "question": "Comment as-tu protégé ton temps face aux imprévus ?"
+  },
+  {
+    "day": 9,
+    "title": "La Boussole des Valeurs",
+    "guide": "L'alignement est la clé de la persévérance. Dans TON carnet, identifie tes 5 valeurs piliers (Liberté, Famille, Audace...). Si ton action quotidienne nourrit tes valeurs, tu seras invincible.",
+    "type": "text",
+    "question": "Liste tes 5 valeurs piliers. Sont-elles en accord avec ton but ?"
+  },
+  {
+    "day": 10,
+    "title": "Le Temple : Corps & Énergie",
+    "guide": "Ton esprit ne peut briller si ton corps s'éteint. Focus sur ton véhicule physique : hydratation et mouvement conscient. Écoute les signaux de ton corps et consigne-les dans TON carnet.",
+    "type": "checklist",
+    "tasks": ["Boire 2L d'eau", "15 min de mouvement conscient", "Zéro sucre transformé"],
+    "question": "Quelle est ta note de vitalité ce soir (1-10) ?"
+  },
+  {
+    "day": 11,
+    "title": "Audit Relationnel",
+    "guide": "Nous sommes la moyenne des personnes que nous fréquentons. Dans TON carnet, liste les personnes qui t'entourent. Qui t'apporte de l'énergie ? Qui t'en coûte ? Protéger son cercle est vital pour réussir.",
+    "type": "text",
+    "question": "Quelle personne 'ressource' devrais-tu voir plus souvent ?"
+  },
+  {
+    "day": 12,
+    "title": "Le Lien Inspirant",
+    "guide": "L'isolement freine la croissance. Reprends contact avec quelqu'un dont le parcours t'inspire. Note l'impact de cet échange sur ta motivation dans TON carnet.",
+    "type": "text",
+    "question": "Qu'as-tu appris de cet échange aujourd'hui ?"
+  },
+  {
+    "day": 13,
+    "title": "Le Flux Financier",
+    "guide": "L'argent est une énergie qui demande de la clarté. Identifie une peur financière dans TON carnet. Transformer sa relation à l'argent commence par oser regarder ses comptes avec sérénité.",
+    "type": "text",
+    "question": "Quelle croyance limitante as-tu sur l'argent ?"
+  },
+  {
+    "day": 14,
+    "title": "GMH 2 : Clarté Administrative",
+    "guide": "Les tâches en attente sont des fuites d'énergie. Aujourd'hui, on ferme les dossiers ouverts : mails, factures, cloud. Nettoie ton paysage administratif pour libérer ton esprit. Note tes victoires dans TON carnet.",
+    "type": "checklist",
+    "tasks": ["Vider la boîte mail", "Régler une facture/papier en retard", "Trier un dossier numérique"],
+    "question": "Quel poids mental as-tu retiré de tes épaules ?"
+  },
+  {
+    "day": 15,
+    "title": "Analyse du Premier Cycle",
+    "guide": "Deux semaines de passées. Relis TON carnet depuis le Jour 1. Vois-tu des répétitions ? Des moments de faiblesse ? Célébrer le chemin parcouru est essentiel pour la suite.",
+    "type": "text",
+    "question": "Quelle est ta plus grande fierté après 15 jours ?"
+  },
+  {
+    "day": 16,
+    "title": "Le Saboteur Intérieur",
+    "guide": "Nous avons tous une voix qui doute. Donne-lui un nom ridicule dans TON carnet pour la décrédibiliser. Apprends à l'écouter sans lui obéir. Elle veut te protéger, mais elle t'empêche d'avancer.",
+    "type": "text",
+    "question": "Quel nom as-tu donné à ton saboteur et que dit-il ?"
+  },
+  {
+    "day": 17,
+    "title": "Le Sanctuaire du Silence",
+    "guide": "Le bruit constant étouffe l'intuition. Accorde-toi 1h de silence total aujourd'hui, sans distractions. Note dans TON carnet les idées qui émergent quand le monde se tait.",
+    "type": "text",
+    "question": "Quelle pensée importante a surgi durant ce silence ?"
+  },
+  {
+    "day": 18,
+    "title": "L'Effet Miroir",
+    "guide": "Nous avons souvent une vision déformée de nous-mêmes. Demande à deux proches quelles sont tes 3 plus grandes forces. Note-les dans TON carnet. Accepte ces qualités comme des faits.",
+    "type": "text",
+    "question": "Quelle force citée par tes proches t'a le plus surprise ?"
+  },
+  {
+    "day": 19,
+    "title": "Nettoyage Social Média",
+    "guide": "Ton cerveau consomme ce que tes yeux voient. Désactive les comptes qui créent de l'insécurité ou de la comparaison. Choisis la qualité plutôt que la quantité. Fais le point dans TON carnet.",
+    "type": "checklist",
+    "tasks": ["Unfollow 5 comptes toxiques", "Quitter un groupe inutile", "Désactiver les suggestions d'apps"],
+    "question": "Comment ton niveau d'anxiété a-t-il évolué après ce tri ?"
+  },
+  {
+    "day": 20,
+    "title": "Ton Portrait Novae",
+    "guide": "Si la peur n'existait pas, que ferais-tu ? Décris dans TON carnet la version de toi qui a déjà réussi. Utilise le présent : 'Je suis...', 'Je vis...'. L'imagination est le plan de ton futur.",
+    "type": "text",
+    "question": "Décris une journée type de ta version 'réussie' :"
+  },
+  {
+    "day": 21,
+    "title": "GMH 3 : Le Miroir de l'Identité",
+    "guide": "Ton dressing contient les traces de ton passé. Fais un tri radical. Ne garde que ce qui te rend puissante et alignée avec ton futur. Ton image doit soutenir ta transformation. Note ce détachement dans TON carnet.",
+    "type": "checklist",
+    "tasks": ["Sortir les vêtements 'du passé'", "Donner ce qui ne sert plus", "Ranger avec soin et fierté"],
+    "question": "Quel vêtement symbolisait ton ancienne version ?"
+  },
+  {
+    "day": 22,
+    "title": "Bilan de Phase : Le Vide Fertile",
+    "guide": "La Phase 1 s'achève. Tu as nettoyé l'espace physique, numérique et mental. Relis TON carnet. Tu as créé un vide fertile. Demain, la déconstruction commence. Es-tu prête à aller plus loin ?",
+    "type": "text",
+    "question": "Es-tu prête à laisser partir l'ancienne version de toi ?"
+  },
+  {
+    "day": 23,
+    "title": "Déconstruction 1 : Les Croyances Limitantes",
+    "guide": "Phase 2 : Déconstruction. Identifie une croyance qui te freine. 'Je ne suis pas assez...' 'Je ne peux pas...' Questionne-la. Est-ce vrai ? Qui serais-tu sans ? Note dans TON carnet.",
+    "type": "text",
+    "question": "Quelle croyance limitante as-tu identifiée aujourd'hui ?"
+  },
+  {
+    "day": 24,
+    "title": "Déconstruction 2 : Les Attachements",
+    "guide": "Identifie un attachement qui te pèse. Une personne, une situation, un objet. Qu'est-ce que ça te coûte d'y rester attaché ? Note la réponse dans TON carnet.",
+    "type": "text",
+    "question": "Quel attachement es-tu prête à lâcher ?"
+  },
+  {
+    "day": 25,
+    "title": "Déconstruction 3 : Les Schémas Répétitifs",
+    "guide": "Observe tes schémas. Procrastination, autosabotage, perfectionnisme. D'où viennent-ils ? Note le schéma et son origine dans TON carnet.",
+    "type": "text",
+    "question": "Quel schéma répétitif as-tu observé aujourd'hui ?"
+  },
+  {
+    "day": 26,
+    "title": "Reconstruction 1 : Nouvelle Identité",
+    "guide": "Phase 3 : Reconstruction. Qui veux-tu devenir ? Écris 10 affirmations puissantes. 'Je suis...' Au présent. Comme si c'était déjà vrai. Dans TON carnet.",
+    "type": "text",
+    "question": "Quelle affirmation te résonne le plus aujourd'hui ?"
+  },
+  {
+    "day": 27,
+    "title": "Reconstruction 2 : Nouvelles Habitudes",
+    "guide": "Choisis une habitude qui soutient ton futur. 5 minutes par jour. Facile. Inratable. Note ton engagement dans TON carnet.",
+    "type": "text",
+    "question": "Quelle nouvelle habitude vas-tu intégrer ?"
+  },
+  {
+    "day": 28,
+    "title": "Reconstruction 3 : Nouvel Environnement",
+    "guide": "Réorganise ton espace pour soutenir ta nouvelle identité. Un coin lecture, un espace création, un lieu méditation. Note les changements dans TON carnet.",
+    "type": "checklist",
+    "tasks": ["Créer un coin dédié", "Enlever les distractions", "Ajouter un élément inspirant"],
+    "question": "Quel espace as-tu transformé aujourd'hui ?"
+  },
+  {
+    "day": 29,
+    "title": "Ancrage 1 : La Visualisation",
+    "guide": "Phase 4 : Ancrage. Visualise ton futur dans 5 ans. Détails, émotions, sensations. 10 minutes. Note ce que tu as vu dans TON carnet.",
+    "type": "text",
+    "question": "Quelle image de ton futur t'a le plus marquée ?"
+  },
+  {
+    "day": 30,
+    "title": "Ancrage 2 : Le Corps",
+    "guide": "Le corps ancre le changement. Danse, yoga, marche. Sensations physiques. 15 minutes. Note les sensations dans TON carnet.",
+    "type": "text",
+    "question": "Quelles sensations physiques as-tu ressenties ?"
+  }
+]

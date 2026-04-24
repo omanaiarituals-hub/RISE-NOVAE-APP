@@ -1,0 +1,1443 @@
+[
+  {
+    "day": 1,
+    "title": "Le Scanner 360°",
+    "phase": "Reprogrammation",
+    "guide": "Prends ton carnet et installe-toi dans un endroit calme. Aujourd'hui, tu fais un état des lieux honnête de ta vie. Pas de jugement, juste la vérité.",
+    "tasks": [
+      {"id": 1, "label": "Noter ton niveau de satisfaction de 1 à 10 dans ces 8 domaines : Santé, Finances, Travail, Relations, Famille, Loisirs, Développement personnel, Spiritualité", "type": "checkbox"},
+      {"id": 2, "label": "Identifier le domaine avec le score le plus bas", "type": "checkbox"},
+      {"id": 3, "label": "Écrire une phrase sur ce que tu veux vraiment pour chaque domaine", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Si tout était possible et que tu ne pouvais pas échouer, à quoi ressemblerait ta vie dans 1 an ?",
+      "placeholder": "Écris ta réflexion ici, sans filtre et sans limite...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 2,
+    "title": "Le Grand Vide",
+    "phase": "Reprogrammation",
+    "guide": "L'encombrement physique est le reflet de l'encombrement mental. Aujourd'hui, tu libères de l'espace pour laisser entrer du nouveau.",
+    "tasks": [
+      {"id": 1, "label": "Jeter ou donner 10 objets inutiles chez toi", "type": "checkbox"},
+      {"id": 2, "label": "Désencombrer un tiroir, une étagère ou un espace de travail", "type": "checkbox"},
+      {"id": 3, "label": "Prendre une photo avant/après de l'espace nettoyé", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "De quoi as-tu peur de te séparer physiquement, et qu'est-ce que ça dit de toi ?",
+      "placeholder": "Explore cette résistance honnêtement...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 3,
+    "title": "Audit du Temps",
+    "phase": "Reprogrammation",
+    "guide": "Le temps est ta ressource la plus précieuse et la plus non-renouvelable. Aujourd'hui, tu observes sans juger où il disparaît vraiment.",
+    "tasks": [
+      {"id": 1, "label": "Noter chaque activité de ta journée par tranches de 30 minutes", "type": "checkbox"},
+      {"id": 2, "label": "Calculer combien d'heures tu as passé sur ton téléphone", "type": "checkbox"},
+      {"id": 3, "label": "Identifier tes 3 plus grands voleurs de temps", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelles sont les 3 activités qui te volent le plus d'énergie sans te rapprocher de tes objectifs ?",
+      "placeholder": "Sois honnête sur tes habitudes actuelles...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 4,
+    "title": "Le Sommeil Sacré",
+    "phase": "Reprogrammation",
+    "guide": "Tout se répare pendant le sommeil — ton corps, ton cerveau, tes émotions. Aujourd'hui, tu traites le sommeil comme l'investissement le plus rentable de ta journée.",
+    "tasks": [
+      {"id": 1, "label": "Supprimer tous les écrans 1h avant de dormir ce soir", "type": "checkbox"},
+      {"id": 2, "label": "Définir une heure de coucher fixe et t'y tenir", "type": "checkbox"},
+      {"id": 3, "label": "Préparer ta chambre pour un sommeil optimal (obscurité, température, calme)", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Comment te sens-tu au réveil quand tu as vraiment bien dormi ? Et combien de fois as-tu vécu ça ces derniers mois ?",
+      "placeholder": "Décris ta relation actuelle avec le sommeil...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 5,
+    "title": "Hydratation Alpha",
+    "phase": "Reprogrammation",
+    "guide": "Ton cerveau est composé à 75% d'eau. La déshydratation affecte ta concentration, ton humeur et ton énergie. Aujourd'hui, tu redonnes à ton corps ce dont il a besoin.",
+    "tasks": [
+      {"id": 1, "label": "Boire 2 litres d'eau répartis sur toute la journée", "type": "checkbox"},
+      {"id": 2, "label": "Supprimer toutes les boissons sucrées aujourd'hui", "type": "checkbox"},
+      {"id": 3, "label": "Préparer une bouteille d'eau visible sur ton bureau", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Ton corps est ton véhicule pour toute ta vie. Comment l'as-tu traité ces 5 dernières années ?",
+      "placeholder": "Parle de ta relation avec ton corps sans te juger...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 6,
+    "title": "Minimalisme Numérique",
+    "phase": "Reprogrammation",
+    "guide": "Chaque notification interrompt ton cerveau pendant 23 minutes en moyenne. Aujourd'hui, tu reprends le contrôle de ton attention.",
+    "tasks": [
+      {"id": 1, "label": "Désactiver toutes les notifications non-essentielles sur ton téléphone", "type": "checkbox"},
+      {"id": 2, "label": "Supprimer 3 applications que tu utilises par habitude et non par choix", "type": "checkbox"},
+      {"id": 3, "label": "Définir 2 créneaux fixes par jour pour consulter tes messages", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Combien de fois par jour consultes-tu ton téléphone par réflexe, sans raison précise ? Qu'est-ce que tu fuis dans ces moments-là ?",
+      "placeholder": "Explore ton rapport au téléphone et aux réseaux sociaux...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 7,
+    "title": "Le Rituel Rise",
+    "phase": "Reprogrammation",
+    "guide": "Les premières minutes de ta journée programment tout le reste. Aujourd'hui, tu construis un rituel matinal qui t'appartient.",
+    "tasks": [
+      {"id": 1, "label": "Créer une routine de 15 minutes au lever sans téléphone", "type": "checkbox"},
+      {"id": 2, "label": "Inclure au moins une des trois : mouvement, gratitude, intention du jour", "type": "checkbox"},
+      {"id": 3, "label": "Appliquer cette routine demain matin dès le réveil", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle intention veux-tu donner à tes matinées désormais ? Qui veux-tu être dans les 15 premières minutes de chaque jour ?",
+      "placeholder": "Décris ton rituel matinal idéal...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 8,
+    "title": "Cercle d'Influence",
+    "phase": "Reprogrammation",
+    "guide": "Tu es la moyenne des 5 personnes que tu fréquentes le plus. Aujourd'hui, tu regardes en face qui fait partie de ton univers.",
+    "tasks": [
+      {"id": 1, "label": "Lister les 5 personnes que tu vois ou contactes le plus souvent", "type": "checkbox"},
+      {"id": 2, "label": "Pour chacune, noter si elle te tire vers le haut ou vers le bas", "type": "checkbox"},
+      {"id": 3, "label": "Identifier une personne inspirante que tu veux approcher davantage", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Ces personnes te tirent-elles vers la version de toi que tu veux devenir ? Qu'est-ce que leur présence change en toi ?",
+      "placeholder": "Sois honnête sur l'influence de ton entourage...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 9,
+    "title": "Dopamine Detox",
+    "phase": "Reprogrammation",
+    "guide": "Ton cerveau est inondé de stimulations artificielles. Aujourd'hui, tu lui offres le silence pour qu'il retrouve sa sensibilité naturelle.",
+    "tasks": [
+      {"id": 1, "label": "Passer une soirée entière sans TV, musique, réseaux sociaux ni web", "type": "checkbox"},
+      {"id": 2, "label": "Rester avec toi-même au moins 30 minutes sans rien faire", "type": "checkbox"},
+      {"id": 3, "label": "Observer ce qui remonte quand il n'y a plus de bruit", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qu'est-ce qui remonte à la surface quand tu es face au silence ? Qu'est-ce que tu évites d'entendre en toi ?",
+      "placeholder": "Décris ce que tu as ressenti dans le silence...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 10,
+    "title": "Bilan Étape 1",
+    "phase": "Reprogrammation",
+    "guide": "10 jours se sont écoulés. C'est le moment de regarder en arrière pour mesurer le chemin parcouru et ajuster la trajectoire.",
+    "tasks": [
+      {"id": 1, "label": "Relire toutes tes réponses des 9 jours précédents", "type": "checkbox"},
+      {"id": 2, "label": "Identifier tes 3 plus grandes prises de conscience", "type": "checkbox"},
+      {"id": 3, "label": "Écrire une lettre courte à toi-même sur ce que tu as appris", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est la plus grande résistance que tu as rencontrée ces 10 jours ? Qu'est-ce qu'elle t'a appris sur toi ?",
+      "placeholder": "Fais un bilan honnête de ta première semaine...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 11,
+    "title": "Le Corps en Mouvement",
+    "phase": "Reprogrammation",
+    "guide": "Le mouvement est un antidépresseur naturel. Aujourd'hui, tu bouges ton corps sans excuse.",
+    "tasks": [
+      {"id": 1, "label": "Faire 20 minutes de marche rapide ou d'exercice physique", "type": "checkbox"},
+      {"id": 2, "label": "Étirer ton corps pendant 5 minutes matin et soir", "type": "checkbox"},
+      {"id": 3, "label": "Observer comment tu te sens avant et après le mouvement", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est ta relation avec ton corps en mouvement ? La douleur que tu évites physiquement ressemble-t-elle à celle que tu évites émotionnellement ?",
+      "placeholder": "Explore ta relation avec le mouvement et l'effort physique...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 12,
+    "title": "L'Alimentation Consciente",
+    "phase": "Reprogrammation",
+    "guide": "Tu es ce que tu manges, mais surtout comment et pourquoi tu manges. Aujourd'hui, tu manges en pleine conscience.",
+    "tasks": [
+      {"id": 1, "label": "Manger un repas complet sans écran ni distraction", "type": "checkbox"},
+      {"id": 2, "label": "Noter ce que tu as mangé aujourd'hui et comment tu te sens après", "type": "checkbox"},
+      {"id": 3, "label": "Identifier un aliment que tu consommes par habitude et non par faim", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Manges-tu pour nourrir ton corps ou pour combler autre chose ? Qu'est-ce que la nourriture représente émotionnellement pour toi ?",
+      "placeholder": "Explore ton rapport à la nourriture et à tes émotions...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 13,
+    "title": "La Respiration",
+    "phase": "Reprogrammation",
+    "guide": "Tu respires 20 000 fois par jour sans y penser. Mais respirer consciemment change tout — ton stress, ton énergie, ta clarté mentale.",
+    "tasks": [
+      {"id": 1, "label": "Pratiquer la respiration 4-7-8 (inhaler 4s, retenir 7s, expirer 8s) 3 fois", "type": "checkbox"},
+      {"id": 2, "label": "Faire 5 minutes de respiration profonde le matin avant de regarder ton téléphone", "type": "checkbox"},
+      {"id": 3, "label": "Observer comment ta respiration change quand tu stresses", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Dans quels moments de ta vie retiens-tu ton souffle ou respires-tu superficiellement ? Qu'est-ce que ça dit de ton état intérieur ?",
+      "placeholder": "Explore ta relation avec ta respiration et tes états émotionnels...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 14,
+    "title": "La Posture du Pouvoir",
+    "phase": "Reprogrammation",
+    "guide": "Ton corps influence ton cerveau autant que ton cerveau influence ton corps. La façon dont tu te tiens change comment tu te sens.",
+    "tasks": [
+      {"id": 1, "label": "Corriger ta posture toutes les heures pendant la journée", "type": "checkbox"},
+      {"id": 2, "label": "Pratiquer la 'posture de pouvoir' debout pendant 2 minutes le matin", "type": "checkbox"},
+      {"id": 3, "label": "Observer comment les autres réagissent quand tu te tiens droit", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Comment te tiens-tu quand tu te sens puissante ? Et quand tu te sens diminuée ? Qu'est-ce que ta posture révèle de ta confiance en toi ?",
+      "placeholder": "Explore le lien entre ta posture et ton état intérieur...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 15,
+    "title": "Bilan Mi-Phase 1",
+    "phase": "Reprogrammation",
+    "guide": "Tu es à mi-chemin de la Phase 1. C'est le moment de mesurer les vrais changements — pas ceux que tu espérais, mais ceux qui se sont produits.",
+    "tasks": [
+      {"id": 1, "label": "Refaire le Scanner 360° du Jour 1 et comparer les scores", "type": "checkbox"},
+      {"id": 2, "label": "Identifier quelle habitude a été la plus difficile à tenir", "type": "checkbox"},
+      {"id": 3, "label": "Célébrer une petite victoire concrète de ces 15 jours", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "En quoi es-tu différente aujourd'hui par rapport au Jour 1 ? Pas ce que tu espérais — ce qui s'est vraiment passé.",
+      "placeholder": "Fais un bilan honnête et sans complaisance...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 16,
+    "title": "Les Croyances Limitantes",
+    "phase": "Reprogrammation",
+    "guide": "Tes pensées créent ta réalité. Mais certaines pensées sont des mensonges que tu répètes depuis si longtemps qu'ils semblent vrais. Aujourd'hui, tu les identifies.",
+    "tasks": [
+      {"id": 1, "label": "Lister 5 pensées négatives récurrentes sur toi-même", "type": "checkbox"},
+      {"id": 2, "label": "Pour chacune, demander : 'Est-ce absolument vrai ?' et 'D'où vient cette croyance ?'", "type": "checkbox"},
+      {"id": 3, "label": "Réécrire chaque croyance limitante en affirmation constructive", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est la croyance limitante qui te coûte le plus cher dans ta vie ? D'où vient-elle et qui te l'a apprise ?",
+      "placeholder": "Explore l'origine de tes croyances les plus profondes...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 17,
+    "title": "La Lecture Transformatrice",
+    "phase": "Reprogrammation",
+    "guide": "Lire 20 minutes par jour, c'est finir 18 livres par an. Les livres sont les mentors les moins chers du monde. Aujourd'hui, tu (re)prends cette habitude.",
+    "tasks": [
+      {"id": 1, "label": "Lire 20 minutes d'un livre de développement personnel ou biographie inspirante", "type": "checkbox"},
+      {"id": 2, "label": "Noter une idée clé qui t'a frappée", "type": "checkbox"},
+      {"id": 3, "label": "Définir un créneau fixe quotidien pour lire (même 10 minutes)", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quel livre a changé ta façon de voir le monde ? Et quel livre as-tu évité de lire parce qu'il risquait de tout remettre en question ?",
+      "placeholder": "Explore ta relation avec la connaissance et l'apprentissage...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 18,
+    "title": "La Méditation du Débutant",
+    "phase": "Reprogrammation",
+    "guide": "Tu n'as pas besoin de vider ton esprit — c'est impossible. Tu as juste besoin d'observer tes pensées sans t'y attacher. 5 minutes suffisent pour commencer.",
+    "tasks": [
+      {"id": 1, "label": "Méditer 5 minutes en silence, assis confortablement, en observant ta respiration", "type": "checkbox"},
+      {"id": 2, "label": "Quand ton esprit s'égare, revenir doucement à la respiration sans te juger", "type": "checkbox"},
+      {"id": 3, "label": "Noter comment tu te sens après ces 5 minutes", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle pensée revient sans cesse quand tu essaies de faire le silence ? Qu'est-ce qu'elle veut que tu entendes ?",
+      "placeholder": "Décris ton expérience du silence intérieur...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 19,
+    "title": "L'Apprentissage Continu",
+    "phase": "Reprogrammation",
+    "guide": "Dans un monde qui change à vitesse exponentielle, apprendre est la compétence mère. Aujourd'hui, tu identifies ce que tu veux maîtriser.",
+    "tasks": [
+      {"id": 1, "label": "Identifier une compétence que tu veux développer dans les 90 prochains jours", "type": "checkbox"},
+      {"id": 2, "label": "Trouver une ressource gratuite (YouTube, podcast, livre) pour commencer", "type": "checkbox"},
+      {"id": 3, "label": "Consacrer 20 minutes à apprendre quelque chose de nouveau", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle compétence, si tu la maîtrisais dans 1 an, changerait complètement ta vie ou ta valeur sur le marché ?",
+      "placeholder": "Explore ce que tu veux vraiment apprendre et pourquoi...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 20,
+    "title": "La Gratitude Active",
+    "phase": "Reprogrammation",
+    "guide": "La gratitude n'est pas de la naïveté — c'est une pratique neurologique qui recalibre ton cerveau vers l'abondance. Aujourd'hui, tu l'actives vraiment.",
+    "tasks": [
+      {"id": 1, "label": "Écrire 10 choses pour lesquelles tu es sincèrement reconnaissante aujourd'hui", "type": "checkbox"},
+      {"id": 2, "label": "Contacter une personne pour lui exprimer ta gratitude sincèrement", "type": "checkbox"},
+      {"id": 3, "label": "Observer pendant 1 heure combien de fois ton cerveau cherche le négatif", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Pour quoi dans ta vie actuelle — même imparfaite — peux-tu être sincèrement reconnaissante ? Qu'est-ce que tu tiens pour acquis ?",
+      "placeholder": "Explore ce qui mérite vraiment ta gratitude...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 21,
+    "title": "La Douche Froide",
+    "phase": "Reprogrammation",
+    "guide": "L'inconfort volontaire renforce la discipline. Une douche froide de 2 minutes booste la dopamine de 250%, réduit le stress et entraîne ton mental à dire oui quand tout dit non.",
+    "tasks": [
+      {"id": 1, "label": "Terminer ta douche avec 60 secondes d'eau froide", "type": "checkbox"},
+      {"id": 2, "label": "Observer la résistance de ton mental avant d'ouvrir l'eau froide", "type": "checkbox"},
+      {"id": 3, "label": "Noter comment tu te sens dans les 30 minutes qui suivent", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Dans quels domaines de ta vie résistes-tu à l'inconfort alors que tu sais que c'est ce qui te ferait grandir ?",
+      "placeholder": "Explore ta relation avec l'inconfort et la discipline...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 22,
+    "title": "La Marche Méditante",
+    "phase": "Reprogrammation",
+    "guide": "Marcher sans téléphone, sans musique, juste avec toi-même — c'est l'un des exercices les plus puissants pour clarifier ta pensée et retrouver ton intuition.",
+    "tasks": [
+      {"id": 1, "label": "Faire une marche de 30 minutes sans téléphone ni musique", "type": "checkbox"},
+      {"id": 2, "label": "Observer ta nature, les gens, les détails que tu ignores habituellement", "type": "checkbox"},
+      {"id": 3, "label": "Revenir avec une idée ou une décision que tu remettais à plus tard", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qu'est-ce que le silence et la marche ont fait remonter aujourd'hui ? Quelle décision tu évitais de prendre ?",
+      "placeholder": "Décris ce qui a émergé pendant ta marche...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 23,
+    "title": "Le Journal du Soir",
+    "phase": "Reprogrammation",
+    "guide": "Écrire avant de dormir permet au cerveau de traiter les émotions de la journée et de ne pas les transporter dans ton sommeil. C'est une thérapie gratuite.",
+    "tasks": [
+      {"id": 1, "label": "Écrire pendant 10 minutes sur ta journée : ce qui s'est bien passé, ce qui t'a pesé", "type": "checkbox"},
+      {"id": 2, "label": "Identifier une émotion que tu as ressentie et d'où elle venait", "type": "checkbox"},
+      {"id": 3, "label": "Écrire ton intention pour demain en une phrase", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle émotion as-tu du mal à exprimer à voix haute mais que tu pourrais écrire ici ? Qu'est-ce qu'elle essaie de te dire ?",
+      "placeholder": "Laisse les mots venir sans les censurer...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 24,
+    "title": "La Persévérance",
+    "phase": "Reprogrammation",
+    "guide": "La plupart des gens abandonnent juste avant que ça devienne facile. Aujourd'hui, tu choisis de continuer même si tu n'en as pas envie.",
+    "tasks": [
+      {"id": 1, "label": "Faire quelque chose que tu remets depuis plus d'une semaine", "type": "checkbox"},
+      {"id": 2, "label": "Tenir toutes tes habitudes de la Phase 1 aujourd'hui sans exception", "type": "checkbox"},
+      {"id": 3, "label": "Lire ou écouter un témoignage de quelqu'un qui a surmonté une grande épreuve", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Dans quel domaine as-tu abandonné trop tôt dans ta vie ? Qu'est-ce que ça t'a coûté ? Et si tu recommençais maintenant ?",
+      "placeholder": "Explore ta relation avec la persévérance et l'abandon...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 25,
+    "title": "Le Pardon",
+    "phase": "Reprogrammation",
+    "guide": "Garder de la rancœur, c'est boire du poison en espérant que l'autre souffre. Le pardon n'est pas pour eux — il est pour toi.",
+    "tasks": [
+      {"id": 1, "label": "Identifier une personne envers qui tu portes encore de la rancœur", "type": "checkbox"},
+      {"id": 2, "label": "Écrire une lettre de pardon (tu n'as pas à l'envoyer)", "type": "checkbox"},
+      {"id": 3, "label": "Identifier quelque chose que tu ne te pardonnes pas encore à toi-même", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qu'est-ce que tu ne te pardonnes pas encore à toi-même ? En quoi cette rancœur envers toi-même t'empêche-t-elle d'avancer ?",
+      "placeholder": "Explore ce que tu portes encore sans le nommer...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 26,
+    "title": "Les Peurs Nommées",
+    "phase": "Reprogrammation",
+    "guide": "Ce qui n'est pas nommé te contrôle. Ce qui est nommé peut être affronté. Aujourd'hui, tu regardes tes peurs en face.",
+    "tasks": [
+      {"id": 1, "label": "Lister tes 5 plus grandes peurs actuelles", "type": "checkbox"},
+      {"id": 2, "label": "Pour chacune, demander : 'Quelle est la pire chose qui pourrait vraiment arriver ?'", "type": "checkbox"},
+      {"id": 3, "label": "Identifier une action concrète pour affronter ta peur la plus petite", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est la peur qui dicte le plus tes décisions sans que tu l'admettes ? Comment serait ta vie sans elle ?",
+      "placeholder": "Nomme ce que tu évites de regarder en face...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 27,
+    "title": "La Vision Claire",
+    "phase": "Reprogrammation",
+    "guide": "Sans vision claire, tu travailles pour le projet de quelqu'un d'autre. Aujourd'hui, tu clarifies ce que tu veux vraiment.",
+    "tasks": [
+      {"id": 1, "label": "Écrire en détail à quoi ressemble ta vie idéale dans 3 ans (travail, lieu, relations, corps, finances)", "type": "checkbox"},
+      {"id": 2, "label": "Trouver 3 images qui représentent cette vision et les mettre en fond d'écran", "type": "checkbox"},
+      {"id": 3, "label": "Identifier le plus grand obstacle entre toi et cette vision", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Si tu savais avec certitude que tu ne pouvais pas échouer, quel serait ton prochain grand mouvement ? Qu'est-ce qui t'en empêche vraiment ?",
+      "placeholder": "Décris ta vie idéale sans te censurer...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 28,
+    "title": "La Discipline du Non",
+    "phase": "Reprogrammation",
+    "guide": "Chaque oui que tu donnes aux autres est un non que tu te donnes à toi-même. Dire non est un acte d'amour envers ta vision.",
+    "tasks": [
+      {"id": 1, "label": "Dire non à une demande qui ne t'appartient pas aujourd'hui", "type": "checkbox"},
+      {"id": 2, "label": "Identifier 3 engagements actuels qui drainent ton énergie sans te rapprocher de tes objectifs", "type": "checkbox"},
+      {"id": 3, "label": "Préparer une phrase simple pour décliner poliment mais fermement", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "À qui dis-tu oui trop souvent par peur de décevoir ? Et à qui — ou à quoi — mérites-tu de dire oui davantage ?",
+      "placeholder": "Explore tes difficultés à poser des limites...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 29,
+    "title": "La Lettre à Toi-Même",
+    "phase": "Reprogrammation",
+    "guide": "Tu es à l'avant-veille de la fin de la Phase 1. Cette lettre est un pont entre qui tu étais au Jour 1 et qui tu commences à devenir.",
+    "tasks": [
+      {"id": 1, "label": "Écrire une lettre à la version de toi du Jour 1", "type": "checkbox"},
+      {"id": 2, "label": "Écrire une lettre de toi dans 90 jours à toi aujourd'hui", "type": "checkbox"},
+      {"id": 3, "label": "Relire ces deux lettres à voix haute", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qu'est-ce que tu dirais à la version de toi qui a commencé ce programme ? Et qu'est-ce que tu veux que la version future de toi te dise ?",
+      "placeholder": "Écris ces lettres avec toute ta sincérité...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 30,
+    "title": "Bilan Phase 1 — La Femme Nouvelle",
+    "phase": "Reprogrammation",
+    "guide": "30 jours. Tu as tenu. Ce n'est pas rien — la plupart des gens abandonnent avant le Jour 10. Aujourd'hui, tu célèbres et tu prépares l'offensive.",
+    "tasks": [
+      {"id": 1, "label": "Refaire le Scanner 360° complet et comparer avec le Jour 1", "type": "checkbox"},
+      {"id": 2, "label": "Lister tes 5 plus grandes transformations de la Phase 1", "type": "checkbox"},
+      {"id": 3, "label": "Te faire un cadeau symbolique pour célébrer ces 30 jours", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "En quoi es-tu différente aujourd'hui par rapport au Jour 1 ? Pas ce que tu espérais — ce qui s'est réellement transformé en toi.",
+      "placeholder": "Bilan complet et célébration de ta Phase 1...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 31,
+    "title": "Audit des Finances",
+    "phase": "Action & Discipline",
+    "guide": "L'argent est un outil. Mais si tu ne sais pas où il va, il ne travaille pas pour toi. Aujourd'hui, tu regardes tes finances en face sans jugement.",
+    "tasks": [
+      {"id": 1, "label": "Lister toutes tes dépenses du mois dernier par catégorie", "type": "checkbox"},
+      {"id": 2, "label": "Identifier tes 3 plus grandes dépenses non-essentielles", "type": "checkbox"},
+      {"id": 3, "label": "Calculer combien tu pourrais économiser chaque mois en supprimant 2 habitudes", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est ta relation avec l'argent : peur, honte, inconscience ou outil ? D'où vient cette relation et qui te l'a transmise ?",
+      "placeholder": "Explore honnêtement ta relation avec l'argent...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 32,
+    "title": "Le Budget Conscient",
+    "phase": "Action & Discipline",
+    "guide": "Un budget n'est pas une prison — c'est une carte. Il te montre où tu veux aller et comment y arriver.",
+    "tasks": [
+      {"id": 1, "label": "Créer un budget mensuel simple avec 3 colonnes : revenus, dépenses fixes, dépenses variables", "type": "checkbox"},
+      {"id": 2, "label": "Définir un montant d'épargne automatique même petit (10€ suffit pour commencer)", "type": "checkbox"},
+      {"id": 3, "label": "Mettre en place un virement automatique vers un compte épargne", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Si tu avais 6 mois de revenus de côté, qu'est-ce que ça changerait dans tes décisions quotidiennes ? Qu'est-ce que tu oserais faire que tu n'oses pas maintenant ?",
+      "placeholder": "Explore le lien entre sécurité financière et liberté...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 33,
+    "title": "La Valeur de Ton Temps",
+    "phase": "Action & Discipline",
+    "guide": "Calcule la valeur de ton heure. Puis demande-toi si tu passes tes heures sur des tâches qui valent ce prix.",
+    "tasks": [
+      {"id": 1, "label": "Calculer ton taux horaire actuel (revenu mensuel ÷ heures travaillées)", "type": "checkbox"},
+      {"id": 2, "label": "Lister les tâches de ta semaine qui valent moins que ce taux et que tu pourrais déléguer", "type": "checkbox"},
+      {"id": 3, "label": "Identifier la tâche à haute valeur que tu repousses le plus souvent", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Si ton temps valait 10 fois plus, comment organiserais-tu ta semaine différemment ? Qu'est-ce que tu arrêterais de faire immédiatement ?",
+      "placeholder": "Explore comment tu valorises et utilises ton temps...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 34,
+    "title": "Les Sources de Revenus",
+    "phase": "Action & Discipline",
+    "guide": "Les personnes financièrement libres ont en moyenne 3 sources de revenus. Aujourd'hui, tu explores ce qui est possible pour toi.",
+    "tasks": [
+      {"id": 1, "label": "Lister toutes tes compétences actuelles (même celles que tu sous-estimes)", "type": "checkbox"},
+      {"id": 2, "label": "Identifier une compétence que tu pourrais monétiser dans les 90 prochains jours", "type": "checkbox"},
+      {"id": 3, "label": "Faire une première action concrète vers cette source de revenu additionnelle", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle compétence possèdes-tu que les autres trouvent précieuse mais que toi tu trouves évidente ? Pourquoi ne la monétises-tu pas encore ?",
+      "placeholder": "Explore tes compétences monnayables que tu ignores...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 35,
+    "title": "Bilan Finances",
+    "phase": "Action & Discipline",
+    "guide": "5 jours sur les finances. Tu as peut-être eu des prises de conscience inconfortables — c'est normal. L'inconfort précède toujours le changement.",
+    "tasks": [
+      {"id": 1, "label": "Résumer en 3 phrases tes principales découvertes sur tes finances", "type": "checkbox"},
+      {"id": 2, "label": "Définir un objectif financier concret pour les 60 prochains jours", "type": "checkbox"},
+      {"id": 3, "label": "Prendre un engagement écrit envers cet objectif", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quel serait ton objectif financier à 1 an si tu ne te bridais pas ? Et quelle est la première action concrète que tu peux faire cette semaine ?",
+      "placeholder": "Transforme tes prises de conscience en plan d'action...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 36,
+    "title": "Le Deep Work",
+    "phase": "Action & Discipline",
+    "guide": "Le travail profond — sans distraction — produit en 4 heures ce que la plupart font en une semaine. Aujourd'hui, tu expérimentes cette puissance.",
+    "tasks": [
+      {"id": 1, "label": "Bloquer 90 minutes de travail profond sans aucune interruption (téléphone en mode avion)", "type": "checkbox"},
+      {"id": 2, "label": "Identifier ta tâche la plus importante de la journée et la faire en premier", "type": "checkbox"},
+      {"id": 3, "label": "Observer ta capacité de concentration et noter combien de fois tu as eu envie de te distraire", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est la tâche importante que tu repousses depuis le plus longtemps ? Qu'est-ce qui se passerait vraiment si tu la finissais cette semaine ?",
+      "placeholder": "Explore ta relation avec le travail profond et la concentration...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 37,
+    "title": "L'Environnement de Travail",
+    "phase": "Action & Discipline",
+    "guide": "Ton environnement façonne ton comportement. Un espace de travail optimisé multiplie ta productivité sans effort de volonté.",
+    "tasks": [
+      {"id": 1, "label": "Nettoyer et organiser ton espace de travail principal", "type": "checkbox"},
+      {"id": 2, "label": "Éliminer toutes les distractions visuelles de cet espace", "type": "checkbox"},
+      {"id": 3, "label": "Ajouter un élément qui t'inspire (citation, plante, objet symbolique)", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Ton environnement actuel te pousse-t-il vers la version de toi que tu veux devenir ? Qu'est-ce que tu changerais si tu pouvais concevoir ton espace idéal ?",
+      "placeholder": "Explore l'impact de ton environnement sur ta productivité...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 38,
+    "title": "La Gestion des Priorités",
+    "phase": "Action & Discipline",
+    "guide": "Être occupée n'est pas la même chose qu'être productive. Aujourd'hui, tu apprends la différence entre urgent et important.",
+    "tasks": [
+      {"id": 1, "label": "Lister tout ce que tu dois faire cette semaine", "type": "checkbox"},
+      {"id": 2, "label": "Classer chaque tâche selon la matrice Eisenhower (urgent/important)", "type": "checkbox"},
+      {"id": 3, "label": "Éliminer, déléguer ou repousser tout ce qui n'est ni urgent ni important", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Combien de ton énergie est consacrée à l'urgent mais pas important ? Qu'est-ce qui serait différent si tu travaillais uniquement sur l'important ?",
+      "placeholder": "Explore ta gestion des priorités et de l'énergie...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 39,
+    "title": "L'Élan du Matin",
+    "phase": "Action & Discipline",
+    "guide": "La règle des 2 minutes : si une tâche prend moins de 2 minutes, fais-la maintenant. La règle de 5 secondes : compte à rebours 5-4-3-2-1 et agis avant que ton cerveau trouve une excuse.",
+    "tasks": [
+      {"id": 1, "label": "Appliquer la règle des 2 minutes pour 5 tâches qui traînent", "type": "checkbox"},
+      {"id": 2, "label": "Utiliser la règle des 5 secondes pour démarrer ta tâche la plus repoussée", "type": "checkbox"},
+      {"id": 3, "label": "Terminer ta journée avec un plan des 3 priorités du lendemain", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est la procrastination qui te coûte le plus cher en ce moment ? Qu'est-ce que tu évites de commencer et pourquoi ?",
+      "placeholder": "Explore ta relation avec la procrastination...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 40,
+    "title": "La Maîtrise Focus",
+    "phase": "Action & Discipline",
+    "guide": "Tu arrives à mi-chemin de la Phase 2. Ta concentration s'est renforcée. Aujourd'hui, tu vas au bout d'un projet que tu n'as jamais terminé.",
+    "tasks": [
+      {"id": 1, "label": "Identifier un projet inachevé important et le terminer aujourd'hui ou planifier sa fin", "type": "checkbox"},
+      {"id": 2, "label": "Faire 2 sessions de Deep Work de 90 minutes avec une pause de 20 minutes entre", "type": "checkbox"},
+      {"id": 3, "label": "Célébrer la complétion d'une tâche importante", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qu'est-ce que tu accomplirais si tu étais deux fois plus concentrée ? Quel projet te tient à cœur mais que tu n'as jamais vraiment lancé ?",
+      "placeholder": "Explore ta relation avec la complétion et l'accomplissement...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 41,
+    "title": "Le Corps Performant",
+    "phase": "Action & Discipline",
+    "guide": "La Phase 2 s'attaque maintenant à ton corps. Pas pour l'apparence — pour la performance. Un corps fort produit un mental fort.",
+    "tasks": [
+      {"id": 1, "label": "Faire 30 minutes d'exercice physique intense (HIIT, musculation, course)", "type": "checkbox"},
+      {"id": 2, "label": "Manger un repas équilibré avec protéines, légumes et bonnes graisses", "type": "checkbox"},
+      {"id": 3, "label": "Définir un objectif physique concret pour les 50 prochains jours", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est ta limite physique actuelle et comment pourrais-tu la repousser progressivement ? Ton corps est-il un allié ou une contrainte dans ta vie ?",
+      "placeholder": "Explore ta relation avec la performance physique...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 42,
+    "title": "La Nutrition Optimisée",
+    "phase": "Action & Discipline",
+    "guide": "Tu es ce que tu manges, mais surtout : ton cerveau fonctionne avec ce que tu lui donnes. Aujourd'hui, tu optimises ton carburant.",
+    "tasks": [
+      {"id": 1, "label": "Préparer un repas complet et nutritif fait maison", "type": "checkbox"},
+      {"id": 2, "label": "Supprimer le sucre raffiné pendant 24 heures", "type": "checkbox"},
+      {"id": 3, "label": "Faire les courses avec une liste prévue à l'avance", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Comment ton alimentation actuelle affecte-t-elle ton énergie, ta concentration et ton humeur ? Quelle est la relation entre ce que tu manges et comment tu te sens ?",
+      "placeholder": "Explore le lien entre nutrition et bien-être...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 43,
+    "title": "Le Jeûne Intermittent",
+    "phase": "Action & Discipline",
+    "guide": "Le jeûne 16/8 n'est pas une privation — c'est donner à ton corps le temps de se réparer. Pendant les heures de jeûne, ton énergie mentale augmente.",
+    "tasks": [
+      {"id": 1, "label": "Essayer un jeûne de 14 à 16 heures (sauter le petit-déjeuner ou dîner tôt)", "type": "checkbox"},
+      {"id": 2, "label": "Boire eau, café noir ou thé pendant le jeûne", "type": "checkbox"},
+      {"id": 3, "label": "Observer ton niveau d'énergie et de clarté mentale pendant le jeûne", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qu'as-tu ressenti pendant ce jeûne ? La faim était-elle physique ou émotionnelle ? Qu'est-ce que cette expérience t'apprend sur ton rapport à la nourriture ?",
+      "placeholder": "Explore ton expérience du jeûne...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 44,
+    "title": "La Force Mentale",
+    "phase": "Action & Discipline",
+    "guide": "La force mentale ne se développe pas dans le confort. Elle se construit dans les moments où tu veux abandonner et que tu continues quand même.",
+    "tasks": [
+      {"id": 1, "label": "Faire quelque chose d'inconfortable que tu repousses depuis longtemps", "type": "checkbox"},
+      {"id": 2, "label": "Tenir toutes tes habitudes même si tu n'en as pas envie", "type": "checkbox"},
+      {"id": 3, "label": "Lire un chapitre sur la résilience ou la discipline mentale", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Dans quel domaine de ta vie manques-tu de force mentale ? Qu'est-ce qui se passerait si tu développais une discipline en acier dans ce domaine ?",
+      "placeholder": "Explore ta force mentale et ses limites actuelles...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 45,
+    "title": "Bilan Mi-Phase 2",
+    "phase": "Action & Discipline",
+    "guide": "45 jours. La moitié du programme. Tu n'es plus la même personne qu'au Jour 1 — même si tu ne le réalises pas encore complètement.",
+    "tasks": [
+      {"id": 1, "label": "Faire le point sur tes objectifs des Phases 1 et 2 : où en es-tu ?", "type": "checkbox"},
+      {"id": 2, "label": "Identifier les 3 habitudes les mieux ancrées", "type": "checkbox"},
+      {"id": 3, "label": "Ajuster le plan pour les 45 jours restants", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Si tu regardes la personne que tu étais au Jour 1, qu'est-ce qui a vraiment changé ? Et qu'est-ce qui résiste encore au changement ?",
+      "placeholder": "Bilan complet à mi-parcours...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 46,
+    "title": "La Santé Globale",
+    "phase": "Action & Discipline",
+    "guide": "La santé n'est pas l'absence de maladie — c'est un état de vitalité physique, mentale et émotionnelle. Aujourd'hui, tu fais le bilan complet.",
+    "tasks": [
+      {"id": 1, "label": "Faire une check-up de santé : as-tu des rendez-vous médicaux à prendre ?", "type": "checkbox"},
+      {"id": 2, "label": "Évaluer ton niveau d'énergie de 1 à 10 et identifier ce qui le diminue", "type": "checkbox"},
+      {"id": 3, "label": "Prendre un engagement concret pour améliorer un aspect de ta santé", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Si tu prenais vraiment soin de toi — corps, mental, émotions — à quoi ressemblerait ta journée type ? Qu'est-ce qui t'en empêche aujourd'hui ?",
+      "placeholder": "Explore ta vision d'une santé globale et optimale...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 47,
+    "title": "L'Entraînement de Force",
+    "phase": "Action & Discipline",
+    "guide": "La musculation n'est pas réservée aux athlètes. Soulever des poids ou faire de la résistance corporelle améliore la densité osseuse, le métabolisme et la confiance en soi.",
+    "tasks": [
+      {"id": 1, "label": "Faire une séance de musculation ou exercices de résistance (squats, pompes, gainage)", "type": "checkbox"},
+      {"id": 2, "label": "Aller jusqu'à l'inconfort musculaire — pas la douleur, l'effort", "type": "checkbox"},
+      {"id": 3, "label": "Planifier 3 séances par semaine dans ton agenda", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Comment te sens-tu dans et après l'effort physique intense ? Repousser tes limites physiques change-t-il quelque chose à ta confiance dans d'autres domaines ?",
+      "placeholder": "Explore le lien entre force physique et confiance...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 48,
+    "title": "Le Repos Actif",
+    "phase": "Action & Discipline",
+    "guide": "La performance sans récupération mène à l'épuisement. Aujourd'hui, tu apprends l'art de te reposer intentionnellement.",
+    "tasks": [
+      {"id": 1, "label": "Planifier une activité de récupération : yoga, stretching, bain chaud, lecture légère", "type": "checkbox"},
+      {"id": 2, "label": "Faire une sieste de 20 minutes si tu en ressens le besoin", "type": "checkbox"},
+      {"id": 3, "label": "Passer 30 minutes dans la nature sans objectif", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "As-tu du mal à te reposer sans culpabilité ? Qu'est-ce que la productivité permanente dit de ta relation avec ta valeur personnelle ?",
+      "placeholder": "Explore ta capacité à te reposer sans culpabiliser...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 49,
+    "title": "L'Hygiène Émotionnelle",
+    "phase": "Action & Discipline",
+    "guide": "Les émotions non traitées s'accumulent et explosent au mauvais moment. Aujourd'hui, tu fais le nettoyage émotionnel.",
+    "tasks": [
+      {"id": 1, "label": "Identifier une émotion difficile que tu portes depuis plusieurs jours", "type": "checkbox"},
+      {"id": 2, "label": "L'exprimer par l'écriture, le mouvement ou la parole à une personne de confiance", "type": "checkbox"},
+      {"id": 3, "label": "Observer sans jugement comment cette émotion se manifeste dans ton corps", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle émotion as-tu du mal à ressentir pleinement — la joie, la tristesse, la colère, la peur ? Pourquoi cette émotion-là en particulier ?",
+      "placeholder": "Explore ton rapport aux émotions difficiles...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 50,
+    "title": "Les Relations & L'Entourage",
+    "phase": "Action & Discipline",
+    "guide": "À mi-phase, tu fais le point sur les relations qui te nourrissent et celles qui te vident. Personne ne peut te transformer si tu restes entourée de personnes qui te ramènent à qui tu étais.",
+    "tasks": [
+      {"id": 1, "label": "Contacter une personne que tu admires et avec qui tu as perdu contact", "type": "checkbox"},
+      {"id": 2, "label": "Identifier une relation toxique et définir comment tu vas prendre soin de toi dans ce contexte", "type": "checkbox"},
+      {"id": 3, "label": "Faire quelque chose de généreux pour quelqu'un sans attendre de retour", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qui dans ta vie te voit telle que tu veux devenir — pas telle que tu étais ? Et qui te ramène constamment à une version de toi que tu veux dépasser ?",
+      "placeholder": "Explore l'impact de tes relations sur ta transformation...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 51,
+    "title": "La Communication Assertive",
+    "phase": "Action & Discipline",
+    "guide": "Ni agressive ni passive — assertive. Exprimer tes besoins clairement et avec respect est une compétence qui change toutes tes relations.",
+    "tasks": [
+      {"id": 1, "label": "Exprimer un besoin non satisfait à quelqu'un de manière directe et respectueuse", "type": "checkbox"},
+      {"id": 2, "label": "Utiliser la formule 'Quand tu fais X, je ressens Y, j'aurais besoin de Z'", "type": "checkbox"},
+      {"id": 3, "label": "Observer la différence entre exprimer un besoin et faire un reproche", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quel besoin non exprimé crée le plus de tension dans une de tes relations actuelles ? Qu'est-ce qui t'empêche de le formuler clairement ?",
+      "placeholder": "Explore tes difficultés à exprimer tes besoins...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 52,
+    "title": "Savoir Dire Non",
+    "phase": "Action & Discipline",
+    "guide": "Non est une phrase complète. Tu n'as pas besoin de te justifier, de t'excuser ou d'expliquer. Dire non à ce qui n'est pas aligné, c'est dire oui à ta vie.",
+    "tasks": [
+      {"id": 1, "label": "Identifier 3 situations récentes où tu aurais dû dire non et tu ne l'as pas fait", "type": "checkbox"},
+      {"id": 2, "label": "Pratiquer à voix haute : 'Non, ce n'est pas possible pour moi' sans justification", "type": "checkbox"},
+      {"id": 3, "label": "Dire non à une demande aujourd'hui en restant bienveillante mais ferme", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "À qui as-tu le plus de mal à dire non ? Qu'est-ce que tu crains qu'il se passe si tu le fais ? Cette peur est-elle réaliste ?",
+      "placeholder": "Explore ta difficulté à poser des limites saines...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 53,
+    "title": "Le Leadership Personnel",
+    "phase": "Action & Discipline",
+    "guide": "Avant de mener les autres, tu dois apprendre à te mener toi-même. Le leadership personnel c'est tenir tes promesses à toi-même, même quand personne ne regarde.",
+    "tasks": [
+      {"id": 1, "label": "Tenir 100% de tes engagements envers toi-même aujourd'hui", "type": "checkbox"},
+      {"id": 2, "label": "Identifier un domaine où tu te mens à toi-même et prendre une décision claire", "type": "checkbox"},
+      {"id": 3, "label": "Agir selon tes valeurs dans une situation où c'était difficile", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Dans quels domaines ne te fais-tu pas confiance ? Et qu'est-ce qui se passerait si tu étais aussi fiable envers toi-même qu'envers les autres ?",
+      "placeholder": "Explore ta relation avec la confiance en toi-même...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 54,
+    "title": "L'Impact & La Contribution",
+    "phase": "Action & Discipline",
+    "guide": "Le sens de la vie ne se trouve pas dans ce qu'on reçoit mais dans ce qu'on donne. Aujourd'hui, tu réfléchis à l'impact que tu veux avoir.",
+    "tasks": [
+      {"id": 1, "label": "Aider quelqu'un concrètement sans attendre de reconnaissance", "type": "checkbox"},
+      {"id": 2, "label": "Identifier comment tes compétences pourraient servir un plus grand projet", "type": "checkbox"},
+      {"id": 3, "label": "Écrire ce que tu veux que les gens ressentent après t'avoir rencontrée", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quel impact veux-tu avoir sur les gens autour de toi — ta famille, ton cercle, ta communauté ? Qu'est-ce que tu veux transmettre ?",
+      "placeholder": "Explore ta vision de ta contribution au monde...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 55,
+    "title": "La Cohérence des Valeurs",
+    "phase": "Action & Discipline",
+    "guide": "La souffrance naît souvent de l'écart entre ce que tu valorises et comment tu vis. Aujourd'hui, tu réduis cet écart.",
+    "tasks": [
+      {"id": 1, "label": "Lister tes 5 valeurs fondamentales (liberté, famille, honnêteté, créativité...)", "type": "checkbox"},
+      {"id": 2, "label": "Évaluer si tes choix quotidiens sont alignés avec ces valeurs", "type": "checkbox"},
+      {"id": 3, "label": "Identifier une décision à prendre qui serait en parfait alignement avec tes valeurs", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Où dans ta vie sens-tu le plus fort écart entre ce que tu valorises et comment tu vis ? Quel serait le premier pas pour réduire cet écart ?",
+      "placeholder": "Explore ton alignement entre valeurs et actions...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 56,
+    "title": "La Confiance en Soi",
+    "phase": "Action & Discipline",
+    "guide": "La confiance en soi ne vient pas de se sentir prête — elle vient d'agir malgré l'incertitude. Chaque action courageuse renforce la confiance.",
+    "tasks": [
+      {"id": 1, "label": "Faire quelque chose qui te met légèrement hors de ta zone de confort", "type": "checkbox"},
+      {"id": 2, "label": "Lister 10 preuves concrètes de ta compétence et ta valeur", "type": "checkbox"},
+      {"id": 3, "label": "Te regarder dans le miroir et te dire 3 choses que tu apprécies en toi", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Dans quels domaines manques-tu de confiance en toi ? D'où vient ce manque — une expérience passée, un message reçu, une comparaison ?",
+      "placeholder": "Explore l'origine de ton manque de confiance...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 57,
+    "title": "L'Authenticité",
+    "phase": "Action & Discipline",
+    "guide": "Combien d'énergie dépenses-tu à être quelqu'un d'autre pour plaire ? L'authenticité n'est pas un luxe — c'est une libération.",
+    "tasks": [
+      {"id": 1, "label": "Identifier 3 situations où tu joues un rôle plutôt que d'être toi-même", "type": "checkbox"},
+      {"id": 2, "label": "Dire quelque chose d'authentique à quelqu'un sans le filtrer", "type": "checkbox"},
+      {"id": 3, "label": "Passer 1 heure à faire quelque chose que tu aimes vraiment sans le justifier", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qui es-tu vraiment quand personne ne regarde ? Et pourquoi cette version de toi est-elle difficile à montrer aux autres ?",
+      "placeholder": "Explore qui tu es sans le masque social...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 58,
+    "title": "L'Ambition Assumée",
+    "phase": "Action & Discipline",
+    "guide": "L'ambition n'est pas un défaut — c'est une énergie. Vouloir plus, faire plus, devenir plus : c'est humain et c'est puissant. Assume-la.",
+    "tasks": [
+      {"id": 1, "label": "Écrire ton objectif le plus ambitieux sans le minimiser", "type": "checkbox"},
+      {"id": 2, "label": "Le partager avec une personne en qui tu as confiance", "type": "checkbox"},
+      {"id": 3, "label": "Faire une action concrète vers cet objectif aujourd'hui", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "As-tu honte de ton ambition ? Te sens-tu illégitime de vouloir plus ? D'où vient cette honte et qui t'a appris à te contenter de peu ?",
+      "placeholder": "Explore ta relation avec ton ambition et ta légitimité...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 59,
+    "title": "La Résilience",
+    "phase": "Action & Discipline",
+    "guide": "La résilience n'est pas de ne jamais tomber — c'est de se relever à chaque fois un peu plus vite. Et tu t'es déjà relevée. Rappelle-toi.",
+    "tasks": [
+      {"id": 1, "label": "Écrire une épreuve passée dont tu es fière de t'être relevée", "type": "checkbox"},
+      {"id": 2, "label": "Identifier ce que cette épreuve t'a appris sur ta force", "type": "checkbox"},
+      {"id": 3, "label": "Trouver comment cette force peut servir un défi actuel", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle épreuve de ta vie t'a forgée le plus ? Qu'est-ce qu'elle t'a prouvé sur ta capacité à surmonter l'adversité ?",
+      "placeholder": "Reconnecte-toi à ta résilience passée...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 60,
+    "title": "Bilan Phase 2 — L'Offensive",
+    "phase": "Action & Discipline",
+    "guide": "60 jours. Deux tiers du chemin. Tu n'es plus la même. La Phase 3 va ancrer définitivement ce que tu as construit et te projeter vers l'avenir.",
+    "tasks": [
+      {"id": 1, "label": "Refaire le Scanner 360° et noter l'évolution depuis le Jour 1", "type": "checkbox"},
+      {"id": 2, "label": "Lister les 5 habitudes les mieux ancrées", "type": "checkbox"},
+      {"id": 3, "label": "Écrire ta vision pour la Phase 3 en 5 phrases", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "En 60 jours, quelle est la plus grande transformation intérieure que tu as vécue ? Pas les actions — le changement dans ta façon de te voir.",
+      "placeholder": "Bilan profond de ta Phase 2...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 61,
+    "title": "Vision 5 Ans",
+    "phase": "Expansion & Pérennité",
+    "guide": "Bienvenue en Phase 3. Maintenant que le terrain est préparé et les habitudes posées, il est temps de projeter la grande vision. Qui veux-tu être dans 5 ans ?",
+    "tasks": [
+      {"id": 1, "label": "Écrire en détail ta vie idéale dans 5 ans (travail, finances, corps, relations, lieu de vie)", "type": "checkbox"},
+      {"id": 2, "label": "Créer un tableau de vision (photos, mots, symboles)", "type": "checkbox"},
+      {"id": 3, "label": "Identifier les 3 décisions les plus importantes pour y arriver", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Si tu ne pouvais pas échouer et que l'argent n'était pas un obstacle, que ferais-tu maintenant ? Qu'est-ce qui t'en sépare vraiment ?",
+      "placeholder": "Projette-toi sans limite dans ton futur idéal...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 62,
+    "title": "Les Objectifs SMART",
+    "phase": "Expansion & Pérennité",
+    "guide": "Une vision sans objectifs concrets reste un rêve. Aujourd'hui, tu transformes ta vision en objectifs atteignables.",
+    "tasks": [
+      {"id": 1, "label": "Définir 3 objectifs SMART pour les 12 prochains mois (Spécifiques, Mesurables, Atteignables, Réalistes, Temporels)", "type": "checkbox"},
+      {"id": 2, "label": "Pour chaque objectif, définir 3 actions concrètes à faire cette semaine", "type": "checkbox"},
+      {"id": 3, "label": "Planifier un point de suivi mensuel dans ton agenda", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quel est l'objectif que tu remets depuis le plus longtemps ? Qu'est-ce qui se passerait concrètement si tu le posais vraiment comme priorité cette année ?",
+      "placeholder": "Transforme ta vision en objectifs concrets...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 63,
+    "title": "L'Alignement des Actions",
+    "phase": "Expansion & Pérennité",
+    "guide": "Chaque action quotidienne est un vote pour la personne que tu veux devenir. Aujourd'hui, tu aligne une journée complète sur ta vision.",
+    "tasks": [
+      {"id": 1, "label": "Planifier demain en vérifiant que chaque activité te rapproche de ta vision à 5 ans", "type": "checkbox"},
+      {"id": 2, "label": "Éliminer une activité chronophage qui ne sert pas ta vision", "type": "checkbox"},
+      {"id": 3, "label": "Ajouter une action vers ton objectif principal même si elle est petite", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Si tu observais ta journée d'hier, dans quelle mesure était-elle alignée avec la personne que tu veux devenir dans 5 ans ? Qu'est-ce que tu changerais ?",
+      "placeholder": "Explore l'alignement entre tes journées et ta vision...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 64,
+    "title": "Le Mentor Idéal",
+    "phase": "Expansion & Pérennité",
+    "guide": "Tu n'as pas à tout réinventer. Quelqu'un a déjà fait ce chemin. Trouver un mentor — réel ou à travers ses livres — accélère tout.",
+    "tasks": [
+      {"id": 1, "label": "Identifier une personne qui a réussi ce que tu veux accomplir", "type": "checkbox"},
+      {"id": 2, "label": "Lire ou regarder du contenu sur son parcours pour comprendre ses méthodes", "type": "checkbox"},
+      {"id": 3, "label": "Extraire 3 principes de sa réussite applicables à ta situation", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Si tu pouvais avoir n'importe qui comme mentor, qui choisirais-tu et pourquoi ? Qu'est-ce que cette personne possède que tu veux développer en toi ?",
+      "placeholder": "Explore qui t'inspire et ce que tu veux en apprendre...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 65,
+    "title": "La Construction du Réseau",
+    "phase": "Expansion & Pérennité",
+    "guide": "Ton réseau est ton patrimoine caché. Les opportunités ne viennent pas par hasard — elles viennent des gens que tu connais et qui pensent à toi.",
+    "tasks": [
+      {"id": 1, "label": "Contacter 3 personnes de ton réseau que tu n'as pas vu depuis longtemps", "type": "checkbox"},
+      {"id": 2, "label": "Participer à un événement (en ligne ou physique) dans ton domaine d'intérêt", "type": "checkbox"},
+      {"id": 3, "label": "Offrir de la valeur à quelqu'un sans attendre de retour", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qui dans ton réseau actuel pourrait t'ouvrir des portes si tu osais demander ? Qu'est-ce qui t'empêche de demander de l'aide ou du soutien ?",
+      "placeholder": "Explore ta relation avec le réseautage et la demande d'aide...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 66,
+    "title": "La Marque Personnelle",
+    "phase": "Expansion & Pérennité",
+    "guide": "Dans le monde d'aujourd'hui, ta réputation précède ta présence. Qui es-tu aux yeux des autres ? Est-ce aligné avec qui tu veux être ?",
+    "tasks": [
+      {"id": 1, "label": "Demander à 3 personnes de confiance : 'Quand tu penses à moi, quels mots te viennent ?'", "type": "checkbox"},
+      {"id": 2, "label": "Comparer ces perceptions avec l'image que tu veux projeter", "type": "checkbox"},
+      {"id": 3, "label": "Définir en une phrase qui tu es et ce que tu apportes au monde", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qui veux-tu être aux yeux des autres dans 5 ans ? Quels mots veux-tu qu'ils utilisent pour te décrire ? Et qu'est-ce que tu dois changer maintenant pour y arriver ?",
+      "placeholder": "Construis ta vision de ta marque personnelle...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 67,
+    "title": "La Création de Valeur",
+    "phase": "Expansion & Pérennité",
+    "guide": "Les personnes qui réussissent ne cherchent pas à prendre — elles cherchent à créer et donner de la valeur. Aujourd'hui, tu identifies comment créer.",
+    "tasks": [
+      {"id": 1, "label": "Identifier un problème que tu pourrais résoudre pour les autres grâce à tes compétences", "type": "checkbox"},
+      {"id": 2, "label": "Créer quelque chose de concret : un post, un document, une aide à quelqu'un", "type": "checkbox"},
+      {"id": 3, "label": "Réfléchir à comment transformer cette création de valeur en source de revenus", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quel problème dans le monde — même petit — es-tu particulièrement bien placée pour résoudre ? Et comment pourrais-tu commencer à le résoudre dès cette semaine ?",
+      "placeholder": "Explore comment tu peux créer de la valeur pour les autres...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 68,
+    "title": "L'Héritage à Construire",
+    "phase": "Expansion & Pérennité",
+    "guide": "Dans 50 ans, que voudras-tu avoir accompli ? Cette question n'est pas morbide — elle est libératrice. Elle clarifie ce qui compte vraiment.",
+    "tasks": [
+      {"id": 1, "label": "Écrire l'éloge funèbre que tu voudrais qu'on dise de toi", "type": "checkbox"},
+      {"id": 2, "label": "Identifier si tes actions actuelles te mènent vers cette personne", "type": "checkbox"},
+      {"id": 3, "label": "Définir une action aujourd'hui qui contribue à cet héritage", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle trace veux-tu laisser — dans ta famille, ton travail, ta communauté ? Qu'est-ce qui compte assez pour que tu y consacres ta vie ?",
+      "placeholder": "Explore ce que tu veux laisser derrière toi...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 69,
+    "title": "La Transmission",
+    "phase": "Expansion & Pérennité",
+    "guide": "Ce que tu as appris en 69 jours a de la valeur pour quelqu'un d'autre. Partager accélère l'apprentissage et ancre les transformations.",
+    "tasks": [
+      {"id": 1, "label": "Partager une prise de conscience de ce programme avec quelqu'un", "type": "checkbox"},
+      {"id": 2, "label": "Enseigner quelque chose que tu as appris à une personne qui en aurait besoin", "type": "checkbox"},
+      {"id": 3, "label": "Écrire 3 leçons clés que tu voudrais transmettre à tes enfants ou à quelqu'un que tu aimes", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est la leçon la plus précieuse que tu as apprise dans ta vie que tu voudrais absolument transmettre ? Et à qui ?",
+      "placeholder": "Explore ce que tu veux enseigner et transmettre...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 70,
+    "title": "Bilan Phase 3 Semaine 1",
+    "phase": "Expansion & Pérennité",
+    "guide": "10 jours dans la Phase 3. Ta vision est plus claire. Maintenant, il s'agit d'ancrer ce que tu as découvert pour que ça ne disparaisse pas.",
+    "tasks": [
+      {"id": 1, "label": "Relire ta vision à 5 ans et vérifier qu'elle te fait encore vibrer", "type": "checkbox"},
+      {"id": 2, "label": "Ajuster un objectif si nécessaire en fonction de ce que tu as appris", "type": "checkbox"},
+      {"id": 3, "label": "Identifier la prochaine action la plus importante vers ta vision", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Si tout était possible et que tu ne pouvais pas échouer, que ferais-tu maintenant ? Qu'est-ce qui a changé dans ta réponse depuis le Jour 1 ?",
+      "placeholder": "Mesure l'évolution de ta vision et de ta confiance...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 71,
+    "title": "L'Automatisation des Habitudes",
+    "phase": "Expansion & Pérennité",
+    "guide": "Une habitude ancrée ne demande plus d'énergie. Elle devient automatique. Aujourd'hui, tu identifies quelles habitudes sont vraiment installées.",
+    "tasks": [
+      {"id": 1, "label": "Lister les habitudes de la Phase 1 qui sont maintenant automatiques", "type": "checkbox"},
+      {"id": 2, "label": "Identifier les habitudes qui demandent encore un effort de volonté", "type": "checkbox"},
+      {"id": 3, "label": "Créer un déclencheur environnemental pour faciliter une habitude difficile", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelles habitudes de la Phase 1 sont devenues une partie naturelle de qui tu es ? Et lesquelles résistent encore ? Pourquoi celles-là en particulier ?",
+      "placeholder": "Évalue quelles habitudes sont vraiment ancrées...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 72,
+    "title": "La Routine de Maintenance",
+    "phase": "Expansion & Pérennité",
+    "guide": "La transformation n'est pas un événement — c'est une pratique quotidienne. Ta routine de maintenance est ce qui empêche le retour en arrière.",
+    "tasks": [
+      {"id": 1, "label": "Créer ta routine quotidienne idéale pour maintenir les gains des 72 jours", "type": "checkbox"},
+      {"id": 2, "label": "La planifier dans ton agenda de façon non-négociable", "type": "checkbox"},
+      {"id": 3, "label": "Identifier ce qui pourrait la saboter et préparer une réponse", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est la routine minimale qui, si tu la tenais tous les jours, maintiendrait tous tes gains ? Qu'est-ce qui risque de te faire l'abandonner ?",
+      "placeholder": "Conçois ta routine de maintenance durable...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 73,
+    "title": "Le Plan Anti-Rechute",
+    "phase": "Expansion & Pérennité",
+    "guide": "Tu rechuteras. Ce n'est pas une question de si — c'est une question de quand et surtout de combien de temps. Aujourd'hui, tu prépares ton plan de rebond.",
+    "tasks": [
+      {"id": 1, "label": "Identifier les 3 situations qui risquent le plus de te faire abandonner tes habitudes", "type": "checkbox"},
+      {"id": 2, "label": "Pour chaque situation, préparer une stratégie de réponse concrète", "type": "checkbox"},
+      {"id": 3, "label": "Créer une règle personnelle : 'Si je rate un jour, voilà exactement ce que je fais'", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Dans le passé, qu'est-ce qui t'a fait abandonner des projets ou habitudes importants ? Comment cette fois sera-t-elle différente ?",
+      "placeholder": "Explore tes patterns d'abandon et comment les dépasser...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 74,
+    "title": "L'Identité Nouvelle",
+    "phase": "Expansion & Pérennité",
+    "guide": "Les habitudes durent quand elles font partie de ton identité. Ce n'est pas 'j'essaie de faire du sport' — c'est 'je suis quelqu'un qui prend soin de son corps'.",
+    "tasks": [
+      {"id": 1, "label": "Écrire 10 phrases commençant par 'Je suis quelqu'un qui...' décrivant la nouvelle toi", "type": "checkbox"},
+      {"id": 2, "label": "Les lire à voix haute devant un miroir", "type": "checkbox"},
+      {"id": 3, "label": "Agir aujourd'hui en accord avec au moins 5 de ces identités", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qui es-tu maintenant que tu ne pourrais pas imaginer être au Jour 1 ? Comment cette nouvelle identité change-t-elle tes décisions ?",
+      "placeholder": "Explore et affirme ta nouvelle identité...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 75,
+    "title": "La Gratitude Profonde",
+    "phase": "Expansion & Pérennité",
+    "guide": "75 jours de travail sur toi-même. C'est un acte d'amour envers ta vie. Aujourd'hui, tu te reconnectes à tout ce qui mérite ta gratitude.",
+    "tasks": [
+      {"id": 1, "label": "Écrire une lettre de gratitude à ton corps pour tout ce qu'il supporte et accomplit", "type": "checkbox"},
+      {"id": 2, "label": "Appeler ou écrire à une personne qui a compté dans ta transformation", "type": "checkbox"},
+      {"id": 3, "label": "Te remercier toi-même pour la persévérance de ces 75 jours", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Pour quoi — dans les 75 derniers jours — es-tu la plus reconnaissante envers toi-même ? Qu'est-ce que tu as fait que tu n'aurais pas cru possible au Jour 1 ?",
+      "placeholder": "Exprime une gratitude profonde et sincère...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 76,
+    "title": "Le Bilan des Relations",
+    "phase": "Expansion & Pérennité",
+    "guide": "Ta transformation a peut-être changé certaines de tes relations. C'est normal — quand tu changes, la dynamique change. Aujourd'hui, tu évalues.",
+    "tasks": [
+      {"id": 1, "label": "Évaluer chaque relation importante : t'a-t-elle soutenue dans cette transformation ?", "type": "checkbox"},
+      {"id": 2, "label": "Exprimer ta gratitude à ceux qui t'ont soutenue", "type": "checkbox"},
+      {"id": 3, "label": "Définir comment tu veux cultiver tes relations les plus précieuses", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelles relations ont évolué — en bien ou en mal — pendant ces 76 jours ? Et comment veux-tu investir dans tes relations les plus importantes ?",
+      "placeholder": "Évalue l'évolution de tes relations pendant ce programme...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 77,
+    "title": "Le Prochain Niveau",
+    "phase": "Expansion & Pérennité",
+    "guide": "La transformation ne s'arrête pas au Jour 90. C'est une façon de vivre. Aujourd'hui, tu définis ton prochain niveau.",
+    "tasks": [
+      {"id": 1, "label": "Identifier ce que tu veux accomplir dans les 90 prochains jours", "type": "checkbox"},
+      {"id": 2, "label": "Définir un nouveau défi qui te fait peur et t'excite en même temps", "type": "checkbox"},
+      {"id": 3, "label": "Préparer le terrain pour le cycle suivant", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Après ces 77 jours, quel est le prochain niveau qui t'appelle ? Qu'est-ce que tu veux accomplir dans les 90 prochains jours que tu n'aurais pas osé envisager au Jour 1 ?",
+      "placeholder": "Projette-toi dans ton prochain cycle de transformation...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 78,
+    "title": "La Femme que Tu Deviens",
+    "phase": "Expansion & Pérennité",
+    "guide": "Prends un moment pour voir vraiment qui tu es devenue. Pas qui tu voulais être — qui tu es maintenant. C'est différent. C'est mieux.",
+    "tasks": [
+      {"id": 1, "label": "Relire ta lettre du Jour 1 (Scanner 360°) et comparer avec aujourd'hui", "type": "checkbox"},
+      {"id": 2, "label": "Écrire 10 façons dont tu as changé depuis le Jour 1", "type": "checkbox"},
+      {"id": 3, "label": "Te photographier aujourd'hui — pas pour les autres, pour toi", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qui es-tu devenue en 78 jours ? Pas ce que tu fais — qui tu ES. Comment cette femme voit-elle le monde différemment ?",
+      "placeholder": "Reconnais et célèbre qui tu es devenue...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 79,
+    "title": "Le Don aux Autres",
+    "phase": "Expansion & Pérennité",
+    "guide": "La vraie richesse se mesure à ce qu'on donne. Aujourd'hui, tu utilises ce que tu as appris pour élever quelqu'un d'autre.",
+    "tasks": [
+      {"id": 1, "label": "Partager une leçon clé de ce programme avec quelqu'un qui en aurait besoin", "type": "checkbox"},
+      {"id": 2, "label": "Faire un acte de générosité significatif aujourd'hui", "type": "checkbox"},
+      {"id": 3, "label": "Écrire comment tu veux contribuer au bien-être des autres dans ta vie", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Comment la transformation que tu as vécue peut-elle servir les autres — ta famille, tes proches, ta communauté ? Quelle est ta responsabilité envers ceux qui t'entourent ?",
+      "placeholder": "Explore comment ta transformation peut servir au-delà de toi...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 80,
+    "title": "La Maintenance du Feu Sacré",
+    "phase": "Expansion & Pérennité",
+    "guide": "Le feu peut s'éteindre si on ne l'alimente pas. Aujourd'hui, tu identifies ce qui maintient ta flamme vivante — et ce qui risque de l'éteindre.",
+    "tasks": [
+      {"id": 1, "label": "Identifier tes 5 sources d'énergie et de motivation profondes", "type": "checkbox"},
+      {"id": 2, "label": "Planifier comment les intégrer régulièrement dans ta vie", "type": "checkbox"},
+      {"id": 3, "label": "Identifier les 3 situations qui risquent de te faire perdre ta flamme", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelles habitudes de la Phase 1 sont devenues une partie naturelle de qui tu es ? Comment maintenir ce feu sacré quand la vie devient difficile ?",
+      "placeholder": "Explore comment maintenir ta transformation sur le long terme...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 81,
+    "title": "La Contribution Active",
+    "phase": "Expansion & Pérennité",
+    "guide": "Tu as reçu beaucoup en 81 jours. Aujourd'hui, tu commences à donner activement — à ta famille, ton cercle, ta communauté.",
+    "tasks": [
+      {"id": 1, "label": "Identifier une façon concrète de contribuer à un projet plus grand que toi", "type": "checkbox"},
+      {"id": 2, "label": "Aider quelqu'un à résoudre un problème grâce à ce que tu as appris", "type": "checkbox"},
+      {"id": 3, "label": "Planifier une action de contribution récurrente dans ta vie", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle trace veux-tu laisser derrière toi — dans ta famille, ton travail, ta communauté ? Comment commences-tu à la construire aujourd'hui ?",
+      "placeholder": "Explore ta façon de contribuer activement au monde...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 82,
+    "title": "L'Équilibre Durable",
+    "phase": "Expansion & Pérennité",
+    "guide": "L'équilibre parfait n'existe pas — il y a des saisons. Mais il existe un équilibre durable qui te permet d'avancer sans t'épuiser.",
+    "tasks": [
+      {"id": 1, "label": "Évaluer l'équilibre actuel entre travail, famille, santé, loisirs et développement personnel", "type": "checkbox"},
+      {"id": 2, "label": "Identifier le domaine le plus négligé et planifier comment lui redonner de la place", "type": "checkbox"},
+      {"id": 3, "label": "Créer une semaine type qui reflète l'équilibre que tu veux", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "À quoi ressemble ton équilibre idéal entre performance et repos, donner et recevoir, avancer et savourer ? Et comment t'en rapprocher dès cette semaine ?",
+      "placeholder": "Explore ta vision d'un équilibre de vie durable...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 83,
+    "title": "La Sagesse Acquise",
+    "phase": "Expansion & Pérennité",
+    "guide": "83 jours de travail sur toi-même ont accumulé une sagesse que tu n'avais pas au Jour 1. Aujourd'hui, tu la récoltes.",
+    "tasks": [
+      {"id": 1, "label": "Écrire les 10 leçons les plus précieuses de ce programme", "type": "checkbox"},
+      {"id": 2, "label": "Identifier laquelle a le plus changé ta façon de voir le monde", "type": "checkbox"},
+      {"id": 3, "label": "Décider comment intégrer ces leçons de façon permanente dans ta vie", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est la leçon de ces 83 jours que tu ne pourras jamais désapprendre ? Comment cette sagesse a-t-elle changé la façon dont tu prends tes décisions ?",
+      "placeholder": "Récolte et articule la sagesse de ce parcours...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 84,
+    "title": "La Promesse à Soi-Même",
+    "phase": "Expansion & Pérennité",
+    "guide": "À 6 jours de la fin, tu fais la promesse la plus importante — pas à quelqu'un d'autre, à toi-même. Celle que tu tiendras même quand personne ne regarde.",
+    "tasks": [
+      {"id": 1, "label": "Écrire une promesse solennelle à toi-même sur qui tu vas être après le Jour 90", "type": "checkbox"},
+      {"id": 2, "label": "La signer et la mettre dans un endroit visible", "type": "checkbox"},
+      {"id": 3, "label": "Identifier les 3 engagements non-négociables de ta vie future", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quelle est la promesse la plus importante que tu peux te faire à toi-même ? Celle que tu tiendrais même quand c'est difficile, même quand tu es seule ?",
+      "placeholder": "Écris ta promesse la plus profonde envers toi-même...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 85,
+    "title": "Les Derniers Obstacles",
+    "phase": "Expansion & Pérennité",
+    "guide": "Les derniers kilomètres avant l'arrivée sont souvent les plus durs. Aujourd'hui, tu identifies et démantèles les derniers obstacles.",
+    "tasks": [
+      {"id": 1, "label": "Identifier ce qui résiste encore à ta transformation", "type": "checkbox"},
+      {"id": 2, "label": "Nommer la peur ou la croyance derrière cet obstacle", "type": "checkbox"},
+      {"id": 3, "label": "Faire une action concrète pour démanteler cet obstacle aujourd'hui", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Quel est le dernier grand obstacle intérieur à ta transformation ? Qu'est-ce qui résiste encore ? Et si tu le traversais plutôt que de le contourner ?",
+      "placeholder": "Affronte les dernières résistances avant la ligne d'arrivée...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 86,
+    "title": "La Vision du Futur",
+    "phase": "Expansion & Pérennité",
+    "guide": "Tu touches au but. La vision du futur que tu avais au Jour 1 a évolué. Aujourd'hui, tu la redéfinis avec la sagesse de 86 jours.",
+    "tasks": [
+      {"id": 1, "label": "Réécrire ta vision à 5 ans avec les yeux de qui tu es maintenant", "type": "checkbox"},
+      {"id": 2, "label": "Comparer avec la vision que tu avais au Jour 27", "type": "checkbox"},
+      {"id": 3, "label": "Identifier ce qui a fondamentalement changé dans cette vision", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Comment ta vision de ta vie a-t-elle changé depuis le Jour 1 ? Qu'est-ce qui compte maintenant que tu ne croyais pas important avant ?",
+      "placeholder": "Redéfinis ta vision avec les yeux de qui tu es devenue...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 87,
+    "title": "La Préparation de la Célébration",
+    "phase": "Expansion & Pérennité",
+    "guide": "Célébrer n'est pas de la vanité — c'est nourrir ton cerveau de dopamine positive, ancrer les comportements gagnants et te rappeler que tu en es capable.",
+    "tasks": [
+      {"id": 1, "label": "Planifier comment tu vas célébrer le Jour 90", "type": "checkbox"},
+      {"id": 2, "label": "Préparer une liste de tout ce que tu as accompli en 87 jours", "type": "checkbox"},
+      {"id": 3, "label": "Inviter quelqu'un à célébrer avec toi si tu le souhaites", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Comment célèbres-tu habituellement tes victoires ? As-tu tendance à minimiser tes accomplissements ? Pourquoi as-tu du mal à te féliciter sincèrement ?",
+      "placeholder": "Explore ta relation avec la célébration et la fierté...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 88,
+    "title": "Les Lettres du Futur",
+    "phase": "Expansion & Pérennité",
+    "guide": "Deux jours avant la fin. Aujourd'hui, tu écris au futur — à toi dans 1 an, à ceux que tu aimes, au monde.",
+    "tasks": [
+      {"id": 1, "label": "Écrire une lettre à toi-même à ouvrir dans 1 an", "type": "checkbox"},
+      {"id": 2, "label": "Écrire une lettre à quelqu'un que tu aimes profondément", "type": "checkbox"},
+      {"id": 3, "label": "Écrire ce que tu veux que le monde sache de toi", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Qu'est-ce que tu veux que la version de toi dans 1 an retienne de ce programme ? Et quelle promesse lui fais-tu de tenir ?",
+      "placeholder": "Écris à ton futur toi avec toute ta sagesse actuelle...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 89,
+    "title": "La Veille du Grand Jour",
+    "phase": "Expansion & Pérennité",
+    "guide": "Demain, c'est le Jour 90. Ce soir, tu te prépares — pas avec de la pression, avec de la gratitude. Tu as tenu. C'est immense.",
+    "tasks": [
+      {"id": 1, "label": "Relire toutes tes réponses de réflexion depuis le Jour 1", "type": "checkbox"},
+      {"id": 2, "label": "Préparer le Jour 90 comme un jour de fête intentionnel", "type": "checkbox"},
+      {"id": 3, "label": "Se coucher tôt ce soir avec gratitude et fierté", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Ce soir, à la veille du Jour 90, comment te sens-tu vraiment ? Pas ce que tu devrais ressentir — ce que tu ressens. Et qu'est-ce que ce voyage t'a appris sur toi ?",
+      "placeholder": "Exprime tout ce que tu ressens à la veille de la fin...",
+      "type": "textarea"
+    }
+  },
+  {
+    "day": 90,
+    "title": "Le Nouveau Départ — La Célébration",
+    "phase": "Expansion & Pérennité",
+    "guide": "Jour 90. Tu es arrivée. Prends le temps d'être là, vraiment là, dans ce moment. Ce n'est pas une fin — c'est un nouveau point de départ depuis une altitude bien plus haute.",
+    "tasks": [
+      {"id": 1, "label": "Faire le Scanner 360° final et comparer avec le Jour 1", "type": "checkbox"},
+      {"id": 2, "label": "Lire ta lettre du Jour 29 (La lettre à toi-même)", "type": "checkbox"},
+      {"id": 3, "label": "Célébrer — vraiment, pleinement, sans minimiser — ce que tu as accompli", "type": "checkbox"},
+      {"id": 4, "label": "Définir ton prochain cycle de 90 jours", "type": "checkbox"}
+    ],
+    "reflection": {
+      "question": "Je ne suis plus la même personne qu'au Jour 1. Voici ma nouvelle promesse à moi-même pour les 90 prochains jours...",
+      "placeholder": "Écris ta déclaration finale. Qui es-tu maintenant ? Et vers quoi vas-tu ?",
+      "type": "textarea"
+    }
+  }
+]
