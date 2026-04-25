@@ -1,420 +1,458 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase/client'
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 
-interface OnboardingData {
-  bilan: {
-    sommeil: string
-    alimentation: string
-    sport: string
-    travail: string
-  }
-  objectif: {
-    description: string
-    smart: {
-      specifique: boolean
-      mesurable: boolean
-      atteignable: boolean
-      relevant: boolean
-      temporel: boolean
-    }
-  }
-  axes: string[]
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: Date
+  actions?: Action[]
 }
 
-export default function AgentPage() {
-  const [currentStep, setCurrentStep] = useState(1)
-  const [isComplete, setIsComplete] = useState(false)
-  const [onboardingData, setOnboardingData] = useState<OnboardingData>({
-    bilan: {
-      sommeil: '',
-      alimentation: '',
-      sport: '',
-      travail: ''
-    },
-    objectif: {
-      description: '',
-      smart: {
-        specifique: false,
-        mesurable: false,
-        atteignable: false,
-        relevant: false,
-        temporel: false
-      }
-    },
-    axes: []
-  })
+interface Action {
+  type: 'add_task' | 'complete_routine' | 'add_shopping' | 'update_plan'
+  label: string
+  data: any
+}
 
-  const axesOptions = [
-    'Santé & Bien-être',
-    'Carrière & Profession',
-    'Relations & Social',
-    'Développement Personnel',
-    'Finances & Abondance',
-    'Spiritualité & Sens'
-  ]
+interface AppContext {
+  tasks: any[]
+  routines: any[]
+  recipes: any[]
+  shoppingList: any[]
+  familyMembers: any[]
+  programProgress: any
+  todayDate: string
+  dayOfWeek: string
+}
+
+const QUICK_PROMPTS = [
+  { icon: '📋', label: "Prévu aujourd'hui ?", prompt: "Qu'est-ce que j'ai prévu aujourd'hui dans mon planner ? Liste toutes mes tâches du jour avec leurs horaires." },
+  { icon: '🔄', label: "Mes routines", prompt: "Liste toutes mes routines. Lesquelles sont faites et lesquelles sont en attente cette semaine ?" },
+  { icon: '🍳', label: "Batch cooking", prompt: "Regarde mes recettes planifiées cette semaine et propose un plan batch cooking avec les ingrédients en commun." },
+  { icon: '📊', label: "Bilan semaine", prompt: "Fais-moi un bilan complet de ma semaine : programme 90j avancement, routines complétées, tâches accomplies, et donne-moi 3 axes d'amélioration." },
+  { icon: '👨‍👩‍👧', label: "Alertes famille", prompt: "Y a-t-il des anniversaires familiaux dans les 7 prochains jours ? Vérifie aussi les allergies potentielles dans mes recettes planifiées." },
+  { icon: '⚡', label: "Conflits planning", prompt: "Analyse mon planning cette semaine et détecte tous les conflits entre mes routines, événements planner et recettes planifiées. Propose des ajustements." },
+]
+
+export default function AgentPage() {
+  const { user, loading: authLoading } = useSupabaseAuth()
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [appContext, setAppContext] = useState<AppContext | null>(null)
+  const [contextLoading, setContextLoading] = useState(false)
+  const [showHome, setShowHome] = useState(true)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Charger les données existantes si elles existent
-    const saved = localStorage.getItem('novae_onboarding')
-    if (saved) {
-      setOnboardingData(JSON.parse(saved))
+    if (user && !authLoading) {
+      loadAppContext()
     }
-  }, [])
+  }, [user, authLoading])
 
-  const saveToLocalStorage = () => {
-    // Structure enrichie pour compatibilité avec le module programme
-    const enhancedData = {
-      ...onboardingData,
-      metadata: {
-        completedAt: new Date().toISOString(),
-        version: '1.0',
-        status: 'completed'
-      },
-      // Ajout de champs analysés pour l'IA
-      analyzed: {
-        priorityAxes: onboardingData.axes.slice(0, 2), // Les 2 premiers axes comme priorités
-        objectiveScore: Object.values(onboardingData.objectif.smart).filter(Boolean).length / 5,
-        hasCompleteBilan: Object.values(onboardingData.bilan).every(val => val.trim().length > 0)
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const loadAppContext = async () => {
+    if (!user) return
+    setContextLoading(true)
+    try {
+      const [tasksRes, routinesRes, recipesRes, shoppingRes, familyRes, progressRes] = await Promise.all([
+        supabase.from('tasks').select('*').eq('user_id', user.id).order('date', { ascending: true }),
+        supabase.from('routines').select('*').eq('user_id', user.id),
+        supabase.from('recipes').select('*').or(`user_id.eq.${user.id},is_public.eq.true`).limit(15),
+        supabase.from('shopping_lists').select('*').eq('user_id', user.id),
+        supabase.from('family_data').select('*').eq('user_id', user.id).eq('is_active', true),
+        supabase.from('program_progress').select('*').eq('user_id', user.id).single()
+      ])
+
+      const now = new Date()
+      const days = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+
+      setAppContext({
+        tasks: tasksRes.data || [],
+        routines: routinesRes.data || [],
+        recipes: recipesRes.data || [],
+        shoppingList: shoppingRes.data || [],
+        familyMembers: familyRes.data || [],
+        programProgress: progressRes.data || null,
+        todayDate: now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
+        dayOfWeek: days[now.getDay()]
+      })
+    } catch (error) {
+      console.error('Erreur chargement contexte:', error)
+    } finally {
+      setContextLoading(false)
+    }
+  }
+
+  const buildSystemPrompt = (ctx: AppContext) => {
+    const today = new Date()
+    const isSunday = today.getDay() === 0
+    const todayStr = today.toISOString().split('T')[0]
+
+    const todayTasks = ctx.tasks.filter(t => t.date && t.date.startsWith(todayStr))
+    const pendingRoutines = ctx.routines.filter(r => !r.completed)
+    const doneRoutines = ctx.routines.filter(r => r.completed)
+
+    return `Tu es NOVAÉ, l'agent IA personnel de l'application RISE NOVAÉ. Tu es bienveillante, directe et orientée action.
+Tu as accès en temps réel à TOUTES les données de l'utilisatrice ci-dessous. Tu DOIS les utiliser pour répondre — ne dis JAMAIS que tu n'y as pas accès.
+Aujourd'hui : ${ctx.dayOfWeek} ${ctx.todayDate}.${isSunday ? ' C\'est dimanche — propose un bilan hebdomadaire complet en fin de réponse.' : ''}
+
+=== DONNÉES RÉELLES DE L'UTILISATRICE ===
+
+TÂCHES AUJOURD'HUI (${todayTasks.length}) :
+${todayTasks.length > 0 ? JSON.stringify(todayTasks, null, 2) : 'Aucune tâche prévue aujourd\'hui'}
+
+TOUTES LES TÂCHES À VENIR (${ctx.tasks.length} total) :
+${JSON.stringify(ctx.tasks.slice(0, 15), null, 2)}
+
+ROUTINES — FAITES (${doneRoutines.length}) :
+${JSON.stringify(doneRoutines, null, 2)}
+
+ROUTINES — EN ATTENTE (${pendingRoutines.length}) :
+${JSON.stringify(pendingRoutines, null, 2)}
+
+RECETTES DISPONIBLES (${ctx.recipes.length}) :
+${JSON.stringify(ctx.recipes.slice(0, 10), null, 2)}
+
+LISTE DE COURSES (${ctx.shoppingList.length} articles) :
+${JSON.stringify(ctx.shoppingList, null, 2)}
+
+MEMBRES DE LA FAMILLE (${ctx.familyMembers.length}) :
+${JSON.stringify(ctx.familyMembers, null, 2)}
+
+PROGRAMME 90 JOURS :
+${ctx.programProgress ? JSON.stringify(ctx.programProgress, null, 2) : 'Aucun programme démarré'}
+
+=== TES RÈGLES ===
+1. Tu UTILISES toujours les données ci-dessus pour répondre. Tu ne demandes JAMAIS à l'utilisatrice d'aller vérifier elle-même.
+2. ARBITRE DU TEMPS : Détecte automatiquement les conflits entre routines, planner et recettes.
+3. BATCH COOKING : Si des recettes ont des ingrédients communs, propose un plan batch cooking.
+4. FAMILLE : Alerte sur les anniversaires J-7, vérifie les allergies dans les recettes planifiées.
+5. BILAN HEBDO : Chaque dimanche, analyse tous les modules automatiquement.
+6. MODIFICATIONS : Quand tu proposes d'ajouter une tâche ou cocher une routine, ajoute en fin de message : ACTION_JSON:{"type":"add_task","data":{"title":"...","date":"...","category":"self"}}
+7. Tu tutoies toujours l'utilisatrice. Réponses concises sauf pour les bilans.
+8. Tu réponds UNIQUEMENT sur les sujets liés à l'app (planning, routines, recettes, famille, programme, bien-être). Pour tout autre sujet, redirige poliment vers le contexte de l'app.`
+  }
+
+  const executeAction = async (action: Action) => {
+    if (!user) return
+    try {
+      if (action.type === 'add_task') {
+        const { data } = await supabase.from('tasks').insert({
+          user_id: user.id,
+          status: 'pending',
+          duration_hours: 1,
+          color: '#E8B4A0',
+          ...action.data,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }).select().single()
+        if (data) {
+          setAppContext(prev => prev ? { ...prev, tasks: [...prev.tasks, data] } : prev)
+          addSystemMessage(`✅ Tâche "${action.data.title}" ajoutée au planner !`)
+        }
+      } else if (action.type === 'complete_routine') {
+        await supabase.from('routines').update({
+          completed: true,
+          last_completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }).eq('id', action.data.id).eq('user_id', user.id)
+        setAppContext(prev => prev ? {
+          ...prev,
+          routines: prev.routines.map(r => r.id === action.data.id ? { ...r, completed: true } : r)
+        } : prev)
+        addSystemMessage(`✅ Routine marquée comme complétée !`)
+      } else if (action.type === 'add_shopping') {
+        const { data } = await supabase.from('shopping_lists').insert({
+          user_id: user.id,
+          checked: false,
+          in_stock: false,
+          to_buy: true,
+          ...action.data,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }).select().single()
+        if (data) {
+          setAppContext(prev => prev ? { ...prev, shoppingList: [...prev.shoppingList, data] } : prev)
+          addSystemMessage(`✅ Article ajouté à la liste de courses !`)
+        }
       }
-    }
-    
-    localStorage.setItem('novae_onboarding', JSON.stringify(enhancedData))
-    console.log('Diagnostic sauvegardé avec métadonnées:', enhancedData)
-  }
-
-  const handleNext = () => {
-    if (currentStep < 3) {
-      setCurrentStep(currentStep + 1)
-    } else {
-      saveToLocalStorage()
-      setIsComplete(true)
+    } catch (error) {
+      console.error('Erreur action:', error)
     }
   }
 
-  const handlePrevious = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1)
+  const addSystemMessage = (text: string) => {
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: text,
+      timestamp: new Date()
+    }])
+  }
+
+  const parseActions = (content: string): { cleanContent: string, actions: Action[] } => {
+    const actions: Action[] = []
+    let cleanContent = content
+    const regex = /ACTION_JSON:(\{[^}]+\})/g
+    let match
+    while ((match = regex.exec(content)) !== null) {
+      try {
+        const action = JSON.parse(match[1])
+        const labels: Record<string, string> = {
+          add_task: '➕ Ajouter au planner',
+          complete_routine: '✅ Marquer comme fait',
+          add_shopping: '🛒 Ajouter aux courses',
+          update_plan: '📅 Mettre à jour'
+        }
+        actions.push({ ...action, label: labels[action.type] || 'Confirmer' })
+        cleanContent = cleanContent.replace(`ACTION_JSON:${match[1]}`, '').trim()
+      } catch (e) {}
+    }
+    return { cleanContent, actions }
+  }
+
+  const sendMessage = async (messageText?: string) => {
+    const text = messageText || input.trim()
+    if (!text || isLoading) return
+
+    setInput('')
+    setShowHome(false)
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: text,
+      timestamp: new Date()
+    }
+    setMessages(prev => [...prev, userMessage])
+    setIsLoading(true)
+
+    try {
+      const ctx = appContext
+      const conversationHistory = messages.slice(-6).map(m => ({
+        role: m.role,
+        content: m.content
+      }))
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          systemPrompt: ctx ? buildSystemPrompt(ctx) : undefined,
+          history: conversationHistory
+        })
+      })
+
+      const data = await response.json()
+      const rawContent = data.response || "Je n'ai pas pu traiter ta demande."
+      const { cleanContent, actions } = parseActions(rawContent)
+
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: cleanContent,
+        timestamp: new Date(),
+        actions
+      }])
+    } catch (error) {
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: "Erreur de connexion. Réessaie.",
+        timestamp: new Date()
+      }])
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleBilanChange = (field: keyof typeof onboardingData.bilan, value: string) => {
-    setOnboardingData(prev => ({
-      ...prev,
-      bilan: {
-        ...prev.bilan,
-        [field]: value
-      }
-    }))
-  }
-
-  const handleObjectifChange = (value: string) => {
-    setOnboardingData(prev => ({
-      ...prev,
-      objectif: {
-        ...prev.objectif,
-        description: value
-      }
-    }))
-  }
-
-  const toggleAxe = (axe: string) => {
-    setOnboardingData(prev => ({
-      ...prev,
-      axes: prev.axes.includes(axe)
-        ? prev.axes.filter(a => a !== axe)
-        : [...prev.axes.slice(0, 2), axe] // Limiter à 3 axes
-    }))
-  }
-
-  const checkSmartCriteria = (text: string) => {
-    const smart = {
-      specifique: text.length > 10,
-      mesurable: /\d+/.test(text),
-      atteignable: !/impossible|trop difficile|inaccessible/.test(text.toLowerCase()),
-      relevant: text.length > 20,
-      temporel: /\d+ (jour|mois|an|semaine)s?/.test(text.toLowerCase())
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
     }
-    
-    setOnboardingData(prev => ({
-      ...prev,
-      objectif: {
-        ...prev.objectif,
-        smart
-      }
-    }))
   }
 
-  if (isComplete) {
+  const formatContent = (content: string) => {
+    return content
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n/g, '<br/>')
+  }
+
+  const resetToHome = () => {
+    setShowHome(true)
+    setMessages([])
+  }
+
+  // Ecran de chargement auth
+  if (authLoading) {
     return (
-      <div className="min-h-screen bg-novae-cream flex items-center justify-center p-6">
-        <div className="card max-w-md w-full text-center">
-          <div className="text-6xl mb-4">{"\ud83e\udd16"}</div>
-          <h2 className="text-2xl font-serif text-novae-anthracite mb-4">
-            Analyse en cours par l'Agent IA...
-          </h2>
-          <p className="text-novae-anthracite/70 mb-6">
-            Votre diagnostic personnel a été sauvegardé avec succès.
-            L'Agent IA analyse vos réponses pour créer votre programme personnalisé.
-          </p>
-          <div className="animate-pulse mb-6">
-            <div className="flex justify-center space-x-2">
-              <div className="w-3 h-3 bg-novae-gold rounded-full"></div>
-              <div className="w-3 h-3 bg-novae-gold rounded-full"></div>
-              <div className="w-3 h-3 bg-novae-gold rounded-full"></div>
-            </div>
-          </div>
-          <Link
-            href="/program"
-            className="btn-primary w-full inline-block text-center"
-          >
-            Accéder au Programme 90 jours
-          </Link>
-        </div>
+      <div className="flex flex-col h-screen bg-novae-cream items-center justify-center">
+        <div className="text-novae-anthracite/40 text-sm">Connexion en cours...</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-novae-cream p-6">
-      <div className="max-w-2xl mx-auto">
-        {/* Navigation Header */}
-        <div className="flex justify-between items-center mb-8">
-          <Link 
-            href="/"
-            className="flex items-center gap-2 px-4 py-2 bg-novae-gold text-white rounded-lg hover:bg-novae-gold/80 transition-colors"
-          >
-            <span className="text-lg">×</span>
-            Menu Principal
+    <div className="flex flex-col h-screen bg-novae-cream">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-novae-beige/30 bg-white/80 backdrop-blur-sm">
+        {showHome ? (
+          <Link href="/" className="flex items-center gap-2 text-novae-anthracite/60 hover:text-novae-anthracite transition-colors">
+            <span className="text-lg">←</span>
+            <span className="text-sm">Accueil</span>
           </Link>
-          <div className="text-novae-anthracite/60 text-sm">
-            Étape {currentStep} sur 3
-          </div>
-        </div>
-
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-serif text-novae-anthracite mb-4">
-            Diagnostic Personnel
-          </h1>
-          <p className="text-novae-anthracite/70">
-            Commençons par mieux vous connaître pour un accompagnement sur mesure
-          </p>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex justify-between mb-2">
-            <span className="text-sm text-novae-anthracite/60">Étape {currentStep} sur 3</span>
-          </div>
-          <div className="w-full bg-novae-beige/30 rounded-full h-2">
-            <div
-              className="bg-novae-gold h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(currentStep / 3) * 100}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Step Content */}
-        <div className="card">
-          {currentStep === 1 && (
-            <div>
-              <h2 className="text-2xl font-serif text-novae-anthracite mb-6">
-                Étape 1 : Bilan actuel
-              </h2>
-              
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-novae-anthracite font-medium mb-2">
-                    Comment évaluez-vous votre sommeil actuel ?
-                  </label>
-                  <textarea
-                    value={onboardingData.bilan.sommeil}
-                    onChange={(e) => handleBilanChange('sommeil', e.target.value)}
-                    className="w-full p-3 border border-novae-beige/50 rounded-lg focus:ring-2 focus:ring-novae-gold focus:border-transparent"
-                    rows={3}
-                    placeholder="Ex: Je dors 6h par nuit, qualité moyenne..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-novae-anthracite font-medium mb-2">
-                    Comment décririez-vous votre alimentation ?
-                  </label>
-                  <textarea
-                    value={onboardingData.bilan.alimentation}
-                    onChange={(e) => handleBilanChange('alimentation', e.target.value)}
-                    className="w-full p-3 border border-novae-beige/50 rounded-lg focus:ring-2 focus:ring-novae-gold focus:border-transparent"
-                    rows={3}
-                    placeholder="Ex: Équilibrée mais trop de sucre, je saute souvent le petit-déjeuner..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-novae-anthracite font-medium mb-2">
-                    Quelle est votre activité physique ?
-                  </label>
-                  <textarea
-                    value={onboardingData.bilan.sport}
-                    onChange={(e) => handleBilanChange('sport', e.target.value)}
-                    className="w-full p-3 border border-novae-beige/50 rounded-lg focus:ring-2 focus:ring-novae-gold focus:border-transparent"
-                    rows={3}
-                    placeholder="Ex: Marche 30min 3x/semaine, sédentaire le week-end..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-novae-anthracite font-medium mb-2">
-                    Comment se passe votre vie professionnelle ?
-                  </label>
-                  <textarea
-                    value={onboardingData.bilan.travail}
-                    onChange={(e) => handleBilanChange('travail', e.target.value)}
-                    className="w-full p-3 border border-novae-beige/50 rounded-lg focus:ring-2 focus:ring-novae-gold focus:border-transparent"
-                    rows={3}
-                    placeholder="Ex: Stressant mais épanouissant, je cherche plus d'équilibre..."
-                  />
-                </div>
-              </div>
+        ) : (
+          <button onClick={resetToHome} className="flex items-center gap-2 text-novae-anthracite/60 hover:text-novae-anthracite transition-colors">
+            <span className="text-lg">←</span>
+            <span className="text-sm">Agent</span>
+          </button>
+        )}
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-novae-gold to-novae-rose flex items-center justify-center text-white text-sm font-bold">N</div>
+          <div>
+            <div className="font-semibold text-novae-anthracite text-sm">Agent NOVAÉ</div>
+            <div className="text-xs text-novae-anthracite/50 flex items-center gap-1">
+              <div className={`w-1.5 h-1.5 rounded-full ${contextLoading ? 'bg-orange-400 animate-pulse' : appContext ? 'bg-green-400' : 'bg-gray-300'}`}></div>
+              {contextLoading ? 'Synchronisation...' : appContext ? `${appContext.tasks.length} tâches · ${appContext.routines.length} routines` : 'Non connecté'}
             </div>
-          )}
-
-          {currentStep === 2 && (
-            <div>
-              <h2 className="text-2xl font-serif text-novae-anthracite mb-6">
-                Étape 2 : Votre objectif annuel
-              </h2>
-              
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-novae-anthracite font-medium mb-2">
-                    Quel est votre principal objectif pour cette année ?
-                  </label>
-                  <textarea
-                    value={onboardingData.objectif.description}
-                    onChange={(e) => {
-                      handleObjectifChange(e.target.value)
-                      checkSmartCriteria(e.target.value)
-                    }}
-                    className="w-full p-3 border border-novae-beige/50 rounded-lg focus:ring-2 focus:ring-novae-gold focus:border-transparent"
-                    rows={4}
-                    placeholder="Ex: Perdre 10kg en 6 mois en adoptant une alimentation saine et en faisant du sport 3x par semaine..."
-                  />
-                </div>
-
-                <div className="bg-novae-beige/20 rounded-lg p-4">
-                  <h3 className="font-medium text-novae-anthracite mb-3">Analyse SMART</h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Spécifique</span>
-                      <span className={`text-sm ${onboardingData.objectif.smart.specifique ? 'text-green-600' : 'text-orange-600'}`}>
-                        {onboardingData.objectif.smart.specifique ? '{"\u2713"}' : 'Attention'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Mesurable</span>
-                      <span className={`text-sm ${onboardingData.objectif.smart.mesurable ? 'text-green-600' : 'text-orange-600'}`}>
-                        {onboardingData.objectif.smart.mesurable ? '{"\u2713"}' : 'Ajoutez des chiffres'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Atteignable</span>
-                      <span className={`text-sm ${onboardingData.objectif.smart.atteignable ? 'text-green-600' : 'text-orange-600'}`}>
-                        {onboardingData.objectif.smart.atteignable ? '{"\u2713"}' : 'Vérifiez le réalisme'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Relevant</span>
-                      <span className={`text-sm ${onboardingData.objectif.smart.relevant ? 'text-green-600' : 'text-orange-600'}`}>
-                        {onboardingData.objectif.smart.relevant ? '{"\u2713"}' : 'Plus de contexte ?'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Temporel</span>
-                      <span className={`text-sm ${onboardingData.objectif.smart.temporel ? 'text-green-600' : 'text-orange-600'}`}>
-                        {onboardingData.objectif.smart.temporel ? '{"\u2713"}' : 'Ajoutez une date'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 3 && (
-            <div>
-              <h2 className="text-2xl font-serif text-novae-anthracite mb-6">
-                Étape 3 : Vos 3 axes de transformation
-              </h2>
-              
-              <div className="space-y-4">
-                <p className="text-novae-anthracite/70 mb-4">
-                  Sélectionnez les 3 domaines sur lesquels vous souhaitez concentrer vos efforts cette année.
-                </p>
-                
-                {axesOptions.map((axe) => (
-                  <div
-                    key={axe}
-                    onClick={() => toggleAxe(axe)}
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      onboardingData.axes.includes(axe)
-                        ? 'border-novae-gold bg-novae-gold/10'
-                        : 'border-novae-beige/50 hover:border-novae-beige'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-novae-anthracite">{axe}</span>
-                      <div className={`w-6 h-6 rounded-full border-2 ${
-                        onboardingData.axes.includes(axe)
-                          ? 'border-novae-gold bg-novae-gold'
-                          : 'border-novae-beige'
-                      }`}>
-                        {onboardingData.axes.includes(axe) && (
-                          <div className="w-full h-full flex items-center justify-center text-white text-xs">
-                            {"\u2713"}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                
-                <div className="text-sm text-novae-anthracite/60 mt-4">
-                  {onboardingData.axes.length}/3 axes sélectionnés
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Navigation */}
-          <div className="flex justify-between mt-8">
-            <button
-              onClick={handlePrevious}
-              disabled={currentStep === 1}
-              className={`px-6 py-2 rounded-lg ${
-                currentStep === 1
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-novae-beige text-novae-anthracite hover:bg-novae-beige/80'
-              }`}
-            >
-              Précédent
-            </button>
-            
-            <button
-              onClick={handleNext}
-              disabled={currentStep === 3 && onboardingData.axes.length !== 3}
-              className={`px-6 py-2 rounded-lg ${
-                currentStep === 3 && onboardingData.axes.length !== 3
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'btn-primary'
-              }`}
-            >
-              {currentStep === 3 ? 'Terminer' : 'Suivant'}
-            </button>
           </div>
         </div>
+        <button onClick={loadAppContext} className="text-novae-anthracite/40 hover:text-novae-gold transition-colors" title="Actualiser">
+          🔄
+        </button>
       </div>
+
+      {/* Ecran d'accueil Agent */}
+      {showHome && (
+        <div className="flex-1 overflow-y-auto px-4 py-6">
+          <div className="max-w-lg mx-auto">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-novae-gold to-novae-rose flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3">N</div>
+              <h1 className="text-2xl font-serif text-novae-anthracite mb-1">Agent NOVAÉ</h1>
+              <p className="text-sm text-novae-anthracite/50">
+                {appContext ? `Connecté · ${appContext.tasks.length} tâches · ${appContext.routines.length} routines · Jour ${appContext.programProgress?.current_day || 0}/90` : 'Chargement de tes données...'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {QUICK_PROMPTS.map((qp, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => sendMessage(qp.prompt)}
+                  className="flex items-center gap-2 p-3 bg-white rounded-xl border border-novae-beige/30 text-left hover:border-novae-gold/50 hover:bg-novae-gold/5 transition-all"
+                >
+                  <span className="text-xl">{qp.icon}</span>
+                  <span className="text-xs text-novae-anthracite/70 font-medium">{qp.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="bg-white rounded-xl border border-novae-beige/20 p-4">
+              <p className="text-xs text-novae-anthracite/40 mb-2 font-medium uppercase tracking-wide">Question libre</p>
+              <div className="flex gap-2">
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ex: Ajoute une tâche demain à 9h..."
+                  className="flex-1 text-sm text-novae-anthracite placeholder-novae-anthracite/30 bg-transparent focus:outline-none"
+                />
+                <button
+                  onClick={() => sendMessage()}
+                  disabled={!input.trim()}
+                  className={`px-3 py-1.5 rounded-lg text-sm transition-all ${input.trim() ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/30'}`}
+                >
+                  →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ecran chat */}
+      {!showHome && (
+        <>
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            {messages.map((message) => (
+              <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className="max-w-[85%]">
+                  {message.role === 'assistant' && (
+                    <div className="flex items-center gap-1 mb-1 ml-1">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-novae-gold to-novae-rose flex items-center justify-center text-white text-xs font-bold">N</div>
+                      <span className="text-xs text-novae-anthracite/40">NOVAÉ</span>
+                    </div>
+                  )}
+                  <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                    message.role === 'user'
+                      ? 'bg-novae-gold text-white rounded-tr-sm'
+                      : 'bg-white text-novae-anthracite rounded-tl-sm shadow-sm border border-novae-beige/20'
+                  }`}>
+                    <div dangerouslySetInnerHTML={{ __html: formatContent(message.content) }} />
+                  </div>
+                  {message.actions && message.actions.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2 ml-1">
+                      {message.actions.map((action, idx) => (
+                        <button key={idx} onClick={() => executeAction(action)}
+                          className="px-3 py-1.5 bg-novae-gold/10 border border-novae-gold/30 text-novae-gold rounded-full text-xs hover:bg-novae-gold hover:text-white transition-all">
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className={`text-xs text-novae-anthracite/30 mt-1 ${message.role === 'user' ? 'text-right' : 'ml-1'}`}>
+                    {message.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-novae-beige/20">
+                  <div className="flex gap-1">
+                    {[0, 150, 300].map(delay => (
+                      <div key={delay} className="w-2 h-2 bg-novae-gold/60 rounded-full animate-bounce" style={{ animationDelay: `${delay}ms` }}></div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className="px-4 pb-4 pt-2 bg-white/80 backdrop-blur-sm border-t border-novae-beige/20">
+            <div className="flex items-end gap-2">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Demande à NOVAÉ..."
+                className="flex-1 resize-none rounded-xl border border-novae-beige/40 px-4 py-3 text-sm text-novae-anthracite placeholder-novae-anthracite/30 focus:outline-none focus:ring-2 focus:ring-novae-gold/30 bg-novae-cream/50 max-h-32"
+                rows={1}
+                style={{ minHeight: '44px' }}
+              />
+              <button onClick={() => sendMessage()} disabled={!input.trim() || isLoading}
+                className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all flex-shrink-0 ${input.trim() && !isLoading ? 'bg-novae-gold text-white shadow-sm' : 'bg-novae-beige/30 text-novae-anthracite/30 cursor-not-allowed'}`}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
