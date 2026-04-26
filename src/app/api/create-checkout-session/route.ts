@@ -14,7 +14,10 @@ export async function POST(req: NextRequest) {
   mode: 'subscription',
   customer_email: email,
   line_items: [{ price: priceId, quantity: 1 }],
+  subscription_data: {
   trial_period_days: 14,
+} as any,
+
   success_url: `https://novae-by-omanaia.com/subscribe/success`,
   cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscribe`,
 })
