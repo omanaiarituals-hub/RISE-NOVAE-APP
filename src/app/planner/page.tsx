@@ -464,9 +464,10 @@ export default function PlannerNovae() {
           eventsData.forEach((ev: any) => {
             const evStart = (ev.start_hour || 9) * 60;
             const evEnd = evStart + (ev.duration_hours || 1) * 60;
-            if (re.startMinutes < evEnd && re.endMinutes > evStart) {
-              newConflicts.push({ routine: re.title, event: ev.title, hour: Math.floor(re.startMinutes / 60) });
-            }
+            const evDate = ev.date ? ev.date.split("T")[0] : '';
+if (evDate === fmtDate(new Date()) && re.startMinutes < evEnd && re.endMinutes > evStart) {
+  newConflicts.push({ routine: re.title, event: ev.title, hour: Math.floor(re.startMinutes / 60) });
+}
           });
         });
         if (newConflicts.length > 0) {

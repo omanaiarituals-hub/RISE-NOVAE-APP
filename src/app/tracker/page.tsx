@@ -416,7 +416,7 @@ export default function TrackerPage() {
         {/* Banner complétion routines */}
         <RoutineBanner completion={routineCompletion} />
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 20 }}>
           {/* Roue du temps */}
           <div style={{ background: C.blanc, borderRadius: 14, padding: "18px 20px", border: `1px solid ${C.grisClair}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>

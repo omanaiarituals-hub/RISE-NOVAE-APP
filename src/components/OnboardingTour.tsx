@@ -132,7 +132,12 @@ const TOUR_STEPS: TourStep[] = [
 
 const STORAGE_KEY = 'novae-onboarding-done'
 
-export function OnboardingTour() {
+interface OnboardingTourProps {
+  forceShow?: boolean
+  onClose?: () => void
+}
+
+export function OnboardingTour({ forceShow, onClose }: OnboardingTourProps = {}) {
   const [visible, setVisible] = useState(false)
   const [step, setStep] = useState(0)
   const [animating, setAnimating] = useState(false)
@@ -140,11 +145,11 @@ export function OnboardingTour() {
 
   useEffect(() => {
     const done = localStorage.getItem(STORAGE_KEY)
-    if (!done) {
+    if (forceShow || !done) {
       // Délai court pour laisser la page se charger
       setTimeout(() => setVisible(true), 800)
     }
-  }, [])
+  }, [forceShow])
 
   const currentStep = TOUR_STEPS[step]
   const isLast = step === TOUR_STEPS.length - 1
@@ -179,6 +184,7 @@ export function OnboardingTour() {
   const finish = () => {
     setVisible(false)
     localStorage.setItem(STORAGE_KEY, 'true')
+    onClose?.()
   }
 
   if (!visible) return null

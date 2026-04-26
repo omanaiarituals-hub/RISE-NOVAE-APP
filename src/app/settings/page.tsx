@@ -57,6 +57,14 @@ export default function SettingsPage() {
   const [deleteInput, setDeleteInput] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [appVersion] = useState('1.0.0-beta')
+  const [notifState, setNotifState] = useState<Record<string, boolean>>({})
+
+useEffect(() => {
+  const keys = ['notif_routines', 'notif_conflits', 'notif_anniversaires', 'notif_inactivite', 'notif_bilan']
+  const state: Record<string, boolean> = {}
+  keys.forEach(k => { state[k] = localStorage.getItem(k) !== 'false' })
+  setNotifState(state)
+}, [])
 
   useEffect(() => {
     loadUser()
@@ -165,6 +173,44 @@ export default function SettingsPage() {
             )}
             <Row icon={<span style={{ fontSize: 16 }}>✉️</span>} label="Email" value={user?.email} last />
           </Section>
+{/* Notifications */}
+<Section title="Notifications">
+  {[
+    { key: 'notif_routines', label: 'Rappels routines', desc: 'Rappel matin et soir' },
+    { key: 'notif_conflits', label: 'Conflits de planning', desc: 'Quand un conflit est détecté' },
+    { key: 'notif_anniversaires', label: 'Anniversaires famille', desc: 'Alerte J-7' },
+    { key: 'notif_inactivite', label: 'Rappel inactivité', desc: 'Si pas de connexion 48h' },
+    { key: 'notif_bilan', label: 'Bilan hebdomadaire', desc: 'Chaque dimanche matin' },
+  ].map((notif, i, arr) => (
+    <div key={notif.key} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${C.grisClair}` }}>
+      <span style={{ width: 34, height: 34, borderRadius: 10, background: C.roseLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.rose, flexShrink: 0 }}>
+        🔔
+      </span>
+      <div style={{ flex: 1 }}>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.noir }}>{notif.label}</p>
+        <p style={{ margin: '1px 0 0', fontSize: 12, color: C.gris }}>{notif.desc}</p>
+      </div>
+      <button
+        onClick={() => {
+          const current = localStorage.getItem(notif.key) !== 'false'
+          localStorage.setItem(notif.key, current ? 'false' : 'true')
+          setNotifState(prev => ({ ...prev, [notif.key]: !current }))
+        }}
+        style={{
+          width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+          background: notifState[notif.key] !== false ? C.rose : C.grisClair,
+          position: 'relative', transition: 'background 0.2s', flexShrink: 0
+        }}
+      >
+        <span style={{
+          position: 'absolute', top: 2, width: 20, height: 20, borderRadius: '50%', background: 'white',
+          transition: 'left 0.2s', left: notifState[notif.key] !== false ? 22 : 2,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.15)'
+        }} />
+      </button>
+    </div>
+  ))}
+</Section>
 
           {/* Légal */}
           <Section title="Informations légales">
