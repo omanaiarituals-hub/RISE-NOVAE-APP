@@ -654,10 +654,17 @@ window.addEventListener('scroll', () => {
 });
 
 // ── BREVO API — IDs CORRECTS ──
-const BREVO_API_KEY = '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';
-const BREVO_LIST_BETA = 7;    // ✅ Liste "NOVAÉ - Bêta Testeurs"
-const BREVO_LIST_WAIT = 8;    // ✅ Liste "NOVAÉ - Liste Attente"
+const API_URL = 'https://novae-by-omanaia.com/api/subscribe';
 
+async function addToBrevo(email, prenom, telephone, listId, attributes = {}) {
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, prenom, telephone, listId, ...attributes })
+    });
+  } catch(e) { console.error('Erreur:', e); }
+}
 async function addToBrevo(email, prenom, telephone, listId, attributes = {}) {
   try {
     await fetch('https://api.brevo.com/v3/contacts', {
