@@ -59,12 +59,12 @@ export default function SettingsPage() {
   const [appVersion] = useState('1.0.0-beta')
   const [notifState, setNotifState] = useState<Record<string, boolean>>({})
 
-useEffect(() => {
-  const keys = ['notif_routines', 'notif_conflits', 'notif_anniversaires', 'notif_inactivite', 'notif_bilan']
-  const state: Record<string, boolean> = {}
-  keys.forEach(k => { state[k] = localStorage.getItem(k) !== 'false' })
-  setNotifState(state)
-}, [])
+  useEffect(() => {
+    const keys = ['notif_routines', 'notif_conflits', 'notif_anniversaires', 'notif_inactivite', 'notif_bilan']
+    const state: Record<string, boolean> = {}
+    keys.forEach(k => { state[k] = localStorage.getItem(k) !== 'false' })
+    setNotifState(state)
+  }, [])
 
   useEffect(() => {
     loadUser()
@@ -74,23 +74,30 @@ useEffect(() => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth'); return }
     setUser(user)
-    // Charger le pseudo depuis les métadonnées utilisateur
-    const pseudo = user.user_metadata?.pseudo || user.user_metadata?.full_name || ''
-    setPseudo(pseudo)
-    setNewPseudo(pseudo)
+    const p = user.user_metadata?.pseudo || user.user_metadata?.full_name || ''
+    setPseudo(p)
+    setNewPseudo(p)
   }
 
   const savePseudo = async () => {
-    if (!newPseudo.trim()) return
+    if (!newPseudo.trim() || !user) return
     setSaving(true)
-    const { error } = await supabase.auth.updateUser({
-      data: { pseudo: newPseudo.trim() }
-    })
-    if (!error) {
+    try {
+      // 1. Sauvegarde dans auth metadata
+      await supabase.auth.updateUser({ data: { pseudo: newPseudo.trim() } })
+
+      // 2. Sauvegarde dans ai_personality_profile (utilisé par la communauté)
+      await supabase
+        .from('ai_personality_profile')
+        .update({ pseudo: newPseudo.trim() })
+        .eq('user_id', user.id)
+
       setPseudo(newPseudo.trim())
       setEditingPseudo(false)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      console.error('Erreur savePseudo:', err)
     }
     setSaving(false)
   }
@@ -104,7 +111,6 @@ useEffect(() => {
     if (deleteInput !== 'SUPPRIMER') return
     setDeleting(true)
     try {
-      // Supprimer les données utilisateur dans Supabase
       const { data: { user: u } } = await supabase.auth.getUser()
       if (u) {
         await supabase.from('routines').delete().eq('user_id', u.id)
@@ -112,6 +118,11 @@ useEffect(() => {
         await supabase.from('todo_list').delete().eq('user_id', u.id)
         await supabase.from('program_progress').delete().eq('user_id', u.id)
         await supabase.from('meal_plan').delete().eq('user_id', u.id)
+        await supabase.from('community_posts').delete().eq('user_id', u.id)
+        await supabase.from('community_likes').delete().eq('user_id', u.id)
+        await supabase.from('community_comments').delete().eq('user_id', u.id)
+        await supabase.from('challenge_participations').delete().eq('user_id', u.id)
+        await supabase.from('user_badges').delete().eq('user_id', u.id)
       }
       await supabase.auth.signOut()
       router.push('/auth')
@@ -153,7 +164,7 @@ useEffect(() => {
           <Section title="Mon profil">
             {editingPseudo ? (
               <div style={{ padding: '14px 16px' }}>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: C.gris }}>Choisis ton pseudo affiché dans l'app</p>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: C.gris }}>Choisis ton pseudo affiché dans l'app et dans la communauté</p>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input value={newPseudo} onChange={e => setNewPseudo(e.target.value)} placeholder="Ton pseudo..."
                     autoFocus maxLength={30}
@@ -169,48 +180,49 @@ useEffect(() => {
                 </div>
               </div>
             ) : (
-              <Row icon={<User size={16} />} label="Pseudo" value={pseudo || 'Non défini'} onClick={() => setEditingPseudo(true)} />
+              <Row icon={<User size={16} />} label="Pseudo" value={pseudo || 'Non défini — clique pour définir'} onClick={() => setEditingPseudo(true)} />
             )}
             <Row icon={<span style={{ fontSize: 16 }}>✉️</span>} label="Email" value={user?.email} last />
           </Section>
-{/* Notifications */}
-<Section title="Notifications">
-  {[
-    { key: 'notif_routines', label: 'Rappels routines', desc: 'Rappel matin et soir' },
-    { key: 'notif_conflits', label: 'Conflits de planning', desc: 'Quand un conflit est détecté' },
-    { key: 'notif_anniversaires', label: 'Anniversaires famille', desc: 'Alerte J-7' },
-    { key: 'notif_inactivite', label: 'Rappel inactivité', desc: 'Si pas de connexion 48h' },
-    { key: 'notif_bilan', label: 'Bilan hebdomadaire', desc: 'Chaque dimanche matin' },
-  ].map((notif, i, arr) => (
-    <div key={notif.key} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${C.grisClair}` }}>
-      <span style={{ width: 34, height: 34, borderRadius: 10, background: C.roseLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.rose, flexShrink: 0 }}>
-        🔔
-      </span>
-      <div style={{ flex: 1 }}>
-        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.noir }}>{notif.label}</p>
-        <p style={{ margin: '1px 0 0', fontSize: 12, color: C.gris }}>{notif.desc}</p>
-      </div>
-      <button
-        onClick={() => {
-          const current = localStorage.getItem(notif.key) !== 'false'
-          localStorage.setItem(notif.key, current ? 'false' : 'true')
-          setNotifState(prev => ({ ...prev, [notif.key]: !current }))
-        }}
-        style={{
-          width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-          background: notifState[notif.key] !== false ? C.rose : C.grisClair,
-          position: 'relative', transition: 'background 0.2s', flexShrink: 0
-        }}
-      >
-        <span style={{
-          position: 'absolute', top: 2, width: 20, height: 20, borderRadius: '50%', background: 'white',
-          transition: 'left 0.2s', left: notifState[notif.key] !== false ? 22 : 2,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.15)'
-        }} />
-      </button>
-    </div>
-  ))}
-</Section>
+
+          {/* Notifications */}
+          <Section title="Notifications">
+            {[
+              { key: 'notif_routines', label: 'Rappels routines', desc: 'Rappel matin et soir' },
+              { key: 'notif_conflits', label: 'Conflits de planning', desc: 'Quand un conflit est détecté' },
+              { key: 'notif_anniversaires', label: 'Anniversaires famille', desc: 'Alerte J-7' },
+              { key: 'notif_inactivite', label: 'Rappel inactivité', desc: 'Si pas de connexion 48h' },
+              { key: 'notif_bilan', label: 'Bilan hebdomadaire', desc: 'Chaque dimanche matin' },
+            ].map((notif, i, arr) => (
+              <div key={notif.key} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${C.grisClair}` }}>
+                <span style={{ width: 34, height: 34, borderRadius: 10, background: C.roseLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.rose, flexShrink: 0 }}>
+                  🔔
+                </span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.noir }}>{notif.label}</p>
+                  <p style={{ margin: '1px 0 0', fontSize: 12, color: C.gris }}>{notif.desc}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    const current = localStorage.getItem(notif.key) !== 'false'
+                    localStorage.setItem(notif.key, current ? 'false' : 'true')
+                    setNotifState(prev => ({ ...prev, [notif.key]: !current }))
+                  }}
+                  style={{
+                    width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                    background: notifState[notif.key] !== false ? C.rose : C.grisClair,
+                    position: 'relative', transition: 'background 0.2s', flexShrink: 0
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: 2, width: 20, height: 20, borderRadius: '50%', background: 'white',
+                    transition: 'left 0.2s', left: notifState[notif.key] !== false ? 22 : 2,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.15)'
+                  }} />
+                </button>
+              </div>
+            ))}
+          </Section>
 
           {/* Légal */}
           <Section title="Informations légales">
@@ -246,7 +258,7 @@ useEffect(() => {
               <span style={{ fontSize: 40 }}>⚠️</span>
               <h3 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: C.noir, margin: '10px 0 6px' }}>Supprimer mon compte</h3>
               <p style={{ fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
-                Cette action est <strong>irréversible</strong>. Toutes tes données (routines, programme, planning, recettes) seront définitivement supprimées.
+                Cette action est <strong>irréversible</strong>. Toutes tes données seront définitivement supprimées.
               </p>
             </div>
             <p style={{ fontSize: 12, color: C.gris, marginBottom: 8 }}>Tape <strong>SUPPRIMER</strong> pour confirmer</p>

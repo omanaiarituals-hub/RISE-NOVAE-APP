@@ -64,26 +64,16 @@ export default function HomePage() {
   const [showTour, setShowTour] = useState(false)
   const [showModules, setShowModules] = useState(false)
 
-  // Programme
   const [currentDay, setCurrentDay] = useState<number>(0)
   const [programProgress, setProgramProgress] = useState<number>(0)
-
-  // Tâches du jour
   const [todayTasks, setTodayTasks] = useState<any[]>([])
   const [todayTasksDone, setTodayTasksDone] = useState(0)
-
-  // Routines
   const [routinesDone, setRoutinesDone] = useState(0)
   const [routinesTotal, setRoutinesTotal] = useState(0)
-
-  // Streak
   const [streak, setStreak] = useState(0)
-
-  // Intention
   const [intention, setIntention] = useState<string | null>(null)
-
-  // Message du jour
   const [dailyMessage, setDailyMessage] = useState('')
+  const [newCommunityPosts, setNewCommunityPosts] = useState(0)
 
   const hour = new Date().getHours()
   const greeting = hour < 5 ? 'Bonne nuit' : hour < 12 ? 'Bonjour' : hour < 18 ? 'Bonne après-midi' : 'Bonsoir'
@@ -112,11 +102,9 @@ export default function HomePage() {
   }, [])
 
   useEffect(() => {
-    // Message motivant du jour (basé sur la date)
     const idx = new Date().getDate() % MOTIVATIONAL_MESSAGES.length
     setDailyMessage(MOTIVATIONAL_MESSAGES[idx])
 
-    // Intention du jour
     const today = fmtDate(new Date())
     const saved = localStorage.getItem(`novae-reflection-${today}`)
     if (saved) {
@@ -142,7 +130,6 @@ export default function HomePage() {
       supabase.from('routines').select('*').eq('user_id', user.id),
     ])
 
-    // Programme
     if (progressRes.data) {
       const day = progressRes.data.current_day || 1
       setCurrentDay(day)
@@ -150,15 +137,24 @@ export default function HomePage() {
       setStreak(progressRes.data.streak || 0)
     }
 
-    // Tâches
     const tasks = tasksRes.data || []
     setTodayTasks(tasks)
     setTodayTasksDone(tasks.filter((t: any) => t.status === 'completed').length)
 
-    // Routines
     const routines = routinesRes.data || []
     setRoutinesTotal(routines.length)
     setRoutinesDone(routines.filter((r: any) => r.completed).length)
+
+    // Nouveaux posts communauté depuis dernière visite
+    try {
+      const lastVisit = localStorage.getItem('novae-community-last-visit')
+      const since = lastVisit || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      const { count } = await supabase
+        .from('community_posts')
+        .select('*', { count: 'exact', head: true })
+        .gt('created_at', since)
+      setNewCommunityPosts(count || 0)
+    } catch {}
   }
 
   const restartTour = () => {
@@ -186,7 +182,16 @@ export default function HomePage() {
               </span>
             )}
           </div>
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Badge communauté dans la top bar */}
+            {newCommunityPosts > 0 && (
+              <Link href="/community"
+                onClick={() => localStorage.setItem('novae-community-last-visit', new Date().toISOString())}
+                style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, background: '#F5D0DC', border: '1px solid #E0A0B8', borderRadius: 20, padding: '4px 10px' }}>
+                <span style={{ fontSize: 13 }}>💬</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#D4856A' }}>{newCommunityPosts} message{newCommunityPosts > 1 ? 's' : ''}</span>
+              </Link>
+            )}
             {user ? <UserMenu /> : (
               <Link href="/auth" style={{ padding: '8px 20px', borderRadius: 20, border: '1.5px solid #D4A090', background: '#FFFFFF', color: '#D4A090', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
                 Se connecter
@@ -212,11 +217,10 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* ── CARTE PROGRAMME (cœur de l'écran) ── */}
+          {/* ── CARTE PROGRAMME ── */}
           {user && currentDay > 0 && (
             <Link href="/program" style={{ textDecoration: 'none', display: 'block', marginBottom: 16 }}>
               <div style={{ background: 'linear-gradient(135deg, #1A1A1A 0%, #2C2C2C 100%)', borderRadius: 20, padding: '24px', position: 'relative', overflow: 'hidden', boxShadow: '0 8px 32px rgba(26,26,26,0.15)' }}>
-                {/* Fond décoratif */}
                 <div style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: 'rgba(196,149,106,0.12)', pointerEvents: 'none' }} />
                 <div style={{ position: 'absolute', bottom: -20, left: -20, width: 100, height: 100, borderRadius: '50%', background: 'rgba(196,149,106,0.06)', pointerEvents: 'none' }} />
 
@@ -241,7 +245,6 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* Barre de progression */}
                 <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 4, height: 4, marginBottom: 14, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${progressPercent}%`, background: 'linear-gradient(90deg, #C4956A, #E8B48A)', borderRadius: 4, transition: 'width 1s ease' }} />
                 </div>
@@ -260,10 +263,8 @@ export default function HomePage() {
 
           {/* ── 3 ACTIONS DU JOUR ── */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
-
-            {/* Tâches */}
             <Link href="/planner" style={{ textDecoration: 'none' }}>
-              <div style={{ background: '#FFFFFF', borderRadius: 14, padding: '14px 12px', border: '1.5px solid #E8E4DF', textAlign: 'center', transition: 'all 0.15s' }}>
+              <div style={{ background: '#FFFFFF', borderRadius: 14, padding: '14px 12px', border: '1.5px solid #E8E4DF', textAlign: 'center' }}>
                 <span style={{ fontSize: 22, display: 'block', marginBottom: 6 }}>📋</span>
                 <div style={{ fontSize: 20, fontWeight: 700, color: '#1A1A1A', fontFamily: "'Cormorant Garamond', serif", lineHeight: 1 }}>
                   {todayTasksDone}/{todayTasks.length || 0}
@@ -275,7 +276,6 @@ export default function HomePage() {
               </div>
             </Link>
 
-            {/* Routines */}
             <Link href="/routines" style={{ textDecoration: 'none' }}>
               <div style={{ background: '#FFFFFF', borderRadius: 14, padding: '14px 12px', border: '1.5px solid #E8E4DF', textAlign: 'center' }}>
                 <span style={{ fontSize: 22, display: 'block', marginBottom: 6 }}>☀️</span>
@@ -289,7 +289,6 @@ export default function HomePage() {
               </div>
             </Link>
 
-            {/* Agent IA */}
             <Link href="/agent" style={{ textDecoration: 'none' }}>
               <div style={{ background: 'linear-gradient(135deg, rgba(196,149,106,0.1), rgba(212,133,106,0.15))', borderRadius: 14, padding: '14px 12px', border: '1.5px solid rgba(196,149,106,0.3)', textAlign: 'center' }}>
                 <span style={{ fontSize: 22, display: 'block', marginBottom: 6 }}>🤖</span>
@@ -324,13 +323,49 @@ export default function HomePage() {
           )}
 
           {/* ── BOUTON COMMENCER MA JOURNÉE ── */}
-          <Link href="/program" style={{ textDecoration: 'none', display: 'block', marginBottom: 28 }}>
+          <Link href="/program" style={{ textDecoration: 'none', display: 'block', marginBottom: 20 }}>
             <div style={{ background: '#C4956A', borderRadius: 14, padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 4px 16px rgba(196,149,106,0.3)', cursor: 'pointer' }}>
               <span style={{ fontSize: 16 }}>🎯</span>
               <span style={{ fontSize: 15, fontWeight: 600, color: 'white', letterSpacing: '0.02em' }}>Commencer ma journée</span>
               <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16 }}>→</span>
             </div>
           </Link>
+
+          {/* ── BANDEAU COMMUNAUTÉ ── */}
+          {newCommunityPosts > 0 && (
+            <Link href="/community" style={{ textDecoration: 'none', display: 'block', marginBottom: 16 }}
+              onClick={() => localStorage.setItem('novae-community-last-visit', new Date().toISOString())}>
+              <div style={{
+                background: 'linear-gradient(135deg, #F5D0DC, #FCE8EE)',
+                border: '1.5px solid #E0A0B8',
+                borderRadius: 14, padding: '14px 18px',
+                display: 'flex', alignItems: 'center', gap: 12
+              }}>
+                <div style={{
+                  width: 42, height: 42, borderRadius: 12,
+                  background: '#E0A0B8',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 20, flexShrink: 0
+                }}>💬</div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>
+                    Communauté NOVAÉ
+                  </p>
+                  <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B6B6B' }}>
+                    {newCommunityPosts} nouveau{newCommunityPosts > 1 ? 'x' : ''} message{newCommunityPosts > 1 ? 's' : ''} depuis ta dernière visite
+                  </p>
+                </div>
+                <div style={{
+                  background: '#D4856A', borderRadius: 20,
+                  padding: '4px 10px', fontSize: 11,
+                  fontWeight: 700, color: 'white', flexShrink: 0
+                }}>
+                  {newCommunityPosts}
+                </div>
+                <span style={{ color: '#C4956A', fontSize: 16 }}>→</span>
+              </div>
+            </Link>
+          )}
 
           {/* ── SÉPARATEUR MODULES ── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -344,7 +379,7 @@ export default function HomePage() {
             <div style={{ flex: 1, height: 1, background: '#E8E4DF' }} />
           </div>
 
-          {/* ── MODULES (secondaire, rétractable) ── */}
+          {/* ── MODULES ── */}
           {showModules && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
               {modules.map((mod) => (
