@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
 
     const attributes: Record<string, string> = {}
     if (prenom) attributes.PRENOM = prenom
-    if (telephone) attributes.SMS = telephone
+    if (telephone) attributes.TELEPHONE = telephone
     if (extra.APPLIS) attributes.APPLIS = extra.APPLIS
     if (extra.DEFI) attributes.DEFI = extra.DEFI
     if (extra.ENFANTS) attributes.ENFANTS = extra.ENFANTS
