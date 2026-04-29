@@ -2,7 +2,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
-import { User, LogOut, Settings, CreditCard, Sparkles } from 'lucide-react'
+import { User, LogOut, Settings, CreditCard, Sparkles, ShieldCheck } from 'lucide-react'
+
+const ADMIN_EMAIL = 'nesserinesediri@gmail.com'
 
 export function UserMenu() {
   const { user, signOut } = useSupabaseAuth()
@@ -17,10 +19,10 @@ export function UserMenu() {
   if (!user) return null
 
   const pseudo = user.user_metadata?.pseudo || user.user_metadata?.full_name || user.email?.split('@')[0]
+  const isAdmin = user.email === ADMIN_EMAIL
 
   return (
     <div className="relative flex items-center gap-2">
-      {/* Bouton Mon Profil */}
       <button
         onClick={() => router.push('/profil')}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-novae-gold/10 border border-novae-gold/20 hover:bg-novae-gold/20 transition-colors"
@@ -29,7 +31,6 @@ export function UserMenu() {
         <span className="text-xs font-medium text-novae-gold">Mon Profil</span>
       </button>
 
-      {/* Avatar menu */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-novae-beige/20 transition-colors"
@@ -49,6 +50,16 @@ export function UserMenu() {
               <p className="text-xs text-novae-anthracite/60">{user.email}</p>
             </div>
             <div className="py-2">
+              {isAdmin && (
+                <button
+                  onClick={() => { router.push('/admin'); setIsOpen(false) }}
+                  className="w-full px-4 py-2 text-left text-sm font-semibold hover:bg-amber-50 flex items-center gap-2"
+                  style={{ color: '#C4956A' }}
+                >
+                  <ShieldCheck size={16} />
+                  Administration
+                </button>
+              )}
               <button
                 onClick={() => { router.push('/profil'); setIsOpen(false) }}
                 className="w-full px-4 py-2 text-left text-sm text-novae-anthracite hover:bg-novae-beige/20 flex items-center gap-2"

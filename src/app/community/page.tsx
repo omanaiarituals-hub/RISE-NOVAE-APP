@@ -112,40 +112,52 @@ export default function CommunityPage() {
     }
   }
 
-  const loadPosts = async () => {
-    if (!user) return
-    const { data: postsData } = await supabase
-      .from('community_posts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50)
+const loadPosts = async () => {
+  if (!user) return
+  const { data: postsData } = await supabase
+    .from('community_posts')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(50)
 
-    if (!postsData) return
+  if (!postsData) return
 
-    // Récupère les pseudos
-    const userIds = Array.from(new Set(postsData.map(p => p.user_id)))
-    const { data: profiles } = await supabase
-      .from('ai_personality_profile')
-      .select('user_id, pseudo')
-      .in('user_id', userIds)
+  const userIds = Array.from(new Set(postsData.map(p => p.user_id)))
 
-    const pseudoMap: Record<string, string> = {}
-    profiles?.forEach(p => { pseudoMap[p.user_id] = p.pseudo })
+  // Pseudos depuis ai_personality_profile
+  const { data: profiles } = await supabase
+    .from('ai_personality_profile')
+    .select('user_id, pseudo')
+    .in('user_id', userIds)
 
-    // Vérifie les likes
-    const { data: myLikes } = await supabase
-      .from('community_likes')
-      .select('post_id')
-      .eq('user_id', user.id)
+  const pseudoMap: Record<string, string> = {}
+  profiles?.forEach(p => { if (p.pseudo) pseudoMap[p.user_id] = p.pseudo })
 
-    const likedIds = new Set(myLikes?.map(l => l.post_id) || [])
+  // Fallback : pseudos depuis user_metadata (Supabase Auth)
+  const missingIds = userIds.filter(id => !pseudoMap[id])
+  if (missingIds.length > 0) {
+    const { data: authUsers } = await supabase
+      .from('profiles')
+      .select('id, raw_user_meta_data')
+      .in('id', missingIds)
 
-    setPosts(postsData.map(p => ({
-      ...p,
-      pseudo: pseudoMap[p.user_id] || p.user_id.slice(0, 8),
-      liked_by_me: likedIds.has(p.id)
-    })))
+    // Si pas de table profiles, fallback email-based depuis community_posts
+    // On garde juste l'ID court comme dernier recours
   }
+
+  const { data: myLikes } = await supabase
+    .from('community_likes')
+    .select('post_id')
+    .eq('user_id', user.id)
+
+  const likedIds = new Set(myLikes?.map(l => l.post_id) || [])
+
+  setPosts(postsData.map(p => ({
+    ...p,
+    pseudo: pseudoMap[p.user_id] || (p.user_id === user.id ? pseudo : `NOVAÉ_${p.user_id.slice(0, 4)}`),
+    liked_by_me: likedIds.has(p.id)
+  })))
+}
 
   const loadChallenges = async () => {
     if (!user) return
@@ -318,29 +330,39 @@ export default function CommunityPage() {
     }
   }
 
-  const handleComment = async (postId: string) => {
-    if (!user || !newComment[postId]?.trim()) return
-    const { data } = await supabase
-      .from('community_comments')
-      .insert({ post_id: postId, user_id: user.id, content: newComment[postId].trim() })
-      .select()
-      .single()
+const handleComment = async (postId: string) => {
+  if (!user || !newComment[postId]?.trim()) return
 
-    if (data) {
-      await supabase.from('community_posts')
-        .update({ comments_count: (posts.find(p => p.id === postId)?.comments_count || 0) + 1 })
-        .eq('id', postId)
+  const content = newComment[postId].trim()
+  setNewComment(prev => ({ ...prev, [postId]: '' }))
 
-      setComments(prev => ({
-        ...prev,
-        [postId]: [...(prev[postId] || []), { ...data, pseudo }]
-      }))
-      setPosts(prev => prev.map(p => p.id === postId
-        ? { ...p, comments_count: p.comments_count + 1 }
-        : p))
-      setNewComment(prev => ({ ...prev, [postId]: '' }))
-    }
+  const { data, error } = await supabase
+    .from('community_comments')
+    .insert({ post_id: postId, user_id: user.id, content })
+    .select()
+    .single()
+
+  if (error || !data) {
+    // Remettre le texte si erreur
+    setNewComment(prev => ({ ...prev, [postId]: content }))
+    return
   }
+
+  // Mise à jour compteur
+  const currentCount = posts.find(p => p.id === postId)?.comments_count || 0
+  await supabase.from('community_posts')
+    .update({ comments_count: currentCount + 1 })
+    .eq('id', postId)
+
+  // Ajout immédiat dans l'UI
+  setComments(prev => ({
+    ...prev,
+    [postId]: [...(prev[postId] || []), { ...data, pseudo }]
+  }))
+  setPosts(prev => prev.map(p =>
+    p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p
+  ))
+}
 
   const handleJoinChallenge = async (challengeId: string) => {
     if (!user) return
