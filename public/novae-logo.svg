@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E8C878;stop-opacity:1" />
+      <stop offset="40%" style="stop-color:#C4956A;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#A0724A;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="goldGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F0D890;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#C4956A;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B5E3C;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Étoile 4 branches -->
+  <g transform="translate(22, 30)">
+    <!-- Branche verticale -->
+    <ellipse cx="0" cy="0" rx="2.2" ry="13" fill="url(#goldGrad)" transform="rotate(0)"/>
+    <!-- Branche horizontale -->
+    <ellipse cx="0" cy="0" rx="2.2" ry="13" fill="url(#goldGrad)" transform="rotate(90)"/>
+    <!-- Branche diagonale 1 -->
+    <ellipse cx="0" cy="0" rx="1.2" ry="8" fill="url(#goldGrad2)" transform="rotate(45)"/>
+    <!-- Branche diagonale 2 -->
+    <ellipse cx="0" cy="0" rx="1.2" ry="8" fill="url(#goldGrad2)" transform="rotate(135)"/>
+    <!-- Centre -->
+    <circle cx="0" cy="0" r="2" fill="url(#goldGrad)"/>
+  </g>
+
+  <!-- NOVAÉ -->
+  <text x="42" y="35" 
+    font-family="'Cormorant Garamond', 'Georgia', serif" 
+    font-size="26" 
+    font-weight="500"
+    letter-spacing="4"
+    fill="url(#goldGrad)">NOVAÉ</text>
+    
+  <!-- by OMANAÏA -->
+  <text x="43" y="47" 
+    font-family="'DM Sans', 'Helvetica', sans-serif" 
+    font-size="7.5" 
+    font-weight="400"
+    letter-spacing="3.5"
+    fill="#C4956A"
+    opacity="0.75">BY OMANAÏA</text>
+</svg>

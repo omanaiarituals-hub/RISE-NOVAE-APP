@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { UserMenu } from '@/components/UserMenu'
 import { OnboardingTour } from '@/components/OnboardingTour'
+import { HomeAestheticBanner } from '@/components/HomeAestheticBanner'
 
 const modules = [
   { href: '/program',   emoji: '🎯', title: 'Programme 90j',      color: '#F2E0D8', border: '#D4A090' },
@@ -77,6 +78,8 @@ export default function HomePage() {
 
   const hour = new Date().getHours()
   const greeting = hour < 5 ? 'Bonne nuit' : hour < 12 ? 'Bonjour' : hour < 18 ? 'Bonne après-midi' : 'Bonsoir'
+  {/* Widget esthétique — image du jour + planner */}
+<HomeAestheticBanner />
   const pseudo = user?.user_metadata?.pseudo || user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
 
   useEffect(() => {

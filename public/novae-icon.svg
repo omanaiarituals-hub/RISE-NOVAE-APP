@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F2DFA0"/>
+      <stop offset="40%" style="stop-color:#C4956A"/>
+      <stop offset="100%" style="stop-color:#9A6840"/>
+    </linearGradient>
+    <linearGradient id="goldDiag" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E8CE88"/>
+      <stop offset="100%" style="stop-color:#B07848"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fond rose poudré plein — carré plein, iOS/Android arrondissent automatiquement -->
+  <rect width="512" height="512" fill="#EDCFC4"/>
+
+  <!-- Étoile 4 branches style Elegant Premium centrée -->
+  <g transform="translate(256,256)">
+    <!-- Branche Nord-Sud (grande) -->
+    <path d="M0,-160 C6,-80 6,80 0,160 C-6,80 -6,-80 0,-160 Z" fill="url(#gold)"/>
+    <!-- Branche Est-Ouest (grande) -->
+    <path d="M-160,0 C-80,6 80,6 160,0 C80,-6 -80,-6 -160,0 Z" fill="url(#gold)"/>
+    <!-- Branche NE-SO (petite) -->
+    <path d="M0,-100 C4,-50 4,50 0,100 C-4,50 -4,-50 0,-100 Z" fill="url(#goldDiag)" transform="rotate(45)"/>
+    <!-- Branche NO-SE (petite) -->
+    <path d="M0,-100 C4,-50 4,50 0,100 C-4,50 -4,-50 0,-100 Z" fill="url(#goldDiag)" transform="rotate(-45)"/>
+    <!-- Centre lumineux -->
+    <circle cx="0" cy="0" r="10" fill="#F2DFA0"/>
+  </g>
+</svg>

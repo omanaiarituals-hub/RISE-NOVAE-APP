@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { NovaeProvider } from '@/context/NovaeContext'
 import OneSignalInit from '@/components/OneSignalInit'
+import Link from 'next/link'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -34,10 +35,26 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr">
-      <body className={inter.className}>
+      <body className={inter.className} style={{ margin: 0, background: '#1C1A18' }}>
         <NovaeProvider>
-          {children}
+          {/* Header avec le logo remplacé */}
+          <header style={{ 
+            padding: '20px', 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            borderBottom: '1px solid rgba(196,149,106,0.1)' 
+          }}>
+            <Link href="/">
+              <img src="/novae-logo.svg" alt="NOVAÉ" height={40} style={{ height: 40 }} />
+            </Link>
+          </header>
+
+          <main>
+            {children}
+          </main>
         </NovaeProvider>
+        
         <OneSignalInit />
         <script dangerouslySetInnerHTML={{__html: `
           if ('serviceWorker' in navigator) {

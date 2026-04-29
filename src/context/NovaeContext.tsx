@@ -115,7 +115,7 @@ interface NovaeContextType {
   addUserMissionResponse: (response: any) => void
 }
 
-const NovaeContext = createContext<NovaeContextType | undefined>(undefined)
+export const NovaeContext = createContext<NovaeContextType | undefined>(undefined)
 
 export const useNovae = () => {
   const context = useContext(NovaeContext)
