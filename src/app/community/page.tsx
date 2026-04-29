@@ -105,59 +105,42 @@ export default function CommunityPage() {
       .eq('user_id', user.id)
       .single()
     if (data?.pseudo) setPseudo(data.pseudo)
-    else {
-      // Fallback sur email
-      const emailPseudo = user.email?.split('@')[0] || 'NOVAÉ'
-      setPseudo(emailPseudo)
-    }
+    else setPseudo(user.email?.split('@')[0] || 'NOVAÉ')
   }
 
-const loadPosts = async () => {
-  if (!user) return
-  const { data: postsData } = await supabase
-    .from('community_posts')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(50)
+  const loadPosts = async () => {
+    if (!user) return
+    const { data: postsData } = await supabase
+      .from('community_posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
 
-  if (!postsData) return
+    if (!postsData) return
 
-  const userIds = Array.from(new Set(postsData.map(p => p.user_id)))
+    const userIds = Array.from(new Set(postsData.map(p => p.user_id)))
 
-  // Pseudos depuis ai_personality_profile
-  const { data: profiles } = await supabase
-    .from('ai_personality_profile')
-    .select('user_id, pseudo')
-    .in('user_id', userIds)
+    const { data: profiles } = await supabase
+      .from('ai_personality_profile')
+      .select('user_id, pseudo')
+      .in('user_id', userIds)
 
-  const pseudoMap: Record<string, string> = {}
-  profiles?.forEach(p => { if (p.pseudo) pseudoMap[p.user_id] = p.pseudo })
+    const pseudoMap: Record<string, string> = {}
+    profiles?.forEach(p => { if (p.pseudo) pseudoMap[p.user_id] = p.pseudo })
 
-  // Fallback : pseudos depuis user_metadata (Supabase Auth)
-  const missingIds = userIds.filter(id => !pseudoMap[id])
-  if (missingIds.length > 0) {
-    const { data: authUsers } = await supabase
-      .from('profiles')
-      .select('id, raw_user_meta_data')
-      .in('id', missingIds)
+    const { data: myLikes } = await supabase
+      .from('community_likes')
+      .select('post_id')
+      .eq('user_id', user.id)
 
-    // Si pas de table profiles, fallback email-based depuis community_posts
-    // On garde juste l'ID court comme dernier recours
+    const likedIds = new Set(myLikes?.map(l => l.post_id) || [])
+
+    setPosts(postsData.map(p => ({
+      ...p,
+      pseudo: pseudoMap[p.user_id] || p.user_id.slice(0, 8),
+      liked_by_me: likedIds.has(p.id)
+    })))
   }
-
-  const { data: myLikes } = await supabase
-    .from('community_likes')
-    .select('post_id')
-    .eq('user_id', user.id)
-
-  const likedIds = new Set(myLikes?.map(l => l.post_id) || [])
-
-  setPosts(postsData.map(p => ({
-    ...p,
-    pseudo: pseudoMap[p.user_id] || (p.user_id === user.id ? pseudo : `NOVAÉ_${p.user_id.slice(0, 4)}`),
-    liked_by_me: likedIds.has(p.id)
-  })))
-}
 
   const loadChallenges = async () => {
     if (!user) return
@@ -200,7 +183,7 @@ const loadPosts = async () => {
   }
 
   const loadRanking = async () => {
-    // Classement par mois : nombre de défis complétés
+    if (!user) return
     const startOfMonth = new Date()
     startOfMonth.setDate(1)
     startOfMonth.setHours(0, 0, 0, 0)
@@ -214,9 +197,7 @@ const loadPosts = async () => {
     if (!data) return
 
     const counts: Record<string, number> = {}
-    data.forEach(p => {
-      counts[p.user_id] = (counts[p.user_id] || 0) + 1
-    })
+    data.forEach(p => { counts[p.user_id] = (counts[p.user_id] || 0) + 1 })
 
     const sorted = Object.entries(counts)
       .sort(([, a], [, b]) => b - a)
@@ -288,14 +269,8 @@ const loadPosts = async () => {
         .single()
 
       if (data) {
-        setPosts(prev => [{
-          ...data,
-          pseudo,
-          liked_by_me: false
-        }, ...prev])
+        setPosts(prev => [{ ...data, pseudo, liked_by_me: false }, ...prev])
         setNewPost('')
-
-        // Badge premier post
         const postCount = posts.filter(p => p.user_id === user.id).length + 1
         if (postCount === 1) await grantBadge('first_post', '✍️ Première voix')
         if (postCount === 10) await grantBadge('ten_posts', '🌟 Voix de la communauté')
@@ -307,73 +282,49 @@ const loadPosts = async () => {
 
   const handleLike = async (post: Post) => {
     if (!user) return
-
     if (post.liked_by_me) {
-      await supabase.from('community_likes').delete()
-        .eq('post_id', post.id).eq('user_id', user.id)
-      await supabase.from('community_posts').update({ likes_count: Math.max(0, post.likes_count - 1) })
-        .eq('id', post.id)
-      setPosts(prev => prev.map(p => p.id === post.id
-        ? { ...p, liked_by_me: false, likes_count: Math.max(0, p.likes_count - 1) }
-        : p))
+      await supabase.from('community_likes').delete().eq('post_id', post.id).eq('user_id', user.id)
+      await supabase.from('community_posts').update({ likes_count: Math.max(0, post.likes_count - 1) }).eq('id', post.id)
+      setPosts(prev => prev.map(p => p.id === post.id ? { ...p, liked_by_me: false, likes_count: Math.max(0, p.likes_count - 1) } : p))
     } else {
       await supabase.from('community_likes').insert({ post_id: post.id, user_id: user.id })
-      await supabase.from('community_posts').update({ likes_count: post.likes_count + 1 })
-        .eq('id', post.id)
-      setPosts(prev => prev.map(p => p.id === post.id
-        ? { ...p, liked_by_me: true, likes_count: p.likes_count + 1 }
-        : p))
-
-      // Badge premier like
+      await supabase.from('community_posts').update({ likes_count: post.likes_count + 1 }).eq('id', post.id)
+      setPosts(prev => prev.map(p => p.id === post.id ? { ...p, liked_by_me: true, likes_count: p.likes_count + 1 } : p))
       const likeCount = posts.filter(p => p.liked_by_me).length
       if (likeCount === 0) await grantBadge('first_like', '💛 Bienveillante')
     }
   }
 
-const handleComment = async (postId: string) => {
-  if (!user || !newComment[postId]?.trim()) return
+  const handleComment = async (postId: string) => {
+    if (!user || !newComment[postId]?.trim()) return
+    const content = newComment[postId].trim()
+    setNewComment(prev => ({ ...prev, [postId]: '' }))
 
-  const content = newComment[postId].trim()
-  setNewComment(prev => ({ ...prev, [postId]: '' }))
+    const { data, error } = await supabase
+      .from('community_comments')
+      .insert({ post_id: postId, user_id: user.id, content })
+      .select()
+      .single()
 
-  const { data, error } = await supabase
-    .from('community_comments')
-    .insert({ post_id: postId, user_id: user.id, content })
-    .select()
-    .single()
+    if (error || !data) {
+      setNewComment(prev => ({ ...prev, [postId]: content }))
+      return
+    }
 
-  if (error || !data) {
-    // Remettre le texte si erreur
-    setNewComment(prev => ({ ...prev, [postId]: content }))
-    return
+    const currentCount = posts.find(p => p.id === postId)?.comments_count || 0
+    await supabase.from('community_posts').update({ comments_count: currentCount + 1 }).eq('id', postId)
+
+    setComments(prev => ({
+      ...prev,
+      [postId]: [...(prev[postId] || []), { ...data, pseudo }]
+    }))
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p))
   }
-
-  // Mise à jour compteur
-  const currentCount = posts.find(p => p.id === postId)?.comments_count || 0
-  await supabase.from('community_posts')
-    .update({ comments_count: currentCount + 1 })
-    .eq('id', postId)
-
-  // Ajout immédiat dans l'UI
-  setComments(prev => ({
-    ...prev,
-    [postId]: [...(prev[postId] || []), { ...data, pseudo }]
-  }))
-  setPosts(prev => prev.map(p =>
-    p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p
-  ))
-}
 
   const handleJoinChallenge = async (challengeId: string) => {
     if (!user) return
-    await supabase.from('challenge_participations').insert({
-      challenge_id: challengeId,
-      user_id: user.id,
-      completed: false
-    })
-    setChallenges(prev => prev.map(c => c.id === challengeId
-      ? { ...c, my_participation: { completed: false }, participants_count: (c.participants_count || 0) + 1 }
-      : c))
+    await supabase.from('challenge_participations').insert({ challenge_id: challengeId, user_id: user.id, completed: false })
+    setChallenges(prev => prev.map(c => c.id === challengeId ? { ...c, my_participation: { completed: false }, participants_count: (c.participants_count || 0) + 1 } : c))
   }
 
   const handleCompleteChallenge = async (challengeId: string) => {
@@ -382,16 +333,10 @@ const handleComment = async (postId: string) => {
       .update({ completed: true, completed_at: new Date().toISOString() })
       .eq('challenge_id', challengeId)
       .eq('user_id', user.id)
-
-    setChallenges(prev => prev.map(c => c.id === challengeId
-      ? { ...c, my_participation: { completed: true }, completed_count: (c.completed_count || 0) + 1 }
-      : c))
-
-    // Badges défis
+    setChallenges(prev => prev.map(c => c.id === challengeId ? { ...c, my_participation: { completed: true }, completed_count: (c.completed_count || 0) + 1 } : c))
     const completedCount = challenges.filter(c => c.my_participation?.completed).length + 1
     await grantBadge('challenge_done', '🎯 Défi relevé')
     if (completedCount >= 3) await grantBadge('three_challenges', '🔥 Inépuisable')
-
     loadRanking()
   }
 
@@ -399,11 +344,7 @@ const handleComment = async (postId: string) => {
     if (!user) return
     const exists = myBadges.find(b => b.badge_type === type)
     if (exists) return
-    const { data } = await supabase.from('user_badges').insert({
-      user_id: user.id,
-      badge_type: type,
-      badge_label: label
-    }).select().single()
+    const { data } = await supabase.from('user_badges').insert({ user_id: user.id, badge_type: type, badge_label: label }).select().single()
     if (data) setMyBadges(prev => [data, ...prev])
   }
 
@@ -429,9 +370,8 @@ const handleComment = async (postId: string) => {
     return `${days}j`
   }
 
-  const formatChallengeDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-  }
+  const formatChallengeDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 
   const getRankEmoji = (rank: number) => {
     if (rank === 1) return '🥇'
@@ -454,16 +394,13 @@ const handleComment = async (postId: string) => {
         <div className="text-4xl mb-4">👭</div>
         <h2 className="font-serif text-2xl text-novae-anthracite mb-2 text-center">Rejoins la communauté</h2>
         <p className="text-novae-anthracite/50 text-sm text-center mb-6">Connecte-toi pour accéder à l'espace communautaire NOVAÉ.</p>
-        <Link href="/auth" className="px-6 py-3 bg-novae-anthracite text-white rounded-xl text-sm font-medium">
-          Se connecter
-        </Link>
+        <Link href="/auth" className="px-6 py-3 bg-novae-anthracite text-white rounded-xl text-sm font-medium">Se connecter</Link>
       </div>
     )
   }
 
   return (
     <div className="flex flex-col min-h-screen bg-novae-cream">
-      {/* Header */}
       <div className="bg-white border-b border-novae-beige/30 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
         <Link href="/" className="text-novae-anthracite/50 hover:text-novae-anthracite transition-colors">
           <span className="text-lg">←</span>
@@ -483,18 +420,12 @@ const handleComment = async (postId: string) => {
         )}
       </div>
 
-      {/* Tabs */}
       <div className="bg-white border-b border-novae-beige/20 px-4 flex gap-1 sticky top-14 z-10">
         {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? 'border-novae-gold text-novae-gold'
-                : 'border-transparent text-novae-anthracite/50 hover:text-novae-anthracite'
-            }`}
-          >
+              activeTab === tab.id ? 'border-novae-gold text-novae-gold' : 'border-transparent text-novae-anthracite/50 hover:text-novae-anthracite'
+            }`}>
             <span>{tab.icon}</span>
             <span>{tab.label}</span>
           </button>
@@ -503,36 +434,22 @@ const handleComment = async (postId: string) => {
 
       <div className="flex-1 max-w-lg mx-auto w-full px-4 py-4">
 
-        {/* ── FIL ── */}
         {activeTab === 'feed' && (
           <div className="space-y-4">
-            {/* Zone de post */}
             <div className="bg-white rounded-2xl border border-novae-beige/20 p-4 shadow-sm">
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-novae-gold to-novae-rose flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                   {pseudo?.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1">
-                  <textarea
-                    ref={textareaRef}
-                    value={newPost}
-                    onChange={e => setNewPost(e.target.value)}
+                  <textarea ref={textareaRef} value={newPost} onChange={e => setNewPost(e.target.value)}
                     placeholder="Partage une victoire, une pensée, une question... ✦"
                     className="w-full text-sm text-novae-anthracite placeholder-novae-anthracite/30 bg-transparent focus:outline-none resize-none"
-                    rows={3}
-                    maxLength={500}
-                  />
+                    rows={3} maxLength={500} />
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs text-novae-anthracite/20">{newPost.length}/500</span>
-                    <button
-                      onClick={handlePost}
-                      disabled={!newPost.trim() || posting}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        newPost.trim() && !posting
-                          ? 'bg-novae-gold text-white'
-                          : 'bg-novae-beige/30 text-novae-anthracite/30 cursor-not-allowed'
-                      }`}
-                    >
+                    <button onClick={handlePost} disabled={!newPost.trim() || posting}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${newPost.trim() && !posting ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/30 cursor-not-allowed'}`}>
                       {posting ? '...' : 'Publier'}
                     </button>
                   </div>
@@ -540,7 +457,6 @@ const handleComment = async (postId: string) => {
               </div>
             </div>
 
-            {/* Posts */}
             {posts.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-4xl mb-3">🌱</div>
@@ -563,27 +479,19 @@ const handleComment = async (postId: string) => {
                     <p className="text-sm text-novae-anthracite leading-relaxed whitespace-pre-wrap">{post.content}</p>
                   </div>
 
-                  {/* Actions */}
                   <div className="px-4 pb-3 flex items-center gap-4 border-t border-novae-beige/10 pt-2">
-                    <button
-                      onClick={() => handleLike(post)}
-                      className={`flex items-center gap-1.5 text-xs transition-colors ${
-                        post.liked_by_me ? 'text-novae-gold' : 'text-novae-anthracite/40 hover:text-novae-gold'
-                      }`}
-                    >
+                    <button onClick={() => handleLike(post)}
+                      className={`flex items-center gap-1.5 text-xs transition-colors ${post.liked_by_me ? 'text-novae-gold' : 'text-novae-anthracite/40 hover:text-novae-gold'}`}>
                       <span>{post.liked_by_me ? '💛' : '🤍'}</span>
                       <span>{post.likes_count > 0 ? post.likes_count : ''}</span>
                     </button>
-                    <button
-                      onClick={() => toggleComments(post.id)}
-                      className="flex items-center gap-1.5 text-xs text-novae-anthracite/40 hover:text-novae-anthracite transition-colors"
-                    >
+                    <button onClick={() => toggleComments(post.id)}
+                      className="flex items-center gap-1.5 text-xs text-novae-anthracite/40 hover:text-novae-anthracite transition-colors">
                       <span>💬</span>
                       <span>{post.comments_count > 0 ? post.comments_count : 'Commenter'}</span>
                     </button>
                   </div>
 
-                  {/* Commentaires */}
                   {expandedPost === post.id && (
                     <div className="border-t border-novae-beige/10 bg-novae-cream/50">
                       <div className="px-4 py-3 space-y-3 max-h-64 overflow-y-auto">
@@ -603,23 +511,13 @@ const handleComment = async (postId: string) => {
                         )}
                       </div>
                       <div className="px-4 pb-3 flex gap-2">
-                        <input
-                          value={newComment[post.id] || ''}
-                          onChange={e => setNewComment(prev => ({ ...prev, [post.id]: e.target.value }))}
+                        <input value={newComment[post.id] || ''} onChange={e => setNewComment(prev => ({ ...prev, [post.id]: e.target.value }))}
                           onKeyDown={e => { if (e.key === 'Enter') handleComment(post.id) }}
                           placeholder="Ton commentaire..."
                           className="flex-1 text-xs bg-white border border-novae-beige/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-novae-gold/30 text-novae-anthracite placeholder-novae-anthracite/30"
-                          maxLength={200}
-                        />
-                        <button
-                          onClick={() => handleComment(post.id)}
-                          disabled={!newComment[post.id]?.trim()}
-                          className={`px-3 py-2 rounded-lg text-xs transition-all ${
-                            newComment[post.id]?.trim()
-                              ? 'bg-novae-gold text-white'
-                              : 'bg-novae-beige/30 text-novae-anthracite/30'
-                          }`}
-                        >
+                          maxLength={200} />
+                        <button onClick={() => handleComment(post.id)} disabled={!newComment[post.id]?.trim()}
+                          className={`px-3 py-2 rounded-lg text-xs transition-all ${newComment[post.id]?.trim() ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/30'}`}>
                           →
                         </button>
                       </div>
@@ -631,7 +529,6 @@ const handleComment = async (postId: string) => {
           </div>
         )}
 
-        {/* ── DÉFIS ── */}
         {activeTab === 'challenges' && (
           <div className="space-y-4">
             <div className="bg-novae-gold/10 border border-novae-gold/20 rounded-2xl p-4 text-center">
@@ -659,41 +556,27 @@ const handleComment = async (postId: string) => {
                         <p className="text-xs text-novae-anthracite/50 mt-1 leading-relaxed">{challenge.description}</p>
                       )}
                       <div className="flex items-center gap-3 mt-2">
-                        <span className="text-xs text-novae-anthracite/40">
-                          📅 {formatChallengeDate(challenge.starts_at)} → {formatChallengeDate(challenge.ends_at)}
-                        </span>
+                        <span className="text-xs text-novae-anthracite/40">📅 {formatChallengeDate(challenge.starts_at)} → {formatChallengeDate(challenge.ends_at)}</span>
                       </div>
                       <div className="flex items-center gap-3 mt-2">
-                        <span className="text-xs text-novae-anthracite/50">
-                          👥 {challenge.participants_count} participantes
-                        </span>
-                        <span className="text-xs text-green-600">
-                          ✅ {challenge.completed_count} ont réussi
-                        </span>
+                        <span className="text-xs text-novae-anthracite/50">👥 {challenge.participants_count} participantes</span>
+                        <span className="text-xs text-green-600">✅ {challenge.completed_count} ont réussi</span>
                       </div>
-
-                      {/* Barre de progression */}
                       {(challenge.participants_count || 0) > 0 && (
                         <div className="mt-3">
                           <div className="h-1.5 bg-novae-beige/30 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-novae-gold rounded-full transition-all"
-                              style={{ width: `${Math.round(((challenge.completed_count || 0) / (challenge.participants_count || 1)) * 100)}%` }}
-                            />
+                            <div className="h-full bg-novae-gold rounded-full transition-all"
+                              style={{ width: `${Math.round(((challenge.completed_count || 0) / (challenge.participants_count || 1)) * 100)}%` }} />
                           </div>
                           <p className="text-xs text-novae-anthracite/30 mt-1">
                             {Math.round(((challenge.completed_count || 0) / (challenge.participants_count || 1)) * 100)}% de réussite
                           </p>
                         </div>
                       )}
-
-                      {/* CTA */}
                       <div className="mt-3">
                         {!challenge.my_participation ? (
-                          <button
-                            onClick={() => handleJoinChallenge(challenge.id)}
-                            className="w-full py-2 bg-novae-anthracite text-white rounded-xl text-xs font-medium hover:bg-novae-gold transition-colors"
-                          >
+                          <button onClick={() => handleJoinChallenge(challenge.id)}
+                            className="w-full py-2 bg-novae-anthracite text-white rounded-xl text-xs font-medium hover:bg-novae-gold transition-colors">
                             Rejoindre ce défi ✦
                           </button>
                         ) : challenge.my_participation.completed ? (
@@ -701,10 +584,8 @@ const handleComment = async (postId: string) => {
                             ✅ Défi relevé — Bravo !
                           </div>
                         ) : (
-                          <button
-                            onClick={() => handleCompleteChallenge(challenge.id)}
-                            className="w-full py-2 bg-novae-gold/10 border border-novae-gold/30 text-novae-gold rounded-xl text-xs font-medium hover:bg-novae-gold hover:text-white transition-colors"
-                          >
+                          <button onClick={() => handleCompleteChallenge(challenge.id)}
+                            className="w-full py-2 bg-novae-gold/10 border border-novae-gold/30 text-novae-gold rounded-xl text-xs font-medium hover:bg-novae-gold hover:text-white transition-colors">
                             Marquer comme complété 🎯
                           </button>
                         )}
@@ -717,10 +598,8 @@ const handleComment = async (postId: string) => {
           </div>
         )}
 
-        {/* ── CLASSEMENT ── */}
         {activeTab === 'ranking' && (
           <div className="space-y-4">
-            {/* Mois en cours */}
             <div className="bg-novae-anthracite rounded-2xl p-4 text-center">
               <p className="text-novae-gold text-xs font-medium uppercase tracking-widest mb-1">Classement du mois</p>
               <h2 className="font-serif text-2xl text-white">
@@ -729,7 +608,6 @@ const handleComment = async (postId: string) => {
               <p className="text-white/40 text-xs mt-1">Défis complétés ce mois-ci</p>
             </div>
 
-            {/* Mes badges */}
             {myBadges.length > 0 && (
               <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm p-4">
                 <h3 className="text-xs font-medium text-novae-anthracite/50 uppercase tracking-wide mb-3">Mes badges</h3>
@@ -744,7 +622,6 @@ const handleComment = async (postId: string) => {
               </div>
             )}
 
-            {/* Classement */}
             {ranking.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-4xl mb-3">🏆</div>
@@ -754,15 +631,9 @@ const handleComment = async (postId: string) => {
             ) : (
               <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm overflow-hidden">
                 {ranking.map((entry, index) => (
-                  <div
-                    key={entry.user_id}
-                    className={`flex items-center gap-3 px-4 py-3 ${
-                      index < ranking.length - 1 ? 'border-b border-novae-beige/10' : ''
-                    } ${entry.isMe ? 'bg-novae-gold/5' : ''}`}
-                  >
-                    <span className="text-lg w-8 text-center flex-shrink-0">
-                      {getRankEmoji(entry.rank)}
-                    </span>
+                  <div key={entry.user_id}
+                    className={`flex items-center gap-3 px-4 py-3 ${index < ranking.length - 1 ? 'border-b border-novae-beige/10' : ''} ${entry.isMe ? 'bg-novae-gold/5' : ''}`}>
+                    <span className="text-lg w-8 text-center flex-shrink-0">{getRankEmoji(entry.rank)}</span>
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-novae-gold/60 to-novae-rose/60 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                       {entry.pseudo?.charAt(0).toUpperCase()}
                     </div>
@@ -781,7 +652,6 @@ const handleComment = async (postId: string) => {
               </div>
             )}
 
-            {/* Tous les badges possibles */}
             <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm p-4">
               <h3 className="text-xs font-medium text-novae-anthracite/50 uppercase tracking-wide mb-3">Badges à débloquer</h3>
               <div className="space-y-2">
