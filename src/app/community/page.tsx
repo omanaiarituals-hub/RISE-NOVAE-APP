@@ -81,21 +81,21 @@ export default function CommunityPage() {
     }
   }, [user, authLoading])
 
-  const loadAll = async () => {
-    if (!user) return
-    setLoading(true)
-    try {
-      await Promise.all([
-        loadPseudo(),
-        loadPosts(),
-        loadChallenges(),
-        loadRanking(),
-        loadMyBadges(),
-      ])
-    } finally {
-      setLoading(false)
-    }
+ const loadAll = async () => {
+  if (!user) return
+  setLoading(true)
+  try {
+    await loadPseudo()
+    await loadPosts()
+    await loadChallenges()
+    await loadRanking()
+    await loadMyBadges()
+  } catch (error) {
+    console.error('Erreur loadAll:', error)
+  } finally {
+    setLoading(false)
   }
+}
 
   const loadPseudo = async () => {
     if (!user) return
