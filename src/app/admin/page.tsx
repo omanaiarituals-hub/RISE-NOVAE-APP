@@ -60,13 +60,13 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) { router.push('/auth'); return }
-      if (user.email !== ADMIN_EMAIL) { router.push('/'); return }
-      loadAll()
-    }
-  }, [user, authLoading])
+useEffect(() => {
+  if (authLoading) return
+  if (!user) { router.push('/auth'); return }
+  if (user.email !== ADMIN_EMAIL) { router.push('/'); return }
+  loadAll()
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [user, authLoading])
 
   const loadAll = async () => {
     setLoading(true)
