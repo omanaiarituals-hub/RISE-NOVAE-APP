@@ -8,7 +8,6 @@ import { AuthGuard } from '@/components/AuthGuard'
 import missionsData from '@/data/missions.json'
 import { supabase } from '@/lib/supabase/client'
 
-// ── Images par jour (même mapping que la page programme) ────────
 const DAY_IMAGES: Record<number, string> = {
   1:  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80',
   2:  'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=800&q=80',
@@ -53,10 +52,10 @@ export default function DayPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useSupabaseAuth()
-const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
+  const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
+
   const dayNumber = parseInt(params.day as string)
   const mission = (missionsData as any[]).find(m => m.day === dayNumber)
-
   const phaseIndex = dayNumber <= 30 ? 0 : dayNumber <= 60 ? 1 : 2
   const phase = PHASE_META[phaseIndex]
 
@@ -78,7 +77,6 @@ const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
       .eq('user_id', user.id)
       .eq('day_number', dayNumber)
       .single()
-
     if (data) {
       setReflection(data.reflection || '')
       setCompletedTasks(data.completed_tasks || [])
@@ -92,34 +90,33 @@ const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
     )
   }
 
- const saveProgress = async () => {
-  if (!user || !reflection.trim()) return
-  setSaving(true)
-  try {
-    await supabase.from('mission_responses').upsert({
-      user_id: user.id,
-      day_number: dayNumber,
-      reflection: reflection.trim(),
-      completed_tasks: completedTasks,
-      completed_at: new Date().toISOString()
-    }, { onConflict: 'user_id,day_number' })
+  const saveProgress = async () => {
+    if (!user || !reflection.trim()) return
+    setSaving(true)
+    try {
+      await supabase.from('mission_responses').upsert({
+        user_id: user.id,
+        day_number: dayNumber,
+        reflection: reflection.trim(),
+        completed_tasks: completedTasks,
+        completed_at: new Date().toISOString()
+      }, { onConflict: 'user_id,day_number' })
 
-    setIsCompleted(true)
-    setSaved(true)
+      setIsCompleted(true)
+      setSaved(true)
 
-    // Avancer au jour suivant si c'est le jour courant
-    if (dayNumber === currentDay && dayNumber < 90) {
-      await updateCurrentDay(dayNumber + 1)
-      setTimeout(() => {
-        router.push(`/program/${dayNumber + 1}`)
-      }, 1500) // laisse le temps de voir "Sauvegardé !"
-    } else {
-      setTimeout(() => setSaved(false), 3000)
+      if (dayNumber === currentDay && dayNumber < 90) {
+        await updateCurrentDay(dayNumber + 1)
+        setTimeout(() => {
+          router.push(`/program/${dayNumber + 1}`)
+        }, 1500)
+      } else {
+        setTimeout(() => setSaved(false), 3000)
+      }
+    } finally {
+      setSaving(false)
     }
-  } finally {
-    setSaving(false)
   }
-}
 
   const tasks = mission?.tasks || []
   const progressPct = tasks.length > 0 ? Math.round((completedTasks.length / tasks.length) * 100) : 0
@@ -139,7 +136,7 @@ const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
     <AuthGuard>
       <div style={{ minHeight: '100vh', background: '#FDFAF7', fontFamily: "'DM Sans', sans-serif" }}>
 
-        {/* ── HERO IMAGE ── */}
+        {/* HERO IMAGE */}
         <div style={{ position: 'relative', height: 260, overflow: 'hidden' }}>
           <img
             src={DAY_IMAGES[dayNumber] || DEFAULT_IMAGE}
@@ -151,7 +148,6 @@ const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
             background: `linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, ${phase.bg}f0 100%)`
           }} />
 
-          {/* Navigation */}
           <div style={{ position: 'absolute', top: 52, left: 20, right: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <button
               onClick={() => router.push('/program')}
@@ -165,7 +161,6 @@ const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
             </button>
           </div>
 
-          {/* Infos jour */}
           <div style={{ position: 'absolute', bottom: 24, left: 20, right: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <div style={{
@@ -176,47 +171,27 @@ const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
               }}>
                 {phase.label}
               </div>
-              <div style={{
-                fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.5)', fontWeight: 600,
-                padding: '4px 10px'
-              }}>
+              <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', fontWeight: 600, padding: '4px 10px' }}>
                 Jour {dayNumber} / 90
               </div>
               {isCompleted && (
-                <div style={{
-                  fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase',
-                  color: '#4CAF50', fontWeight: 700,
-                  background: 'rgba(76,175,80,0.15)', padding: '4px 10px', borderRadius: 20,
-                  border: '1px solid rgba(76,175,80,0.3)'
-                }}>
+                <div style={{ fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#4CAF50', fontWeight: 700, background: 'rgba(76,175,80,0.15)', padding: '4px 10px', borderRadius: 20, border: '1px solid rgba(76,175,80,0.3)' }}>
                   ✓ Complété
                 </div>
               )}
             </div>
-            <h1 style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 28, fontWeight: 500, color: 'white',
-              margin: 0, letterSpacing: '0.02em', lineHeight: 1.2
-            }}>
+            <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 500, color: 'white', margin: 0, letterSpacing: '0.02em', lineHeight: 1.2 }}>
               {mission.title}
             </h1>
           </div>
         </div>
 
-        {/* ── CONTENU ── */}
+        {/* CONTENU */}
         <div style={{ padding: '24px 20px 120px', maxWidth: 640, margin: '0 auto' }}>
 
-          {/* Guide / Description */}
-          <div style={{
-            background: 'white', borderRadius: 16,
-            border: '1px solid rgba(196,149,106,0.12)',
-            padding: '20px', marginBottom: 16
-          }}>
-            <p style={{
-              fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase',
-              color: phase.color, fontWeight: 700, margin: '0 0 10px'
-            }}>
+          {/* Mission */}
+          <div style={{ background: 'white', borderRadius: 16, border: '1px solid rgba(196,149,106,0.12)', padding: '20px', marginBottom: 16 }}>
+            <p style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: phase.color, fontWeight: 700, margin: '0 0 10px' }}>
               ✦ Ta mission du jour
             </p>
             <p style={{ fontSize: 14, color: 'rgba(26,26,26,0.75)', lineHeight: 1.75, margin: 0 }}>
@@ -224,69 +199,31 @@ const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
             </p>
           </div>
 
-          {/* Tâches à accomplir */}
+          {/* Tâches */}
           {tasks.length > 0 && (
-            <div style={{
-              background: 'white', borderRadius: 16,
-              border: '1px solid rgba(196,149,106,0.12)',
-              padding: '20px', marginBottom: 16
-            }}>
+            <div style={{ background: 'white', borderRadius: 16, border: '1px solid rgba(196,149,106,0.12)', padding: '20px', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <p style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: phase.color, fontWeight: 700, margin: 0 }}>
-                  ☑ Tâches
-                </p>
-                <span style={{ fontSize: 11, color: 'rgba(26,26,26,0.35)', fontWeight: 600 }}>
-                  {completedTasks.length}/{tasks.length}
-                </span>
+                <p style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: phase.color, fontWeight: 700, margin: 0 }}>☑ Tâches</p>
+                <span style={{ fontSize: 11, color: 'rgba(26,26,26,0.35)', fontWeight: 600 }}>{completedTasks.length}/{tasks.length}</span>
               </div>
-
-              {/* Barre de progression tâches */}
-              {tasks.length > 0 && (
-                <div style={{ height: 4, background: 'rgba(196,149,106,0.15)', borderRadius: 2, marginBottom: 14, overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${progressPct}%`, height: '100%',
-                    background: progressPct === 100 ? '#4CAF50' : phase.color,
-                    borderRadius: 2, transition: 'width 0.4s ease'
-                  }} />
-                </div>
-              )}
-
+              <div style={{ height: 4, background: 'rgba(196,149,106,0.15)', borderRadius: 2, marginBottom: 14, overflow: 'hidden' }}>
+                <div style={{ width: `${progressPct}%`, height: '100%', background: progressPct === 100 ? '#4CAF50' : phase.color, borderRadius: 2, transition: 'width 0.4s ease' }} />
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {tasks.map((task: any, index: number) => {
                   const taskLabel = typeof task === 'string' ? task : task.label
                   const done = completedTasks.includes(index)
                   return (
-                    <div
-                      key={index}
-                      onClick={() => toggleTask(index)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '12px 14px',
-                        background: done ? `${phase.color}0D` : 'rgba(26,26,26,0.02)',
-                        borderRadius: 12,
-                        border: `1px solid ${done ? `${phase.color}30` : 'rgba(26,26,26,0.06)'}`,
-                        cursor: 'pointer', transition: 'all 0.2s'
-                      }}
-                    >
-                      <div style={{
-                        width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                        border: `2px solid ${done ? phase.color : 'rgba(26,26,26,0.2)'}`,
-                        background: done ? phase.color : 'transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'all 0.2s'
-                      }}>
+                    <div key={index} onClick={() => toggleTask(index)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: done ? `${phase.color}0D` : 'rgba(26,26,26,0.02)', borderRadius: 12, border: `1px solid ${done ? `${phase.color}30` : 'rgba(26,26,26,0.06)'}`, cursor: 'pointer', transition: 'all 0.2s' }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, border: `2px solid ${done ? phase.color : 'rgba(26,26,26,0.2)'}`, background: done ? phase.color : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
                         {done && (
                           <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
                             <path d="M1 4.5L4 7.5L10 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
                         )}
                       </div>
-                      <span style={{
-                        fontSize: 13, fontWeight: 500,
-                        color: done ? 'rgba(26,26,26,0.4)' : '#1A1A1A',
-                        textDecoration: done ? 'line-through' : 'none',
-                        transition: 'all 0.2s', flex: 1
-                      }}>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: done ? 'rgba(26,26,26,0.4)' : '#1A1A1A', textDecoration: done ? 'line-through' : 'none', transition: 'all 0.2s', flex: 1 }}>
                         {taskLabel}
                       </span>
                     </div>
@@ -296,23 +233,13 @@ const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
             </div>
           )}
 
-          {/* Question de réflexion */}
-          <div style={{
-            background: 'white', borderRadius: 16,
-            border: '1px solid rgba(196,149,106,0.12)',
-            padding: '20px', marginBottom: 16
-          }}>
+          {/* Réflexion */}
+          <div style={{ background: 'white', borderRadius: 16, border: '1px solid rgba(196,149,106,0.12)', padding: '20px', marginBottom: 16 }}>
             <p style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: phase.color, fontWeight: 700, margin: '0 0 10px' }}>
               ✍ Réflexion
             </p>
             {(mission.question || mission.reflection?.question) && (
-              <p style={{
-                fontSize: 14, fontFamily: "'Cormorant Garamond', serif",
-                fontStyle: 'italic', color: 'rgba(26,26,26,0.6)',
-                lineHeight: 1.6, margin: '0 0 14px',
-                borderLeft: `3px solid ${phase.color}`,
-                paddingLeft: 12
-              }}>
+              <p style={{ fontSize: 14, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', color: 'rgba(26,26,26,0.6)', lineHeight: 1.6, margin: '0 0 14px', borderLeft: `3px solid ${phase.color}`, paddingLeft: 12 }}>
                 {mission.question || mission.reflection?.question}
               </p>
             )}
@@ -321,72 +248,38 @@ const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
               onChange={e => setReflection(e.target.value)}
               placeholder="Écris ta réflexion ici..."
               rows={5}
-              style={{
-                width: '100%',
-                background: 'rgba(26,26,26,0.02)',
-                border: `1px solid rgba(196,149,106,0.2)`,
-                borderRadius: 12, padding: '14px',
-                fontSize: 14, color: '#1A1A1A',
-                fontFamily: "'DM Sans', sans-serif",
-                resize: 'none', outline: 'none',
-                lineHeight: 1.6,
-                boxSizing: 'border-box' as const,
-                transition: 'border-color 0.2s'
-              }}
+              style={{ width: '100%', background: 'rgba(26,26,26,0.02)', border: '1px solid rgba(196,149,106,0.2)', borderRadius: 12, padding: '14px', fontSize: 14, color: '#1A1A1A', fontFamily: "'DM Sans', sans-serif", resize: 'none', outline: 'none', lineHeight: 1.6, boxSizing: 'border-box' as const, transition: 'border-color 0.2s' }}
               onFocus={e => e.target.style.borderColor = phase.color}
               onBlur={e => e.target.style.borderColor = 'rgba(196,149,106,0.2)'}
             />
           </div>
 
-          {/* Bouton sauvegarder */}
+          {/* Bouton valider */}
           <button
             onClick={saveProgress}
             disabled={saving || !reflection.trim()}
-            style={{
-              width: '100%', padding: '16px',
-              background: saved ? '#4CAF50' : reflection.trim() ? phase.color : 'rgba(26,26,26,0.08)',
-              border: 'none', borderRadius: 14,
-              color: reflection.trim() ? 'white' : 'rgba(26,26,26,0.3)',
-              fontSize: 14, fontWeight: 700,
-              cursor: reflection.trim() ? 'pointer' : 'not-allowed',
-              fontFamily: "'DM Sans', sans-serif",
-              letterSpacing: '0.05em',
-              transition: 'all 0.3s'
-            }}>
+            style={{ width: '100%', padding: '16px', background: saved ? '#4CAF50' : reflection.trim() ? phase.color : 'rgba(26,26,26,0.08)', border: 'none', borderRadius: 14, color: reflection.trim() ? 'white' : 'rgba(26,26,26,0.3)', fontSize: 14, fontWeight: 700, cursor: reflection.trim() ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.05em', transition: 'all 0.3s' }}>
             {saving ? 'Enregistrement...' : saved ? '✓ Sauvegardé !' : isCompleted ? '✓ Mettre à jour' : 'Valider cette journée →'}
           </button>
 
-          {/* Navigation jour suivant/précédent */}
+          {/* Navigation */}
           <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
             {dayNumber > 1 && (
               <button
                 onClick={() => router.push(`/program/${dayNumber - 1}`)}
-                style={{
-                  flex: 1, padding: '12px',
-                  background: 'white',
-                  border: '1px solid rgba(196,149,106,0.2)',
-                  borderRadius: 12, color: 'rgba(26,26,26,0.5)',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  fontFamily: "'DM Sans', sans-serif"
-                }}>
+                style={{ flex: 1, padding: '12px', background: 'white', border: '1px solid rgba(196,149,106,0.2)', borderRadius: 12, color: 'rgba(26,26,26,0.5)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                 ← Jour {dayNumber - 1}
               </button>
             )}
-            {dayNumber < 90 && dayNumber < currentDay && (
+            {dayNumber < 90 && (
               <button
-                onClick={() => router.push(`/program/${dayNumber + 1}`)}
-                style={{
-                  flex: 1, padding: '12px',
-                  background: 'white',
-                  border: '1px solid rgba(196,149,106,0.2)',
-                  borderRadius: 12, color: 'rgba(26,26,26,0.5)',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  fontFamily: "'DM Sans', sans-serif"
-                }}>
+                onClick={() => { if (isCompleted) router.push(`/program/${dayNumber + 1}`) }}
+                style={{ flex: 1, padding: '12px', background: isCompleted ? phase.color : 'rgba(26,26,26,0.06)', border: `1px solid ${isCompleted ? phase.color : 'rgba(26,26,26,0.1)'}`, borderRadius: 12, color: isCompleted ? 'white' : 'rgba(26,26,26,0.25)', fontSize: 12, fontWeight: 600, cursor: isCompleted ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif" }}>
                 Jour {dayNumber + 1} →
               </button>
             )}
           </div>
+
         </div>
       </div>
     </AuthGuard>
