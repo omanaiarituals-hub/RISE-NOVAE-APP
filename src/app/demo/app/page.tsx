@@ -47,7 +47,7 @@ export default function DemoAppPage() {
     <div style={{ minHeight: '100vh', background: '#FAF7F2', fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* BANNIÈRE DÉMO FIXE */}
-      <div style={{ background: 'linear-gradient(135deg, #1A1A1A 0%, #2A1F15 100%)', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, position: 'sticky', top: 0, zIndex: 100 }}>
+      <div style={{ background: 'linear-gradient(135deg, #1A1A1A 0%, #2A1F15 100%)', padding: '10px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, position: 'sticky', top: 0, zIndex: 100 }}>
         <span style={{ fontSize: 11, color: '#C4956A', fontWeight: 700, letterSpacing: '0.15em', flexShrink: 0 }}>MODE DÉMO</span>
         <span style={{ flex: 1, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Explore librement · Aucune donnée enregistrée</span>
         <button onClick={() => setShowConvert(true)} style={{ background: '#C4956A', border: 'none', borderRadius: 6, padding: '6px 12px', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans', sans-serif" }}>
