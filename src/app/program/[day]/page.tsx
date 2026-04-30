@@ -53,7 +53,7 @@ export default function DayPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useSupabaseAuth()
-  const { currentDay } = useProgramProgress()
+  const { currentDay, updateCurrentDay } = useProgramProgress()
 
   const dayNumber = parseInt(params.day as string)
   const mission = (missionsData as any[]).find(m => m.day === dayNumber)
@@ -93,24 +93,34 @@ export default function DayPage() {
     )
   }
 
-  const saveProgress = async () => {
-    if (!user || !reflection.trim()) return
-    setSaving(true)
-    try {
-      await supabase.from('mission_responses').upsert({
-        user_id: user.id,
-        day_number: dayNumber,
-        reflection: reflection.trim(),
-        completed_tasks: completedTasks,
-        completed_at: new Date().toISOString()
-      }, { onConflict: 'user_id,day_number' })
-      setIsCompleted(true)
-      setSaved(true)
+ const saveProgress = async () => {
+  if (!user || !reflection.trim()) return
+  setSaving(true)
+  try {
+    await supabase.from('mission_responses').upsert({
+      user_id: user.id,
+      day_number: dayNumber,
+      reflection: reflection.trim(),
+      completed_tasks: completedTasks,
+      completed_at: new Date().toISOString()
+    }, { onConflict: 'user_id,day_number' })
+
+    setIsCompleted(true)
+    setSaved(true)
+
+    // Avancer au jour suivant si c'est le jour courant
+    if (dayNumber === currentDay && dayNumber < 90) {
+      await updateCurrentDay(dayNumber + 1)
+      setTimeout(() => {
+        router.push(`/program/${dayNumber + 1}`)
+      }, 1500) // laisse le temps de voir "Sauvegardé !"
+    } else {
       setTimeout(() => setSaved(false), 3000)
-    } finally {
-      setSaving(false)
     }
+  } finally {
+    setSaving(false)
   }
+}
 
   const tasks = mission?.tasks || []
   const progressPct = tasks.length > 0 ? Math.round((completedTasks.length / tasks.length) * 100) : 0
