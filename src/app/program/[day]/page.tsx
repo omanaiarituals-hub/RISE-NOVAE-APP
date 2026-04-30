@@ -53,8 +53,7 @@ export default function DayPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useSupabaseAuth()
-  const { currentDay, updateCurrentDay } = useProgramProgress()
-
+const { currentDay, setCurrentDay: updateCurrentDay } = useProgramProgress()
   const dayNumber = parseInt(params.day as string)
   const mission = (missionsData as any[]).find(m => m.day === dayNumber)
 
