@@ -1,220 +1,203 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { supabase } from '@/lib/supabase/client'
-import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
+import { useEffect, useState } from 'react'
 
-// Images esthétiques Unsplash (libres, style NOVAÉ)
-const AESTHETIC_IMAGES = [
-  'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=800&q=80', // vases beige minimaliste
-  'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80', // fleurs roses douces
-  'https://images.unsplash.com/photo-1616486029423-aaa4789e8c9a?w=800&q=80', // intérieur beige
-  'https://images.unsplash.com/photo-1602024242516-fbc9d4fda4b6?w=800&q=80', // carnet & stylo doré
-  'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800&q=80', // zen minimaliste
-  'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=800&q=80', // carnet ouvert lumière
-  'https://images.unsplash.com/photo-1484980972926-edee96e0960d?w=800&q=80', // petit-déjeuner aesthetic
+// Saisonnalité : mot-clé Unsplash + ambiance par mois
+const MONTHLY_CONFIG = [
+  { month: 1,  query: 'winter+minimal+snow+landscape',    label: 'Janvier',   mood: 'Silence et clarté'         },
+  { month: 2,  query: 'frost+morning+minimal+nature',     label: 'Février',   mood: 'Lumière froide'            },
+  { month: 3,  query: 'spring+bloom+minimal+pastel',      label: 'Mars',      mood: 'Premiers bourgeons'        },
+  { month: 4,  query: 'rain+soft+light+minimal+green',    label: 'Avril',     mood: 'Pluie douce, renouveau'   },
+  { month: 5,  query: 'green+nature+minimal+field',       label: 'Mai',       mood: 'Verdure fraîche'          },
+  { month: 6,  query: 'golden+hour+minimal+summer',       label: 'Juin',      mood: 'Lumière chaude et longue' },
+  { month: 7,  query: 'summer+light+airy+sky+minimal',    label: 'Juillet',   mood: 'Chaleur et ciel ouvert'   },
+  { month: 8,  query: 'dry+field+golden+minimal+sun',     label: 'Août',      mood: 'Ocre et chaleur sèche'    },
+  { month: 9,  query: 'autumn+light+minimal+leaves',      label: 'Septembre', mood: 'L\'or de la transition'   },
+  { month: 10, query: 'fog+forest+minimal+autumn',        label: 'Octobre',   mood: 'Brume et profondeur'      },
+  { month: 11, query: 'bare+tree+minimal+grey+sky',       label: 'Novembre',  mood: 'Dénudé, introspection'    },
+  { month: 12, query: 'night+blue+minimal+winter+calm',   label: 'Décembre',  mood: 'Bleu nuit, intériorité'   },
 ]
 
-// Citations d'inspiration rotatives
-const CITATIONS = [
-  { text: "Chaque jour est une nouvelle page.", auteur: "NOVAÉ" },
-  { text: "La discipline, c'est te choisir toi, encore.", auteur: "NOVAÉ" },
-  { text: "Tu construis en silence ce que le monde verra demain.", auteur: "NOVAÉ" },
-  { text: "Le changement commence dans l'espace entre deux respirations.", auteur: "NOVAÉ" },
-  { text: "Avancer, même lentement, c'est ne pas reculer.", auteur: "NOVAÉ" },
-  { text: "Ta routine est ta révolution silencieuse.", auteur: "NOVAÉ" },
-  { text: "Ce que tu nourris chaque jour finit par te nourrir.", auteur: "NOVAÉ" },
-]
+const UNSPLASH_ACCESS_KEY = 'IQRcRQdwRp9HiiI9rPFVMB7MfXp03UuG7LHQSN1Hs44'
+const CACHE_PREFIX = 'novae-seasonal-img-'
 
-interface Todo {
-  id: string
-  text: string
-  completed: boolean
-  priority: string
-  due_date?: string
+interface BannerImage {
+  url: string
+  author: string
+  authorUrl: string
+  month: number
 }
 
 export function HomeAestheticBanner() {
-  const { user } = useSupabaseAuth()
-  const [todayTodos, setTodayTodos] = useState<Todo[]>([])
-  const [imageIndex, setImageIndex] = useState(0)
-  const [citationIndex, setCitationIndex] = useState(0)
+  const [image, setImage] = useState<BannerImage | null>(null)
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState(false)
+
+  const currentMonth = new Date().getMonth() + 1
+  const config = MONTHLY_CONFIG.find(c => c.month === currentMonth) || MONTHLY_CONFIG[0]
 
   useEffect(() => {
-    // Image et citation basées sur le jour
-    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
-    setImageIndex(dayOfYear % AESTHETIC_IMAGES.length)
-    setCitationIndex(dayOfYear % CITATIONS.length)
+    loadImage()
+  }, [])
 
-    if (user) loadTodayTodos()
-  }, [user])
+  const loadImage = async () => {
+    const cacheKey = `${CACHE_PREFIX}${currentMonth}`
+    const cached = localStorage.getItem(cacheKey)
 
-  const loadTodayTodos = async () => {
-    if (!user) return
-    const today = new Date().toISOString().slice(0, 10)
-    const { data } = await supabase
-      .from('todos')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('due_date', today)
-      .order('priority', { ascending: true })
-      .limit(4)
-    setTodayTodos(data || [])
+    if (cached) {
+      try {
+        const data = JSON.parse(cached)
+        // Cache valide si même mois
+        if (data.month === currentMonth) {
+          setImage(data)
+          return
+        }
+      } catch {}
+    }
+
+    // Fetch Unsplash
+    try {
+      const res = await fetch(
+        `https://api.unsplash.com/photos/random?query=${config.query}&orientation=landscape&content_filter=high`,
+        { headers: { Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` } }
+      )
+
+      if (!res.ok) throw new Error('Unsplash error')
+
+      const data = await res.json()
+      const img: BannerImage = {
+        url: data.urls?.regular || data.urls?.full,
+        author: data.user?.name || '',
+        authorUrl: data.user?.links?.html || '',
+        month: currentMonth,
+      }
+
+      localStorage.setItem(cacheKey, JSON.stringify(img))
+      setImage(img)
+    } catch {
+      // Fallback : image Unsplash statique par mois si l'API échoue
+      const fallbacks: Record<number, string> = {
+        1:  'https://images.unsplash.com/photo-1516912481808-3406841bd33c?w=800&q=70',
+        2:  'https://images.unsplash.com/photo-1485236715568-ddc5ee6ca227?w=800&q=70',
+        3:  'https://images.unsplash.com/photo-1462275646964-a0e3386b89fa?w=800&q=70',
+        4:  'https://images.unsplash.com/photo-1518173946687-a4c8892bbd9f?w=800&q=70',
+        5:  'https://images.unsplash.com/photo-1490750967868-88df5691cc11?w=800&q=70',
+        6:  'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=70',
+        7:  'https://images.unsplash.com/photo-1504701954957-2010ec3bcec1?w=800&q=70',
+        8:  'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=800&q=70',
+        9:  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&q=70',
+        10: 'https://images.unsplash.com/photo-1476820865390-c52aeebb9891?w=800&q=70',
+        11: 'https://images.unsplash.com/photo-1482192505345-5852583c8e98?w=800&q=70',
+        12: 'https://images.unsplash.com/photo-1418985991508-e47386d96a71?w=800&q=70',
+      }
+      setImage({
+        url: fallbacks[currentMonth] || fallbacks[1],
+        author: '',
+        authorUrl: '',
+        month: currentMonth,
+      })
+      setError(true)
+    }
   }
 
-  const toggleTodo = async (todo: Todo) => {
-    await supabase.from('todos').update({ completed: !todo.completed }).eq('id', todo.id)
-    setTodayTodos(prev => prev.map(t => t.id === todo.id ? { ...t, completed: !t.completed } : t))
-  }
-
-  const citation = CITATIONS[citationIndex]
-  const completedCount = todayTodos.filter(t => t.completed).length
+  if (!image) return null
 
   return (
-    <div className="mx-4 mb-4 rounded-3xl overflow-hidden shadow-sm" style={{ border: '1px solid rgba(196,149,106,0.15)' }}>
-      
-      {/* Image esthétique avec citation overlay */}
-      <div className="relative h-44 overflow-hidden">
-        <img
-          src={AESTHETIC_IMAGES[imageIndex]}
-          alt="inspiration du jour"
-          className="w-full h-full object-cover"
-          style={{ filter: 'brightness(0.88) saturate(0.9)' }}
-        />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0" style={{
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, rgba(26,20,15,0.55) 100%)'
+    <div style={{
+      position: 'relative',
+      width: '100%',
+      height: 180,
+      borderRadius: 20,
+      overflow: 'hidden',
+      marginBottom: 20,
+      boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+    }}>
+      {/* Image de fond */}
+      <img
+        src={image.url}
+        alt={`Paysage ${config.label}`}
+        onLoad={() => setLoaded(true)}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'center',
+          opacity: loaded ? 1 : 0,
+          transition: 'opacity 0.8s ease',
+          filter: 'brightness(0.82) saturate(0.9)',
+        }}
+      />
+
+      {/* Skeleton pendant le chargement */}
+      {!loaded && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(90deg, #E8E0D8 25%, #F0E8DC 50%, #E8E0D8 75%)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 1.5s infinite',
         }} />
-        {/* Citation */}
-        <div className="absolute bottom-0 left-0 right-0 p-4">
+      )}
+
+      {/* Overlay crème pour lisibilité + cohérence palette */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'linear-gradient(to top, rgba(26,26,26,0.55) 0%, rgba(26,26,26,0.08) 60%, transparent 100%)',
+      }} />
+
+      {/* Contenu texte */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        padding: '14px 18px',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+      }}>
+        <div>
           <p style={{
+            margin: 0,
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: '15px',
-            fontStyle: 'italic',
-            color: 'rgba(255,255,255,0.92)',
-            lineHeight: 1.4,
-            letterSpacing: '0.01em'
+            fontSize: 13, fontStyle: 'italic',
+            color: 'rgba(255,255,255,0.75)',
+            letterSpacing: '0.03em',
+            lineHeight: 1.3,
           }}>
-            "{citation.text}"
+            {config.mood}
           </p>
-          <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', marginTop: 4, letterSpacing: '0.15em' }}>
-            — {citation.auteur}
+          <p style={{
+            margin: '3px 0 0',
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 22, fontWeight: 600,
+            color: '#FFFFFF',
+            lineHeight: 1,
+            letterSpacing: '0.02em',
+          }}>
+            {config.label}
           </p>
         </div>
-      </div>
 
-      {/* Aperçu Planner du jour */}
-      <div style={{ background: '#FDFAF7', padding: '14px 16px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 13 }}>📋</span>
-            <span style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '12px',
-              fontWeight: 600,
-              color: '#1A1A1A',
-              letterSpacing: '0.05em',
-              textTransform: 'uppercase'
-            }}>
-              Aujourd'hui
-            </span>
-            {todayTodos.length > 0 && (
-              <span style={{
-                fontSize: '10px',
-                background: completedCount === todayTodos.length ? 'rgba(76,175,80,0.15)' : 'rgba(196,149,106,0.15)',
-                color: completedCount === todayTodos.length ? '#4CAF50' : '#C4956A',
-                padding: '2px 7px',
-                borderRadius: 20,
-                fontWeight: 600
-              }}>
-                {completedCount}/{todayTodos.length}
-              </span>
-            )}
-          </div>
-          <Link href="/planner" style={{
-            fontSize: '11px',
-            color: '#C4956A',
-            textDecoration: 'none',
-            fontWeight: 500,
-            letterSpacing: '0.05em'
-          }}>
-            Voir tout →
-          </Link>
-        </div>
-
-        {todayTodos.length === 0 ? (
-          <Link href="/planner" style={{ textDecoration: 'none' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '10px 14px',
-              background: 'rgba(196,149,106,0.06)',
-              borderRadius: 12,
-              border: '1px dashed rgba(196,149,106,0.25)'
-            }}>
-              <span style={{ fontSize: 16 }}>✨</span>
-              <span style={{ fontSize: 12, color: 'rgba(26,26,26,0.45)', fontStyle: 'italic' }}>
-                Planifie ta journée dans le Planner
-              </span>
-            </div>
-          </Link>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            {todayTodos.map(todo => (
-              <div
-                key={todo.id}
-                onClick={() => toggleTodo(todo)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '8px 12px',
-                  background: todo.completed ? 'rgba(76,175,80,0.05)' : 'rgba(196,149,106,0.05)',
-                  borderRadius: 10,
-                  border: `1px solid ${todo.completed ? 'rgba(76,175,80,0.15)' : 'rgba(196,149,106,0.12)'}`,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                {/* Checkbox custom */}
-                <div style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: '50%',
-                  border: `2px solid ${todo.completed ? '#4CAF50' : '#C4956A'}`,
-                  background: todo.completed ? '#4CAF50' : 'transparent',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  transition: 'all 0.2s'
-                }}>
-                  {todo.completed && (
-                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
-                </div>
-                <span style={{
-                  fontSize: '12.5px',
-                  color: todo.completed ? 'rgba(26,26,26,0.35)' : '#1A1A1A',
-                  textDecoration: todo.completed ? 'line-through' : 'none',
-                  flex: 1,
-                  transition: 'all 0.2s'
-                }}>
-                  {todo.text}
-                </span>
-                {/* Priorité dot */}
-                {todo.priority === 'high' && !todo.completed && (
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#E57373', flexShrink: 0 }} />
-                )}
-              </div>
-            ))}
-          </div>
+        {/* Crédit photo discret */}
+        {image.author && !error && (
+          <a
+            href={`${image.authorUrl}?utm_source=novae_app&utm_medium=referral`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: 9, color: 'rgba(255,255,255,0.4)',
+              textDecoration: 'none', fontFamily: "'DM Sans', sans-serif",
+              letterSpacing: '0.04em',
+            }}
+          >
+            📷 {image.author}
+          </a>
         )}
       </div>
+
+      <style>{`
+        @keyframes shimmer {
+          0%   { background-position: -200% 0 }
+          100% { background-position: 200% 0 }
+        }
+      `}</style>
     </div>
   )
 }
