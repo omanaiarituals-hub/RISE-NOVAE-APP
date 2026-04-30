@@ -117,8 +117,7 @@ const PHASE_META = [
 export default function ProgramPage() {
   const { user, loading: authLoading } = useSupabaseAuth()
   const router = useRouter()
-  const { currentDay, isLoaded } = useProgramProgress()
-
+const { currentDay, isLoaded, refreshProgress } = useProgramProgress()
   const [activePhase, setActivePhase] = useState(1)
   const [completedDays, setCompletedDays] = useState<number[]>([])
   const [expandedDay, setExpandedDay] = useState<number | null>(null)
@@ -136,6 +135,10 @@ export default function ProgramPage() {
   useEffect(() => {
     if (user) loadProgress()
   }, [user])
+
+  useEffect(() => {
+  refreshProgress()
+}, [])
 
   const loadProgress = async () => {
     if (!user) return
