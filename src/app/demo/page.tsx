@@ -566,9 +566,6 @@ export default function DemoPage() {
                 Essayer →
               </button>
             </div>
-          </div>
-        )}
-      </div>
 
       {/* ── NAVIGATION FIXE EN BAS ── */}
       {/* Wrapper pleine largeur pour centrer le contenu */}
@@ -630,6 +627,7 @@ export default function DemoPage() {
             {isLast ? 'Guide terminé ✦' : currentSlide === 0 ? 'Découvrir l\'app →' : 'Module suivant →'}
           </button>
         </div>
+      </div>
       </div>
 
       <style>{`
