@@ -27,6 +27,7 @@ const modules = [
   { href: '/family',    emoji: '💛', title: 'Famille'        },
   { href: '/notes',     emoji: '📝', title: 'Notes'          },
   { href: '/community', emoji: '👥', title: 'Communauté'     },
+  { href: '/astuces', emoji: '💡', title: 'Astuces' },
 ]
 
 // 10 couleurs pastel distinctes — glassmorphism sur fond sombre
@@ -347,3 +348,5 @@ export default function HomePage() {
     </>
   )
 }
+
+
