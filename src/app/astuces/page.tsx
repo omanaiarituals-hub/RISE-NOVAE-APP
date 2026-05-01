@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 // ── DATA ──────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -324,6 +325,10 @@ export default function AstucesPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#FAF7F2', fontFamily: "'DM Sans', sans-serif", paddingBottom: 80 }}>
+
+<Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B6560', textDecoration: 'none', padding: '12px 20px', fontFamily: "'DM Sans', sans-serif" }}>
+  ← Accueil
+</Link>
 
       {/* HEADER */}
       <div style={{
