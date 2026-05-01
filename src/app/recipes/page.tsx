@@ -127,46 +127,11 @@ const DEFAULT_RECIPES = [
     steps: ['Préchauffer le four à 200°C', 'Frotter le poulet avec huile, sel, poivre', 'Farcir avec citron coupé, thym et ail', 'Enfourner 1h en arrosant toutes les 20 min', 'Laisser reposer 10 min avant de découper'],
   },
   {
-    title: 'Soupe à l\'oignon gratinée', emoji: '🍲', description: 'La soupe réconfortante par excellence',
-    prep_time: '15', cook_time: '45', category: 'family' as Category, meal_type: 'entree' as MealType,
-    difficulty: 'facile' as Difficulty, servings: 4, is_favorite: false, is_public: true, calories: 280,
-    ingredients: [{ name: 'Oignons', quantity: '1kg' }, { name: 'Bouillon de bœuf', quantity: '1.5L' }, { name: 'Beurre', quantity: '40g' }, { name: 'Farine', quantity: '1 cs' }, { name: 'Vin blanc', quantity: '10cl' }, { name: 'Gruyère râpé', quantity: '150g' }, { name: 'Pain de campagne', quantity: '4 tranches' }],
-    steps: ['Émincer finement les oignons', 'Les faire fondre 30 min dans le beurre à feu doux', 'Saupoudrer de farine, mélanger', 'Ajouter vin blanc puis bouillon', 'Mijoter 15 min', 'Verser dans bols, poser pain + gruyère', 'Gratiner 5 min sous le grill'],
-  },
-  {
     title: 'Buddha Bowl végétarien', emoji: '🥗', description: 'Un repas complet et coloré',
     prep_time: '20', cook_time: '20', category: 'vegetarian' as Category, meal_type: 'plat' as MealType,
     difficulty: 'facile' as Difficulty, servings: 2, is_favorite: false, is_public: true, calories: 450,
     ingredients: [{ name: 'Quinoa', quantity: '120g' }, { name: 'Pois chiches', quantity: '200g' }, { name: 'Avocat', quantity: '1' }, { name: 'Concombre', quantity: '1/2' }, { name: 'Carottes râpées', quantity: '100g' }, { name: 'Épinards frais', quantity: '50g' }, { name: 'Tahini', quantity: '2 cs' }, { name: 'Citron', quantity: '1' }],
     steps: ['Cuire le quinoa 15 min', 'Rôtir les pois chiches au four 20 min avec épices', 'Couper avocat et concombre', 'Préparer la sauce tahini-citron', 'Assembler tous les éléments dans un bol', 'Arroser de sauce et servir'],
-  },
-  {
-    title: 'Omelette jambon-fromage', emoji: '🥚', description: 'Le classique du petit-déjeuner rapide',
-    prep_time: '5', cook_time: '5', category: 'express' as Category, meal_type: 'plat' as MealType,
-    difficulty: 'facile' as Difficulty, servings: 1, is_favorite: false, is_public: true, calories: 310,
-    ingredients: [{ name: 'Œufs', quantity: '3' }, { name: 'Jambon blanc', quantity: '2 tranches' }, { name: 'Emmental râpé', quantity: '40g' }, { name: 'Beurre', quantity: '10g' }, { name: 'Sel et poivre', quantity: 'PM' }],
-    steps: ['Battre les œufs avec sel et poivre', 'Faire fondre le beurre dans une poêle', 'Verser les œufs, laisser prendre à feu moyen', 'Ajouter jambon et fromage sur une moitié', 'Plier et servir aussitôt'],
-  },
-  {
-    title: 'Tarte aux pommes', emoji: '🥧', description: 'La tarte maison grand-mère',
-    prep_time: '20', cook_time: '35', category: 'family' as Category, meal_type: 'dessert' as MealType,
-    difficulty: 'facile' as Difficulty, servings: 8, is_favorite: true, is_public: true, calories: 290,
-    ingredients: [{ name: 'Pâte brisée', quantity: '1 rouleau' }, { name: 'Pommes', quantity: '4' }, { name: 'Sucre', quantity: '60g' }, { name: 'Cannelle', quantity: '1 cc' }, { name: 'Beurre', quantity: '20g' }, { name: 'Confiture d\'abricot', quantity: '2 cs' }],
-    steps: ['Préchauffer le four à 180°C', 'Étaler la pâte dans un moule à tarte', 'Peler et couper les pommes en fines lamelles', 'Disposer en rosace sur la pâte', 'Saupoudrer sucre et cannelle, parsemer de beurre', 'Cuire 35 min jusqu\'à dorure', 'Glacer avec confiture chauffée'],
-  },
-  {
-    title: 'Saumon teriyaki', emoji: '🐟', description: 'Une recette japonaise facile et savoureuse',
-    prep_time: '10', cook_time: '15', category: 'healthy' as Category, meal_type: 'plat' as MealType,
-    difficulty: 'facile' as Difficulty, servings: 2, is_favorite: false, is_public: true, calories: 390,
-    ingredients: [{ name: 'Pavés de saumon', quantity: '2 (300g)' }, { name: 'Sauce soja', quantity: '3 cs' }, { name: 'Miel', quantity: '2 cs' }, { name: 'Gingembre râpé', quantity: '1 cc' }, { name: 'Ail', quantity: '1 gousse' }, { name: 'Graines de sésame', quantity: '1 cs' }],
-    steps: ['Mélanger sauce soja, miel, gingembre et ail', 'Mariner le saumon 10 min', 'Cuire à la poêle 4 min côté peau', 'Retourner, verser la marinade', 'Laisser caraméliser 3-4 min', 'Parsemer de sésame et servir avec du riz'],
-  },
-  {
-    title: 'Smoothie bowl mangue-banane', emoji: '🥭', description: 'Un petit-déjeuner vitaminé',
-    prep_time: '10', cook_time: '0', category: 'vegan' as Category, meal_type: 'entree' as MealType,
-    difficulty: 'facile' as Difficulty, servings: 1, is_favorite: false, is_public: true, calories: 340,
-    ingredients: [{ name: 'Mangue congelée', quantity: '150g' }, { name: 'Banane congelée', quantity: '1' }, { name: 'Lait de coco', quantity: '50ml' }, { name: 'Granola', quantity: '40g' }, { name: 'Fruits frais', quantity: 'au choix' }, { name: 'Graines de chia', quantity: '1 cs' }],
-    steps: ['Mixer mangue, banane et lait de coco jusqu\'à consistance épaisse', 'Verser dans un bol', 'Garnir de granola, fruits frais et graines de chia', 'Servir immédiatement'],
   },
 ]
 
@@ -198,17 +163,13 @@ function AllergyBanner({ alerts, onDismiss }: { alerts: AllergyAlert[]; onDismis
     <div style={{ background: 'rgba(220,60,60,0.08)', border: '1.5px solid rgba(220,60,60,0.25)', borderRadius: 12, padding: '12px 16px', margin: '12px 20px 0', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
       <span style={{ fontSize: 20, flexShrink: 0 }}>⚠️</span>
       <div style={{ flex: 1 }}>
-        <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: '#C04040' }}>
-          Alerte allergie dans ton planning
-        </p>
+        <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: '#C04040' }}>Alerte allergie dans ton planning</p>
         {alerts.map((a, i) => (
           <p key={i} style={{ margin: '2px 0', fontSize: 12, color: '#8A2020' }}>
             • <strong>{a.personName}</strong> est allergique à <strong>{a.allergen}</strong> — présent dans <strong>{a.recipeTitle}</strong> ({a.day}, {a.slot})
           </p>
         ))}
-        <p style={{ margin: '6px 0 0', fontSize: 11, color: '#C04040', opacity: 0.7 }}>
-          Pense à remplacer ces recettes dans le planning.
-        </p>
+        <p style={{ margin: '6px 0 0', fontSize: 11, color: '#C04040', opacity: 0.7 }}>Pense à remplacer ces recettes dans le planning.</p>
       </div>
       <button onClick={onDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#C04040', fontSize: 16, flexShrink: 0, opacity: 0.6 }}>×</button>
     </div>
@@ -224,7 +185,6 @@ function RecipeCard({ recipe, onDragStart, onSelect, isSelected, onEdit, onDelet
   const mc = MEAL_TYPE_COLORS[recipe.meal_type] || MEAL_TYPE_COLORS.plat
   const cc = CATEGORY_COLORS[recipe.category] || CATEGORY_COLORS.express
   const totalTime = parseInt(recipe.prep_time || '0') + parseInt(recipe.cook_time || '0')
-
   return (
     <div draggable onDragStart={onDragStart} onClick={onSelect}
       style={{ background: isSelected ? mc.bg : C.blanc, border: `1.5px solid ${hasAllergyWarning ? 'rgba(220,60,60,0.4)' : isSelected ? mc.border : C.grisClair}`, borderRadius: 14, padding: '12px 14px', marginBottom: 8, cursor: 'grab', transition: 'all 0.15s', boxShadow: hasAllergyWarning ? '0 2px 8px rgba(220,60,60,0.15)' : isSelected ? `0 2px 12px ${mc.border}33` : 'none' }}>
@@ -258,22 +218,17 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
   const mc = MEAL_TYPE_COLORS[recipe.meal_type] || MEAL_TYPE_COLORS.plat
   const [showAddPlan, setShowAddPlan] = useState(false)
   const warnings = allergyWarnings?.filter(a => a.recipeTitle === recipe.title) || []
-
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div style={{ background: C.blanc, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 600, padding: '24px 20px 40px', maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ width: 40, height: 4, background: C.grisClair, borderRadius: 4, margin: '0 auto 20px' }} />
-
         {warnings.length > 0 && (
           <div style={{ background: 'rgba(220,60,60,0.08)', border: '1.5px solid rgba(220,60,60,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16 }}>
             {warnings.map((w, i) => (
-              <p key={i} style={{ margin: 0, fontSize: 12, color: '#C04040' }}>
-                ⚠️ <strong>{w.personName}</strong> est allergique à <strong>{w.allergen}</strong> présent dans cette recette
-              </p>
+              <p key={i} style={{ margin: 0, fontSize: 12, color: '#C04040' }}>⚠️ <strong>{w.personName}</strong> est allergique à <strong>{w.allergen}</strong> présent dans cette recette</p>
             ))}
           </div>
         )}
-
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 48 }}>{recipe.emoji}</div>
@@ -289,7 +244,6 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.gris, marginLeft: 10 }}>×</button>
         </div>
-
         <div style={{ marginBottom: 20 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: C.noir, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.5 }}>Ingrédients</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -301,7 +255,6 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
             ))}
           </div>
         </div>
-
         <div style={{ marginBottom: 20 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: C.noir, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.5 }}>Préparation</h3>
           {recipe.steps.map((step, i) => (
@@ -311,11 +264,8 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
             </div>
           ))}
         </div>
-
         {!showAddPlan ? (
-          <button onClick={() => setShowAddPlan(true)} style={{ width: '100%', padding: '13px 0', borderRadius: 14, border: 'none', background: C.rose, color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-            + Ajouter au planning
-          </button>
+          <button onClick={() => setShowAddPlan(true)} style={{ width: '100%', padding: '13px 0', borderRadius: 14, border: 'none', background: C.rose, color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>+ Ajouter au planning</button>
         ) : (
           <div style={{ background: C.cream, borderRadius: 14, padding: 16 }}>
             <p style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 600, color: C.gris, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Choisir le créneau</p>
@@ -387,7 +337,6 @@ function RecipeModal({ initial, onSave, onClose }: {
           <h3 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: C.noir }}>{initial ? 'Modifier la recette' : 'Nouvelle recette'}</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.gris }}>×</button>
         </div>
-
         <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
           <button onClick={() => setShowEmoji(!showEmoji)} style={{ width: 52, height: 52, borderRadius: 14, border: `2px solid ${showEmoji ? C.rose : C.grisClair}`, background: C.cream, fontSize: 26, cursor: 'pointer', flexShrink: 0 }}>{emoji}</button>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Nom de la recette..." autoFocus
@@ -398,37 +347,26 @@ function RecipeModal({ initial, onSave, onClose }: {
             {EMOJIS.map(e => <button key={e} onClick={() => { setEmoji(e); setShowEmoji(false) }} style={{ fontSize: 22, width: 38, height: 38, borderRadius: 10, border: 'none', background: emoji === e ? 'rgba(196,149,106,0.2)' : 'transparent', cursor: 'pointer' }}>{e}</button>)}
           </div>
         )}
-
         <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Description courte (optionnel)..."
           style={{ width: '100%', border: `1.5px solid ${C.grisClair}`, borderRadius: 10, padding: '8px 14px', fontSize: 13, outline: 'none', color: C.noir, background: C.cream, marginBottom: 14, boxSizing: 'border-box' as const }} />
-
         <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Type</p>
         <div style={{ display: 'flex', gap: 5, marginBottom: 14, flexWrap: 'wrap' }}>
           {(Object.keys(MEAL_TYPE_COLORS) as MealType[]).map(t => (
-            <button key={t} onClick={() => setMealType(t)} style={{ padding: '6px 10px', borderRadius: 8, border: `2px solid ${mealType === t ? MEAL_TYPE_COLORS[t].border : C.grisClair}`, background: mealType === t ? MEAL_TYPE_COLORS[t].bg : 'white', fontSize: 11, fontWeight: mealType === t ? 700 : 400, color: mealType === t ? MEAL_TYPE_COLORS[t].text : C.gris, cursor: 'pointer' }}>
-              {MEAL_TYPE_COLORS[t].label}
-            </button>
+            <button key={t} onClick={() => setMealType(t)} style={{ padding: '6px 10px', borderRadius: 8, border: `2px solid ${mealType === t ? MEAL_TYPE_COLORS[t].border : C.grisClair}`, background: mealType === t ? MEAL_TYPE_COLORS[t].bg : 'white', fontSize: 11, fontWeight: mealType === t ? 700 : 400, color: mealType === t ? MEAL_TYPE_COLORS[t].text : C.gris, cursor: 'pointer' }}>{MEAL_TYPE_COLORS[t].label}</button>
           ))}
         </div>
-
         <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Catégorie</p>
         <div style={{ display: 'flex', gap: 5, marginBottom: 14, flexWrap: 'wrap' }}>
           {(Object.keys(CATEGORY_COLORS) as Category[]).map(c => (
-            <button key={c} onClick={() => setCategory(c)} style={{ padding: '6px 10px', borderRadius: 8, border: `2px solid ${category === c ? '#aaa' : C.grisClair}`, background: category === c ? CATEGORY_COLORS[c].bg : 'white', fontSize: 11, fontWeight: category === c ? 700 : 400, color: category === c ? CATEGORY_COLORS[c].text : C.gris, cursor: 'pointer' }}>
-              {CATEGORY_COLORS[c].label}
-            </button>
+            <button key={c} onClick={() => setCategory(c)} style={{ padding: '6px 10px', borderRadius: 8, border: `2px solid ${category === c ? '#aaa' : C.grisClair}`, background: category === c ? CATEGORY_COLORS[c].bg : 'white', fontSize: 11, fontWeight: category === c ? 700 : 400, color: category === c ? CATEGORY_COLORS[c].text : C.gris, cursor: 'pointer' }}>{CATEGORY_COLORS[c].label}</button>
           ))}
         </div>
-
         <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Difficulté</p>
         <div style={{ display: 'flex', gap: 5, marginBottom: 14 }}>
           {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => (
-            <button key={d} onClick={() => setDifficulty(d)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: `2px solid ${difficulty === d ? C.rose : C.grisClair}`, background: difficulty === d ? 'rgba(196,149,106,0.1)' : 'white', fontSize: 12, fontWeight: difficulty === d ? 700 : 400, color: difficulty === d ? C.rose : C.gris, cursor: 'pointer', textTransform: 'capitalize' }}>
-              {d}
-            </button>
+            <button key={d} onClick={() => setDifficulty(d)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: `2px solid ${difficulty === d ? C.rose : C.grisClair}`, background: difficulty === d ? 'rgba(196,149,106,0.1)' : 'white', fontSize: 12, fontWeight: difficulty === d ? 700 : 400, color: difficulty === d ? C.rose : C.gris, cursor: 'pointer', textTransform: 'capitalize' }}>{d}</button>
           ))}
         </div>
-
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
           {[
             { label: 'Prépa (min)', value: prepTime, set: setPrepTime, type: 'text' },
@@ -443,15 +381,12 @@ function RecipeModal({ initial, onSave, onClose }: {
             </div>
           ))}
         </div>
-
         <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 6px' }}>Ingrédients <span style={{ fontWeight: 400, textTransform: 'none' }}>(un par ligne : Nom: Quantité)</span></p>
-        <textarea value={ingredientsText} onChange={e => setIngredientsText(e.target.value)} placeholder={"Pomme de terre: 500g\nBeurre: 50g\nNoix de muscade: 1 pincée"} rows={5}
+        <textarea value={ingredientsText} onChange={e => setIngredientsText(e.target.value)} placeholder={"Pomme de terre: 500g\nBeurre: 50g"} rows={5}
           style={{ width: '100%', border: `1.5px solid ${C.grisClair}`, borderRadius: 12, padding: '10px 14px', fontSize: 13, outline: 'none', color: C.noir, background: C.cream, resize: 'none', boxSizing: 'border-box' as const, marginBottom: 14 }} />
-
         <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 6px' }}>Préparation <span style={{ fontWeight: 400, textTransform: 'none' }}>(une étape par ligne)</span></p>
-        <textarea value={stepsText} onChange={e => setStepsText(e.target.value)} placeholder={"Préchauffer le four à 180°C\nCouper les légumes\nEnfourner 30 min"} rows={4}
+        <textarea value={stepsText} onChange={e => setStepsText(e.target.value)} placeholder={"Préchauffer le four à 180°C\nCouper les légumes"} rows={4}
           style={{ width: '100%', border: `1.5px solid ${C.grisClair}`, borderRadius: 12, padding: '10px 14px', fontSize: 13, outline: 'none', color: C.noir, background: C.cream, resize: 'none', boxSizing: 'border-box' as const, marginBottom: 16 }} />
-
         <button onClick={handleSave} disabled={!title.trim() || !ingredientsText.trim()}
           style={{ width: '100%', padding: '14px 0', borderRadius: 14, border: 'none', background: title.trim() && ingredientsText.trim() ? C.rose : C.grisClair, color: title.trim() && ingredientsText.trim() ? 'white' : '#aaa', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
           {initial ? '✓ Enregistrer les modifications' : '+ Créer la recette'}
@@ -494,8 +429,6 @@ function ShoppingPanel({ items, onToggle, onClose, onAddCustom, onDelete }: {
   )
 
   return (
-    <>
-    <DemoBanner />
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div style={{ background: C.blanc, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 600, padding: '20px 20px 40px', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ width: 40, height: 4, background: C.grisClair, borderRadius: 4, margin: '0 auto 20px' }} />
@@ -504,7 +437,6 @@ function ShoppingPanel({ items, onToggle, onClose, onAddCustom, onDelete }: {
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.gris }}>×</button>
         </div>
         <p style={{ margin: '0 0 12px', fontSize: 12, color: C.gris }}>{pending.length} à acheter · {inStock.length} en stock · {bought.length} achetés</p>
-
         {!showForm ? (
           <button onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, border: `1.5px dashed ${C.violet}`, background: 'rgba(123,111,160,0.06)', color: C.violet, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 16, width: '100%', justifyContent: 'center' }}>
             + Ajouter un article hors recette
@@ -512,18 +444,20 @@ function ShoppingPanel({ items, onToggle, onClose, onAddCustom, onDelete }: {
         ) : (
           <div style={{ background: 'rgba(123,111,160,0.06)', border: `1.5px solid rgba(123,111,160,0.2)`, borderRadius: 12, padding: 12, marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="Article..." autoFocus onKeyDown={e => e.key === 'Enter' && name.trim() && (onAddCustom(name, qty), setName(''), setQty(''), setShowForm(false))}
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Article..." autoFocus
+                onKeyDown={e => e.key === 'Enter' && name.trim() && (onAddCustom(name, qty), setName(''), setQty(''), setShowForm(false))}
                 style={{ flex: 2, border: `1.5px solid ${C.grisClair}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, outline: 'none', color: C.noir, background: C.blanc }} />
               <input value={qty} onChange={e => setQty(e.target.value)} placeholder="Qté"
                 style={{ flex: 1, border: `1.5px solid ${C.grisClair}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, outline: 'none', color: C.noir, background: C.blanc }} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { if (name.trim()) { onAddCustom(name, qty); setName(''); setQty(''); setShowForm(false) } }} style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: C.violet, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ajouter</button>
-              <button onClick={() => setShowForm(false)} style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.grisClair}`, background: 'white', fontSize: 13, cursor: 'pointer', color: C.gris }}>Annuler</button>
+              <button onClick={() => { if (name.trim()) { onAddCustom(name, qty); setName(''); setQty(''); setShowForm(false) } }}
+                style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: C.violet, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ajouter</button>
+              <button onClick={() => setShowForm(false)}
+                style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.grisClair}`, background: 'white', fontSize: 13, cursor: 'pointer', color: C.gris }}>Annuler</button>
             </div>
           </div>
         )}
-
         {pending.length > 0 && <div style={{ marginBottom: 16 }}><p style={{ fontSize: 11, fontWeight: 700, color: C.rose, textTransform: 'uppercase', margin: '0 0 8px' }}>À acheter ({pending.length})</p>{pending.map(i => renderItem(i))}</div>}
         {inStock.length > 0 && <div style={{ marginBottom: 16 }}><p style={{ fontSize: 11, fontWeight: 700, color: '#2A6A48', textTransform: 'uppercase', margin: '0 0 8px' }}>En stock ({inStock.length})</p>{inStock.map(i => renderItem(i, true))}</div>}
         {bought.length > 0 && <div style={{ marginBottom: 16 }}><p style={{ fontSize: 11, fontWeight: 700, color: C.rose, textTransform: 'uppercase', margin: '0 0 8px' }}>Achetés ({bought.length})</p>{bought.map(i => renderItem(i, true))}</div>}
@@ -561,7 +495,6 @@ export default function RecipesPage() {
         name: m.data?.firstName || m.data?.name || 'Membre',
         allergies: Array.isArray(m.data.allergies) ? m.data.allergies : [m.data.allergies]
       }))
-
     slots.forEach(slot => {
       const recipe = slot.recipe
       if (!recipe) return
@@ -570,13 +503,7 @@ export default function RecipesPage() {
         member.allergies.forEach((allergen: string) => {
           const allergenLower = allergen.toLowerCase().trim()
           if (ingredients.some((ing: string) => ing.includes(allergenLower))) {
-            alerts.push({
-              personName: member.name,
-              allergen,
-              recipeTitle: recipe.title,
-              day: slot.day_of_week,
-              slot: PLAN_SLOTS.find(s => s.key === slot.meal_type)?.label || slot.meal_type
-            })
+            alerts.push({ personName: member.name, allergen, recipeTitle: recipe.title, day: slot.day_of_week, slot: PLAN_SLOTS.find(s => s.key === slot.meal_type)?.label || slot.meal_type })
           }
         })
       })
@@ -594,33 +521,20 @@ export default function RecipesPage() {
         supabase.from('shopping_list').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
         supabase.from('family_data').select('*').eq('user_id', user.id).eq('is_active', true),
       ])
-
       let loadedRecipes = (recipesRes.data || []).map(normalizeRecipe)
-
       if (loadedRecipes.length === 0) {
         const toInsert = DEFAULT_RECIPES.map(r => ({ ...r, user_id: user.id }))
         const { data: inserted } = await supabase.from('recipes').insert(toInsert).select()
         if (inserted) loadedRecipes = inserted.map(normalizeRecipe)
       }
-
       setRecipes(loadedRecipes)
-
-      const slots = (slotsRes.data || []).map(s => ({
-        ...s,
-        recipe: s.recipes ? normalizeRecipe(s.recipes) : loadedRecipes.find(r => r.id === s.recipe_id)
-      })) as MealSlot[]
+      const slots = (slotsRes.data || []).map(s => ({ ...s, recipe: s.recipes ? normalizeRecipe(s.recipes) : loadedRecipes.find(r => r.id === s.recipe_id) })) as MealSlot[]
       setMealSlots(slots)
-
-      setShoppingItems((shoppingRes.data || []).map(s => ({
-        ...s, is_custom: !s.recipe_id, recipe_title: ''
-      })) as ShoppingItem[])
-
-      // Calcul des alertes allergie
+      setShoppingItems((shoppingRes.data || []).map(s => ({ ...s, is_custom: !s.recipe_id, recipe_title: '' })) as ShoppingItem[])
       const family = familyRes.data || []
       const alerts = computeAllergyAlerts(slots, family)
       setAllergyAlerts(alerts)
       setShowAllergyBanner(alerts.length > 0)
-
     } catch (e) {
       console.error('Erreur chargement:', e)
     } finally {
@@ -667,7 +581,6 @@ export default function RecipesPage() {
     if (data) {
       const newSlots = [...mealSlots.filter(s => !(s.day_of_week === day && s.meal_type === slot)), { ...data, recipe }] as MealSlot[]
       setMealSlots(newSlots)
-      // Recalculer les alertes
       const { data: familyData } = await supabase.from('family_data').select('*').eq('user_id', user.id).eq('is_active', true)
       const alerts = computeAllergyAlerts(newSlots, familyData || [])
       setAllergyAlerts(alerts)
@@ -739,171 +652,176 @@ export default function RecipesPage() {
     return true
   })
 
-  // Recettes en conflit allergie (pour badge sur carte)
   const allergyRecipeTitles = new Set(allergyAlerts.map(a => a.recipeTitle))
-
   const getSlotsForDay = (day: string, slot: PlanSlot) => mealSlots.filter(s => s.day_of_week === day && s.meal_type === slot)
   const totalPlan = mealSlots.length
   const pendingItems = shoppingItems.filter(i => !i.checked && !i.in_stock).length
 
   if (authLoading || loading) {
-    return <div style={{ minHeight: '100vh', background: C.cream, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: C.gris }}>Chargement...</p></div>
+    return (
+      <>
+        <DemoBanner />
+        <div style={{ minHeight: '100vh', background: C.cream, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: C.gris }}>Chargement...</p>
+        </div>
+      </>
+    )
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: C.cream, fontFamily: "'DM Sans',sans-serif" }}>
-      {/* Header */}
-      <div style={{ background: C.blanc, borderBottom: `1px solid ${C.grisClair}`, padding: '12px 20px', position: 'sticky', top: 0, zIndex: 10 }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link href="/" style={{ fontSize: 12, color: C.gris, textDecoration: 'none', padding: '4px 10px', borderRadius: 20, border: `1px solid ${C.grisClair}`, background: C.cream }}>← Accueil</Link>
-          <h1 style={{ margin: 0, flex: 1, fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 700, color: C.noir }}>Recettes & Courses</h1>
-          {allergyAlerts.length > 0 && (
-            <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: 'rgba(220,60,60,0.1)', color: '#C04040', border: '1px solid rgba(220,60,60,0.2)', fontWeight: 600, cursor: 'pointer' }}
-              onClick={() => setShowAllergyBanner(true)}>
-              ⚠️ {allergyAlerts.length} alerte{allergyAlerts.length > 1 ? 's' : ''}
-            </span>
-          )}
-          <button onClick={generateShopping} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: 'none', background: C.rose, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-            🛒 Courses {pendingItems > 0 && <span style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 10, padding: '1px 6px', fontSize: 10 }}>{pendingItems}</span>}
-          </button>
-        </div>
-      </div>
+    <>
+      <DemoBanner />
+      <div style={{ minHeight: '100vh', background: C.cream, fontFamily: "'DM Sans',sans-serif" }}>
 
-      {/* Bandeau allergie */}
-      {showAllergyBanner && allergyAlerts.length > 0 && (
-        <AllergyBanner alerts={allergyAlerts} onDismiss={() => setShowAllergyBanner(false)} />
-      )}
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', background: C.blanc, borderBottom: `1px solid ${C.grisClair}`, padding: '0 20px' }}>
-        {[{ key: 'library', label: '📚 Recettes' }, { key: 'plan', label: `📅 Planning${totalPlan > 0 ? ` (${totalPlan})` : ''}` }].map(tab => (
-          <button key={tab.key} onClick={() => setActiveView(tab.key as any)}
-            style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontSize: 13, fontWeight: activeView === tab.key ? 700 : 400, color: activeView === tab.key ? C.rose : C.gris, borderBottom: `2px solid ${activeView === tab.key ? C.rose : 'transparent'}`, cursor: 'pointer' }}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '16px 20px', display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20 }} className="recipe-layout">
-        <style>{`.recipe-layout { @media (max-width: 768px) { grid-template-columns: 1fr !important; } }`}</style>
-
-        {/* ── BIBLIOTHÈQUE ── */}
-        <div style={{ display: activeView === 'library' ? 'block' : 'none' }} className="recipe-library">
-          <div style={{ background: C.blanc, borderRadius: 16, padding: 16, boxShadow: '0 2px 12px rgba(44,44,44,0.05)', marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <h2 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: C.noir }}>Mes recettes ({recipes.length})</h2>
-              <button onClick={() => { setEditingRecipe(undefined); setShowModal(true) }}
-                style={{ padding: '6px 12px', borderRadius: 10, border: 'none', background: C.rose, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Nouvelle</button>
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <p style={{ fontSize: 10, color: '#aaa', margin: '0 0 5px', textTransform: 'uppercase' }}>Type</p>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                <button onClick={() => setFilterMealType('all')} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterMealType === 'all' ? C.rose : C.grisClair}`, background: filterMealType === 'all' ? 'rgba(196,149,106,0.1)' : 'white', fontSize: 10, fontWeight: filterMealType === 'all' ? 700 : 400, color: filterMealType === 'all' ? C.rose : C.gris, cursor: 'pointer' }}>Tous</button>
-                {(Object.keys(MEAL_TYPE_COLORS) as MealType[]).map(t => (
-                  <button key={t} onClick={() => setFilterMealType(t)} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterMealType === t ? MEAL_TYPE_COLORS[t].border : C.grisClair}`, background: filterMealType === t ? MEAL_TYPE_COLORS[t].bg : 'white', fontSize: 10, fontWeight: filterMealType === t ? 700 : 400, color: filterMealType === t ? MEAL_TYPE_COLORS[t].text : C.gris, cursor: 'pointer' }}>{MEAL_TYPE_COLORS[t].label}</button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p style={{ fontSize: 10, color: '#aaa', margin: '0 0 5px', textTransform: 'uppercase' }}>Catégorie</p>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                <button onClick={() => setFilterCategory('all')} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterCategory === 'all' ? C.rose : C.grisClair}`, background: filterCategory === 'all' ? 'rgba(196,149,106,0.1)' : 'white', fontSize: 10, fontWeight: filterCategory === 'all' ? 700 : 400, color: filterCategory === 'all' ? C.rose : C.gris, cursor: 'pointer' }}>Toutes</button>
-                {(Object.keys(CATEGORY_COLORS) as Category[]).map(c => (
-                  <button key={c} onClick={() => setFilterCategory(c)} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterCategory === c ? '#aaa' : C.grisClair}`, background: filterCategory === c ? CATEGORY_COLORS[c].bg : 'white', fontSize: 10, fontWeight: filterCategory === c ? 700 : 400, color: filterCategory === c ? CATEGORY_COLORS[c].text : C.gris, cursor: 'pointer' }}>{CATEGORY_COLORS[c].label}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' }}>
-            {filteredRecipes.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 0', color: C.gris }}><p style={{ fontSize: 32 }}>🍽️</p><p style={{ fontSize: 13 }}>Aucune recette trouvée</p></div>
-            ) : filteredRecipes.map(r => (
-              <RecipeCard key={r.id} recipe={r} isSelected={selectedRecipe?.id === r.id}
-                hasAllergyWarning={allergyRecipeTitles.has(r.title)}
-                onDragStart={() => setDraggedRecipe(r)}
-                onSelect={() => setSelectedRecipe(selectedRecipe?.id === r.id ? null : r)}
-                onEdit={() => { setEditingRecipe(r); setShowModal(true) }}
-                onDelete={() => deleteRecipe(r.id)}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* ── PLANNING ── */}
-        <div style={{ display: activeView === 'plan' ? 'block' : 'none' }} className="recipe-plan">
-          <div style={{ background: C.blanc, borderRadius: 16, padding: 16, boxShadow: '0 2px 12px rgba(44,44,44,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: C.noir }}>Planning de la semaine</h2>
-              <button onClick={async () => { await supabase.from('meal_plan').delete().eq('user_id', user?.id); setMealSlots([]); setAllergyAlerts([]) }}
-                style={{ fontSize: 11, color: C.gris, background: 'none', border: `1px solid ${C.grisClair}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>Vider</button>
-            </div>
-            <p style={{ margin: '0 0 14px', fontSize: 11, color: C.gris, opacity: 0.7 }}>Glisse une recette ou clique pour l'ajouter à un créneau</p>
-
-            <div style={{ overflowX: 'auto' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '80px repeat(7, 1fr)', gap: 4, minWidth: 600 }}>
-                <div />
-                {DAYS.map((day, i) => (
-                  <div key={day} style={{ textAlign: 'center', paddingBottom: 6 }}>
-                    <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.gris, textTransform: 'uppercase' }}>{DAYS_SHORT[i]}</p>
-                  </div>
-                ))}
-                {PLAN_SLOTS.map(slot => (
-                  <>
-                    <div key={slot.key + '-label'} style={{ display: 'flex', alignItems: 'flex-start', paddingTop: 6 }}>
-                      <span style={{ fontSize: 9, color: C.gris, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{slot.label}</span>
-                    </div>
-                    {DAYS.map(day => {
-                      const daySlots = getSlotsForDay(day, slot.key)
-                      const s = daySlots[0]
-                      const r = s ? (s.recipe || recipes.find(rec => rec.id === s.recipe_id)) : null
-                      const mc = r ? (MEAL_TYPE_COLORS[r.meal_type] || MEAL_TYPE_COLORS.plat) : null
-                      const hasAllergy = r ? allergyRecipeTitles.has(r.title) : false
-                      return (
-                        <div key={day + slot.key}
-                          onDragOver={e => e.preventDefault()}
-                          onDrop={e => { e.preventDefault(); if (draggedRecipe) { addToPlan(draggedRecipe.id, day, slot.key); setDraggedRecipe(null) } }}
-                          style={{ minHeight: 52, border: `1.5px dashed ${hasAllergy ? 'rgba(220,60,60,0.4)' : C.grisClair}`, borderRadius: 8, padding: 3, background: r ? mc?.bg : 'transparent' }}>
-                          {r && mc ? (
-                            <div style={{ background: mc.bg, border: `1px solid ${hasAllergy ? 'rgba(220,60,60,0.5)' : mc.border}`, borderRadius: 5, padding: '3px 5px', position: 'relative', cursor: 'pointer' }} onClick={() => setSelectedRecipe(r)}>
-                              <p style={{ margin: 0, fontSize: 8, fontWeight: 600, color: mc.text, paddingRight: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {hasAllergy ? '⚠️ ' : ''}{r.emoji} {r.title}
-                              </p>
-                              <button onClick={e => { e.stopPropagation(); removeFromPlan(s!.id) }}
-                                style={{ position: 'absolute', top: 1, right: 2, background: 'none', border: 'none', fontSize: 9, cursor: 'pointer', color: mc.text }}>×</button>
-                            </div>
-                          ) : (
-                            <p style={{ margin: 0, fontSize: 8, color: '#ccc', textAlign: 'center', paddingTop: 10 }}>+</p>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </>
-                ))}
-              </div>
-            </div>
-
-            <button onClick={generateShopping} style={{ width: '100%', marginTop: 16, padding: '12px 0', borderRadius: 12, border: 'none', background: totalPlan > 0 ? C.rose : C.grisClair, color: totalPlan > 0 ? 'white' : '#aaa', fontSize: 14, fontWeight: 700, cursor: totalPlan > 0 ? 'pointer' : 'default' }}>
-              🛒 Générer la liste de courses {totalPlan > 0 ? `(${totalPlan} repas)` : ''}
+        {/* Header */}
+        <div style={{ background: C.blanc, borderBottom: `1px solid ${C.grisClair}`, padding: '12px 20px', position: 'sticky', top: 0, zIndex: 10 }}>
+          <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Link href="/" style={{ fontSize: 12, color: C.gris, textDecoration: 'none', padding: '4px 10px', borderRadius: 20, border: `1px solid ${C.grisClair}`, background: C.cream }}>← Accueil</Link>
+            <h1 style={{ margin: 0, flex: 1, fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 700, color: C.noir }}>Recettes & Courses</h1>
+            {allergyAlerts.length > 0 && (
+              <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: 'rgba(220,60,60,0.1)', color: '#C04040', border: '1px solid rgba(220,60,60,0.2)', fontWeight: 600, cursor: 'pointer' }}
+                onClick={() => setShowAllergyBanner(true)}>
+                ⚠️ {allergyAlerts.length} alerte{allergyAlerts.length > 1 ? 's' : ''}
+              </span>
+            )}
+            <button onClick={generateShopping} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: 'none', background: C.rose, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              🛒 Courses {pendingItems > 0 && <span style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 10, padding: '1px 6px', fontSize: 10 }}>{pendingItems}</span>}
             </button>
           </div>
         </div>
+
+        {/* Bandeau allergie */}
+        {showAllergyBanner && allergyAlerts.length > 0 && (
+          <AllergyBanner alerts={allergyAlerts} onDismiss={() => setShowAllergyBanner(false)} />
+        )}
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', background: C.blanc, borderBottom: `1px solid ${C.grisClair}`, padding: '0 20px' }}>
+          {[{ key: 'library', label: '📚 Recettes' }, { key: 'plan', label: `📅 Planning${totalPlan > 0 ? ` (${totalPlan})` : ''}` }].map(tab => (
+            <button key={tab.key} onClick={() => setActiveView(tab.key as any)}
+              style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontSize: 13, fontWeight: activeView === tab.key ? 700 : 400, color: activeView === tab.key ? C.rose : C.gris, borderBottom: `2px solid ${activeView === tab.key ? C.rose : 'transparent'}`, cursor: 'pointer' }}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '16px 20px', display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20 }} className="recipe-layout">
+          <style>{`.recipe-layout { @media (max-width: 768px) { grid-template-columns: 1fr !important; } }`}</style>
+
+          {/* ── BIBLIOTHÈQUE ── */}
+          <div style={{ display: activeView === 'library' ? 'block' : 'none' }} className="recipe-library">
+            <div style={{ background: C.blanc, borderRadius: 16, padding: 16, boxShadow: '0 2px 12px rgba(44,44,44,0.05)', marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <h2 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: C.noir }}>Mes recettes ({recipes.length})</h2>
+                <button onClick={() => { setEditingRecipe(undefined); setShowModal(true) }}
+                  style={{ padding: '6px 12px', borderRadius: 10, border: 'none', background: C.rose, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Nouvelle</button>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <p style={{ fontSize: 10, color: '#aaa', margin: '0 0 5px', textTransform: 'uppercase' }}>Type</p>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <button onClick={() => setFilterMealType('all')} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterMealType === 'all' ? C.rose : C.grisClair}`, background: filterMealType === 'all' ? 'rgba(196,149,106,0.1)' : 'white', fontSize: 10, fontWeight: filterMealType === 'all' ? 700 : 400, color: filterMealType === 'all' ? C.rose : C.gris, cursor: 'pointer' }}>Tous</button>
+                  {(Object.keys(MEAL_TYPE_COLORS) as MealType[]).map(t => (
+                    <button key={t} onClick={() => setFilterMealType(t)} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterMealType === t ? MEAL_TYPE_COLORS[t].border : C.grisClair}`, background: filterMealType === t ? MEAL_TYPE_COLORS[t].bg : 'white', fontSize: 10, fontWeight: filterMealType === t ? 700 : 400, color: filterMealType === t ? MEAL_TYPE_COLORS[t].text : C.gris, cursor: 'pointer' }}>{MEAL_TYPE_COLORS[t].label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p style={{ fontSize: 10, color: '#aaa', margin: '0 0 5px', textTransform: 'uppercase' }}>Catégorie</p>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <button onClick={() => setFilterCategory('all')} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterCategory === 'all' ? C.rose : C.grisClair}`, background: filterCategory === 'all' ? 'rgba(196,149,106,0.1)' : 'white', fontSize: 10, fontWeight: filterCategory === 'all' ? 700 : 400, color: filterCategory === 'all' ? C.rose : C.gris, cursor: 'pointer' }}>Toutes</button>
+                  {(Object.keys(CATEGORY_COLORS) as Category[]).map(c => (
+                    <button key={c} onClick={() => setFilterCategory(c)} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterCategory === c ? '#aaa' : C.grisClair}`, background: filterCategory === c ? CATEGORY_COLORS[c].bg : 'white', fontSize: 10, fontWeight: filterCategory === c ? 700 : 400, color: filterCategory === c ? CATEGORY_COLORS[c].text : C.gris, cursor: 'pointer' }}>{CATEGORY_COLORS[c].label}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div style={{ maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' }}>
+              {filteredRecipes.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: C.gris }}><p style={{ fontSize: 32 }}>🍽️</p><p style={{ fontSize: 13 }}>Aucune recette trouvée</p></div>
+              ) : filteredRecipes.map(r => (
+                <RecipeCard key={r.id} recipe={r} isSelected={selectedRecipe?.id === r.id}
+                  hasAllergyWarning={allergyRecipeTitles.has(r.title)}
+                  onDragStart={() => setDraggedRecipe(r)}
+                  onSelect={() => setSelectedRecipe(selectedRecipe?.id === r.id ? null : r)}
+                  onEdit={() => { setEditingRecipe(r); setShowModal(true) }}
+                  onDelete={() => deleteRecipe(r.id)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ── PLANNING ── */}
+          <div style={{ display: activeView === 'plan' ? 'block' : 'none' }} className="recipe-plan">
+            <div style={{ background: C.blanc, borderRadius: 16, padding: 16, boxShadow: '0 2px 12px rgba(44,44,44,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h2 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: C.noir }}>Planning de la semaine</h2>
+                <button onClick={async () => { await supabase.from('meal_plan').delete().eq('user_id', user?.id); setMealSlots([]); setAllergyAlerts([]) }}
+                  style={{ fontSize: 11, color: C.gris, background: 'none', border: `1px solid ${C.grisClair}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>Vider</button>
+              </div>
+              <p style={{ margin: '0 0 14px', fontSize: 11, color: C.gris, opacity: 0.7 }}>Glisse une recette ou clique pour l'ajouter à un créneau</p>
+              <div style={{ overflowX: 'auto' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '80px repeat(7, 1fr)', gap: 4, minWidth: 600 }}>
+                  <div />
+                  {DAYS.map((day, i) => (
+                    <div key={day} style={{ textAlign: 'center', paddingBottom: 6 }}>
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.gris, textTransform: 'uppercase' }}>{DAYS_SHORT[i]}</p>
+                    </div>
+                  ))}
+                  {PLAN_SLOTS.map(slot => (
+                    <>
+                      <div key={slot.key + '-label'} style={{ display: 'flex', alignItems: 'flex-start', paddingTop: 6 }}>
+                        <span style={{ fontSize: 9, color: C.gris, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{slot.label}</span>
+                      </div>
+                      {DAYS.map(day => {
+                        const daySlots = getSlotsForDay(day, slot.key)
+                        const s = daySlots[0]
+                        const r = s ? (s.recipe || recipes.find(rec => rec.id === s.recipe_id)) : null
+                        const mc = r ? (MEAL_TYPE_COLORS[r.meal_type] || MEAL_TYPE_COLORS.plat) : null
+                        const hasAllergy = r ? allergyRecipeTitles.has(r.title) : false
+                        return (
+                          <div key={day + slot.key}
+                            onDragOver={e => e.preventDefault()}
+                            onDrop={e => { e.preventDefault(); if (draggedRecipe) { addToPlan(draggedRecipe.id, day, slot.key); setDraggedRecipe(null) } }}
+                            style={{ minHeight: 52, border: `1.5px dashed ${hasAllergy ? 'rgba(220,60,60,0.4)' : C.grisClair}`, borderRadius: 8, padding: 3, background: r ? mc?.bg : 'transparent' }}>
+                            {r && mc ? (
+                              <div style={{ background: mc.bg, border: `1px solid ${hasAllergy ? 'rgba(220,60,60,0.5)' : mc.border}`, borderRadius: 5, padding: '3px 5px', position: 'relative', cursor: 'pointer' }} onClick={() => setSelectedRecipe(r)}>
+                                <p style={{ margin: 0, fontSize: 8, fontWeight: 600, color: mc.text, paddingRight: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {hasAllergy ? '⚠️ ' : ''}{r.emoji} {r.title}
+                                </p>
+                                <button onClick={e => { e.stopPropagation(); removeFromPlan(s!.id) }}
+                                  style={{ position: 'absolute', top: 1, right: 2, background: 'none', border: 'none', fontSize: 9, cursor: 'pointer', color: mc.text }}>×</button>
+                              </div>
+                            ) : (
+                              <p style={{ margin: 0, fontSize: 8, color: '#ccc', textAlign: 'center', paddingTop: 10 }}>+</p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </>
+                  ))}
+                </div>
+              </div>
+              <button onClick={generateShopping} style={{ width: '100%', marginTop: 16, padding: '12px 0', borderRadius: 12, border: 'none', background: totalPlan > 0 ? C.rose : C.grisClair, color: totalPlan > 0 ? 'white' : '#aaa', fontSize: 14, fontWeight: 700, cursor: totalPlan > 0 ? 'pointer' : 'default' }}>
+                🛒 Générer la liste de courses {totalPlan > 0 ? `(${totalPlan} repas)` : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <style>{`@media (min-width: 769px) { .recipe-library, .recipe-plan { display: block !important; } }`}</style>
+
+        {selectedRecipe && (
+          <RecipeDetail recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)}
+            allergyWarnings={allergyAlerts}
+            onAddToPlan={(day, slot) => { addToPlan(selectedRecipe.id, day, slot); setSelectedRecipe(null) }} />
+        )}
+        {showModal && (
+          <RecipeModal initial={editingRecipe} onSave={saveRecipe} onClose={() => { setShowModal(false); setEditingRecipe(undefined) }} />
+        )}
+        {showShopping && (
+          <ShoppingPanel items={shoppingItems} onToggle={toggleItem} onClose={() => setShowShopping(false)} onAddCustom={addCustomItem} onDelete={deleteItem} />
+        )}
       </div>
-
-      <style>{`@media (min-width: 769px) { .recipe-library, .recipe-plan { display: block !important; } }`}</style>
-
-      {selectedRecipe && (
-        <RecipeDetail recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)}
-          allergyWarnings={allergyAlerts}
-          onAddToPlan={(day, slot) => { addToPlan(selectedRecipe.id, day, slot); setSelectedRecipe(null) }} />
-      )}
-      {showModal && (
-        <RecipeModal initial={editingRecipe} onSave={saveRecipe} onClose={() => { setShowModal(false); setEditingRecipe(undefined) }} />
-      )}
-      {showShopping && (
-        <ShoppingPanel items={shoppingItems} onToggle={toggleItem} onClose={() => setShowShopping(false)} onAddCustom={addCustomItem} onDelete={deleteItem} />
-      )}
-    </div>
     </>
   )
 }
