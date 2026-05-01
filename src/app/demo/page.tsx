@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-// ── Images esthétiques par module ──────────────────────────────
 const MODULE_IMAGES = {
   programme: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&q=80',
   agent: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=600&q=80',
@@ -16,7 +15,6 @@ const MODULE_IMAGES = {
   communaute: 'https://images.unsplash.com/photo-1512273222628-4daea6e55abb?w=600&q=80',
 }
 
-// ── Slides du guide ────────────────────────────────────────────
 const GUIDE_SLIDES = [
   {
     id: 'welcome',
@@ -188,7 +186,6 @@ const GUIDE_SLIDES = [
   },
 ]
 
-// ── Composant Demo Routines ────────────────────────────────────
 function DemoRoutines({ items }: { items: { emoji: string; label: string; done: boolean }[] }) {
   const [checked, setChecked] = useState(items.map(i => i.done))
   const count = checked.filter(Boolean).length
@@ -242,7 +239,6 @@ function DemoRoutines({ items }: { items: { emoji: string; label: string; done: 
   )
 }
 
-// ── Composant Demo Chat ────────────────────────────────────────
 function DemoChat({ messages }: { messages: { role: string; text: string }[] }) {
   const [visible, setVisible] = useState(1)
 
@@ -287,7 +283,6 @@ function DemoChat({ messages }: { messages: { role: string; text: string }[] }) 
   )
 }
 
-// ── Composant Demo Programme ───────────────────────────────────
 function DemoProgramme({ demo }: { demo: any }) {
   const [checked, setChecked] = useState<number[]>([])
   const [text, setText] = useState('')
@@ -342,7 +337,6 @@ function DemoProgramme({ demo }: { demo: any }) {
   )
 }
 
-// ── Formulaire Conversion ──────────────────────────────────────
 function ConversionForm() {
   const [mode, setMode] = useState<'choice' | 'beta' | 'waitlist' | 'done'>('choice')
   const [prenom, setPrenom] = useState('')
@@ -442,9 +436,7 @@ function ConversionForm() {
   )
 }
 
-// ── PAGE PRINCIPALE ────────────────────────────────────────────
 export default function DemoPage() {
-  const router = useRouter()
   const [currentSlide, setCurrentSlide] = useState(0)
 
   const slide = GUIDE_SLIDES[currentSlide]
@@ -508,7 +500,7 @@ export default function DemoPage() {
           {slide.desc}
         </p>
 
-        {/* IMAGE (si pas de démo ni CTA) */}
+        {/* IMAGE */}
         {!slide.demo && !(slide as any).isCTA && (
           <div style={{ borderRadius: 20, overflow: 'hidden', marginBottom: 24, position: 'relative' }}>
             <img
@@ -547,28 +539,18 @@ export default function DemoPage() {
           </div>
         )}
 
-        {/* CTA FINAL */}
+        {/* CTA FINAL — bêta + liste d'attente uniquement */}
         {(slide as any).isCTA && (
           <div style={{ marginBottom: 24 }}>
-            <div style={{ background: 'white', borderRadius: 20, padding: '28px 24px', border: '1px solid rgba(196,149,106,0.15)', marginBottom: 16 }}>
+            <div style={{ background: 'white', borderRadius: 20, padding: '28px 24px', border: '1px solid rgba(196,149,106,0.15)' }}>
               <ConversionForm />
             </div>
-            <div style={{ background: '#1A1A1A', borderRadius: 16, padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
-              <span style={{ fontSize: 24 }}>🎮</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'white', marginBottom: 3 }}>Tester l'app en mode démo</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Explore toutes les fonctionnalités · Aucune donnée enregistrée</div>
-              </div>
-              <button
-                onClick={() => router.push('/demo/app')}
-                style={{ padding: '9px 16px', background: '#C4956A', border: 'none', borderRadius: 8, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans', sans-serif" }}
-              >
-                Essayer →
-              </button>
-            </div>
+          </div>
+        )}
 
-      {/* ── NAVIGATION FIXE EN BAS ── */}
-      {/* Wrapper pleine largeur pour centrer le contenu */}
+      </div>
+
+      {/* NAVIGATION FIXE EN BAS */}
       <div style={{
         position: 'fixed',
         bottom: 0,
@@ -579,7 +561,6 @@ export default function DemoPage() {
         backdropFilter: 'blur(16px)',
         borderTop: '1px solid rgba(196,149,106,0.12)',
       }}>
-        {/* Contenu centré et limité en largeur */}
         <div style={{
           maxWidth: 640,
           margin: '0 auto',
@@ -627,7 +608,6 @@ export default function DemoPage() {
             {isLast ? 'Guide terminé ✦' : currentSlide === 0 ? 'Découvrir l\'app →' : 'Module suivant →'}
           </button>
         </div>
-      </div>
       </div>
 
       <style>{`
