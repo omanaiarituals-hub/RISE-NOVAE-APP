@@ -1,11 +1,10 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import Navigation from '@/components/Navigation'
 import { Plus, Check, Sparkles, Flame, Star, Wind, ArrowLeft, Loader2, Edit2, Sun, Moon, X, Clock } from 'lucide-react'
-import { DemoBanner } from '@/components/DemoBanner'
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 interface Routine {
@@ -130,8 +129,6 @@ function RoutineModal({ initial, defaultCategory, onSave, onDelete, onClose }: {
   }
 
   return (
-    <>
-    <DemoBanner />
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div style={{ background: 'white', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 600, padding: '20px 20px 40px', maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ width: 40, height: 4, background: '#E8E4DF', borderRadius: 4, margin: '0 auto 20px' }} />
@@ -389,8 +386,6 @@ export default function RoutinesPage() {
   const progress = todayRoutines.length > 0 ? Math.round((todayRoutines.filter(r => r.completed).length / todayRoutines.length) * 100) : 0
 
   return (
-    <>
-    <DemoBanner />
     <div className="min-h-screen" style={{ background: '#FAF7F2' }}>
       <Navigation />
       <div className="md:ml-64 pb-24 md:pb-8">
@@ -471,9 +466,7 @@ export default function RoutinesPage() {
               todayRoutines.map((routine, i) => {
                 const hasConflict = conflicts.some(c => c.routineTitle === routine.title)
                 return (
-                  <>
-    <DemoBanner />
-    <div key={routine.id} className="flex items-center gap-3 px-4 py-3.5 transition-all"
+                  <div key={routine.id} className="flex items-center gap-3 px-4 py-3.5 transition-all"
                     style={{ borderBottom: i < todayRoutines.length - 1 ? '1px solid rgba(44,44,44,0.05)' : 'none', background: hasConflict ? 'rgba(212,149,106,0.06)' : routine.completed ? colors.bg : 'transparent' }}>
                     <button onClick={() => toggleRoutine(routine)}
                       className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200"
@@ -592,6 +585,5 @@ export default function RoutinesPage() {
         <RoutineModal initial={editingRoutine} onSave={updateRoutine} onDelete={(id) => { deleteRoutine(id); setEditingRoutine(null) }} onClose={() => setEditingRoutine(null)} />
       )}
     </div>
-  </>
-)
+  )
 }

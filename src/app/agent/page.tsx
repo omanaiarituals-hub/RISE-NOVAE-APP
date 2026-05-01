@@ -1,10 +1,9 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
-import { DemoBanner } from '@/components/DemoBanner'
 
 interface Message {
   id: string
@@ -415,17 +414,13 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
 
   if (authLoading) {
     return (
-      <>
-    <DemoBanner />
-    <div className="flex flex-col h-screen bg-novae-cream items-center justify-center">
+      <div className="flex flex-col h-screen bg-novae-cream items-center justify-center">
         <div className="text-novae-anthracite/40 text-sm">Connexion en cours...</div>
       </div>
     )
   }
 
   return (
-    <>
-    <DemoBanner />
     <div className="flex flex-col h-screen bg-novae-cream">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-novae-beige/30 bg-white/80 backdrop-blur-sm">
@@ -564,6 +559,5 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
         </>
       )}
     </div>
-  </>
-)
+  )
 }

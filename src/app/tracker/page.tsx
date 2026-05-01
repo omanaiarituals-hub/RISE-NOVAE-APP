@@ -1,8 +1,7 @@
-﻿"use client";
+"use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from '@/lib/supabase/client';
-import { DemoBanner } from '@/components/DemoBanner'
 
 // ─── TYPES ─────────────────────────────────────────────────
 type PeriodView = "week" | "month";
@@ -80,8 +79,6 @@ function getDayLabel(dateStr: string): string {
 function DonutChart({ slices, size = 160 }: { slices: TimeSlice[]; size?: number }) {
   const total = slices.reduce((s, c) => s + c.hours, 0);
   if (total === 0) return (
-    <>
-    <DemoBanner />
     <div style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <span style={{ fontSize: 12, color: C.gris }}>Aucune donnée</span>
     </div>
@@ -120,8 +117,6 @@ function HabitRow({ habit, days }: { habit: HabitDisplay; days: string[] }) {
   const isTodayDone = habit.completedDays.includes(today);
 
   return (
-    <>
-    <DemoBanner />
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
         <span style={{ fontSize: 18, flexShrink: 0 }}>{habit.emoji}</span>
@@ -153,9 +148,7 @@ function HabitRow({ habit, days }: { habit: HabitDisplay; days: string[] }) {
           const done = habit.completedDays.includes(date);
           const isToday = date === today;
           return (
-            <>
-    <DemoBanner />
-    <div key={date} title={date}
+            <div key={date} title={date}
               style={{
                 width: 28, height: 28, borderRadius: 6,
                 background: done ? habit.color : C.grisClair,
@@ -180,8 +173,6 @@ function RoutineBanner({ completion }: { completion: RoutineCompletion }) {
   const none = !completion.morning && !completion.evening;
   if (none) return null;
   return (
-    <>
-    <DemoBanner />
     <div style={{
       background: both ? "linear-gradient(135deg, rgba(196,149,106,0.12), rgba(123,111,160,0.08))" : "rgba(196,149,106,0.08)",
       borderRadius: 12, padding: "10px 14px", marginBottom: 16,
@@ -212,8 +203,6 @@ function Progress90j({ data }: { data: any }) {
     : { name: "Expansion", color: "#90C8A8", num: 3 };
   const remaining = 90 - completedDays;
   return (
-    <>
-    <DemoBanner />
     <div style={{ background: C.blanc, borderRadius: 14, padding: "18px 20px", border: `1px solid ${C.grisClair}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <span style={{ fontSize: 22 }}>🎯</span>
@@ -398,8 +387,6 @@ export default function TrackerPage() {
   const totalHours = timeData.reduce((s, c) => s + c.hours, 0);
 
   return (
-    <>
-    <DemoBanner />
     <div style={{ minHeight: "100vh", background: C.cream, fontFamily: "'DM Sans',sans-serif" }}>
       {/* Header */}
       <div style={{ background: C.blanc, borderBottom: `1px solid ${C.grisClair}`, padding: "0 24px" }}>
