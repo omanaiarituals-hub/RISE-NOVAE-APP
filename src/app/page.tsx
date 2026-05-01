@@ -124,16 +124,21 @@ function useSeasonalBg() {
     const key = `${CACHE_PREFIX}${month}`
 
     const cached = localStorage.getItem(key)
-    if (cached) {
-      try {
-        const d = JSON.parse(cached)
-        if (d.month === month && d.url) {
-          setBgUrl(d.url)
-          setIsDark(d.isDark ?? true)
-          return
-        }
-      } catch {}
+if (cached) {
+  try {
+    const d = JSON.parse(cached)
+    if (d.month === month && d.url) {
+      setBgUrl(d.url)
+      setIsDark(d.isDark ?? true)
+      return
+    } else {
+      // Cache périmé → on le supprime
+      localStorage.removeItem(key)
     }
+  } catch {
+    localStorage.removeItem(key)
+  }
+}
 
     ;(async () => {
       try {
