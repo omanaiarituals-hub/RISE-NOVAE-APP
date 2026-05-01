@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import Link from 'next/link'
+import { DemoBanner } from '@/components/DemoBanner'
 
 interface Profile {
   objectif: string
@@ -141,6 +142,8 @@ Ton : ${profile.ton_souhaite}. Tutoie. Maximum 300 mots.`
   )
 
   return (
+     <>
+    <DemoBanner />
     <div className="min-h-screen bg-novae-cream">
       {/* Header */}
       <div className="bg-white border-b border-novae-beige/30 px-6 py-4 flex items-center gap-4">
@@ -339,5 +342,6 @@ Ton : ${profile.ton_souhaite}. Tutoie. Maximum 300 mots.`
         )}
       </div>
     </div>
+    </>
   )
 }

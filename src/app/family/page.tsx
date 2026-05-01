@@ -6,6 +6,7 @@ import Navigation from '@/components/Navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { ArrowLeft, Plus, X, ChevronDown, ChevronUp, Edit2, Gift } from 'lucide-react'
+import { DemoBanner } from '@/components/DemoBanner'
 
 type MemberCategory = 'famille' | 'amis' | 'collegues' | 'autres'
 type MemberRelation = 'conjoint' | 'enfant' | 'parent' | 'frere_soeur' | 'neveu_niece' | 'ami' | 'collegue' | 'autre'
@@ -337,6 +338,8 @@ export default function FamilyPage() {
   const soonAlerts = birthdayAlerts.filter(a => a.daysUntil > 7)
 
   return (
+    <>
+    <DemoBanner />
     <div style={{ minHeight: '100vh', background: C.cream, fontFamily: "'DM Sans',sans-serif" }}>
       <Navigation />
       <div className="md:ml-64 pb-24 md:pb-8">
@@ -542,5 +545,6 @@ export default function FamilyPage() {
       {showModal && <MemberModal onSave={saveMember} onClose={() => setShowModal(false)} />}
       {editingMember && <MemberModal initial={editingMember} onSave={saveMember} onClose={() => setEditingMember(null)} />}
     </div>
+    </>
   )
 }

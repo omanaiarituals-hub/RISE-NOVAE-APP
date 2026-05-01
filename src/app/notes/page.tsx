@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import Link from 'next/link'
+import { DemoBanner } from '@/components/DemoBanner'
 
 interface Note {
   id: string
@@ -284,6 +285,8 @@ function NoteItem({ note, active, onClick }: { note: Note; active: boolean; onCl
   }
 
   return (
+    <>
+    <DemoBanner />
     <button
       onClick={onClick}
       className={`w-full text-left px-4 py-3 border-b border-novae-beige/20 transition-colors ${active ? 'bg-novae-gold/10' : 'hover:bg-novae-cream/50'}`}
@@ -301,5 +304,6 @@ function NoteItem({ note, active, onClick }: { note: Note; active: boolean; onCl
         </div>
       </div>
     </button>
+    </>
   )
 }

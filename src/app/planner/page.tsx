@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { DemoBanner } from '@/components/DemoBanner'
 
 // ─── TYPES ─────────────────────────────────────────────────
 type Priority = "high" | "medium" | "low";
@@ -648,6 +649,8 @@ if (evDate === fmtDate(new Date()) && re.startMinutes < evEnd && re.endMinutes >
   );
 
   return (
+     <>
+    <DemoBanner />
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: C.cream, fontFamily: "'DM Sans',sans-serif", overflow: "hidden" }}>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: `1px solid ${C.grisClair}`, background: C.blanc, flexShrink: 0 }}>
@@ -714,5 +717,6 @@ if (evDate === fmtDate(new Date()) && re.startMinutes < evEnd && re.endMinutes >
       {editModal   && <Modal title="✏️ Modifier l'événement"  form={form} setForm={setForm} onConfirm={confirmEdit}      onCancel={() => setEditModal(null)}   confirmLabel="Modifier" onDelete={() => deleteEvent(editModal.id)} />}
       {replanModal && <Modal title="↻ Replanifier"             form={form} setForm={setForm} onConfirm={confirmReplan}    onCancel={() => setReplanModal(null)} confirmLabel="Replanifier" />}
     </div>
+    </>
   );
 }

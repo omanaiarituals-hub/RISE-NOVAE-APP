@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
+import { DemoBanner } from '@/components/DemoBanner'
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 type MealType = 'entree' | 'plat' | 'dessert' | 'accompagnement' | 'boisson'
@@ -493,6 +494,8 @@ function ShoppingPanel({ items, onToggle, onClose, onAddCustom, onDelete }: {
   )
 
   return (
+    <>
+    <DemoBanner />
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div style={{ background: C.blanc, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 600, padding: '20px 20px 40px', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ width: 40, height: 4, background: C.grisClair, borderRadius: 4, margin: '0 auto 20px' }} />
@@ -901,5 +904,6 @@ export default function RecipesPage() {
         <ShoppingPanel items={shoppingItems} onToggle={toggleItem} onClose={() => setShowShopping(false)} onAddCustom={addCustomItem} onDelete={deleteItem} />
       )}
     </div>
+    </>
   )
 }

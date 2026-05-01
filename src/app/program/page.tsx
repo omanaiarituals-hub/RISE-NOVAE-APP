@@ -8,6 +8,7 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { AuthGuard } from '@/components/AuthGuard'
 import missionsData from '@/data/missions.json'
 import { supabase } from '@/lib/supabase/client'
+import { DemoBanner } from '@/components/DemoBanner'
 
 // ── Images par thème ────────────────────────────────────────────
 // Paysages du monde + thèmes pour varier chaque jour
@@ -202,7 +203,9 @@ const { currentDay, isLoaded, refreshProgress } = useProgramProgress()
 
   return (
     <AuthGuard>
-      <div style={{ minHeight: '100vh', background: '#FDFAF7', fontFamily: "'DM Sans', sans-serif" }}>
+      <>
+        <DemoBanner />
+        <div style={{ minHeight: '100vh', background: '#FDFAF7', fontFamily: "'DM Sans', sans-serif" }}>
 
         {/* ── HEADER PHASE avec image ── */}
         <div style={{ position: 'relative', height: 220, overflow: 'hidden' }}>
@@ -339,7 +342,7 @@ const { currentDay, isLoaded, refreshProgress } = useProgramProgress()
               if (isToday && activePhase === currentPhasNum) return null // déjà affiché en haut
 
               return (
-                <div key={mission.day} style={{
+                    <div key={mission.day} style={{
                   borderRadius: 14,
                   border: `1px solid ${isDone ? 'rgba(76,175,80,0.2)' : 'rgba(196,149,106,0.12)'}`,
                   background: isDone ? 'rgba(76,175,80,0.04)' : 'white',
@@ -449,6 +452,7 @@ const { currentDay, isLoaded, refreshProgress } = useProgramProgress()
           </div>
         </div>
       </div>
+      </>
     </AuthGuard>
   )
 }
