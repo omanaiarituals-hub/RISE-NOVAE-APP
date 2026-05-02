@@ -427,7 +427,7 @@ function ConversionForm() {
         disabled={!email || sending}
         style={{ width: '100%', padding: '14px', background: email ? '#C4956A' : 'rgba(26,26,26,0.08)', border: 'none', borderRadius: 10, color: email ? 'white' : 'rgba(26,26,26,0.3)', fontSize: 13, fontWeight: 600, cursor: email ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif" }}
       >
-        {sending ? 'Envoi...' : mode === 'beta' ? 'Tester l'app maintenant ✦' : 'M\'inscrire sur la liste →'}
+        {sending ? 'Envoi...' : mode === 'beta' ? 'Tester l\'app maintenant' : 'M\'inscrire sur la liste'}
       </button>
       <p style={{ fontSize: 10, color: '#6B6560', textAlign: 'center', marginTop: 8 }}>
         🔒 Tes données ne seront jamais vendues ni partagées
