@@ -199,10 +199,6 @@ export default function HomePage() {
                 <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.42)', margin: '0 0 18px', lineHeight: 1.6 }}>
                   {phaseInfo.message}
                 </p>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#C4956A', borderRadius: 10, padding: '10px 20px', boxShadow: '0 4px 16px rgba(196,149,106,0.40)' }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>Voir ma mission du jour</span>
-                  <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 15 }}>→</span>
-                </div>
               </div>
             </Link>
           )}
