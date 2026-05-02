@@ -383,7 +383,7 @@ function ConversionForm() {
         >
           <span style={{ fontSize: 22 }}>✦</span>
           <div>
-            <div style={{ marginBottom: 2 }}>Devenir bêta testrice</div>
+            <div style={{ marginBottom: 2 }}>Devenir bêta testeuse</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontWeight: 400 }}>Accès gratuit + badge Fondatrice + tarif préférentiel</div>
           </div>
         </button>
