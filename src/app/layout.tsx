@@ -4,6 +4,7 @@ import './globals.css'
 import { NovaeProvider } from '@/context/NovaeContext'
 import OneSignalInit from '@/components/OneSignalInit'
 import Link from 'next/link'
+import { SetupGuide } from '@/components/SetupGuide'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -37,6 +38,7 @@ export default function RootLayout({
     <html lang="fr">
       <body className={inter.className} style={{ margin: 0, background: '#1C1A18' }}>
         <NovaeProvider>
+         <SetupGuide />   
           {/* Header avec le logo remplacé */}
           <header style={{ 
             padding: '20px', 
