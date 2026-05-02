@@ -233,7 +233,7 @@ footer a:hover{color:var(--gold)}
 <!-- NAV -->
 <nav id="nav">
   <div class="nav-logo">NOV<span>A</span>É <span style="font-size:9px;letter-spacing:.15em;opacity:.5;font-family:'Jost',sans-serif;font-weight:300">by OMANAÏA</span></div>
-  <a id="nav-cta-btn" href="https://novae-by-omanaia.com" class="nav-cta">Accès bêta →</a>
+  <a id="nav-cta-btn" href="https://novae-by-omanaia.com/dashboard" class="nav-cta">Accès bêta →</a>
 </nav>
 
 <!-- HERO -->
@@ -247,7 +247,7 @@ footer a:hover{color:var(--gold)}
       <p class="hero-sub">Une app qui connecte ton programme, ton coach IA, tes routines et ta famille. Tu te concentres sur toi — NOVAÉ gère le reste.</p>
       <div class="hero-btns">
         <a href="/demo" class="btn-demo">Découvrir ce que l'app va faire pour toi →</a>
-        <a id="btn-beta" href="https://novae-by-omanaia.com" class="btn-main">✦ Rejoindre la bêta</a>
+        <a id="btn-beta" href="https://novae-by-omanaia.com/dashboard" class="btn-main">✦ Rejoindre la bêta</a>
       </div>
     </div>
     <div class="hero-phone">
@@ -375,7 +375,7 @@ footer a:hover{color:var(--gold)}
       <div class="pricing-perk"><span>✦</span> Recettes, Famille, Astuces</div>
       <div class="pricing-perk"><span>✦</span> Bilan IA hebdomadaire</div>
     </div>
-    <a id="pricing-cta-btn" href="https://novae-by-omanaia.com" class="pricing-cta">✦ Rejoindre la bêta</a>
+    <a id="pricing-cta-btn" href="https://novae-by-omanaia.com/dashboard" class="pricing-cta">✦ Rejoindre la bêta</a>
     <p class="pricing-note">Gratuit pendant la bêta · 7,90€/mois au lancement · Annulable à tout moment</p>
   </div>
 </section>
@@ -565,7 +565,7 @@ document.querySelectorAll('.reveal').forEach(el=>obs.observe(el))
 
 // ── COMPTEUR BÊTA — Supabase ──────────────────────────────
 const SUPABASE_URL = 'https://lkknxxeeazzalqcogyjq.supabase.co'
-const SUPABASE_ANON_KEY = 'SUPABASE_ANON_KEY_ICI' // ← ta clé anon publique
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxra254eGVlYXp6YWxxY29neWpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjgxNDcsImV4cCI6MjA5MjEwNDE0N30.1EE3R95Km5ET8xLIwMV--x2j0p9tqzSr-Xhk5J6JPos'
 const LIMITE_BETA = 50
 
 async function checkBetaPlaces() {
