@@ -8,6 +8,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Champs manquants' }, { status: 400 })
     }
 
+    const telFormate = tel ? '+33' + tel.replace(/^0/, '').replace(/\s/g, '') : undefined
+
     const res = await fetch('https://api.brevo.com/v3/contacts', {
       method: 'POST',
       headers: {
@@ -16,7 +18,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         email,
-attributes: { PRENOM: prenom, ...(tel ? { SMS: tel } : {}) },
+        attributes: { PRENOM: prenom, ...(telFormate ? { SMS: telFormate } : {}) },
         listIds: [8], // ← vérifie l'ID de ta liste d'attente dans Brevo
         updateEnabled: true,
       }),
