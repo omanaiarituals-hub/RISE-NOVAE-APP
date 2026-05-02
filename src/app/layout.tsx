@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { NovaeProvider } from '@/context/NovaeContext'
-import { SetupGuide } from '@/components/setupguide'
+import { SetupGuide } from '@/components/SetupGuide'
 import OneSignalInit from '@/components/OneSignalInit'
 import Link from 'next/link'
 

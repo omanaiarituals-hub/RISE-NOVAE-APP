@@ -107,30 +107,28 @@ export default function SettingsPage() {
     router.push('/auth')
   }
 
-  const handleDeleteAccount = async () => {
-    if (deleteInput !== 'SUPPRIMER') return
-    setDeleting(true)
-    try {
-      const { data: { user: u } } = await supabase.auth.getUser()
-      if (u) {
-        await supabase.from('routines').delete().eq('user_id', u.id)
-        await supabase.from('tasks').delete().eq('user_id', u.id)
-        await supabase.from('todo_list').delete().eq('user_id', u.id)
-        await supabase.from('program_progress').delete().eq('user_id', u.id)
-        await supabase.from('meal_plan').delete().eq('user_id', u.id)
-        await supabase.from('community_posts').delete().eq('user_id', u.id)
-        await supabase.from('community_likes').delete().eq('user_id', u.id)
-        await supabase.from('community_comments').delete().eq('user_id', u.id)
-        await supabase.from('challenge_participations').delete().eq('user_id', u.id)
-        await supabase.from('user_badges').delete().eq('user_id', u.id)
-      }
+const handleDeleteAccount = async () => {
+  if (deleteInput !== 'SUPPRIMER') return
+  setDeleting(true)
+  try {
+    const { data: { user: u } } = await supabase.auth.getUser()
+    if (!u) return
+
+    const res = await fetch('/api/delete-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: u.id }),
+    })
+
+    if (res.ok) {
       await supabase.auth.signOut()
       router.push('/auth')
-    } catch (err) {
-      console.error(err)
     }
-    setDeleting(false)
+  } catch (err) {
+    console.error(err)
   }
+  setDeleting(false)
+}
 
   const initials = pseudo ? pseudo.slice(0, 2).toUpperCase() : user?.email?.slice(0, 2).toUpperCase() || 'NS'
 
