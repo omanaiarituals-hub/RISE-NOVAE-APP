@@ -374,7 +374,7 @@ function ConversionForm() {
   if (mode === 'choice') return (
     <div>
       <p style={{ fontSize: 13, color: '#6B6560', textAlign: 'center', marginBottom: 20, lineHeight: 1.7 }}>
-        Tu viens de voir tout ce que NOVAÉ peut faire pour toi.<br />Quelle est la suite pour toi ?
+        Teste l'app en bêta et contribue à son perfectionnement.<br />En échange, tu obtiens un prix préférentiel au lancement officiel.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <button
@@ -383,8 +383,8 @@ function ConversionForm() {
         >
           <span style={{ fontSize: 22 }}>✦</span>
           <div>
-            <div style={{ marginBottom: 2 }}>Devenir bêta testeuse</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontWeight: 400 }}>Accès gratuit + badge Fondatrice + tarif préférentiel</div>
+            <div style={{ marginBottom: 2 }}>Tester l'app en bêta</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontWeight: 400 }}>Contribue à son perfectionnement · Prix préférentiel garanti au lancement</div>
           </div>
         </button>
         <button
@@ -427,7 +427,7 @@ function ConversionForm() {
         disabled={!email || sending}
         style={{ width: '100%', padding: '14px', background: email ? '#C4956A' : 'rgba(26,26,26,0.08)', border: 'none', borderRadius: 10, color: email ? 'white' : 'rgba(26,26,26,0.3)', fontSize: 13, fontWeight: 600, cursor: email ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif" }}
       >
-        {sending ? 'Envoi...' : mode === 'beta' ? 'Envoyer ma candidature ✦' : 'M\'inscrire sur la liste →'}
+        {sending ? 'Envoi...' : mode === 'beta' ? 'Tester l'app maintenant ✦' : 'M\'inscrire sur la liste →'}
       </button>
       <p style={{ fontSize: 10, color: '#6B6560', textAlign: 'center', marginTop: 8 }}>
         🔒 Tes données ne seront jamais vendues ni partagées
