@@ -7,15 +7,8 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { UserMenu } from '@/components/UserMenu'
 import { OnboardingTour } from '@/components/OnboardingTour'
 
-// ─────────────────────────────────────────────
-// 🖼️ IMAGE DE FOND — changer cette URL quand tu veux
-// ─────────────────────────────────────────────
 const BG_IMAGE = 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=1600&q=85'
-// Forêt brumeuse avec rayons de soleil dorés — Unsplash libre de droits
 
-// ─────────────────────────────────────────────
-// MODULES
-// ─────────────────────────────────────────────
 const modules = [
   { href: '/program',   emoji: '🎯', title: 'Programme 90j' },
   { href: '/planner',   emoji: '📅', title: 'Planner'        },
@@ -27,21 +20,20 @@ const modules = [
   { href: '/family',    emoji: '💛', title: 'Famille'        },
   { href: '/notes',     emoji: '📝', title: 'Notes'          },
   { href: '/community', emoji: '👥', title: 'Communauté'     },
-  { href: '/astuces', emoji: '💡', title: 'Astuces' },
+  { href: '/astuces',   emoji: '💡', title: 'Astuces'        },
 ]
 
-// 10 couleurs pastel distinctes — glassmorphism sur fond sombre
 const MODULE_COLORS = [
-  { bg: 'rgba(212,160,144,0.22)', border: 'rgba(212,160,144,0.38)', text: '#F2D5C8' }, // rose poudré
-  { bg: 'rgba(160,190,220,0.22)', border: 'rgba(160,190,220,0.38)', text: '#C8DCF0' }, // bleu ciel
-  { bg: 'rgba(140,200,168,0.22)', border: 'rgba(140,200,168,0.38)', text: '#B8E8C8' }, // vert sauge
-  { bg: 'rgba(232,208,128,0.22)', border: 'rgba(232,208,128,0.38)', text: '#F0E4B0' }, // doré
-  { bg: 'rgba(180,160,220,0.22)', border: 'rgba(180,160,220,0.38)', text: '#D8C8F8' }, // lavande
-  { bg: 'rgba(220,160,180,0.22)', border: 'rgba(220,160,180,0.38)', text: '#F0C8D8' }, // rose
-  { bg: 'rgba(140,210,210,0.22)', border: 'rgba(140,210,210,0.38)', text: '#B8F0F0' }, // turquoise
-  { bg: 'rgba(220,180,140,0.22)', border: 'rgba(220,180,140,0.38)', text: '#F0D8B8' }, // abricot
-  { bg: 'rgba(200,220,160,0.22)', border: 'rgba(200,220,160,0.38)', text: '#D8F0B8' }, // vert lime
-  { bg: 'rgba(200,170,220,0.22)', border: 'rgba(200,170,220,0.38)', text: '#E8D0F8' }, // mauve
+  { bg: 'rgba(212,160,144,0.22)', border: 'rgba(212,160,144,0.38)', text: '#F2D5C8' },
+  { bg: 'rgba(160,190,220,0.22)', border: 'rgba(160,190,220,0.38)', text: '#C8DCF0' },
+  { bg: 'rgba(140,200,168,0.22)', border: 'rgba(140,200,168,0.38)', text: '#B8E8C8' },
+  { bg: 'rgba(232,208,128,0.22)', border: 'rgba(232,208,128,0.38)', text: '#F0E4B0' },
+  { bg: 'rgba(180,160,220,0.22)', border: 'rgba(180,160,220,0.38)', text: '#D8C8F8' },
+  { bg: 'rgba(220,160,180,0.22)', border: 'rgba(220,160,180,0.38)', text: '#F0C8D8' },
+  { bg: 'rgba(140,210,210,0.22)', border: 'rgba(140,210,210,0.38)', text: '#B8F0F0' },
+  { bg: 'rgba(220,180,140,0.22)', border: 'rgba(220,180,140,0.38)', text: '#F0D8B8' },
+  { bg: 'rgba(200,220,160,0.22)', border: 'rgba(200,220,160,0.38)', text: '#D8F0B8' },
+  { bg: 'rgba(200,170,220,0.22)', border: 'rgba(200,170,220,0.38)', text: '#E8D0F8' },
 ]
 
 const PHASE_MESSAGES: Record<string, { label: string; message: string }> = {
@@ -68,9 +60,6 @@ function getPhase(day: number) {
   return 'expansion'
 }
 
-// ─────────────────────────────────────────────
-// PAGE
-// ─────────────────────────────────────────────
 export default function HomePage() {
   const { user } = useSupabaseAuth()
   const router = useRouter()
@@ -112,10 +101,9 @@ export default function HomePage() {
 
   const loadData = async () => {
     if (!user) return
-    const today = fmtDate(new Date())
     const [prog, tasks, routines] = await Promise.all([
       supabase.from('program_progress').select('*').eq('user_id', user.id).single(),
-      supabase.from('tasks').select('*').eq('user_id', user.id).gte('date', today).lte('date', today + 'T23:59:59'),
+      supabase.from('tasks').select('*').eq('user_id', user.id).eq('status', 'pending'),
       supabase.from('routines').select('*').eq('user_id', user.id),
     ])
     if (prog.data) {
@@ -144,29 +132,13 @@ export default function HomePage() {
     <>
       <OnboardingTour forceShow={showTour} onClose={() => setShowTour(false)} />
 
-      {/* ── FOND FIXE ── */}
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 0,
-        backgroundImage: `url(${BG_IMAGE})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }} />
-      {/* Voile gradient pour lisibilité */}
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 1,
-        background: 'linear-gradient(to bottom, rgba(0,0,0,0.50) 0%, rgba(0,0,0,0.35) 40%, rgba(0,0,0,0.62) 100%)',
-      }} />
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, backgroundImage: `url(${BG_IMAGE})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1, background: 'linear-gradient(to bottom, rgba(0,0,0,0.50) 0%, rgba(0,0,0,0.35) 40%, rgba(0,0,0,0.62) 100%)' }} />
 
       <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", position: 'relative', zIndex: 2 }}>
 
-        {/* ── TOP BAR ── */}
-        <div style={{
-          background: 'rgba(255,255,255,0.06)',
-          backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(255,255,255,0.10)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 24px', position: 'sticky', top: 0, zIndex: 30,
-        }}>
+        {/* TOP BAR */}
+        <div style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 30 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 700, color: '#D4A090', letterSpacing: '0.05em' }}>Novae</span>
             {currentDay > 0 && (
@@ -184,7 +156,7 @@ export default function HomePage() {
 
         <main style={{ maxWidth: 600, margin: '0 auto', padding: '28px 20px 120px' }}>
 
-          {/* ── SALUTATION ── */}
+          {/* SALUTATION */}
           <div style={{ marginBottom: 26 }}>
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.48)', margin: '0 0 4px' }}>
               {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -197,16 +169,10 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* ── CARTE PROGRAMME ── */}
+          {/* CARTE PROGRAMME */}
           {user && currentDay > 0 && (
             <Link href="/program" style={{ textDecoration: 'none', display: 'block', marginBottom: 12 }}>
-              <div style={{
-                background: 'rgba(255,255,255,0.09)',
-                backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
-                border: '1px solid rgba(255,255,255,0.14)',
-                borderRadius: 20, padding: '22px 24px',
-                boxShadow: '0 8px 40px rgba(0,0,0,0.22)',
-              }}>
+              <div style={{ background: 'rgba(255,255,255,0.09)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 20, padding: '22px 24px', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                   <div>
                     <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.40)', display: 'block', marginBottom: 6 }}>
@@ -241,12 +207,12 @@ export default function HomePage() {
             </Link>
           )}
 
-          {/* ── 3 TUILES STATS ── */}
+          {/* 3 TUILES STATS */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
             {[
-              { href: '/planner',  emoji: '📋', value: `${todayTasksDone}/${todayTasks.length || 0}`, label: 'tâches',   mc: MODULE_COLORS[0] },
-              { href: '/routines', emoji: '☀️', value: `${routinesDone}/${routinesTotal || 0}`,        label: 'routines', mc: MODULE_COLORS[4] },
-              { href: '/agent',    emoji: '🤖', value: 'Agent',                                        label: 'NOVAÉ',    mc: MODULE_COLORS[9] },
+              { href: '/planner',  emoji: '📋', value: `${todayTasks.length || 0}`, label: 'tâches en attente', mc: MODULE_COLORS[0] },
+              { href: '/routines', emoji: '☀️', value: `${routinesDone}/${routinesTotal || 0}`, label: 'routines', mc: MODULE_COLORS[4] },
+              { href: '/agent',    emoji: '🤖', value: 'Agent', label: 'NOVAÉ', mc: MODULE_COLORS[9] },
             ].map((tile, i) => (
               <Link key={i} href={tile.href} style={{ textDecoration: 'none' }}>
                 <div style={{ background: tile.mc.bg, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: `1px solid ${tile.mc.border}`, borderRadius: 14, padding: '16px 10px', textAlign: 'center' }}>
@@ -258,7 +224,7 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* ── INTENTION ── */}
+          {/* INTENTION */}
           {intention ? (
             <div style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, padding: '14px 18px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: 20 }}>✨</span>
@@ -281,16 +247,25 @@ export default function HomePage() {
             </Link>
           )}
 
-          {/* ── BOUTON PRINCIPAL ── */}
-          <Link href="/program" style={{ textDecoration: 'none', display: 'block', marginBottom: 28 }}>
-            <div style={{ background: '#C4956A', borderRadius: 14, padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 4px 24px rgba(196,149,106,0.42)' }}>
-              <span style={{ fontSize: 16 }}>🎯</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: 'white', letterSpacing: '0.02em' }}>Commencer ma journée</span>
-              <span style={{ color: 'rgba(255,255,255,0.70)', fontSize: 16 }}>→</span>
-            </div>
-          </Link>
+          {/* BOUTONS PRINCIPAUX */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 28 }}>
+            <Link href="/program" style={{ textDecoration: 'none' }}>
+              <div style={{ background: '#C4956A', borderRadius: 14, padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 24px rgba(196,149,106,0.42)' }}>
+                <span style={{ fontSize: 16 }}>🎯</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>Ma mission</span>
+                <span style={{ color: 'rgba(255,255,255,0.70)', fontSize: 14 }}>→</span>
+              </div>
+            </Link>
+            <Link href="/planner" style={{ textDecoration: 'none' }}>
+              <div style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderRadius: 14, padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: '1px solid rgba(255,255,255,0.15)' }}>
+                <span style={{ fontSize: 16 }}>📅</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>Mon planning</span>
+                <span style={{ color: 'rgba(255,255,255,0.70)', fontSize: 14 }}>→</span>
+              </div>
+            </Link>
+          </div>
 
-          {/* ── MODULES ── */}
+          {/* MODULES */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
             <button onClick={() => setShowModules(!showModules)} style={{ fontSize: 11, color: 'rgba(255,255,255,0.52)', background: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '6px 16px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -317,7 +292,7 @@ export default function HomePage() {
 
         </main>
 
-        {/* ── BOUTONS FIXES ── */}
+        {/* BOUTONS FIXES */}
         <div style={{ position: 'fixed', bottom: 74, right: 16, zIndex: 50, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button onClick={restartTour} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 20, background: 'rgba(0,0,0,0.50)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)', fontSize: 11, color: 'rgba(255,255,255,0.55)', cursor: 'pointer' }}>
             🎓 Tuto
@@ -327,7 +302,7 @@ export default function HomePage() {
           </Link>
         </div>
 
-        {/* ── BOTTOM NAV ── */}
+        {/* BOTTOM NAV */}
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', overflowX: 'auto', padding: '6px 8px', gap: 2, zIndex: 40 }} className="md:hidden">
           {modules.slice(0, 6).map((mod, i) => {
             const mc = MODULE_COLORS[i % MODULE_COLORS.length]
@@ -348,5 +323,3 @@ export default function HomePage() {
     </>
   )
 }
-
-
