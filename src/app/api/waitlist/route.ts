@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         email,
-        attributes: { PRENOM: prenom, SMS: tel || '' },
+attributes: { PRENOM: prenom, ...(tel ? { SMS: tel } : {}) },
         listIds: [8], // ← vérifie l'ID de ta liste d'attente dans Brevo
         updateEnabled: true,
       }),
