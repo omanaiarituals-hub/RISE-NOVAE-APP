@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { NovaeProvider } from '@/context/NovaeContext'
+import { SetupGuide } from '@/components/setupguide'
 import OneSignalInit from '@/components/OneSignalInit'
 import Link from 'next/link'
 
@@ -37,6 +38,7 @@ export default function RootLayout({
     <html lang="fr">
       <body className={inter.className} style={{ margin: 0, background: '#1C1A18' }}>
         <NovaeProvider>
+          <SetupGuide />
           {/* Header avec le logo remplacé */}
           <header style={{ 
             padding: '20px', 
