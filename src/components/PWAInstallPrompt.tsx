@@ -11,7 +11,7 @@ export function PWAInstallPrompt() {
       setDeferredPrompt(e)
       const alreadyInstalled = localStorage.getItem('novae_pwa_installed')
       if (!alreadyInstalled) {
-        setTimeout(() => setShowPrompt(true), 30000)
+        setTimeout(() => setShowPrompt(true), 3000)
       }
     }
     window.addEventListener('beforeinstallprompt', handler)

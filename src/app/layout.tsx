@@ -59,7 +59,6 @@ export default function RootLayout({
           </main>
         </NovaeProvider>
         <PWAInstallPrompt />        
-        <CookieBanner />
         
         <OneSignalInit />
         <script dangerouslySetInnerHTML={{__html: `
