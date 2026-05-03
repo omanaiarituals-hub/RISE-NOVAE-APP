@@ -1,10 +1,10 @@
 'use client'
+
 import { useEffect } from 'react'
+import { supabase } from '@/lib/supabase/client'
 
 declare global {
-  interface Window {
-    OneSignalDeferred: any[]
-  }
+  interface Window { OneSignalDeferred: any[] }
 }
 
 export default function OneSignalInit() {
@@ -14,7 +14,6 @@ export default function OneSignalInit() {
     if (!appId) return
 
     window.OneSignalDeferred = window.OneSignalDeferred || []
-
     const script = document.createElement('script')
     script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
     script.defer = true
@@ -40,10 +39,14 @@ export default function OneSignalInit() {
           }
         })
 
-        // Tag user_id pour cibler par utilisateur
-        const userId = localStorage.getItem('novae_user_id')
-        if (userId) {
-          await OneSignal.User.addTag('user_id', userId)
+        // Récupérer le vrai user Supabase et l'associer à OneSignal
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          // Associer l'External ID = user_id Supabase
+          await OneSignal.login(user.id)
+          // Ajouter aussi le tag pour les filtres
+          await OneSignal.User.addTag('user_id', user.id)
+          await OneSignal.User.addTag('email', user.email || '')
         }
       })
     }
