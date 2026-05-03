@@ -1,1 +1,16 @@
-{"crons":[{"path":"/api/cron/weekly-debrief","schedule":"0 17 * * 0"}]}
+{
+  "crons": [
+    {
+      "path": "/api/cron/weekly-debrief",
+      "schedule": "0 17 * * 0"
+    },
+    {
+      "path": "/api/cron/daily-notifications",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/daily-notifications",
+      "schedule": "0 18 * * *"
+    }
+  ]
+}
