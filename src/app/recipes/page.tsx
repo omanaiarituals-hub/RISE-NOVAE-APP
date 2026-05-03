@@ -293,32 +293,51 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
 }
 
 // ─── MODAL AJOUT / MODIFICATION ───────────────────────────────────────────────
-function RecipeModal({ initial, onSave, onClose }: {
-  initial?: Recipe; onSave: (r: Partial<Recipe>) => void; onClose: () => void
+const DRAFT_KEY = 'novae_recipe_draft'
+
+function RecipeModal({ initial, onSave, onClose }: {  initial?: Recipe; onSave: (r: Partial<Recipe>) => void; onClose: () => void
 }) {
-  const [title, setTitle] = useState(initial?.title || '')
-  const [emoji, setEmoji] = useState(initial?.emoji || '🍝')
-  const [description, setDescription] = useState(initial?.description || '')
-  const [prepTime, setPrepTime] = useState(initial?.prep_time || '15')
-  const [cookTime, setCookTime] = useState(initial?.cook_time || '0')
-  const [mealType, setMealType] = useState<MealType>(initial?.meal_type || 'plat')
-  const [category, setCategory] = useState<Category>(initial?.category || 'express')
-  const [difficulty, setDifficulty] = useState<Difficulty>(initial?.difficulty || 'facile')
-  const [servings, setServings] = useState(initial?.servings || 4)
-  const [calories, setCalories] = useState(initial?.calories || 0)
+ const savedDraft = !initial && typeof window !== 'undefined'
+    ? (() => { try { const d = localStorage.getItem(DRAFT_KEY); return d ? JSON.parse(d) : null } catch { return null } })()
+    : null
+
+  const [title, setTitle] = useState(initial?.title || savedDraft?.title || '')
+  const [emoji, setEmoji] = useState(initial?.emoji || savedDraft?.emoji || '🍝')
+  const [description, setDescription] = useState(initial?.description || savedDraft?.description || '')
+  const [prepTime, setPrepTime] = useState(initial?.prep_time || savedDraft?.prepTime || '15')
+  const [cookTime, setCookTime] = useState(initial?.cook_time || savedDraft?.cookTime || '0')
+  const [mealType, setMealType] = useState<MealType>(initial?.meal_type || savedDraft?.mealType || 'plat')
+  const [category, setCategory] = useState<Category>(initial?.category || savedDraft?.category || 'express')
+  const [difficulty, setDifficulty] = useState<Difficulty>(initial?.difficulty || savedDraft?.difficulty || 'facile')
+  const [servings, setServings] = useState(initial?.servings || savedDraft?.servings || 4)
+  const [calories, setCalories] = useState(initial?.calories || savedDraft?.calories || 0)
   const [ingredientsText, setIngredientsText] = useState(
-    initial?.ingredients?.map(i => `${i.name}: ${i.quantity}`).join('\n') || ''
+    initial?.ingredients?.map(i => `${i.name}: ${i.quantity}`).join('\n') || savedDraft?.ingredientsText || ''
   )
-  const [stepsText, setStepsText] = useState(initial?.steps?.join('\n') || '')
+  const [stepsText, setStepsText] = useState(initial?.steps?.join('\n') || savedDraft?.stepsText || '')
   const [showEmoji, setShowEmoji] = useState(false)
+  const [draftSaved, setDraftSaved] = useState(false)
+
+  useEffect(() => {
+    if (initial) return
+    const draft = { title, emoji, description, prepTime, cookTime, mealType, category, difficulty, servings, calories, ingredientsText, stepsText }
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+      setDraftSaved(true)
+      const t = setTimeout(() => setDraftSaved(false), 1500)
+      return () => clearTimeout(t)
+    } catch {}
+  }, [title, emoji, description, prepTime, cookTime, mealType, category, difficulty, servings, calories, ingredientsText, stepsText, initial])
 
   const handleSave = () => {
+    try { localStorage.removeItem(DRAFT_KEY) } catch {}
+    
     if (!title.trim() || !ingredientsText.trim()) return
-    const ingredients: Ingredient[] = ingredientsText.split('\n').map(l => {
+    const ingredients: Ingredient[] = ingredientsText.split('\n').map((l: string) => {
       const parts = l.split(':')
       return { name: parts[0]?.trim() || l.trim(), quantity: parts[1]?.trim() || '' }
-    }).filter(i => i.name)
-    const steps = stepsText.split('\n').map(s => s.trim()).filter(Boolean)
+    }).filter((i: Ingredient) => i.name)
+    const steps = stepsText.split('\n').map((s: string) => s.trim()).filter(Boolean)
     onSave({
       title, emoji, description, prep_time: prepTime, cook_time: cookTime,
       meal_type: mealType, category, difficulty, servings,
@@ -335,6 +354,7 @@ function RecipeModal({ initial, onSave, onClose }: {
         <div style={{ width: 40, height: 4, background: C.grisClair, borderRadius: 4, margin: '0 auto 20px' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <h3 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: C.noir }}>{initial ? 'Modifier la recette' : 'Nouvelle recette'}</h3>
+          {!initial && draftSaved && <span style={{ fontSize: 10, color: '#90C8A8', fontWeight: 600 }}>✓ Brouillon sauvegardé</span>}
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.gris }}>×</button>
         </div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
