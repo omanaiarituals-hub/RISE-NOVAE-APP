@@ -377,7 +377,7 @@ function ConversionForm() {
       Accède à l'app gratuitement pendant la bêta.
     </p>
     <a
-      href="https://novae-app-2026.vercel.app"
+      href="https://app.novae-by-omanaia.com"
       style={{display:'inline-flex',alignItems:'center',gap:10,padding:'16px 32px',background:'#1A1A1A',borderRadius:12,color:'white',fontSize:14,fontWeight:600,textDecoration:'none',letterSpacing:'0.04em'}}
     >
       ✦ Accéder à l'app gratuitement

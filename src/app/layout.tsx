@@ -5,6 +5,8 @@ import { NovaeProvider } from '@/context/NovaeContext'
 import OneSignalInit from '@/components/OneSignalInit'
 import Link from 'next/link'
 import { SetupGuide } from '@/components/SetupGuide'
+import { PWAInstallPrompt } from '@/components/PWAInstallPrompt'
+import { CookieBanner } from '@/components/CookieBanner'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -18,7 +20,7 @@ export const metadata: Metadata = {
     title: 'RISE NOVAÉ',
   },
   icons: {
-    icon: '/icons/icon-192x192.png',
+    icon: '/novae-icon.svg',
     apple: '/apple-touch-icon.png',
   },
   other: {
@@ -56,6 +58,8 @@ export default function RootLayout({
             {children}
           </main>
         </NovaeProvider>
+        <PWAInstallPrompt />        
+        <CookieBanner />
         
         <OneSignalInit />
         <script dangerouslySetInnerHTML={{__html: `
