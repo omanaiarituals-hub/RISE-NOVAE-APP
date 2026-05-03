@@ -103,8 +103,20 @@ export default function AuthPage() {
             .from('ai_personality_profile')
             .update({ pseudo: pseudo || email.split('@')[0] })
             .eq('user_id', data.user.id)
-        }
 
+          // Ajout automatique dans Brevo selon la date
+          const isBeta = new Date() < new Date('2026-06-02')
+          await fetch('/api/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: data.user.email,
+              prenom: pseudo || email.split('@')[0],
+              listId: isBeta ? 7 : 9,
+              SOURCE: isBeta ? 'inscription_beta' : 'inscription_membre'
+            })
+          })
+        }
         setSuccess('Compte créé ! Vérifie ton email pour confirmer ton inscription.')
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
