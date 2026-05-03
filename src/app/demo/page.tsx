@@ -372,34 +372,19 @@ function ConversionForm() {
   )
 
   if (mode === 'choice') return (
-    <div>
-      <p style={{ fontSize: 13, color: '#6B6560', textAlign: 'center', marginBottom: 20, lineHeight: 1.7 }}>
-        Teste l'app en bêta et contribue à son perfectionnement.<br />En échange, tu obtiens un prix préférentiel au lancement officiel.
-      </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <button
-          onClick={() => setMode('beta')}
-          style={{ padding: '16px', background: '#1A1A1A', border: 'none', borderRadius: 12, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: "'DM Sans', sans-serif" }}
-        >
-          <span style={{ fontSize: 22 }}>✦</span>
-          <div>
-            <div style={{ marginBottom: 2 }}>Tester l'app en bêta</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontWeight: 400 }}>Contribue à son perfectionnement · Prix préférentiel garanti au lancement</div>
-          </div>
-        </button>
-        <button
-          onClick={() => setMode('waitlist')}
-          style={{ padding: '16px', background: 'white', border: '1.5px solid #E8E0D8', borderRadius: 12, color: '#1A1A1A', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: "'DM Sans', sans-serif" }}
-        >
-          <span style={{ fontSize: 22 }}>📩</span>
-          <div>
-            <div style={{ marginBottom: 2 }}>Liste d'attente</div>
-            <div style={{ fontSize: 11, color: '#6B6560', fontWeight: 400 }}>Être alertée au lancement + offre exclusive -20%</div>
-          </div>
-        </button>
-      </div>
-    </div>
-  )
+  <div style={{textAlign:'center',padding:'8px 0'}}>
+    <p style={{fontSize:13,color:'#6B6560',marginBottom:24,lineHeight:1.7}}>
+      Accède à l'app gratuitement pendant la bêta.
+    </p>
+    <a
+      href="https://novae-app-2026.vercel.app"
+      style={{display:'inline-flex',alignItems:'center',gap:10,padding:'16px 32px',background:'#1A1A1A',borderRadius:12,color:'white',fontSize:14,fontWeight:600,textDecoration:'none',letterSpacing:'0.04em'}}
+    >
+      ✦ Accéder à l'app gratuitement
+    </a>
+    <p style={{fontSize:11,color:'rgba(26,26,26,0.3)',marginTop:12}}>Bêta ouverte · Aucune carte requise</p>
+  </div>
+)
 
   return (
     <div>
@@ -427,7 +412,7 @@ function ConversionForm() {
         disabled={!email || sending}
         style={{ width: '100%', padding: '14px', background: email ? '#C4956A' : 'rgba(26,26,26,0.08)', border: 'none', borderRadius: 10, color: email ? 'white' : 'rgba(26,26,26,0.3)', fontSize: 13, fontWeight: 600, cursor: email ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif" }}
       >
-        {sending ? 'Envoi...' : mode === 'beta' ? 'Tester l\'app maintenant' : 'M\'inscrire sur la liste'}
+        {sending ? 'Envoi...' : mode === 'beta' ? "Tester l\'app maintenant" : 'M\'inscrire sur la liste'}
       </button>
       <p style={{ fontSize: 10, color: '#6B6560', textAlign: 'center', marginTop: 8 }}>
         🔒 Tes données ne seront jamais vendues ni partagées
