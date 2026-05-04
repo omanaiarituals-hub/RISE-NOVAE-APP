@@ -30,6 +30,7 @@ export default function OneSignalInit() {
 
     script.onload = () => {
       window.OneSignalDeferred.push(async function(OneSignal: any) {
+        // 1. Init OneSignal
         await OneSignal.init({
           appId,
           notifyButton: { enable: false },
@@ -39,7 +40,7 @@ export default function OneSignalInit() {
                 type: 'push',
                 autoPrompt: false,
                 text: {
-                  actionMessage: 'NOVAÉ aimerait t\'envoyer ton bilan hebdo et tes rappels.',
+                  actionMessage: "NOVAÉ aimerait t'envoyer ton bilan hebdo et tes rappels.",
                   acceptButton: 'Oui, activer',
                   cancelButton: 'Plus tard',
                 }
@@ -48,47 +49,40 @@ export default function OneSignalInit() {
           }
         })
 
-        // Récupérer le user Supabase
+        // 2. Recuperer le user Supabase
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        // 1. Associer l'External ID = user_id Supabase
+        // 3. Login OneSignal avec l'External ID
         await OneSignal.login(user.id)
 
-        // 2. Tags de base — user_id + email
-        await OneSignal.User.addTag('user_id', user.id)
-        await OneSignal.User.addTag('email', user.email || '')
-
-        // 3. Synchroniser les préférences de notifications depuis localStorage
-        // Si une clé n'existe pas encore → on la crée à 'true' par défaut
-        const prefTags: Record<string, string> = {}
-        NOTIF_KEYS.forEach(key => {
-          const stored = localStorage.getItem(key)
-          if (stored === null) {
-            // Première connexion → activer par défaut + sauvegarder
-            localStorage.setItem(key, 'true')
-            prefTags[key] = 'true'
-          } else {
-            prefTags[key] = stored === 'false' ? 'false' : 'true'
-          }
-        })
-for (const [key, value] of Object.entries(prefTags)) {
-  await OneSignal.User.addTag(key, value)
-}
-
-        // 4. Demander la permission push si pas encore accordée
-        // (seulement si l'utilisatrice n'a pas encore répondu)
-        const permission = await OneSignal.Notifications.permissionNative
-        if (permission === 'default') {
-          // Attendre 3 secondes avant de demander — moins intrusif
-          setTimeout(async () => {
-            try {
-              await OneSignal.Slidedown.promptPush()
-            } catch {
-              // Silencieux si le prompt est déjà affiché
-            }
-          }, 3000)
+        // 4. Tags - tout dans OneSignalDeferred, seule API qui marche en v16
+        const tags: Record<string, string> = {
+          user_id: user.id,
+          email: user.email || '',
         }
+
+        NOTIF_KEYS.forEach(key => {
+          if (localStorage.getItem(key) === null) {
+            localStorage.setItem(key, 'true')
+          }
+          tags[key] = localStorage.getItem(key) !== 'false' ? 'true' : 'false'
+        })
+
+        for (const [key, value] of Object.entries(tags)) {
+          try {
+            await OneSignal.User.addTag(key, value)
+          } catch (e) {}
+        }
+
+        // 5. Demander la permission si pas encore accordee
+        try {
+          if (Notification.permission === 'default') {
+            setTimeout(async () => {
+              try { await OneSignal.Slidedown.promptPush() } catch {}
+            }, 3000)
+          }
+        } catch {}
       })
     }
   }, [])
