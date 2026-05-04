@@ -70,12 +70,14 @@ export default function HomePage() {
   const [currentDay, setCurrentDay] = useState(0)
   const [programProgress, setProgramProgress] = useState(0)
   const [todayTasks, setTodayTasks] = useState<any[]>([])
-  const [todayTasksDone, setTodayTasksDone] = useState(0)
   const [routinesDone, setRoutinesDone] = useState(0)
   const [routinesTotal, setRoutinesTotal] = useState(0)
   const [streak, setStreak] = useState(0)
   const [intention, setIntention] = useState<string | null>(null)
   const [dailyMessage, setDailyMessage] = useState('')
+
+  // ── Nouveaux posts communauté ─────────────────────────────────────────────
+  const [newCommunityPosts, setNewCommunityPosts] = useState(0)
 
   const hour = new Date().getHours()
   const greeting = hour < 5 ? 'Bonne nuit' : hour < 12 ? 'Bonjour' : hour < 18 ? 'Bonne après-midi' : 'Bonsoir'
@@ -114,10 +116,31 @@ export default function HomePage() {
     }
     const tk = tasks.data || []
     setTodayTasks(tk)
-    setTodayTasksDone(tk.filter((x: any) => x.status === 'completed').length)
     const rt = routines.data || []
     setRoutinesTotal(rt.length)
     setRoutinesDone(rt.filter((x: any) => x.completed).length)
+
+    // ── Compter les nouveaux posts communauté depuis la dernière visite ──────
+    loadNewCommunityPosts()
+  }
+
+  const loadNewCommunityPosts = async () => {
+    try {
+      // Récupérer la date de dernière visite de la communauté depuis localStorage
+      const lastVisit = localStorage.getItem('novae-community-last-visit')
+      const since = lastVisit
+        ? new Date(lastVisit).toISOString()
+        : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() // par défaut 24h
+
+      const { count } = await supabase
+        .from('community_posts')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', since)
+
+      setNewCommunityPosts(count || 0)
+    } catch {
+      setNewCommunityPosts(0)
+    }
   }
 
   const restartTour = () => {
@@ -147,11 +170,24 @@ export default function HomePage() {
               </span>
             )}
           </div>
-          {user ? <UserMenu /> : (
-            <Link href="/auth" style={{ padding: '8px 20px', borderRadius: 20, border: '1.5px solid rgba(255,255,255,0.28)', background: 'rgba(255,255,255,0.08)', color: '#FFFFFF', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
-              Se connecter
-            </Link>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Icône communauté avec badge dans la top bar */}
+            {newCommunityPosts > 0 && (
+              <Link href="/community"
+                onClick={() => localStorage.setItem('novae-community-last-visit', new Date().toISOString())}
+                style={{ position: 'relative', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)' }}>
+                <span style={{ fontSize: 16 }}>💬</span>
+                <span style={{ position: 'absolute', top: -4, right: -4, background: '#C4956A', color: 'white', fontSize: 10, fontWeight: 700, borderRadius: '50%', minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>
+                  {newCommunityPosts > 9 ? '9+' : newCommunityPosts}
+                </span>
+              </Link>
+            )}
+            {user ? <UserMenu /> : (
+              <Link href="/auth" style={{ padding: '8px 20px', borderRadius: 20, border: '1.5px solid rgba(255,255,255,0.28)', background: 'rgba(255,255,255,0.08)', color: '#FFFFFF', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
+                Se connecter
+              </Link>
+            )}
+          </div>
         </div>
 
         <main style={{ maxWidth: 600, margin: '0 auto', padding: '28px 20px 120px' }}>
@@ -168,6 +204,33 @@ export default function HomePage() {
               {dailyMessage}
             </p>
           </div>
+
+          {/* BANDEAU COMMUNAUTÉ — affiché si nouveaux messages */}
+          {newCommunityPosts > 0 && (
+            <Link href="/community"
+              onClick={() => localStorage.setItem('novae-community-last-visit', new Date().toISOString())}
+              style={{ textDecoration: 'none', display: 'block', marginBottom: 12 }}>
+              <div style={{ background: 'rgba(196,149,106,0.15)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(196,149,106,0.35)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <span style={{ fontSize: 22 }}>💬</span>
+                  <span style={{ position: 'absolute', top: -6, right: -6, background: '#C4956A', color: 'white', fontSize: 10, fontWeight: 700, borderRadius: '50%', minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>
+                    {newCommunityPosts > 9 ? '9+' : newCommunityPosts}
+                  </span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#F2D5C8' }}>
+                    {newCommunityPosts === 1
+                      ? '1 nouveau message dans la communauté'
+                      : `${newCommunityPosts} nouveaux messages dans la communauté`}
+                  </p>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+                    Voir ce qui se passe →
+                  </p>
+                </div>
+                <span style={{ color: '#C4956A', fontSize: 16, flexShrink: 0 }}>→</span>
+              </div>
+            </Link>
+          )}
 
           {/* CARTE PROGRAMME */}
           {user && currentDay > 0 && (
@@ -274,11 +337,20 @@ export default function HomePage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
               {modules.map((mod, i) => {
                 const mc = MODULE_COLORS[i % MODULE_COLORS.length]
+                // Badge communauté dans la grille des modules
+                const isCommunity = mod.href === '/community'
                 return (
-                  <Link key={mod.href} href={mod.href} style={{ textDecoration: 'none' }}>
-                    <div style={{ background: mc.bg, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: `1px solid ${mc.border}`, borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Link key={mod.href} href={mod.href}
+                    onClick={isCommunity ? () => localStorage.setItem('novae-community-last-visit', new Date().toISOString()) : undefined}
+                    style={{ textDecoration: 'none' }}>
+                    <div style={{ background: mc.bg, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: `1px solid ${mc.border}`, borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
                       <span style={{ fontSize: 20, flexShrink: 0 }}>{mod.emoji}</span>
                       <span style={{ fontSize: 12, fontWeight: 500, color: mc.text, lineHeight: 1.3 }}>{mod.title}</span>
+                      {isCommunity && newCommunityPosts > 0 && (
+                        <span style={{ position: 'absolute', top: 6, right: 8, background: '#C4956A', color: 'white', fontSize: 9, fontWeight: 700, borderRadius: 10, padding: '1px 5px', lineHeight: 1.4 }}>
+                          {newCommunityPosts > 9 ? '9+' : newCommunityPosts}
+                        </span>
+                      )}
                     </div>
                   </Link>
                 )
@@ -302,10 +374,18 @@ export default function HomePage() {
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', overflowX: 'auto', padding: '6px 8px', gap: 2, zIndex: 40 }} className="md:hidden">
           {modules.slice(0, 6).map((mod, i) => {
             const mc = MODULE_COLORS[i % MODULE_COLORS.length]
+            const isCommunity = mod.href === '/community'
             return (
-              <Link key={mod.href} href={mod.href} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '5px 8px', borderRadius: 10, textDecoration: 'none', minWidth: 52, flexShrink: 0 }}>
+              <Link key={mod.href} href={mod.href}
+                onClick={isCommunity ? () => localStorage.setItem('novae-community-last-visit', new Date().toISOString()) : undefined}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '5px 8px', borderRadius: 10, textDecoration: 'none', minWidth: 52, flexShrink: 0, position: 'relative' }}>
                 <span style={{ fontSize: 18 }}>{mod.emoji}</span>
                 <span style={{ fontSize: 9, color: mc.text, marginTop: 2, textAlign: 'center' }}>{mod.title.split(' ')[0]}</span>
+                {isCommunity && newCommunityPosts > 0 && (
+                  <span style={{ position: 'absolute', top: 2, right: 4, background: '#C4956A', color: 'white', fontSize: 8, fontWeight: 700, borderRadius: '50%', minWidth: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>
+                    {newCommunityPosts > 9 ? '9+' : newCommunityPosts}
+                  </span>
+                )}
               </Link>
             )
           })}
