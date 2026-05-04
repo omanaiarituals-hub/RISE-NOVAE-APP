@@ -7,6 +7,15 @@ declare global {
   interface Window { OneSignalDeferred: any[] }
 }
 
+const NOTIF_KEYS = [
+  'notif_routines',
+  'notif_conflits',
+  'notif_communaute',
+  'notif_anniversaires',
+  'notif_inactivite',
+  'notif_bilan',
+]
+
 export default function OneSignalInit() {
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -39,14 +48,44 @@ export default function OneSignalInit() {
           }
         })
 
-        // Récupérer le vrai user Supabase et l'associer à OneSignal
+        // Récupérer le user Supabase
         const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          // Associer l'External ID = user_id Supabase
-          await OneSignal.login(user.id)
-          // Ajouter aussi le tag pour les filtres
-          await OneSignal.User.addTag('user_id', user.id)
-          await OneSignal.User.addTag('email', user.email || '')
+        if (!user) return
+
+        // 1. Associer l'External ID = user_id Supabase
+        await OneSignal.login(user.id)
+
+        // 2. Tags de base — user_id + email
+        await OneSignal.User.addTag('user_id', user.id)
+        await OneSignal.User.addTag('email', user.email || '')
+
+        // 3. Synchroniser les préférences de notifications depuis localStorage
+        // Si une clé n'existe pas encore → on la crée à 'true' par défaut
+        const prefTags: Record<string, string> = {}
+        NOTIF_KEYS.forEach(key => {
+          const stored = localStorage.getItem(key)
+          if (stored === null) {
+            // Première connexion → activer par défaut + sauvegarder
+            localStorage.setItem(key, 'true')
+            prefTags[key] = 'true'
+          } else {
+            prefTags[key] = stored === 'false' ? 'false' : 'true'
+          }
+        })
+        await OneSignal.User.addTags(prefTags)
+
+        // 4. Demander la permission push si pas encore accordée
+        // (seulement si l'utilisatrice n'a pas encore répondu)
+        const permission = await OneSignal.Notifications.permissionNative
+        if (permission === 'default') {
+          // Attendre 3 secondes avant de demander — moins intrusif
+          setTimeout(async () => {
+            try {
+              await OneSignal.Slidedown.promptPush()
+            } catch {
+              // Silencieux si le prompt est déjà affiché
+            }
+          }, 3000)
         }
       })
     }
