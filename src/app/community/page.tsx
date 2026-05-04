@@ -76,47 +76,11 @@ export default function CommunityPage() {
   const [newComment, setNewComment] = useState<Record<string, string>>({})
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // ── Enregistrer le user_id comme tag OneSignal au chargement ───────────────
-  // Sans ce tag, le cron ne peut pas cibler l'utilisatrice par user_id
+  // Marquer la visite pour le compteur home
   useEffect(() => {
     if (!user) return
-    registerOneSignalTag(user.id)
-    // Marquer la visite communauté pour le compteur home
     localStorage.setItem('novae-community-last-visit', new Date().toISOString())
   }, [user])
-
-  const registerOneSignalTag = async (userId: string) => {
-    try {
-      if (typeof window === 'undefined') return
-      const OneSignal = (window as any).OneSignal
-      if (!OneSignal) return
-
-      // Attendre que OneSignal soit prêt
-      await new Promise<void>(resolve => {
-        if (OneSignal.initialized) { resolve(); return }
-        OneSignal.on?.('initialized', resolve)
-        setTimeout(resolve, 3000) // timeout de sécurité
-      })
-
-      // Enregistrer le user_id comme tag externe
-      await OneSignal.sendTag('user_id', userId)
-
-      // Charger et envoyer toutes les préférences de notif stockées
-      const notifKeys = [
-        'notif_routines', 'notif_conflits', 'notif_communaute',
-        'notif_anniversaires', 'notif_inactivite', 'notif_bilan'
-      ]
-      const tags: Record<string, string> = { user_id: userId }
-      notifKeys.forEach(k => {
-        tags[k] = localStorage.getItem(k) !== 'false' ? 'true' : 'false'
-      })
-      await OneSignal.sendTags(tags)
-
-    } catch (err) {
-      // Silencieux — best effort
-      console.error('OneSignal tag error:', err)
-    }
-  }
 
   useEffect(() => {
     if (user && !authLoading) loadAll()
@@ -148,26 +112,15 @@ export default function CommunityPage() {
   const loadPosts = async () => {
     if (!user) return
     const { data: postsData } = await supabase
-      .from('community_posts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50)
+      .from('community_posts').select('*')
+      .order('created_at', { ascending: false }).limit(50)
     if (!postsData) return
-
     const userIds = Array.from(new Set(postsData.map(p => p.user_id)))
-    const { data: profiles } = await supabase
-      .from('ai_personality_profile')
-      .select('user_id, pseudo')
-      .in('user_id', userIds)
+    const { data: profiles } = await supabase.from('ai_personality_profile').select('user_id, pseudo').in('user_id', userIds)
     const pseudoMap: Record<string, string> = {}
     profiles?.forEach(p => { if (p.pseudo) pseudoMap[p.user_id] = p.pseudo })
-
-    const { data: myLikes } = await supabase
-      .from('community_likes')
-      .select('post_id')
-      .eq('user_id', user.id)
+    const { data: myLikes } = await supabase.from('community_likes').select('post_id').eq('user_id', user.id)
     const likedIds = new Set(myLikes?.map(l => l.post_id) || [])
-
     setPosts(postsData.map(p => ({
       ...p,
       pseudo: pseudoMap[p.user_id] || p.user_id.slice(0, 8),
@@ -177,11 +130,7 @@ export default function CommunityPage() {
 
   const loadChallenges = async () => {
     if (!user) return
-    const { data } = await supabase
-      .from('community_challenges')
-      .select('*')
-      .eq('is_active', true)
-      .order('starts_at', { ascending: false })
+    const { data } = await supabase.from('community_challenges').select('*').eq('is_active', true).order('starts_at', { ascending: false })
     if (!data) return
     const enriched = await Promise.all(data.map(async (c) => {
       const { count: total } = await supabase.from('challenge_participations').select('*', { count: 'exact', head: true }).eq('challenge_id', c.id)
@@ -218,11 +167,7 @@ export default function CommunityPage() {
   }
 
   const loadComments = async (postId: string) => {
-    const { data } = await supabase
-      .from('community_comments')
-      .select('*')
-      .eq('post_id', postId)
-      .order('created_at', { ascending: true })
+    const { data } = await supabase.from('community_comments').select('*').eq('post_id', postId).order('created_at', { ascending: true })
     if (!data) return
     const userIds = Array.from(new Set(data.map(c => c.user_id)))
     const { data: profiles } = await supabase.from('ai_personality_profile').select('user_id, pseudo').in('user_id', userIds)
@@ -238,11 +183,7 @@ export default function CommunityPage() {
     if (!user || !newPost.trim() || posting) return
     setPosting(true)
     try {
-      const { data } = await supabase
-        .from('community_posts')
-        .insert({ user_id: user.id, content: newPost.trim() })
-        .select()
-        .single()
+      const { data } = await supabase.from('community_posts').insert({ user_id: user.id, content: newPost.trim() }).select().single()
       if (data) {
         setPosts(prev => [{ ...data, pseudo, liked_by_me: false }, ...prev])
         setNewPost('')
@@ -272,32 +213,11 @@ export default function CommunityPage() {
     if (!user || !newComment[postId]?.trim()) return
     const content = newComment[postId].trim()
     setNewComment(prev => ({ ...prev, [postId]: '' }))
-
-    const { data, error } = await supabase
-      .from('community_comments')
-      .insert({ post_id: postId, user_id: user.id, content })
-      .select()
-      .single()
-
-    if (error || !data) {
-      setNewComment(prev => ({ ...prev, [postId]: content }))
-      return
-    }
-
-    // Mettre à jour le compteur BDD
-    // PAR CES 2 LIGNES — incrément SQL atomique :
-await supabase.rpc('increment_comment_count', { post_id: postId })
-
-    // Mettre à jour l'UI locale
-    setComments(prev => ({
-      ...prev,
-      [postId]: [...(prev[postId] || []), { ...data, pseudo }],
-    }))
-    setPosts(prev =>
-      prev.map(p => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p)
-    )
-
-    // Notif instantanée à l'auteur du post
+    const { data, error } = await supabase.from('community_comments').insert({ post_id: postId, user_id: user.id, content }).select().single()
+    if (error || !data) { setNewComment(prev => ({ ...prev, [postId]: content })); return }
+    await supabase.rpc('increment_comment_count', { post_id: postId })
+    setComments(prev => ({ ...prev, [postId]: [...(prev[postId] || []), { ...data, pseudo }] }))
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p))
     const targetPost = posts.find(p => p.id === postId)
     if (targetPost && targetPost.user_id !== user.id) {
       try {
@@ -311,9 +231,7 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
             postPreview: targetPost.content,
           }),
         })
-      } catch (err) {
-        console.error('Reply notif error:', err)
-      }
+      } catch (err) { console.error('Reply notif error:', err) }
     }
   }
 
@@ -342,12 +260,8 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
   }
 
   const toggleComments = (postId: string) => {
-    if (expandedPost === postId) {
-      setExpandedPost(null)
-    } else {
-      setExpandedPost(postId)
-      if (!comments[postId]) loadComments(postId)
-    }
+    if (expandedPost === postId) { setExpandedPost(null) }
+    else { setExpandedPost(postId); if (!comments[postId]) loadComments(postId) }
   }
 
   const formatDate = (dateStr: string) => {
@@ -359,46 +273,23 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
     return `${days}j`
   }
 
-  const formatChallengeDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-  const getRankEmoji = (rank: number) =>
-    rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`
+  const formatChallengeDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+  const getRankEmoji = (rank: number) => rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`
 
   if (authLoading || loading) {
-    return (
-      <>
-        <DemoBanner />
-        <div className="flex flex-col h-screen bg-novae-cream items-center justify-center">
-          <div className="text-novae-anthracite/40 text-sm">Chargement de la communauté...</div>
-        </div>
-      </>
-    )
+    return (<><DemoBanner /><div className="flex flex-col h-screen bg-novae-cream items-center justify-center"><div className="text-novae-anthracite/40 text-sm">Chargement de la communauté...</div></div></>)
   }
 
   if (!user) {
-    return (
-      <>
-        <DemoBanner />
-        <div className="flex flex-col h-screen bg-novae-cream items-center justify-center px-6">
-          <div className="text-4xl mb-4">👭</div>
-          <h2 className="font-serif text-2xl text-novae-anthracite mb-2 text-center">Rejoins la communauté</h2>
-          <p className="text-novae-anthracite/50 text-sm text-center mb-6">Connecte-toi pour accéder à l'espace communautaire NOVAÉ.</p>
-          <Link href="/auth" className="px-6 py-3 bg-novae-anthracite text-white rounded-xl text-sm font-medium">Se connecter</Link>
-        </div>
-      </>
-    )
+    return (<><DemoBanner /><div className="flex flex-col h-screen bg-novae-cream items-center justify-center px-6"><div className="text-4xl mb-4">👭</div><h2 className="font-serif text-2xl text-novae-anthracite mb-2 text-center">Rejoins la communauté</h2><p className="text-novae-anthracite/50 text-sm text-center mb-6">Connecte-toi pour accéder à l'espace communautaire NOVAÉ.</p><Link href="/auth" className="px-6 py-3 bg-novae-anthracite text-white rounded-xl text-sm font-medium">Se connecter</Link></div></>)
   }
 
   return (
     <>
       <DemoBanner />
       <div className="flex flex-col min-h-screen bg-novae-cream">
-
-        {/* HEADER */}
         <div className="bg-white border-b border-novae-beige/30 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
-          <Link href="/" className="text-novae-anthracite/50 hover:text-novae-anthracite transition-colors">
-            <span className="text-lg">←</span>
-          </Link>
+          <Link href="/" className="text-novae-anthracite/50 hover:text-novae-anthracite transition-colors"><span className="text-lg">←</span></Link>
           <div className="flex-1">
             <h1 className="font-serif text-lg text-novae-anthracite leading-none">Communauté</h1>
             <p className="text-xs text-novae-anthracite/40 mt-0.5">Bonjour {pseudo} ✦</p>
@@ -406,61 +297,39 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
           {myBadges.length > 0 && (
             <div className="flex gap-1">
               {myBadges.slice(0, 3).map(b => (
-                <span key={b.id} className="text-lg" title={b.badge_label}>
-                  {BADGE_DEFINITIONS[b.badge_type]?.emoji || '🏅'}
-                </span>
+                <span key={b.id} className="text-lg" title={b.badge_label}>{BADGE_DEFINITIONS[b.badge_type]?.emoji || '🏅'}</span>
               ))}
             </div>
           )}
         </div>
 
-        {/* TABS */}
         <div className="bg-white border-b border-novae-beige/20 px-4 flex gap-1 sticky top-14 z-10">
           {TABS.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.id
-                  ? 'border-novae-gold text-novae-gold'
-                  : 'border-transparent text-novae-anthracite/50 hover:text-novae-anthracite'
-              }`}>
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id ? 'border-novae-gold text-novae-gold' : 'border-transparent text-novae-anthracite/50 hover:text-novae-anthracite'}`}>
+              <span>{tab.icon}</span><span>{tab.label}</span>
             </button>
           ))}
         </div>
 
         <div className="flex-1 max-w-lg mx-auto w-full px-4 py-4">
 
-          {/* ── FIL ── */}
           {activeTab === 'feed' && (
             <div className="space-y-4">
-
-              {/* Zone de saisie */}
               <div className="bg-white rounded-2xl border border-novae-beige/20 p-4 shadow-sm">
                 <div className="flex gap-3">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-novae-gold to-novae-rose flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                     {pseudo?.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1">
-                    <textarea
-                      ref={textareaRef}
-                      value={newPost}
-                      onChange={e => setNewPost(e.target.value)}
+                    <textarea ref={textareaRef} value={newPost} onChange={e => setNewPost(e.target.value)}
                       placeholder="Partage une victoire, une pensée, une question... ✦"
                       className="w-full text-sm text-novae-anthracite placeholder-novae-anthracite/30 bg-transparent focus:outline-none resize-none"
-                      rows={3}
-                      maxLength={500}
-                    />
+                      rows={3} maxLength={500} />
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-xs text-novae-anthracite/20">{newPost.length}/500</span>
-                      <button
-                        onClick={handlePost}
-                        disabled={!newPost.trim() || posting}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                          newPost.trim() && !posting
-                            ? 'bg-novae-gold text-white'
-                            : 'bg-novae-beige/30 text-novae-anthracite/30 cursor-not-allowed'
-                        }`}>
+                      <button onClick={handlePost} disabled={!newPost.trim() || posting}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${newPost.trim() && !posting ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/30 cursor-not-allowed'}`}>
                         {posting ? '...' : 'Publier'}
                       </button>
                     </div>
@@ -469,75 +338,46 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
               </div>
 
               {posts.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-3">🌱</div>
-                  <p className="text-novae-anthracite/40 text-sm">Sois la première à partager quelque chose !</p>
-                </div>
+                <div className="text-center py-12"><div className="text-4xl mb-3">🌱</div><p className="text-novae-anthracite/40 text-sm">Sois la première à partager quelque chose !</p></div>
               ) : (
                 posts.map(post => (
                   <div key={post.id} className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm overflow-hidden">
                     <div className="p-4">
-                      {/* Auteur + date */}
                       <div className="flex items-center gap-2 mb-3">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-novae-gold/60 to-novae-rose/60 flex items-center justify-center text-white text-xs font-bold">
                           {post.pseudo?.charAt(0).toUpperCase()}
                         </div>
                         <span className="text-sm font-medium text-novae-anthracite">{post.pseudo}</span>
-                        {post.user_id === user.id && (
-                          <span className="text-xs text-novae-gold bg-novae-gold/10 px-1.5 py-0.5 rounded">Toi</span>
-                        )}
+                        {post.user_id === user.id && <span className="text-xs text-novae-gold bg-novae-gold/10 px-1.5 py-0.5 rounded">Toi</span>}
                         <span className="ml-auto text-xs text-novae-anthracite/30">{formatDate(post.created_at)}</span>
                       </div>
-
-                      {/* Contenu */}
                       <p className="text-sm text-novae-anthracite leading-relaxed whitespace-pre-wrap">{post.content}</p>
                     </div>
 
-                    {/* Actions like + commentaires */}
                     <div className="px-4 pb-3 flex items-center gap-4 border-t border-novae-beige/10 pt-2">
-                      {/* Like */}
-                      <button
-                        onClick={() => handleLike(post)}
-                        className={`flex items-center gap-1.5 text-xs transition-colors ${
-                          post.liked_by_me ? 'text-novae-gold' : 'text-novae-anthracite/40 hover:text-novae-gold'
-                        }`}>
+                      <button onClick={() => handleLike(post)}
+                        className={`flex items-center gap-1.5 text-xs transition-colors ${post.liked_by_me ? 'text-novae-gold' : 'text-novae-anthracite/40 hover:text-novae-gold'}`}>
                         <span>{post.liked_by_me ? '💛' : '🤍'}</span>
                         <span>{post.likes_count > 0 ? post.likes_count : ''}</span>
                       </button>
 
-                      {/* ── BOUTON COMMENTAIRES avec badge ── */}
-                      <button
-                        onClick={() => toggleComments(post.id)}
+                      <button onClick={() => toggleComments(post.id)}
                         className="flex items-center gap-1.5 text-xs transition-colors hover:text-novae-anthracite"
                         style={{ color: expandedPost === post.id ? '#C4956A' : undefined }}>
                         <span>💬</span>
-
                         {post.comments_count > 0 ? (
-                          // Badge coloré avec le nombre — visible sans cliquer
-                          <span
-                            style={{
-                              background: expandedPost === post.id
-                                ? '#C4956A'
-                                : 'linear-gradient(135deg, #C4956A, #7B6FA0)',
-                              color: 'white',
-                              fontSize: 10,
-                              fontWeight: 700,
-                              borderRadius: 20,
-                              padding: '1px 7px',
-                              minWidth: 20,
-                              textAlign: 'center',
-                              display: 'inline-block',
-                              lineHeight: '16px',
-                            }}>
-                            {post.comments_count}
-                          </span>
+                          <span style={{
+                            background: expandedPost === post.id ? '#C4956A' : 'linear-gradient(135deg, #C4956A, #7B6FA0)',
+                            color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 20,
+                            padding: '1px 7px', minWidth: 20, textAlign: 'center',
+                            display: 'inline-block', lineHeight: '16px',
+                          }}>{post.comments_count}</span>
                         ) : (
                           <span className="text-novae-anthracite/40">Commenter</span>
                         )}
                       </button>
                     </div>
 
-                    {/* Zone commentaires dépliée */}
                     {expandedPost === post.id && (
                       <div className="border-t border-novae-beige/10 bg-novae-cream/50">
                         <div className="px-4 py-3 space-y-3 max-h-64 overflow-y-auto">
@@ -553,30 +393,17 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
                             </div>
                           ))}
                           {(comments[post.id] || []).length === 0 && (
-                            <p className="text-xs text-novae-anthracite/30 text-center py-2">
-                              Sois la première à commenter
-                            </p>
+                            <p className="text-xs text-novae-anthracite/30 text-center py-2">Sois la première à commenter</p>
                           )}
                         </div>
-
-                        {/* Input commentaire */}
                         <div className="px-4 pb-3 flex gap-2">
-                          <input
-                            value={newComment[post.id] || ''}
-                            onChange={e => setNewComment(prev => ({ ...prev, [post.id]: e.target.value }))}
+                          <input value={newComment[post.id] || ''} onChange={e => setNewComment(prev => ({ ...prev, [post.id]: e.target.value }))}
                             onKeyDown={e => { if (e.key === 'Enter') handleComment(post.id) }}
                             placeholder="Ton commentaire..."
                             className="flex-1 text-xs bg-white border border-novae-beige/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-novae-gold/30 text-novae-anthracite placeholder-novae-anthracite/30"
-                            maxLength={200}
-                          />
-                          <button
-                            onClick={() => handleComment(post.id)}
-                            disabled={!newComment[post.id]?.trim()}
-                            className={`px-3 py-2 rounded-lg text-xs transition-all ${
-                              newComment[post.id]?.trim()
-                                ? 'bg-novae-gold text-white'
-                                : 'bg-novae-beige/30 text-novae-anthracite/30'
-                            }`}>→</button>
+                            maxLength={200} />
+                          <button onClick={() => handleComment(post.id)} disabled={!newComment[post.id]?.trim()}
+                            className={`px-3 py-2 rounded-lg text-xs transition-all ${newComment[post.id]?.trim() ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/30'}`}>→</button>
                         </div>
                       </div>
                     )}
@@ -586,7 +413,6 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
             </div>
           )}
 
-          {/* ── DÉFIS ── */}
           {activeTab === 'challenges' && (
             <div className="space-y-4">
               <div className="bg-novae-gold/10 border border-novae-gold/20 rounded-2xl p-4 text-center">
@@ -595,27 +421,17 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
                 <p className="text-xs text-novae-anthracite/50 mt-1">Lancés par NOVAÉ · Nouveaux défis chaque lundi</p>
               </div>
               {challenges.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-3">⏳</div>
-                  <p className="text-novae-anthracite/40 text-sm">Aucun défi actif pour le moment.</p>
-                  <p className="text-novae-anthracite/30 text-xs mt-1">Reviens lundi prochain !</p>
-                </div>
+                <div className="text-center py-12"><div className="text-4xl mb-3">⏳</div><p className="text-novae-anthracite/40 text-sm">Aucun défi actif pour le moment.</p></div>
               ) : (
                 challenges.map(challenge => (
                   <div key={challenge.id} className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm p-4">
                     <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-novae-gold/10 flex items-center justify-center text-2xl flex-shrink-0">
-                        {challenge.emoji}
-                      </div>
+                      <div className="w-12 h-12 rounded-xl bg-novae-gold/10 flex items-center justify-center text-2xl flex-shrink-0">{challenge.emoji}</div>
                       <div className="flex-1">
                         <h3 className="font-medium text-novae-anthracite text-sm">{challenge.title}</h3>
-                        {challenge.description && (
-                          <p className="text-xs text-novae-anthracite/50 mt-1 leading-relaxed">{challenge.description}</p>
-                        )}
+                        {challenge.description && <p className="text-xs text-novae-anthracite/50 mt-1 leading-relaxed">{challenge.description}</p>}
                         <div className="flex items-center gap-3 mt-2">
-                          <span className="text-xs text-novae-anthracite/40">
-                            📅 {formatChallengeDate(challenge.starts_at)} → {formatChallengeDate(challenge.ends_at)}
-                          </span>
+                          <span className="text-xs text-novae-anthracite/40">📅 {formatChallengeDate(challenge.starts_at)} → {formatChallengeDate(challenge.ends_at)}</span>
                         </div>
                         <div className="flex items-center gap-3 mt-2">
                           <span className="text-xs text-novae-anthracite/50">👥 {challenge.participants_count} participantes</span>
@@ -624,29 +440,18 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
                         {(challenge.participants_count || 0) > 0 && (
                           <div className="mt-3">
                             <div className="h-1.5 bg-novae-beige/30 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-novae-gold rounded-full transition-all"
-                                style={{ width: `${Math.round(((challenge.completed_count || 0) / (challenge.participants_count || 1)) * 100)}%` }}
-                              />
+                              <div className="h-full bg-novae-gold rounded-full transition-all" style={{ width: `${Math.round(((challenge.completed_count || 0) / (challenge.participants_count || 1)) * 100)}%` }} />
                             </div>
-                            <p className="text-xs text-novae-anthracite/30 mt-1">
-                              {Math.round(((challenge.completed_count || 0) / (challenge.participants_count || 1)) * 100)}% de réussite
-                            </p>
+                            <p className="text-xs text-novae-anthracite/30 mt-1">{Math.round(((challenge.completed_count || 0) / (challenge.participants_count || 1)) * 100)}% de réussite</p>
                           </div>
                         )}
                         <div className="mt-3">
                           {!challenge.my_participation ? (
-                            <button onClick={() => handleJoinChallenge(challenge.id)} className="w-full py-2 bg-novae-anthracite text-white rounded-xl text-xs font-medium hover:bg-novae-gold transition-colors">
-                              Rejoindre ce défi ✦
-                            </button>
+                            <button onClick={() => handleJoinChallenge(challenge.id)} className="w-full py-2 bg-novae-anthracite text-white rounded-xl text-xs font-medium hover:bg-novae-gold transition-colors">Rejoindre ce défi ✦</button>
                           ) : challenge.my_participation.completed ? (
-                            <div className="w-full py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-medium text-green-600 text-center">
-                              ✅ Défi relevé — Bravo !
-                            </div>
+                            <div className="w-full py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-medium text-green-600 text-center">✅ Défi relevé — Bravo !</div>
                           ) : (
-                            <button onClick={() => handleCompleteChallenge(challenge.id)} className="w-full py-2 bg-novae-gold/10 border border-novae-gold/30 text-novae-gold rounded-xl text-xs font-medium hover:bg-novae-gold hover:text-white transition-colors">
-                              Marquer comme complété 🎯
-                            </button>
+                            <button onClick={() => handleCompleteChallenge(challenge.id)} className="w-full py-2 bg-novae-gold/10 border border-novae-gold/30 text-novae-gold rounded-xl text-xs font-medium hover:bg-novae-gold hover:text-white transition-colors">Marquer comme complété 🎯</button>
                           )}
                         </div>
                       </div>
@@ -657,17 +462,13 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
             </div>
           )}
 
-          {/* ── CLASSEMENT ── */}
           {activeTab === 'ranking' && (
             <div className="space-y-4">
               <div className="bg-novae-anthracite rounded-2xl p-4 text-center">
                 <p className="text-novae-gold text-xs font-medium uppercase tracking-widest mb-1">Classement du mois</p>
-                <h2 className="font-serif text-2xl text-white">
-                  {new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
-                </h2>
+                <h2 className="font-serif text-2xl text-white">{new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</h2>
                 <p className="text-white/40 text-xs mt-1">Défis complétés ce mois-ci</p>
               </div>
-
               {myBadges.length > 0 && (
                 <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm p-4">
                   <h3 className="text-xs font-medium text-novae-anthracite/50 uppercase tracking-wide mb-3">Mes badges</h3>
@@ -681,13 +482,8 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
                   </div>
                 </div>
               )}
-
               {ranking.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-3">🏆</div>
-                  <p className="text-novae-anthracite/40 text-sm">Aucun défi complété ce mois-ci.</p>
-                  <p className="text-novae-anthracite/30 text-xs mt-1">Relève un défi pour apparaître ici !</p>
-                </div>
+                <div className="text-center py-12"><div className="text-4xl mb-3">🏆</div><p className="text-novae-anthracite/40 text-sm">Aucun défi complété ce mois-ci.</p></div>
               ) : (
                 <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm overflow-hidden">
                   {ranking.map((entry, index) => (
@@ -697,10 +493,7 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
                         {entry.pseudo?.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1">
-                        <span className="text-sm font-medium text-novae-anthracite">
-                          {entry.pseudo}
-                          {entry.isMe && <span className="ml-2 text-xs text-novae-gold">← toi</span>}
-                        </span>
+                        <span className="text-sm font-medium text-novae-anthracite">{entry.pseudo}{entry.isMe && <span className="ml-2 text-xs text-novae-gold">← toi</span>}</span>
                       </div>
                       <div className="text-right">
                         <span className="text-sm font-bold text-novae-gold">{entry.count}</span>
@@ -710,7 +503,6 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
                   ))}
                 </div>
               )}
-
               <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm p-4">
                 <h3 className="text-xs font-medium text-novae-anthracite/50 uppercase tracking-wide mb-3">Badges à débloquer</h3>
                 <div className="space-y-2">
@@ -719,10 +511,7 @@ await supabase.rpc('increment_comment_count', { post_id: postId })
                     return (
                       <div key={type} className={`flex items-center gap-3 p-2 rounded-xl ${earned ? 'bg-novae-gold/5' : 'opacity-40'}`}>
                         <span className="text-xl">{def.emoji}</span>
-                        <div>
-                          <p className="text-xs font-medium text-novae-anthracite">{def.label}</p>
-                          <p className="text-xs text-novae-anthracite/40">{def.desc}</p>
-                        </div>
+                        <div><p className="text-xs font-medium text-novae-anthracite">{def.label}</p><p className="text-xs text-novae-anthracite/40">{def.desc}</p></div>
                         {earned && <span className="ml-auto text-xs text-novae-gold">✓ Obtenu</span>}
                       </div>
                     )
