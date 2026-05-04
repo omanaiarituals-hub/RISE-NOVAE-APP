@@ -72,7 +72,9 @@ export default function OneSignalInit() {
             prefTags[key] = stored === 'false' ? 'false' : 'true'
           }
         })
-        await OneSignal.User.addTags(prefTags)
+for (const [key, value] of Object.entries(prefTags)) {
+  await OneSignal.User.addTag(key, value)
+}
 
         // 4. Demander la permission push si pas encore accordée
         // (seulement si l'utilisatrice n'a pas encore répondu)
