@@ -53,9 +53,6 @@ export default function OneSignalInit() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        // 3. Login OneSignal avec l'External ID
-        await OneSignal.login(user.id)
-
         // 4. Tags - tout dans OneSignalDeferred, seule API qui marche en v16
         const tags: Record<string, string> = {
           user_id: user.id,
