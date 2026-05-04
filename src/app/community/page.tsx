@@ -285,11 +285,8 @@ export default function CommunityPage() {
     }
 
     // Mettre à jour le compteur BDD
-    const currentCount = posts.find(p => p.id === postId)?.comments_count || 0
-    await supabase
-      .from('community_posts')
-      .update({ comments_count: currentCount + 1 })
-      .eq('id', postId)
+    // PAR CES 2 LIGNES — incrément SQL atomique :
+await supabase.rpc('increment_comment_count', { post_id: postId })
 
     // Mettre à jour l'UI locale
     setComments(prev => ({
