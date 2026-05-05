@@ -122,6 +122,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/push/preferences', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(prefs),
       })
@@ -163,6 +164,7 @@ export default function SettingsPage() {
       const subJson = subscription.toJSON()
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           endpoint: subJson.endpoint,
