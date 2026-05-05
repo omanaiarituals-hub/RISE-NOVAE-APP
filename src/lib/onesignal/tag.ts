@@ -1,81 +1,54 @@
-declare global {
-  interface Window {
-    OneSignal: any;
-    OneSignalDeferred: any[];
+import { supabase } from '@/lib/supabase/client';
+
+/**
+ * Met a jour les tags OneSignal via l'API REST v1 (serveur).
+ * Bypass le SDK v16 qui a un bug 409 sur le PATCH des tags.
+ */
+async function callTagsApi(tags: Record<string, string>): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    console.warn('[OneSignal] Pas d user connecte, skip tags');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/notifications/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, tags }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      console.error('[OneSignal] API tags erreur:', err);
+      return;
+    }
+
+    console.log('[OneSignal] Tags synchronises via API REST:', tags);
+  } catch (err) {
+    console.error('[OneSignal] Erreur fetch tags API:', err);
   }
 }
 
 /**
- * Ajoute ou met a jour un tag de preference dans OneSignal.
+ * Ajoute ou met a jour un tag de preference.
  * Usage: setOneSignalTag('notif_routines', 'true')
  */
-export function setOneSignalTag(key: string, value: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined') {
-      resolve();
-      return;
-    }
-
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function (OneSignal: any) {
-      try {
-        await OneSignal.User.addTag(key, value);
-        console.log(`[OneSignal] Tag ${key}=${value} OK`);
-        resolve();
-      } catch (err) {
-        console.error(`[OneSignal] Erreur tag ${key}:`, err);
-        reject(err);
-      }
-    });
-  });
+export async function setOneSignalTag(key: string, value: string): Promise<void> {
+  await callTagsApi({ [key]: value });
 }
 
 /**
  * Ajoute plusieurs tags en une fois.
  * Usage: setOneSignalTags({ notif_routines: 'true', notif_communaute: 'false' })
  */
-export function setOneSignalTags(tags: Record<string, string>): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined') {
-      resolve();
-      return;
-    }
-
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function (OneSignal: any) {
-      try {
-        await OneSignal.User.addTags(tags);
-        console.log('[OneSignal] Tags multi OK:', tags);
-        resolve();
-      } catch (err) {
-        console.error('[OneSignal] Erreur tags multi:', err);
-        reject(err);
-      }
-    });
-  });
+export async function setOneSignalTags(tags: Record<string, string>): Promise<void> {
+  await callTagsApi(tags);
 }
 
 /**
- * Supprime un tag.
- * Usage: removeOneSignalTag('notif_routines')
+ * Supprime un tag (en mettant la valeur a vide cote OneSignal).
  */
-export function removeOneSignalTag(key: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined') {
-      resolve();
-      return;
-    }
-
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function (OneSignal: any) {
-      try {
-        await OneSignal.User.removeTag(key);
-        console.log(`[OneSignal] Tag ${key} supprime`);
-        resolve();
-      } catch (err) {
-        console.error(`[OneSignal] Erreur suppression tag ${key}:`, err);
-        reject(err);
-      }
-    });
-  });
+export async function removeOneSignalTag(key: string): Promise<void> {
+  await callTagsApi({ [key]: '' });
 }
