@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import Navigation from '@/components/Navigation'
 import { ArrowLeft, User, Shield, Trash2, LogOut, ChevronRight, Check, Loader2 } from 'lucide-react'
+import { setOneSignalTags } from '@/lib/onesignal/tag'
 
 const C = {
   cream: '#FAF7F2', rose: '#C4956A', roseLight: 'rgba(196,149,106,0.1)',
@@ -91,29 +92,20 @@ export default function SettingsPage() {
     setNewPseudo(p)
   }
 
-  // ── Sync OneSignal tags ───────────────────────────────────────────────────
+  // ── Sync OneSignal tags (via SDK v16) ────────────────────────────────────
   const syncOneSignalPreferences = async (prefs: Record<string, boolean>) => {
     try {
-      // Récupérer le playerId OneSignal depuis le SDK
-      if (typeof window === 'undefined') return
-      const OneSignal = (window as any).OneSignal
-      if (!OneSignal) return
-
-      let playerId: string | null = null
-      try {
-        playerId = await OneSignal.getUserId()
-      } catch {
-        return
-      }
-      if (!playerId) return
-
-      await fetch('/api/notifications/preferences', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId, preferences: prefs }),
+      // Convertir les booleans en strings pour OneSignal
+      const tags: Record<string, string> = {}
+      Object.entries(prefs).forEach(([key, value]) => {
+        tags[key] = value ? 'true' : 'false'
       })
+
+      // Ajouter les tags via le helper (utilise OneSignalDeferred)
+      await setOneSignalTags(tags)
+      console.log('[Settings] Préférences notifications synchronisées:', tags)
     } catch (err) {
-      console.error('OneSignal sync error:', err)
+      console.error('[Settings] Erreur sync OneSignal:', err)
     }
   }
 

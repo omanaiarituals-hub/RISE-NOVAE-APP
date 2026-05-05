@@ -1,98 +1,68 @@
-'use client'
+'use client';
 
-import { useEffect } from 'react'
-import { supabase } from '@/lib/supabase/client'
+import { useEffect } from 'react';
+import { useUser } from '@/hooks/useUser';
 
 declare global {
-  interface Window { OneSignalDeferred: any[] }
+  interface Window {
+    OneSignal: any;
+    OneSignalDeferred: any[];
+  }
 }
 
-const NOTIF_KEYS = [
-  'notif_routines',
-  'notif_conflits',
-  'notif_communaute',
-  'notif_anniversaires',
-  'notif_inactivite',
-  'notif_bilan',
-]
-
 export default function OneSignalInit() {
+  const { user } = useUser();
+
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const appId = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID
-    if (!appId) return
+    if (typeof window === 'undefined') return;
 
-    // Charger le SDK OneSignal
-    window.OneSignalDeferred = window.OneSignalDeferred || []
-    const script = document.createElement('script')
-    script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
-    script.defer = true
-    document.head.appendChild(script)
+    const appId = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
+    if (!appId) {
+      console.warn('[OneSignal] App ID manquant dans les variables d environnement');
+      return;
+    }
 
-    script.onload = () => {
-      window.OneSignalDeferred.push(async function(OneSignal: any) {
-        // Init OneSignal - sans login() qui cause le conflit 409
+    // Charger le SDK une seule fois
+    if (!document.getElementById('onesignal-sdk')) {
+      const script = document.createElement('script');
+      script.id = 'onesignal-sdk';
+      script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+
+    window.OneSignalDeferred.push(async function (OneSignal: any) {
+      try {
+        // Eviter de re-init si deja fait
+        if ((window as any).__oneSignalInitialized) {
+          console.log('[OneSignal] Deja initialise, skip');
+          return;
+        }
+
         await OneSignal.init({
           appId,
+          allowLocalhostAsSecureOrigin: true,
+          serviceWorkerParam: { scope: '/' },
+serviceWorkerPath: 'sw.js',
           notifyButton: { enable: false },
-          promptOptions: {
-            slidedown: {
-              prompts: [{
-                type: 'push',
-                autoPrompt: false,
-                text: {
-                  actionMessage: "NOVAÉ aimerait t'envoyer des rappels et ton bilan hebdo.",
-                  acceptButton: 'Oui, activer',
-                  cancelButton: 'Plus tard',
-                }
-              }]
-            }
-          }
-        })
+        });
 
-        // Demander la permission si pas encore accordée
-        try {
-          if (Notification.permission === 'default') {
-            setTimeout(async () => {
-              try { await OneSignal.Slidedown.promptPush() } catch {}
-            }, 3000)
-          }
-        } catch {}
-      })
-    }
+        (window as any).__oneSignalInitialized = true;
+        console.log('[OneSignal] Init OK avec App ID:', appId);
 
-    // Envoyer les tags via l'API REST après que le user soit connu
-    // On attend que Supabase soit prêt
-    const sendTagsViaAPI = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-
-        // Construire les tags
-        const tags: Record<string, string> = {
-          user_id: user.id,
-          email: user.email || '',
+        // Si user connecte, on tag son user_id Supabase
+        // (PAS de login() pour eviter le conflit 409 onesignalId/externalId)
+        if (user?.id) {
+          await OneSignal.User.addTag('user_id', user.id);
+          console.log('[OneSignal] Tag user_id ajoute:', user.id);
         }
-        NOTIF_KEYS.forEach(key => {
-          if (localStorage.getItem(key) === null) localStorage.setItem(key, 'true')
-          tags[key] = localStorage.getItem(key) !== 'false' ? 'true' : 'false'
-        })
-
-        // Envoyer via notre API route (qui utilise la REST API OneSignal côté serveur)
-        await fetch('/api/notifications/tags', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, tags }),
-        })
       } catch (err) {
-        console.error('Tags error:', err)
+        console.error('[OneSignal] Erreur init:', err);
       }
-    }
+    });
+  }, [user?.id]);
 
-    // Attendre un peu que Supabase soit initialisé
-    setTimeout(sendTagsViaAPI, 2000)
-
-  }, [])
-
-  return null
+  return null;
 }
