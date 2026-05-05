@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useUser } from '@/hooks/useUser';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase/client';
 
 declare global {
   interface Window {
@@ -11,8 +11,34 @@ declare global {
 }
 
 export default function OneSignalInit() {
-  const { user } = useUser();
+  const [userId, setUserId] = useState<string | null>(null);
 
+  // Recuperer l'user Supabase
+  useEffect(() => {
+    let mounted = true;
+
+    const loadUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (mounted) {
+        setUserId(user?.id ?? null);
+      }
+    };
+
+    loadUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        setUserId(session?.user?.id ?? null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Init OneSignal + login user pour eviter conflits 409
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -35,34 +61,32 @@ export default function OneSignalInit() {
 
     window.OneSignalDeferred.push(async function (OneSignal: any) {
       try {
-        // Eviter de re-init si deja fait
-        if ((window as any).__oneSignalInitialized) {
-          console.log('[OneSignal] Deja initialise, skip');
-          return;
+        // Init une seule fois
+        if (!(window as any).__oneSignalInitialized) {
+          await OneSignal.init({
+            appId,
+            allowLocalhostAsSecureOrigin: true,
+            serviceWorkerParam: { scope: '/' },
+            serviceWorkerPath: 'sw.js',
+            notifyButton: { enable: false },
+          });
+
+          (window as any).__oneSignalInitialized = true;
+          console.log('[OneSignal] Init OK avec App ID:', appId);
         }
 
-        await OneSignal.init({
-          appId,
-          allowLocalhostAsSecureOrigin: true,
-          serviceWorkerParam: { scope: '/' },
-serviceWorkerPath: 'sw.js',
-          notifyButton: { enable: false },
-        });
-
-        (window as any).__oneSignalInitialized = true;
-        console.log('[OneSignal] Init OK avec App ID:', appId);
-
-        // Si user connecte, on tag son user_id Supabase
-        // (PAS de login() pour eviter le conflit 409 onesignalId/externalId)
-        if (user?.id) {
-          await OneSignal.User.addTag('user_id', user.id);
-          console.log('[OneSignal] Tag user_id ajoute:', user.id);
+        // Si user connecte, on l'identifie via login() pour eviter
+        // les conflits 409 entre onesignalId et external_id
+        if (userId) {
+          // login() lie le push subscription a l'external_id Supabase
+          await OneSignal.login(userId);
+          console.log('[OneSignal] User logged in avec external_id:', userId);
         }
       } catch (err) {
-        console.error('[OneSignal] Erreur init:', err);
+        console.error('[OneSignal] Erreur init/login:', err);
       }
     });
-  }, [user?.id]);
+  }, [userId]);
 
   return null;
 }
