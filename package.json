@@ -17,12 +17,14 @@
     "openai": "^6.34.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "stripe": "^22.1.0"
+    "stripe": "^22.1.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.20",
     "eslint": "^8.57.0",
     "eslint-config-next": "15.1.0",

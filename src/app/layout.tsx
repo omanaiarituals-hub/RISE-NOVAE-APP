@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { NovaeProvider } from '@/context/NovaeContext'
-import OneSignalInit from '@/components/OneSignalInit'
+import PushManager from '@/components/PushManager'
 import Link from 'next/link'
 import { SetupGuide } from '@/components/SetupGuide'
 import { PWAInstallPrompt } from '@/components/PWAInstallPrompt'
@@ -60,7 +60,7 @@ export default function RootLayout({
         </NovaeProvider>
         <PWAInstallPrompt />        
         
-        <OneSignalInit />
+        <PushManager />
         <script dangerouslySetInnerHTML={{__html: `
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {

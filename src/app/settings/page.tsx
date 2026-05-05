@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import Navigation from '@/components/Navigation'
 import { ArrowLeft, User, Shield, Trash2, LogOut, ChevronRight, Check, Loader2 } from 'lucide-react'
-import { setOneSignalTags } from '@/lib/onesignal/tag'
 
 const C = {
   cream: '#FAF7F2', rose: '#C4956A', roseLight: 'rgba(196,149,106,0.1)',
@@ -52,6 +51,16 @@ function Row({ icon, label, value, onClick, danger, last }: {
   )
 }
 
+// Helper VAPID base64 -> Uint8Array
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i)
+  return outputArray
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
@@ -67,21 +76,15 @@ export default function SettingsPage() {
   const [notifState, setNotifState] = useState<Record<string, boolean>>({})
   const [notifPermission, setNotifPermission] = useState<string>('default')
   const [requestingPermission, setRequestingPermission] = useState(false)
+  const [hasSubscription, setHasSubscription] = useState(false)
 
   // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Charger les préférences depuis localStorage
-    const state: Record<string, boolean> = {}
-    NOTIF_ITEMS.forEach(n => { state[n.key] = localStorage.getItem(n.key) !== 'false' })
-    setNotifState(state)
-
-    // Vérifier la permission de notification
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotifPermission(Notification.permission)
     }
+    loadUser()
   }, [])
-
-  useEffect(() => { loadUser() }, [])
 
   const loadUser = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -90,22 +93,96 @@ export default function SettingsPage() {
     const p = user.user_metadata?.pseudo || user.user_metadata?.full_name || ''
     setPseudo(p)
     setNewPseudo(p)
+
+    // Charger les preferences depuis Supabase
+    const { data: subs } = await supabase
+      .from('push_subscriptions')
+      .select('*')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle()
+
+    if (subs) {
+      setHasSubscription(true)
+      const state: Record<string, boolean> = {}
+      NOTIF_ITEMS.forEach(n => {
+        state[n.key] = subs[n.key] !== false
+      })
+      setNotifState(state)
+    } else {
+      // Par defaut tous activés
+      const state: Record<string, boolean> = {}
+      NOTIF_ITEMS.forEach(n => { state[n.key] = true })
+      setNotifState(state)
+    }
   }
 
-  // ── Sync OneSignal tags (via SDK v16) ────────────────────────────────────
-  const syncOneSignalPreferences = async (prefs: Record<string, boolean>) => {
+  // ── Sync preferences vers Supabase ────────────────────────────────────────
+  const syncPreferences = async (prefs: Record<string, boolean>) => {
     try {
-      // Convertir les booleans en strings pour OneSignal
-      const tags: Record<string, string> = {}
-      Object.entries(prefs).forEach(([key, value]) => {
-        tags[key] = value ? 'true' : 'false'
+      const res = await fetch('/api/push/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(prefs),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        console.error('[Settings] Erreur sync prefs:', err)
+        return
+      }
+      console.log('[Settings] Preferences sauvegardees:', prefs)
+    } catch (err) {
+      console.error('[Settings] Exception sync prefs:', err)
+    }
+  }
+
+  // ── Subscribe Web Push ────────────────────────────────────────────────────
+  const subscribeToPush = async (): Promise<boolean> => {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.error('[Settings] Push non supporte par ce navigateur')
+        return false
+      }
+
+      const registration = await navigator.serviceWorker.ready
+
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidKey) {
+        console.error('[Settings] VAPID public key manquante')
+        return false
+      }
+
+      let subscription = await registration.pushManager.getSubscription()
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey) as BufferSource,
+        })
+      }
+
+      const subJson = subscription.toJSON()
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: subJson.endpoint,
+          keys: subJson.keys,
+          userAgent: navigator.userAgent,
+        }),
       })
 
-      // Ajouter les tags via le helper (utilise OneSignalDeferred)
-      await setOneSignalTags(tags)
-      console.log('[Settings] Préférences notifications synchronisées:', tags)
+      if (!res.ok) {
+        const err = await res.json()
+        console.error('[Settings] Erreur subscribe:', err)
+        return false
+      }
+
+      setHasSubscription(true)
+      console.log('[Settings] Souscription enregistree')
+      return true
     } catch (err) {
-      console.error('[Settings] Erreur sync OneSignal:', err)
+      console.error('[Settings] Exception subscribe:', err)
+      return false
     }
   }
 
@@ -114,22 +191,24 @@ export default function SettingsPage() {
     const current = notifState[key] !== false
     const newValue = !current
 
-    // Si on active et que les notifs ne sont pas autorisées → demander la permission
+    // Si on active et pas de permission → demander
     if (newValue && notifPermission !== 'granted') {
       await requestNotifPermission()
       return
     }
 
-    // Mettre à jour localStorage
-    localStorage.setItem(key, newValue ? 'true' : 'false')
+    // Si on active et pas encore de souscription → souscrire
+    if (newValue && !hasSubscription) {
+      const ok = await subscribeToPush()
+      if (!ok) return
+    }
+
     const newState = { ...notifState, [key]: newValue }
     setNotifState(newState)
-
-    // Synchroniser avec OneSignal
-    await syncOneSignalPreferences(newState)
+    await syncPreferences(newState)
   }
 
-  // ── Demander permission notifications ─────────────────────────────────────
+  // ── Demander permission ───────────────────────────────────────────────────
   const requestNotifPermission = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) return
     setRequestingPermission(true)
@@ -137,14 +216,14 @@ export default function SettingsPage() {
       const permission = await Notification.requestPermission()
       setNotifPermission(permission)
       if (permission === 'granted') {
-        // Activer toutes les notifs par défaut
-        const allEnabled: Record<string, boolean> = {}
-        NOTIF_ITEMS.forEach(n => {
-          allEnabled[n.key] = true
-          localStorage.setItem(n.key, 'true')
-        })
-        setNotifState(allEnabled)
-        await syncOneSignalPreferences(allEnabled)
+        const ok = await subscribeToPush()
+        if (ok) {
+          // Activer toutes les notifs par defaut
+          const allEnabled: Record<string, boolean> = {}
+          NOTIF_ITEMS.forEach(n => { allEnabled[n.key] = true })
+          setNotifState(allEnabled)
+          await syncPreferences(allEnabled)
+        }
       }
     } finally {
       setRequestingPermission(false)
@@ -162,9 +241,7 @@ export default function SettingsPage() {
       setEditingPseudo(false)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
-    } catch (err) {
-      console.error('Erreur savePseudo:', err)
-    }
+    } catch (err) { console.error(err) }
     setSaving(false)
   }
 
@@ -197,7 +274,6 @@ export default function SettingsPage() {
       <div className="md:ml-64 pb-24 md:pb-8">
         <main style={{ maxWidth: 600, margin: '0 auto', padding: '20px 16px' }}>
 
-          {/* Header */}
           <header style={{ marginBottom: 28 }}>
             <button onClick={() => router.push('/')} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, fontSize: 12, color: C.gris, background: 'rgba(44,44,44,0.05)', border: 'none', borderRadius: 20, padding: '4px 12px', cursor: 'pointer' }}>
               <ArrowLeft size={13} /> Accueil
@@ -205,7 +281,6 @@ export default function SettingsPage() {
             <h1 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 36, color: C.noir }}>Paramètres</h1>
           </header>
 
-          {/* Avatar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, background: C.blanc, borderRadius: 20, padding: '18px 20px', marginBottom: 24, boxShadow: '0 2px 12px rgba(44,44,44,0.05)' }}>
             <div style={{ width: 56, height: 56, borderRadius: '50%', background: `linear-gradient(135deg, ${C.rose}, ${C.violet})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 20, fontWeight: 700, fontFamily: "'Cormorant Garamond',serif", flexShrink: 0 }}>
               {initials}
@@ -217,23 +292,19 @@ export default function SettingsPage() {
             <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 20, background: 'rgba(144,200,168,0.15)', color: '#2A6A48', border: '1px solid rgba(144,200,168,0.3)', fontWeight: 600 }}>Bêta gratuit</span>
           </div>
 
-          {/* Profil */}
           <Section title="Mon profil">
             {editingPseudo ? (
               <div style={{ padding: '14px 16px' }}>
                 <p style={{ margin: '0 0 8px', fontSize: 12, color: C.gris }}>Pseudo affiché dans l'app et la communauté</p>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <input value={newPseudo} onChange={e => setNewPseudo(e.target.value)} placeholder="Ton pseudo..."
-                    autoFocus maxLength={30}
+                  <input value={newPseudo} onChange={e => setNewPseudo(e.target.value)} placeholder="Ton pseudo..." autoFocus maxLength={30}
                     style={{ flex: 1, border: `1.5px solid ${C.rose}`, borderRadius: 10, padding: '8px 12px', fontSize: 14, outline: 'none', color: C.noir, background: C.cream, fontFamily: "'DM Sans',sans-serif" }} />
                   <button onClick={savePseudo} disabled={saving || !newPseudo.trim()}
                     style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: C.rose, color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                     {saving ? <Loader2 size={14} /> : saved ? <Check size={14} /> : '✓'}
                   </button>
                   <button onClick={() => { setEditingPseudo(false); setNewPseudo(pseudo) }}
-                    style={{ padding: '8px 12px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: 'white', fontSize: 13, cursor: 'pointer', color: C.gris }}>
-                    ×
-                  </button>
+                    style={{ padding: '8px 12px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: 'white', fontSize: 13, cursor: 'pointer', color: C.gris }}>×</button>
                 </div>
               </div>
             ) : (
@@ -242,21 +313,16 @@ export default function SettingsPage() {
             <Row icon={<span style={{ fontSize: 16 }}>✉️</span>} label="Email" value={user?.email} last />
           </Section>
 
-          {/* Notifications */}
           <Section title="Notifications">
-            {/* Bandeau permission si bloqué */}
             {notifPermission === 'denied' && (
               <div style={{ padding: '12px 16px', background: 'rgba(220,80,80,0.06)', borderBottom: `1px solid ${C.grisClair}` }}>
-                <p style={{ margin: 0, fontSize: 12, color: '#DC5050', fontWeight: 600 }}>
-                  ⚠️ Notifications bloquées dans ton navigateur
-                </p>
+                <p style={{ margin: 0, fontSize: 12, color: '#DC5050', fontWeight: 600 }}>⚠️ Notifications bloquées dans ton navigateur</p>
                 <p style={{ margin: '4px 0 0', fontSize: 11, color: C.gris }}>
                   Va dans les paramètres de ton navigateur → Site → Autoriser les notifications pour app.novae-by-omanaia.com
                 </p>
               </div>
             )}
 
-            {/* Bouton activer si pas encore demandé */}
             {notifPermission === 'default' && (
               <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.grisClair}` }}>
                 <button onClick={requestNotifPermission} disabled={requestingPermission}
@@ -276,16 +342,12 @@ export default function SettingsPage() {
 
             {NOTIF_ITEMS.map((notif, i) => (
               <div key={notif.key} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderBottom: i === NOTIF_ITEMS.length - 1 ? 'none' : `1px solid ${C.grisClair}` }}>
-                <span style={{ width: 34, height: 34, borderRadius: 10, background: C.roseLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.rose, flexShrink: 0, fontSize: 16 }}>
-                  🔔
-                </span>
+                <span style={{ width: 34, height: 34, borderRadius: 10, background: C.roseLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.rose, flexShrink: 0, fontSize: 16 }}>🔔</span>
                 <div style={{ flex: 1 }}>
                   <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.noir }}>{notif.label}</p>
                   <p style={{ margin: '1px 0 0', fontSize: 12, color: C.gris }}>{notif.desc}</p>
                 </div>
-                <button
-                  onClick={() => toggleNotif(notif.key)}
-                  disabled={notifPermission === 'denied'}
+                <button onClick={() => toggleNotif(notif.key)} disabled={notifPermission === 'denied'}
                   style={{
                     width: 44, height: 24, borderRadius: 12, border: 'none',
                     cursor: notifPermission === 'denied' ? 'not-allowed' : 'pointer',
@@ -304,19 +366,16 @@ export default function SettingsPage() {
             ))}
           </Section>
 
-          {/* Légal */}
           <Section title="Informations légales">
             <Row icon={<Shield size={16} />} label="Conditions d'utilisation" onClick={() => router.push('/cgu')} />
             <Row icon={<span style={{ fontSize: 16 }}>🔒</span>} label="Politique de confidentialité" onClick={() => router.push('/confidentialite')} last />
           </Section>
 
-          {/* App */}
           <Section title="Application">
             <Row icon={<span style={{ fontSize: 16 }}>⭐</span>} label="Version" value={`${appVersion} — Bêta gratuite`} />
             <Row icon={<span style={{ fontSize: 16 }}>📧</span>} label="Nous contacter" value="contact@omanaia.com" last />
           </Section>
 
-          {/* Compte */}
           <Section title="Mon compte">
             <Row icon={<LogOut size={16} />} label="Se déconnecter" onClick={handleSignOut} />
             <Row icon={<Trash2 size={16} />} label="Supprimer mon compte" danger onClick={() => setShowDeleteConfirm(true)} last />
@@ -329,7 +388,6 @@ export default function SettingsPage() {
         </main>
       </div>
 
-      {/* Modal suppression */}
       {showDeleteConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div style={{ background: C.blanc, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 500, padding: '24px 20px 40px' }}>
