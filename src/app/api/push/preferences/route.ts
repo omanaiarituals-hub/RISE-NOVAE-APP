@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieHeader = req.headers.get('cookie') || ''
+    const cookieStore = await cookies()
 
-    const supabase = createClient(
+    const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { cookie: cookieHeader } } }
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll() {},
+        },
+      }
     )
 
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -18,7 +27,6 @@ export async function POST(req: NextRequest) {
 
     const preferences = await req.json()
 
-    // Filtrer pour ne garder que les colonnes valides
     const allowedKeys = [
       'notif_routines',
       'notif_conflits',
@@ -43,7 +51,6 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Update toutes les souscriptions de cet user
     const { data, error } = await supabaseAdmin
       .from('push_subscriptions')
       .update(updates)

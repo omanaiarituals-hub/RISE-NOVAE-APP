@@ -1,44 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, prenom, telephone, listId, ...extra } = await req.json()
+    const cookieStore = await cookies()
 
-    if (!email || !listId) {
-      return NextResponse.json({ error: 'Email et listId requis' }, { status: 400 })
+    // Client Supabase qui lit la session depuis les cookies Next.js
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll() {
+            // No-op : on ne modifie pas les cookies depuis cette route
+          },
+        },
+      }
+    )
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      console.error('[push/subscribe] Auth erreur:', authError)
+      return NextResponse.json({ error: 'Non authentifie' }, { status: 401 })
     }
 
-    const attributes: Record<string, string> = {}
-    if (prenom) attributes.PRENOM = prenom
-    if (telephone) attributes.TELEPHONE = telephone
-    if (extra.APPLIS) attributes.APPLIS = extra.APPLIS
-    if (extra.DEFI) attributes.DEFI = extra.DEFI
-    if (extra.ENFANTS) attributes.ENFANTS = extra.ENFANTS
-    if (extra.SOURCE) attributes.SOURCE = extra.SOURCE
-
-    const res = await fetch('https://api.brevo.com/v3/contacts', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'api-key': process.env.BREVO_API_KEY!,
-      },
-      body: JSON.stringify({
-        email,
-        attributes,
-        listIds: [listId],
-        updateEnabled: true,
-      }),
-    })
-
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('Brevo error:', err)
-      return NextResponse.json({ error: 'Brevo error' }, { status: 500 })
+    const { endpoint, keys, userAgent } = await req.json()
+    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      return NextResponse.json({ error: 'Donnees souscription incompletes' }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true })
-  } catch (e) {
-    console.error('Subscribe error:', e)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    // Client admin pour bypass RLS
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const { data, error } = await supabaseAdmin
+      .from('push_subscriptions')
+      .upsert(
+        {
+          user_id: user.id,
+          endpoint,
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+          user_agent: userAgent || null,
+          last_used_at: new Date().toISOString(),
+        },
+        { onConflict: 'endpoint' }
+      )
+      .select()
+      .single()
+
+    if (error) {
+      console.error('[push/subscribe] Erreur Supabase:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    console.log('[push/subscribe] Souscription enregistree pour user:', user.id)
+    return NextResponse.json({ success: true, subscription: data })
+  } catch (err) {
+    console.error('[push/subscribe] Exception:', err)
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }
