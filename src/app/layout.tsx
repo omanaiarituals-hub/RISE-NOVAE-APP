@@ -60,7 +60,7 @@ export default function RootLayout({
         </NovaeProvider>
         <PWAInstallPrompt />        
         
-        <PushManager />
+        {/* <PushManager /> Désactivé temporairement — bug session SSR à régler */}
         <script dangerouslySetInnerHTML={{__html: `
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
