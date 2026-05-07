@@ -1,12 +1,13 @@
+// src/app/layout.tsx
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { NovaeProvider } from '@/context/NovaeContext'
 import PushManager from '@/components/PushManager'
-import Link from 'next/link'
 import { SetupGuide } from '@/components/SetupGuide'
 import { PWAInstallPrompt } from '@/components/PWAInstallPrompt'
 import { CookieBanner } from '@/components/CookieBanner'
+import GlobalHeader from '@/components/GlobalHeader'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -40,26 +41,17 @@ export default function RootLayout({
     <html lang="fr">
       <body className={inter.className} style={{ margin: 0, background: '#1C1A18' }}>
         <NovaeProvider>
-         <SetupGuide />   
-          {/* Header avec le logo remplacé */}
-          <header style={{ 
-            padding: '20px', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            borderBottom: '1px solid rgba(196,149,106,0.1)' 
-          }}>
-            <Link href="/">
-              <img src="/novae-logo.svg" alt="NOVAÉ" height={40} style={{ height: 40 }} />
-            </Link>
-          </header>
+          <SetupGuide />
+
+          {/* Header global — caché sur la page d'accueil uniquement (logique dans GlobalHeader) */}
+          <GlobalHeader />
 
           <main>
             {children}
           </main>
         </NovaeProvider>
-        <PWAInstallPrompt />        
-        
+        <PWAInstallPrompt />
+
         {/* <PushManager /> Désactivé temporairement — bug session SSR à régler */}
         <script dangerouslySetInnerHTML={{__html: `
           if ('serviceWorker' in navigator) {
