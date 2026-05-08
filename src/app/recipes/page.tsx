@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
@@ -504,6 +504,14 @@ export default function RecipesPage() {
   const [draggedRecipe, setDraggedRecipe] = useState<Recipe | null>(null)
   const [activeView, setActiveView] = useState<'library' | 'plan'>('library')
   const [loading, setLoading] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   useEffect(() => { if (user && !authLoading) loadData() }, [user, authLoading])
 
@@ -688,6 +696,10 @@ export default function RecipesPage() {
     )
   }
 
+  // Visibilité des panneaux : sur mobile on suit les onglets, sur desktop on affiche tout
+  const showLibrary = isMobile ? activeView === 'library' : true
+  const showPlan = isMobile ? activeView === 'plan' : true
+
   return (
     <>
       <DemoBanner />
@@ -695,7 +707,7 @@ export default function RecipesPage() {
 
         {/* Header */}
         <div style={{ background: C.blanc, borderBottom: `1px solid ${C.grisClair}`, padding: '12px 20px', position: 'sticky', top: 0, zIndex: 10 }}>
-          <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <Link href="/" style={{ fontSize: 12, color: C.gris, textDecoration: 'none', padding: '4px 10px', borderRadius: 20, border: `1px solid ${C.grisClair}`, background: C.cream }}>← Accueil</Link>
             <h1 style={{ margin: 0, flex: 1, fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 700, color: C.noir }}>Recettes & Courses</h1>
             {allergyAlerts.length > 0 && (
@@ -725,11 +737,10 @@ export default function RecipesPage() {
           ))}
         </div>
 
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '16px 20px', display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20 }} className="recipe-layout">
-          <style>{`.recipe-layout { @media (max-width: 768px) { grid-template-columns: 1fr !important; } }`}</style>
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '16px 20px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '360px 1fr', gap: 20 }}>
 
           {/* ── BIBLIOTHÈQUE ── */}
-          <div style={{ display: activeView === 'library' ? 'block' : 'none' }} className="recipe-library">
+          <div style={{ display: showLibrary ? 'block' : 'none' }}>
             <div style={{ background: C.blanc, borderRadius: 16, padding: 16, boxShadow: '0 2px 12px rgba(44,44,44,0.05)', marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <h2 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: C.noir }}>Mes recettes ({recipes.length})</h2>
@@ -755,7 +766,7 @@ export default function RecipesPage() {
                 </div>
               </div>
             </div>
-            <div style={{ maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' }}>
+            <div style={{ maxHeight: isMobile ? 'none' : 'calc(100vh - 320px)', overflowY: isMobile ? 'visible' : 'auto' }}>
               {filteredRecipes.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 0', color: C.gris }}><p style={{ fontSize: 32 }}>🍽️</p><p style={{ fontSize: 13 }}>Aucune recette trouvée</p></div>
               ) : filteredRecipes.map(r => (
@@ -771,64 +782,110 @@ export default function RecipesPage() {
           </div>
 
           {/* ── PLANNING ── */}
-          <div style={{ display: activeView === 'plan' ? 'block' : 'none' }} className="recipe-plan">
+          <div style={{ display: showPlan ? 'block' : 'none' }}>
             <div style={{ background: C.blanc, borderRadius: 16, padding: 16, boxShadow: '0 2px 12px rgba(44,44,44,0.05)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <h2 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: C.noir }}>Planning de la semaine</h2>
                 <button onClick={async () => { await supabase.from('meal_plan').delete().eq('user_id', user?.id); setMealSlots([]); setAllergyAlerts([]) }}
                   style={{ fontSize: 11, color: C.gris, background: 'none', border: `1px solid ${C.grisClair}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>Vider</button>
               </div>
-              <p style={{ margin: '0 0 14px', fontSize: 11, color: C.gris, opacity: 0.7 }}>Glisse une recette ou clique pour l'ajouter à un créneau</p>
-              <div style={{ overflowX: 'auto' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '80px repeat(7, 1fr)', gap: 4, minWidth: 600 }}>
-                  <div />
+              <p style={{ margin: '0 0 14px', fontSize: 11, color: C.gris, opacity: 0.7 }}>
+                {isMobile ? 'Clique sur un créneau vide pour ajouter une recette' : "Glisse une recette ou clique pour l'ajouter à un créneau"}
+              </p>
+
+              {isMobile ? (
+                /* ─── LAYOUT VERTICAL MOBILE ─── */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {DAYS.map((day, i) => (
-                    <div key={day} style={{ textAlign: 'center', paddingBottom: 6 }}>
-                      <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.gris, textTransform: 'uppercase' }}>{DAYS_SHORT[i]}</p>
+                    <div key={day} style={{ background: C.cream, borderRadius: 12, padding: '10px 12px', border: `1px solid ${C.grisClair}` }}>
+                      <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: C.noir, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{day}</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {PLAN_SLOTS.map(slot => {
+                          const daySlots = getSlotsForDay(day, slot.key)
+                          const s = daySlots[0]
+                          const r = s ? (s.recipe || recipes.find(rec => rec.id === s.recipe_id)) : null
+                          const mc = r ? (MEAL_TYPE_COLORS[r.meal_type] || MEAL_TYPE_COLORS.plat) : null
+                          const hasAllergy = r ? allergyRecipeTitles.has(r.title) : false
+                          return (
+                            <div key={slot.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ width: 70, fontSize: 10, fontWeight: 600, color: C.gris, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>{slot.label}</span>
+                              <div style={{ flex: 1 }}>
+                                {r && mc ? (
+                                  <div onClick={() => setSelectedRecipe(r)}
+                                    style={{ background: mc.bg, border: `1px solid ${hasAllergy ? 'rgba(220,60,60,0.5)' : mc.border}`, borderRadius: 8, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', position: 'relative' }}>
+                                    <span style={{ fontSize: 18, flexShrink: 0 }}>{r.emoji}</span>
+                                    <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: mc.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {hasAllergy && '⚠️ '}{r.title}
+                                    </span>
+                                    <button onClick={e => { e.stopPropagation(); removeFromPlan(s!.id) }}
+                                      style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: mc.text, padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => { setActiveView('library'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: `1.5px dashed ${C.grisClair}`, background: 'transparent', fontSize: 11, color: '#bbb', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                                    + Ajouter une recette
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   ))}
-                  {PLAN_SLOTS.map(slot => (
-                    <>
-                      <div key={slot.key + '-label'} style={{ display: 'flex', alignItems: 'flex-start', paddingTop: 6 }}>
-                        <span style={{ fontSize: 9, color: C.gris, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{slot.label}</span>
-                      </div>
-                      {DAYS.map(day => {
-                        const daySlots = getSlotsForDay(day, slot.key)
-                        const s = daySlots[0]
-                        const r = s ? (s.recipe || recipes.find(rec => rec.id === s.recipe_id)) : null
-                        const mc = r ? (MEAL_TYPE_COLORS[r.meal_type] || MEAL_TYPE_COLORS.plat) : null
-                        const hasAllergy = r ? allergyRecipeTitles.has(r.title) : false
-                        return (
-                          <div key={day + slot.key}
-                            onDragOver={e => e.preventDefault()}
-                            onDrop={e => { e.preventDefault(); if (draggedRecipe) { addToPlan(draggedRecipe.id, day, slot.key); setDraggedRecipe(null) } }}
-                            style={{ minHeight: 52, border: `1.5px dashed ${hasAllergy ? 'rgba(220,60,60,0.4)' : C.grisClair}`, borderRadius: 8, padding: 3, background: r ? mc?.bg : 'transparent' }}>
-                            {r && mc ? (
-                              <div style={{ background: mc.bg, border: `1px solid ${hasAllergy ? 'rgba(220,60,60,0.5)' : mc.border}`, borderRadius: 5, padding: '3px 5px', position: 'relative', cursor: 'pointer' }} onClick={() => setSelectedRecipe(r)}>
-                                <p style={{ margin: 0, fontSize: 8, fontWeight: 600, color: mc.text, paddingRight: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {hasAllergy ? '⚠️ ' : ''}{r.emoji} {r.title}
-                                </p>
-                                <button onClick={e => { e.stopPropagation(); removeFromPlan(s!.id) }}
-                                  style={{ position: 'absolute', top: 1, right: 2, background: 'none', border: 'none', fontSize: 9, cursor: 'pointer', color: mc.text }}>×</button>
-                              </div>
-                            ) : (
-                              <p style={{ margin: 0, fontSize: 8, color: '#ccc', textAlign: 'center', paddingTop: 10 }}>+</p>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </>
-                  ))}
                 </div>
-              </div>
+              ) : (
+                /* ─── LAYOUT GRID DESKTOP ─── */
+                <div style={{ overflowX: 'auto' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '80px repeat(7, 1fr)', gap: 4, minWidth: 600 }}>
+                    <div />
+                    {DAYS.map((day, i) => (
+                      <div key={day} style={{ textAlign: 'center', paddingBottom: 6 }}>
+                        <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.gris, textTransform: 'uppercase' }}>{DAYS_SHORT[i]}</p>
+                      </div>
+                    ))}
+                    {PLAN_SLOTS.map(slot => (
+                      <Fragment key={slot.key}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', paddingTop: 6 }}>
+                          <span style={{ fontSize: 9, color: C.gris, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{slot.label}</span>
+                        </div>
+                        {DAYS.map(day => {
+                          const daySlots = getSlotsForDay(day, slot.key)
+                          const s = daySlots[0]
+                          const r = s ? (s.recipe || recipes.find(rec => rec.id === s.recipe_id)) : null
+                          const mc = r ? (MEAL_TYPE_COLORS[r.meal_type] || MEAL_TYPE_COLORS.plat) : null
+                          const hasAllergy = r ? allergyRecipeTitles.has(r.title) : false
+                          return (
+                            <div key={day + slot.key}
+                              onDragOver={e => e.preventDefault()}
+                              onDrop={e => { e.preventDefault(); if (draggedRecipe) { addToPlan(draggedRecipe.id, day, slot.key); setDraggedRecipe(null) } }}
+                              style={{ minHeight: 52, border: `1.5px dashed ${hasAllergy ? 'rgba(220,60,60,0.4)' : C.grisClair}`, borderRadius: 8, padding: 3, background: r ? mc?.bg : 'transparent' }}>
+                              {r && mc ? (
+                                <div style={{ background: mc.bg, border: `1px solid ${hasAllergy ? 'rgba(220,60,60,0.5)' : mc.border}`, borderRadius: 5, padding: '3px 5px', position: 'relative', cursor: 'pointer' }} onClick={() => setSelectedRecipe(r)}>
+                                  <p style={{ margin: 0, fontSize: 8, fontWeight: 600, color: mc.text, paddingRight: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {hasAllergy ? '⚠️ ' : ''}{r.emoji} {r.title}
+                                  </p>
+                                  <button onClick={e => { e.stopPropagation(); removeFromPlan(s!.id) }}
+                                    style={{ position: 'absolute', top: 1, right: 2, background: 'none', border: 'none', fontSize: 9, cursor: 'pointer', color: mc.text }}>×</button>
+                                </div>
+                              ) : (
+                                <p style={{ margin: 0, fontSize: 8, color: '#ccc', textAlign: 'center', paddingTop: 10 }}>+</p>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </Fragment>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <button onClick={generateShopping} style={{ width: '100%', marginTop: 16, padding: '12px 0', borderRadius: 12, border: 'none', background: totalPlan > 0 ? C.rose : C.grisClair, color: totalPlan > 0 ? 'white' : '#aaa', fontSize: 14, fontWeight: 700, cursor: totalPlan > 0 ? 'pointer' : 'default' }}>
                 🛒 Générer la liste de courses {totalPlan > 0 ? `(${totalPlan} repas)` : ''}
               </button>
             </div>
           </div>
         </div>
-
-        <style>{`@media (min-width: 769px) { .recipe-library, .recipe-plan { display: block !important; } }`}</style>
 
         {selectedRecipe && (
           <RecipeDetail recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)}
