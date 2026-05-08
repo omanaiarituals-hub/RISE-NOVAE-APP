@@ -198,8 +198,8 @@ export default function HomePage() {
         .from('planner_events')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id)
-        .gte('start_time', `${today}T00:00:00`)
-        .lt('start_time', `${today}T23:59:59`)
+        .gte('start_date', `${today}T00:00:00`)
+        .lt('start_date', `${today}T23:59:59`)
       if (error) console.error('[HomePage] planner count error:', error)
       setTodayPlannerCount(count || 0)
     } catch (err) {
@@ -215,7 +215,7 @@ export default function HomePage() {
         .from('challenge_participations')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id)
-        .eq('status', 'active')
+        .eq('completed', false)
       if (error) console.error('[HomePage] challenges count error:', error)
       setActiveChallengesCount(count || 0)
     } catch (err) {
