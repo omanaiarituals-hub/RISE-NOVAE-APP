@@ -1,42 +1,52 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
   try {
-    // Recuperer le token Supabase depuis les cookies pour authentifier l'user
-    const authHeader = req.headers.get('authorization')
-    const cookieHeader = req.headers.get('cookie') || ''
+    const cookieStore = await cookies()
 
-    // Client Supabase avec les cookies de l'user
-    const supabase = createClient(
+    const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
-        global: {
-          headers: { cookie: cookieHeader },
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {
+              // Ignoré : la session sera rafraîchie au prochain request via le middleware
+            }
+          },
         },
       }
     )
 
-    // Recuperer l'user depuis le token
+    // Lecture user via cookies SSR (parse correctement le format Supabase)
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
+      console.error('[push/subscribe] Auth fail:', authError?.message || 'pas d\'user')
       return NextResponse.json({ error: 'Non authentifie' }, { status: 401 })
     }
 
-    // Parser le body
+    // Parse body
     const { endpoint, keys, userAgent } = await req.json()
     if (!endpoint || !keys?.p256dh || !keys?.auth) {
       return NextResponse.json({ error: 'Donnees souscription incompletes' }, { status: 400 })
     }
 
-    // Client admin pour ecrire dans la table (RLS bypass via service role)
+    // Client admin pour bypass RLS sur l'écriture (service role)
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Upsert : insert si pas existant, update si l'endpoint existe deja
     const { data, error } = await supabaseAdmin
       .from('push_subscriptions')
       .upsert(
