@@ -9,6 +9,7 @@ import { usePseudo } from '@/hooks/usePseudo'
 import { UserMenu } from '@/components/UserMenu'
 import { OnboardingTour } from '@/components/OnboardingTour'
 import { getProverbeDuJour } from '@/lib/proverbes'
+import NotificationBell from '@/components/NotificationBell'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Modules
@@ -309,54 +310,8 @@ export default function HomePage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {/* Cloche alertes */}
-            <button
-              onClick={() => router.push('/notifications')}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: '50%',
-                background: 'rgba(243, 220, 198, 0.15)',
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-                border: '1px solid rgba(243, 220, 198, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-                fontSize: 16,
-                color: '#f3dcc6',
-                cursor: 'pointer',
-                padding: 0,
-              }}
-              aria-label="Notifications"
-            >
-              🔔
-              {bellAlertsCount > 0 && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: -3,
-                    right: -3,
-                    background: 'linear-gradient(135deg, #c44757, #8b2d3d)',
-                    color: 'white',
-                    fontSize: 9,
-                    fontWeight: 700,
-                    minWidth: 18,
-                    height: 18,
-                    padding: '0 5px',
-                    borderRadius: 999,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    border: '2px solid #5b3821',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
-                  }}
-                >
-                  {bellAlertsCount > 9 ? '9+' : bellAlertsCount}
-                </span>
-              )}
-            </button>
+            {/* Cloche notifs */}
+            <NotificationBell />
 
             {/* Pill Mon Profil — onboarding + débriefs + analyses IA */}
             {user && (
