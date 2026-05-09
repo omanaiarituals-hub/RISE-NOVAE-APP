@@ -10,6 +10,7 @@ import { UserMenu } from '@/components/UserMenu'
 import { OnboardingTour } from '@/components/OnboardingTour'
 import { getProverbeDuJour } from '@/lib/proverbes'
 import NotificationBell from '@/components/NotificationBell'
+import { detectStruggleMode, type StruggleState } from '@/lib/struggle/detect'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Modules
@@ -75,8 +76,9 @@ export default function HomePage() {
   const [activeChallengesCount, setActiveChallengesCount] = useState(0)
 
   // Communauté
-  const [newCommunityPosts, setNewCommunityPosts] = useState<number | null>(null)
+const [newCommunityPosts, setNewCommunityPosts] = useState<number | null>(null)
 
+const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason: null })
   const hour = new Date().getHours()
   const greeting = hour < 5 ? 'Bonne nuit' : hour < 12 ? 'Bonjour' : hour < 18 ? 'Bonne après-midi' : 'Bonsoir'
 
@@ -143,6 +145,7 @@ export default function HomePage() {
     loadCommunityCountFast()
     loadTodayPlanner()
     loadActiveChallenges()
+    detectStruggleMode(supabase, user.id).then(setStruggle).catch(() => {})
   }
 
   const loadCommunityCountFast = async () => {
@@ -410,7 +413,44 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* ════════ CARTE PROGRAMME 90J ════════ */}
+          {/* ════════ MODE TRAVERSÉE DIFFICILE ════════ */}
+          {struggle.active && (
+            <Link href="/agent" style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}>
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, rgba(196,149,106,0.20), rgba(123,111,160,0.18))',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(196,149,106,0.35)',
+                  borderRadius: 16,
+                  padding: '14px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  boxShadow: '0 4px 18px rgba(196,149,106,0.12)',
+                }}
+              >
+                <span style={{ fontSize: 24 }}>🌙</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{
+                    fontSize: 9.5, fontWeight: 700, color: '#8b5a3c', margin: '0 0 3px',
+                    textTransform: 'uppercase', letterSpacing: '0.18em',
+                  }}>
+                    Une période plus calme ?
+                  </p>
+                  <p style={{
+                    fontSize: 14, color: '#3d2618', margin: 0,
+                    fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic',
+                  }}>
+                    Je suis là si tu veux juste échanger.
+                  </p>
+                </div>
+                <span style={{ color: '#8b5a3c', fontSize: 16 }}>→</span>
+              </div>
+            </Link>
+          )}
+
+          {/* ════════ CARTE PROGRAMME 90J — TOUJOURS AFFICHÉE ════════ */}
           <Link href="/program" style={{ textDecoration: 'none', display: 'block', marginBottom: 16 }}>
             <div
               style={{

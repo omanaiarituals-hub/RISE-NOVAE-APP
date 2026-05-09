@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import missionsData from '@/data/missions.json'
+import { detectStruggleMode, type StruggleState } from '@/lib/struggle/detect'
 
 interface Message {
   id: string
@@ -29,6 +30,7 @@ interface AppContext {
   familyMembers: any[]
   programProgress: any
   currentMission: any | null
+  struggle: StruggleState
   todayDate: string
   dayOfWeek: string
   profile: any
@@ -144,12 +146,14 @@ export default function AgentPage() {
       const now = new Date()
       const days = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
 
-      // Mission du jour basée sur current_day du programme
+     // Mission du jour basée sur current_day du programme
       const currentDay = progressRes.data?.current_day || 0
       const currentMission = currentDay > 0
         ? (missionsData as any[]).find((m: any) => m.day === currentDay) || null
         : null
 
+      // Détection mode traversée difficile
+      const struggle = await detectStruggleMode(supabase, user.id)
       setAppContext({
         tasks: tasksRes.data || [],
         routines: routinesRes.data || [],
@@ -159,6 +163,7 @@ export default function AgentPage() {
         familyMembers: familyRes.data || [],
         programProgress: progressRes.data || null,
         currentMission,
+        struggle,
         profile: profileRes.data || null,
         todayDate: now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
         dayOfWeek: days[now.getDay()]
@@ -256,11 +261,27 @@ Quand l'utilisatrice te parle de "ma mission", "aujourd'hui", "ce que je dois fa
 L'utilisatrice n'a pas encore démarré son programme 90 jours. Si elle te parle de "mission" ou "programme", encourage-la doucement à le démarrer depuis l'onglet Programme.`
     }
 
-    return `Tu es NOVAÉ, l'agent IA personnel de l'application RISE NOVAÉ. Tu es bienveillante, directe et orientée action.
-⚠️ DISCLAIMER OBLIGATOIRE : Tu es un guide IA, pas un professionnel de santé, de coaching, de nutrition ou de psychologie. Si l'utilisatrice mentionne une détresse émotionnelle sérieuse, une maladie ou un problème médical, oriente-la vers un professionnel qualifié.
+// Section mode traversée difficile (s'ajoute au prompt si actif)
+    const struggleSection = ctx.struggle?.active ? `
+
+=== 🌙 MODE TRAVERSÉE DIFFICILE ACTIVÉ ===
+L'utilisatrice n'a pas validé de mission depuis ${ctx.struggle.daysSinceLastResponse} jours (dernière mission : J${ctx.struggle.lastResponseDay}).
+Elle traverse peut-être une période compliquée. ADAPTE TA POSTURE :
+- Sois plus douce, plus patiente, moins dans la performance
+- N'empile JAMAIS de tâches ni d'objectifs supplémentaires
+- Reconnais que c'est OK de ralentir, que la transformation n'est pas linéaire
+- Propose UNE SEULE micro-action accessible (pas une liste)
+- Demande-lui comment elle va, sans la presser de répondre
+- Si elle veut juste parler, écoute. Si elle veut juste être validée, valide.
+- BANNIS les phrases du type "tu peux le faire", "courage", "remets-toi en selle" — c'est l'inverse de ce dont elle a besoin
+- Le plus important : elle compte, indépendamment de sa productivité
+- Tu peux lui rappeler que reprendre où elle s'est arrêtée est toujours possible — pas besoin de tout recommencer` : ''
+
+    return `Tu es NOVAÉ, l'agent IA personnel de l'application RISE NOVAÉ.⚠️ DISCLAIMER OBLIGATOIRE : Tu es un guide IA, pas un professionnel de santé, de coaching, de nutrition ou de psychologie. Si l'utilisatrice mentionne une détresse émotionnelle sérieuse, une maladie ou un problème médical, oriente-la vers un professionnel qualifié.
 Tu as accès en temps réel à TOUTES les données de l'utilisatrice ci-dessous. Tu DOIS les utiliser pour répondre — ne dis JAMAIS que tu n'y as pas accès.
 Tu as aussi accès à ton historique de conversations passées avec elle — utilise-le pour assurer une continuité (rappels de discussions précédentes, suivi des engagements pris).
 Aujourd'hui : ${ctx.dayOfWeek} ${ctx.todayDate}.${isSunday ? ' C\'est dimanche — propose un bilan hebdomadaire complet en fin de réponse.' : ''}
+${struggleSection}
 ${missionSection}
 
 === DONNÉES RÉELLES DE L'UTILISATRICE ===
