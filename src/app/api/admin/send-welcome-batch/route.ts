@@ -4,8 +4,7 @@ import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 import { sendBrevoEmail, addBrevoContact } from '@/lib/brevo/send'
 
-// REMPLACE PAR TON EMAIL ADMIN
-const ADMIN_EMAIL = 'omanaiarituals@gmail.com'
+const ADMIN_EMAIL = 'nesserinesediri@gmail.com'
 
 export async function POST() {
   try {
