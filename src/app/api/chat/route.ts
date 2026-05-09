@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+type AnthropicMessage = { role: 'user' | 'assistant'; content: string }
 
 const FALLBACK_SYSTEM_PROMPT = `Tu es NOVAÉ, l'agent IA de l'app NOVAÉ by OMANAÏA. Coach bienveillante, directe, orientée action.
 Tu tutoies l'utilisatrice. Tes réponses sont concises (3-4 phrases sauf pour les bilans).
@@ -17,6 +16,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'message manquant' }, { status: 400 })
     }
 
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error('[api/chat] ANTHROPIC_API_KEY manquante')
+      return NextResponse.json({ error: 'Clé API manquante côté serveur.' }, { status: 500 })
+    }
+
     const finalSystemPrompt = systemPrompt || FALLBACK_SYSTEM_PROMPT
 
     const missionContext =
@@ -26,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     // Anthropic exige messages user/assistant uniquement (system est séparé)
     // Et qu'ils alternent en commençant par user
-    const messages: Anthropic.Messages.MessageParam[] = []
+    const messages: AnthropicMessage[] = []
 
     if (Array.isArray(history)) {
       let lastRole: 'user' | 'assistant' | null = null
@@ -35,13 +39,12 @@ export async function POST(request: NextRequest) {
           (msg.role === 'user' || msg.role === 'assistant') &&
           typeof msg.content === 'string' &&
           msg.content.trim() &&
-          msg.role !== lastRole // Ignore les rôles consécutifs identiques
+          msg.role !== lastRole
         ) {
           messages.push({ role: msg.role, content: msg.content })
           lastRole = msg.role
         }
       }
-      // Le premier message doit être 'user' — drop les leading assistants
       while (messages.length > 0 && messages[0].role !== 'user') {
         messages.shift()
       }
@@ -52,16 +55,33 @@ export async function POST(request: NextRequest) {
       content: missionContext ? `${missionContext}\n\nMessage : ${message}` : message,
     })
 
-    const completion = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: finalSystemPrompt,
-      messages,
+    const apiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: finalSystemPrompt,
+        messages,
+      }),
     })
 
-    const block = completion.content[0]
-    const responseText =
-      block && block.type === 'text' ? block.text : 'Je suis là pour te guider.'
+    if (!apiResponse.ok) {
+      const errText = await apiResponse.text()
+      console.error('[api/chat] Anthropic error:', apiResponse.status, errText)
+      return NextResponse.json(
+        { error: 'NOVAÉ est temporairement indisponible. Réessaie.' },
+        { status: 502 }
+      )
+    }
+
+    const data = await apiResponse.json()
+    const block = data?.content?.[0]
+    const responseText = block?.type === 'text' ? block.text : 'Je suis là pour te guider.'
 
     return NextResponse.json({ response: responseText })
   } catch (error: any) {
