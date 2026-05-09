@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
+import missionsData from '@/data/missions.json'
 
 interface Message {
   id: string
@@ -27,12 +28,14 @@ interface AppContext {
   shoppingList: any[]
   familyMembers: any[]
   programProgress: any
+  currentMission: any | null
   todayDate: string
   dayOfWeek: string
   profile: any
 }
 
 const QUICK_PROMPTS = [
+  { icon: '🎯', label: "Mission du jour", prompt: "Aide-moi sur ma mission du jour. Rappelle-moi son objectif, propose-moi un plan d'action concret pour la réussir aujourd'hui, et donne-moi une inspiration adaptée à mon profil." },
   { icon: '📋', label: "Prévu aujourd'hui ?", prompt: "Qu'est-ce que j'ai prévu aujourd'hui dans mon planner ? Liste toutes mes tâches du jour avec leurs horaires." },
   { icon: '🔄', label: "Mes routines", prompt: "Liste toutes mes routines. Lesquelles sont faites et lesquelles sont en attente cette semaine ?" },
   { icon: '🍳', label: "Batch cooking", prompt: "Regarde mes recettes planifiées cette semaine et propose un plan batch cooking avec les ingrédients en commun." },
@@ -79,7 +82,7 @@ export default function AgentPage() {
         return
       }
 
-      const sorted = (data || []).reverse() // ordre chronologique
+      const sorted = (data || []).reverse()
       if (sorted.length > 0) {
         const loadedMessages: Message[] = sorted.map((row: any) => ({
           id: row.id,
@@ -141,6 +144,12 @@ export default function AgentPage() {
       const now = new Date()
       const days = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
 
+      // Mission du jour basée sur current_day du programme
+      const currentDay = progressRes.data?.current_day || 0
+      const currentMission = currentDay > 0
+        ? (missionsData as any[]).find((m: any) => m.day === currentDay) || null
+        : null
+
       setAppContext({
         tasks: tasksRes.data || [],
         routines: routinesRes.data || [],
@@ -149,6 +158,7 @@ export default function AgentPage() {
         shoppingList: shoppingRes.data || [],
         familyMembers: familyRes.data || [],
         programProgress: progressRes.data || null,
+        currentMission,
         profile: profileRes.data || null,
         todayDate: now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
         dayOfWeek: days[now.getDay()]
@@ -217,11 +227,41 @@ export default function AgentPage() {
       }).join('\n')
       : 'Aucun repas planifié pour le reste de la semaine'
 
+    // ── Section MISSION DU JOUR ─────────────────────────────────────────
+    let missionSection = ''
+    if (ctx.currentMission) {
+      const m = ctx.currentMission
+      const phase = m.phase || (m.day <= 30 ? 'Reprogrammation' : m.day <= 60 ? 'Action & Discipline' : 'Expansion')
+      const reflectionQuestion = m.question || m.reflection?.question || ''
+      const tasksText = Array.isArray(m.tasks)
+        ? m.tasks
+          .map((t: any) => typeof t === 'string' ? t : t.label || '')
+          .filter(Boolean)
+          .map((s: string) => `  - ${s}`)
+          .join('\n')
+        : ''
+
+      missionSection = `
+
+=== 🎯 MISSION DU JOUR (J${m.day}/90 — Phase ${phase}) ===
+Titre : ${m.title}
+Guide : ${m.guide || m.description || ''}
+${tasksText ? `Tâches du jour :\n${tasksText}\n` : ''}${reflectionQuestion ? `Question de réflexion : ${reflectionQuestion}` : ''}
+
+Quand l'utilisatrice te parle de "ma mission", "aujourd'hui", "ce que je dois faire", "le programme", c'est de cette mission qu'il s'agit. Tu peux la guider pour la réussir, expliquer le sens profond de la mission, l'aider à formuler sa réflexion, ou la motiver si elle traîne. Si elle a déjà fait sa réflexion (champ "completed_at" dans les données), félicite-la sans en rajouter.`
+    } else if (ctx.programProgress?.current_day === 0 || !ctx.programProgress) {
+      missionSection = `
+
+=== 🎯 PROGRAMME 90 JOURS ===
+L'utilisatrice n'a pas encore démarré son programme 90 jours. Si elle te parle de "mission" ou "programme", encourage-la doucement à le démarrer depuis l'onglet Programme.`
+    }
+
     return `Tu es NOVAÉ, l'agent IA personnel de l'application RISE NOVAÉ. Tu es bienveillante, directe et orientée action.
 ⚠️ DISCLAIMER OBLIGATOIRE : Tu es un guide IA, pas un professionnel de santé, de coaching, de nutrition ou de psychologie. Si l'utilisatrice mentionne une détresse émotionnelle sérieuse, une maladie ou un problème médical, oriente-la vers un professionnel qualifié.
 Tu as accès en temps réel à TOUTES les données de l'utilisatrice ci-dessous. Tu DOIS les utiliser pour répondre — ne dis JAMAIS que tu n'y as pas accès.
 Tu as aussi accès à ton historique de conversations passées avec elle — utilise-le pour assurer une continuité (rappels de discussions précédentes, suivi des engagements pris).
 Aujourd'hui : ${ctx.dayOfWeek} ${ctx.todayDate}.${isSunday ? ' C\'est dimanche — propose un bilan hebdomadaire complet en fin de réponse.' : ''}
+${missionSection}
 
 === DONNÉES RÉELLES DE L'UTILISATRICE ===
 
@@ -258,7 +298,7 @@ ${JSON.stringify(ctx.familyMembers, null, 2)}
 ${allergiesText}
 ${allergyConflictsText}
 
-PROGRAMME 90 JOURS :
+PROGRAMME 90 JOURS — Avancement :
 ${ctx.programProgress ? JSON.stringify(ctx.programProgress, null, 2) : 'Aucun programme démarré'}
 
 ${ctx.profile ? `
@@ -276,15 +316,16 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
 
 === TES RÈGLES ===
 1. Tu UTILISES toujours les données ci-dessus pour répondre. Tu ne demandes JAMAIS à l'utilisatrice d'aller vérifier elle-même.
-2. ARBITRE DU TEMPS : Détecte automatiquement les conflits entre routines, planner et recettes.
-3. BATCH COOKING : Si des recettes planifiées ont des ingrédients communs, propose un plan batch cooking.
-4. ALLERGIES — RÈGLE ABSOLUE : Pour chaque recette mentionnée ou analysée, vérifie IMMÉDIATEMENT si ses ingrédients contiennent un allergène de la section "ALLERGIES FAMILLE". Si oui, affiche : "⚠️ ALLERGIE : [prénom] est allergique à [ingrédient] présent dans [recette]."
-5. FAMILLE : Alerte sur les anniversaires dans les 7 prochains jours (champ birthday dans data JSONB).
-6. BILAN HEBDO : Chaque dimanche, analyse tous les modules automatiquement.
-7. CONTINUITÉ : Référence-toi aux messages précédents quand pertinent — "tu m'avais dit que…", "comme on en parlait la dernière fois…".
-8. MODIFICATIONS : Quand tu proposes d'ajouter une tâche ou cocher une routine, ajoute en fin de message : ACTION_JSON:{"type":"add_task","data":{"title":"...","date":"...","category":"self"}}
-9. Tu tutoies toujours l'utilisatrice. Réponses concises sauf pour les bilans.
-10. Tu réponds UNIQUEMENT sur les sujets liés à l'app (planning, routines, recettes, famille, programme, bien-être). Pour tout autre sujet, redirige poliment.
+2. MISSION DU JOUR : Si elle te demande quelque chose en lien avec son programme/mission/aujourd'hui, réfère-toi à la section "MISSION DU JOUR" ci-dessus.
+3. ARBITRE DU TEMPS : Détecte automatiquement les conflits entre routines, planner et recettes.
+4. BATCH COOKING : Si des recettes planifiées ont des ingrédients communs, propose un plan batch cooking.
+5. ALLERGIES — RÈGLE ABSOLUE : Pour chaque recette mentionnée ou analysée, vérifie IMMÉDIATEMENT si ses ingrédients contiennent un allergène de la section "ALLERGIES FAMILLE". Si oui, affiche : "⚠️ ALLERGIE : [prénom] est allergique à [ingrédient] présent dans [recette]."
+6. FAMILLE : Alerte sur les anniversaires dans les 7 prochains jours (champ birthday dans data JSONB).
+7. BILAN HEBDO : Chaque dimanche, analyse tous les modules automatiquement.
+8. CONTINUITÉ : Référence-toi aux messages précédents quand pertinent — "tu m'avais dit que…", "comme on en parlait la dernière fois…".
+9. MODIFICATIONS : Quand tu proposes d'ajouter une tâche ou cocher une routine, ajoute en fin de message : ACTION_JSON:{"type":"add_task","data":{"title":"...","date":"...","category":"self"}}
+10. Tu tutoies toujours l'utilisatrice. Réponses concises sauf pour les bilans.
+11. Tu réponds UNIQUEMENT sur les sujets liés à l'app (planning, routines, recettes, famille, programme, bien-être). Pour tout autre sujet, redirige poliment.
 - Maximum 4-5 phrases sauf pour les bilans. Pas de listes à 6+ points — maximum 4 points par liste.
 - N'utilise JAMAIS ### ou ## dans tes réponses. Utilise uniquement le gras **texte** pour les titres.`
   }
@@ -395,12 +436,10 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
     setMessages(prev => [...prev, userMessage])
     setIsLoading(true)
 
-    // Persistance non-bloquante
     persistMessage('user', text)
 
     try {
       const ctx = appContext
-      // 10 derniers messages pour le contexte conversationnel
       const conversationHistory = messages.slice(-10).map(m => ({
         role: m.role,
         content: m.content
@@ -420,7 +459,6 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
       const rawContent = data.response || "Je n'ai pas pu traiter ta demande."
       const { cleanContent, actions } = parseActions(rawContent)
 
-      // Bilan dimanche → weekly_debriefs
       const today = new Date()
       if (today.getDay() === 0 && text.toLowerCase().includes('bilan')) {
         const weekNumber = Math.ceil((today.getDate()) / 7)
@@ -445,7 +483,6 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
         actions
       }])
 
-      // Persistance assistant
       persistMessage('assistant', cleanContent)
     } catch (error) {
       setMessages(prev => [...prev, {
@@ -507,7 +544,11 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
             <div className="font-semibold text-novae-anthracite text-sm">Agent NOVAÉ</div>
             <div className="text-xs text-novae-anthracite/50 flex items-center gap-1">
               <div className={`w-1.5 h-1.5 rounded-full ${contextLoading ? 'bg-orange-400 animate-pulse' : appContext ? 'bg-green-400' : 'bg-gray-300'}`}></div>
-              {contextLoading ? 'Synchronisation...' : appContext ? `${appContext.tasks.length} tâches · ${appContext.mealPlans.length} repas · ${appContext.familyMembers.length} proches` : 'Non connecté'}
+              {contextLoading
+                ? 'Synchronisation...'
+                : appContext
+                  ? `${appContext.tasks.length} tâches · ${appContext.mealPlans.length} repas · ${appContext.familyMembers.length} proches${appContext.currentMission ? ` · J${appContext.currentMission.day}` : ''}`
+                  : 'Non connecté'}
             </div>
           </div>
         </div>
@@ -537,6 +578,22 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
               <p className="text-sm text-novae-anthracite/50">
                 {appContext ? `Connecté · ${appContext.tasks.length} tâches · ${appContext.routines.length} routines · ${appContext.mealPlans.length} repas · Jour ${appContext.programProgress?.current_day || 0}/90` : 'Chargement de tes données...'}
               </p>
+              {appContext?.currentMission && (
+                <div style={{
+                  marginTop: 14,
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, rgba(196,149,106,0.12), rgba(123,111,160,0.10))',
+                  border: '1px solid rgba(196,149,106,0.3)',
+                }}>
+                  <p style={{ fontSize: 9, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '0.2em', fontWeight: 700, margin: '0 0 4px' }}>
+                    🎯 Mission du jour · J{appContext.currentMission.day}
+                  </p>
+                  <p style={{ fontSize: 13, color: '#3d2618', fontWeight: 600, margin: 0, fontFamily: "'Cormorant Garamond', serif" }}>
+                    {appContext.currentMission.title}
+                  </p>
+                </div>
+              )}
               {messages.length > 0 && (
                 <p className="text-xs text-novae-gold/70 mt-2">
                   ✦ {messages.length} message{messages.length > 1 ? 's' : ''} dans ton historique
