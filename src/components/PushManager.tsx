@@ -3,13 +3,6 @@
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
 
-declare global {
-  interface Window {
-    OneSignal: any;
-    OneSignalDeferred: any[];
-  }
-}
-
 export default function PushManager() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -28,13 +21,19 @@ export default function PushManager() {
         console.log('[Push] Service Worker pret');
 
         if (Notification.permission === 'denied') {
-          console.log('[Push] Notifications bloquees par l utilisateur');
+          console.log('[Push] Notifications bloquees par l utilisateur — il faut autoriser dans les reglages du navigateur');
           return;
         }
 
+        // ── DEMANDE ACTIVE de la permission si elle n'a jamais été demandée ──
         if (Notification.permission === 'default') {
-          console.log('[Push] Permission non encore demandee');
-          return;
+          console.log('[Push] Demande de permission a l utilisateur...');
+          const result = await Notification.requestPermission();
+          if (result !== 'granted') {
+            console.log('[Push] Permission refusee ou ignoree:', result);
+            return;
+          }
+          console.log('[Push] Permission accordee !');
         }
 
         let subscription = await registration.pushManager.getSubscription();
