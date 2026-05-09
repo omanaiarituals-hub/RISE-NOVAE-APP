@@ -287,6 +287,13 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
         updated_at: new Date().toISOString(),
       })
 
+      // Trigger J0 Brevo (fire-and-forget)
+      fetch('/api/brevo/welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pseudo: pseudo.trim() }),
+      }).catch(err => console.error('[brevo] welcome error:', err))
+
       setDebrief(debriefText)
       setStep(12)
     } catch (error) {
