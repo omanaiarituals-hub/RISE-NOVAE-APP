@@ -41,10 +41,9 @@ export async function POST(req: Request) {
 
     // 2. Envoi du J0 (template #6)
     const result = await sendBrevoEmail({
-      to: { email: user.email, name: prenom },
-      templateId: 6,
-      params: { prenom },
-    })
+to: { email: user.email, name: prenom || user.email },    
+  templateId: 6,
+params: { prenom: prenom || '' },    })
 
     if (!result.success) {
       return NextResponse.json({ error: result.error, status: result.status }, { status: 500 })
