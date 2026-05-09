@@ -121,6 +121,7 @@ export default function ProgramPage() {
 const { currentDay, isLoaded, refreshProgress } = useProgramProgress()
   const [activePhase, setActivePhase] = useState(1)
   const [completedDays, setCompletedDays] = useState<number[]>([])
+  const [phaseLetters, setPhaseLetters] = useState<{ phase: number; read_at: string | null }[]>([])
   const [expandedDay, setExpandedDay] = useState<number | null>(null)
   const [reflections, setReflections] = useState<Record<number, string>>({})
   const [saving, setSaving] = useState<number | null>(null)
@@ -153,6 +154,11 @@ const { currentDay, isLoaded, refreshProgress } = useProgramProgress()
       data.forEach(d => { if (d.reflection) refMap[d.day_number] = d.reflection })
       setReflections(refMap)
     }
+    const { data: lettersData } = await supabase
+      .from('phase_letters')
+      .select('phase, read_at')
+      .eq('user_id', user.id)
+    setPhaseLetters((lettersData as any[]) || [])
   }
 
   const getMissionsForPhase = (phase: number) => {
@@ -275,6 +281,56 @@ const { currentDay, isLoaded, refreshProgress } = useProgramProgress()
         </div>
 
         <div style={{ padding: '16px 20px 100px' }}>
+
+          {/* ── BANNIÈRES LETTRES DE FIN DE PHASE ── */}
+          {[1, 2, 3].map(phaseNum => {
+            const requiredDay = phaseNum * 30
+            if (currentDay < requiredDay) return null
+            const meta = PHASE_META[phaseNum - 1]
+            const letterRow = phaseLetters.find(l => l.phase === phaseNum)
+            const isUnread = !letterRow?.read_at
+            const isFinal = phaseNum === 3
+            return (
+              <Link
+                key={`letter-${phaseNum}`}
+                href={`/program/lettre/${phaseNum}`}
+                style={{
+                  display: 'block', textDecoration: 'none', marginBottom: 14,
+                  padding: '18px 20px', borderRadius: 16,
+                  background: `linear-gradient(135deg, ${meta.color}22, ${meta.color}10)`,
+                  border: `1.5px solid ${meta.color}55`,
+                  boxShadow: isUnread ? `0 0 24px ${meta.color}44` : `0 2px 12px ${meta.color}11`,
+                  position: 'relative',
+                }}
+              >
+                {isUnread && (
+                  <span style={{
+                    position: 'absolute', top: 8, right: 8,
+                    background: meta.color, color: 'white',
+                    fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
+                    letterSpacing: '0.1em', textTransform: 'uppercase',
+                  }}>
+                    Nouveau
+                  </span>
+                )}
+                <p style={{
+                  fontSize: 9, color: meta.color, letterSpacing: '0.25em',
+                  textTransform: 'uppercase', fontWeight: 700, margin: '0 0 6px'
+                }}>
+                  ✦ Lettre de fin de phase {phaseNum}{isFinal ? ' — Finale' : ''}
+                </p>
+                <p style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: 18, color: '#1A1A1A', fontWeight: 500, margin: '0 0 6px'
+                }}>
+                  {meta.label}
+                </p>
+                <p style={{ fontSize: 12, color: 'rgba(26,26,26,0.55)', margin: 0 }}>
+                  {isUnread ? 'NOVAÉ a écrit une lettre rien que pour toi →' : 'Relire ta lettre →'}
+                </p>
+              </Link>
+            )
+          })}
 
           {/* ── CARTE JOUR COURANT (si même phase) ── */}
           {activePhase === currentPhasNum && todayMission && (
