@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 
@@ -31,15 +32,16 @@ interface UserPrefs {
 
 const NOTIF_CATEGORIES: Array<{ key: keyof NotifPrefs; emoji: string; label: string; desc: string }> = [
   { key: 'notif_routines', emoji: '☀️', label: 'Routines & briefs', desc: 'Brief matin et soir, rituels' },
-  { key: 'notif_conflits', emoji: '📅', label: 'Planning & conflits', desc: 'Rappels d\'événements, conflits d\'agenda' },
+  { key: 'notif_conflits', emoji: '📅', label: 'Planning & conflits', desc: "Rappels d'événements, conflits d'agenda" },
   { key: 'notif_communaute', emoji: '💬', label: 'Communauté', desc: 'Réponses à tes posts, résumé du jour' },
   { key: 'notif_anniversaires', emoji: '🎂', label: 'Anniversaires', desc: 'Rappels J-7 et le jour J pour ta famille' },
   { key: 'notif_inactivite', emoji: '🌸', label: 'Inactivité', desc: 'Messages doux quand tu ne reviens pas' },
-  { key: 'notif_bilan', emoji: '✦', label: 'Bilan hebdo', desc: 'Ton débrief du dimanche par l\'IA' },
+  { key: 'notif_bilan', emoji: '✦', label: 'Bilan hebdo', desc: "Ton débrief du dimanche par l'IA" },
 ]
 
 export default function SettingsPage() {
   const { user, loading: authLoading } = useSupabaseAuth()
+  const router = useRouter()
 
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({
     notif_routines: true, notif_conflits: true, notif_communaute: true,
@@ -52,6 +54,12 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
+
+  // Suppression de compte
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     if (user && !authLoading) loadPrefs()
@@ -121,6 +129,35 @@ export default function SettingsPage() {
       console.error('[Settings] Erreur:', err)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'SUPPRIMER') return
+    setDeleting(true)
+    setDeleteError('')
+
+    try {
+      const response = await fetch('/api/account/delete', {
+        method: 'POST',
+        credentials: 'include',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setDeleteError(data.error || 'Erreur lors de la suppression')
+        setDeleting(false)
+        return
+      }
+
+      // Logout local et redirection
+      await supabase.auth.signOut()
+      router.push('/')
+    } catch (err) {
+      console.error('[Settings] Erreur suppression:', err)
+      setDeleteError('Erreur de connexion. Réessaie.')
+      setDeleting(false)
     }
   }
 
@@ -235,12 +272,153 @@ export default function SettingsPage() {
               boxShadow: '0 4px 12px rgba(139, 90, 60, 0.2)',
               transition: 'background 0.3s',
               opacity: saving ? 0.7 : 1,
+              marginBottom: 32,
             }}
           >
             {savedFlash ? '✓ Préférences enregistrées' : saving ? 'Enregistrement…' : 'Enregistrer'}
           </button>
+
+          {/* DANGER ZONE */}
+          <div style={{
+            background: 'rgba(255, 240, 240, 0.6)',
+            backdropFilter: 'blur(18px)',
+            WebkitBackdropFilter: 'blur(18px)',
+            border: '1px solid rgba(180, 80, 80, 0.25)',
+            borderRadius: 20, padding: 22,
+            boxShadow: '0 4px 16px rgba(180, 80, 80, 0.06)',
+          }}>
+            <h2 style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 20, color: '#8b3a3a',
+              margin: '0 0 4px', fontWeight: 500,
+            }}>Zone sensible</h2>
+            <p style={{
+              fontSize: 12, color: '#6b4040',
+              margin: '0 0 18px', opacity: 0.85,
+            }}>
+              La suppression de ton compte est définitive. Toutes tes données (programme, missions, conversations, communauté) seront perdues.
+            </p>
+            <button
+              onClick={() => {
+                setShowDeleteModal(true)
+                setDeleteConfirmText('')
+                setDeleteError('')
+              }}
+              style={{
+                width: '100%', padding: '12px 20px', borderRadius: 14,
+                border: '1px solid rgba(180, 80, 80, 0.4)',
+                background: 'rgba(255, 255, 255, 0.5)',
+                color: '#8b3a3a', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              Supprimer mon compte
+            </button>
+          </div>
         </main>
       </div>
+
+      {/* MODAL CONFIRMATION SUPPRESSION */}
+      {showDeleteModal && (
+        <div
+          onClick={() => !deleting && setShowDeleteModal(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 999,
+            background: 'rgba(26, 26, 26, 0.55)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#ffffff', borderRadius: 20,
+              maxWidth: 420, width: '100%', padding: 28,
+              boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+          >
+            <h3 style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 26, fontWeight: 600, color: '#8b3a3a',
+              margin: '0 0 12px',
+            }}>
+              Supprimer ton compte ?
+            </h3>
+            <p style={{ fontSize: 14, color: '#3d2618', lineHeight: 1.6, margin: '0 0 16px' }}>
+              Cette action est <strong>irréversible</strong>. Tu vas perdre :
+            </p>
+            <ul style={{ fontSize: 13, color: '#6b5340', lineHeight: 1.7, margin: '0 0 20px', paddingLeft: 20 }}>
+              <li>Ta progression du programme 90 jours</li>
+              <li>Tes missions complétées et tes réflexions</li>
+              <li>Toutes tes conversations avec NOVAÉ</li>
+              <li>Tes posts, commentaires et badges communauté</li>
+              <li>Tes routines, recettes, planner, notes, famille</li>
+              <li>Ton profil et ton inscription Brevo</li>
+            </ul>
+            <p style={{ fontSize: 13, color: '#3d2618', margin: '0 0 8px' }}>
+              Pour confirmer, écris <strong>SUPPRIMER</strong> :
+            </p>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder="SUPPRIMER"
+              disabled={deleting}
+              style={{
+                width: '100%', padding: '12px 14px', fontSize: 14,
+                fontFamily: 'inherit', color: '#3d2618',
+                background: '#fafafa',
+                border: '1px solid rgba(180, 80, 80, 0.3)',
+                borderRadius: 12, outline: 'none', boxSizing: 'border-box',
+                marginBottom: 20,
+              }}
+            />
+            {deleteError && (
+              <p style={{
+                fontSize: 12, color: '#8b3a3a',
+                background: 'rgba(180, 80, 80, 0.08)',
+                padding: '10px 12px', borderRadius: 10,
+                margin: '0 0 16px',
+              }}>
+                {deleteError}
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                style={{
+                  flex: 1, padding: '12px', borderRadius: 12,
+                  border: '1px solid #e5e5e5', background: '#ffffff',
+                  color: '#3d2618', fontSize: 14, fontWeight: 600,
+                  cursor: deleting ? 'wait' : 'pointer', fontFamily: 'inherit',
+                  opacity: deleting ? 0.5 : 1,
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText !== 'SUPPRIMER' || deleting}
+                style={{
+                  flex: 1, padding: '12px', borderRadius: 12, border: 'none',
+                  background: deleteConfirmText === 'SUPPRIMER' && !deleting
+                    ? 'linear-gradient(135deg, #c44a4a, #8b3a3a)'
+                    : 'rgba(180, 80, 80, 0.2)',
+                  color: deleteConfirmText === 'SUPPRIMER' && !deleting ? '#ffffff' : 'rgba(180, 80, 80, 0.5)',
+                  fontSize: 14, fontWeight: 700,
+                  cursor: deleteConfirmText === 'SUPPRIMER' && !deleting ? 'pointer' : 'not-allowed',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

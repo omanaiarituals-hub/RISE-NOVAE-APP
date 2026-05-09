@@ -85,3 +85,30 @@ export async function addBrevoContact({
     return { success: false, error: String(err) }
   }
 }
+
+export async function deleteBrevoContact(email: string) {
+  const apiKey = process.env.BREVO_API_KEY
+  if (!apiKey) return { success: false, error: 'API key missing' }
+
+  try {
+    const encoded = encodeURIComponent(email)
+    const response = await fetch(`${BREVO_API}/contacts/${encoded}`, {
+      method: 'DELETE',
+      headers: {
+        accept: 'application/json',
+        'api-key': apiKey,
+      },
+    })
+
+    if (!response.ok && response.status !== 404) {
+      const text = await response.text()
+      console.error('[brevo] delete contact failed', response.status, text)
+      return { success: false, error: text }
+    }
+
+    return { success: true }
+  } catch (err) {
+    console.error('[brevo] delete contact error', err)
+    return { success: false, error: String(err) }
+  }
+}
