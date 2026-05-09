@@ -49,11 +49,13 @@ export default function AgentPage() {
   const [appContext, setAppContext] = useState<AppContext | null>(null)
   const [contextLoading, setContextLoading] = useState(false)
   const [showHome, setShowHome] = useState(true)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (user && !authLoading) {
       loadAppContext()
+      loadConversationHistory()
     }
   }, [user, authLoading])
 
@@ -61,6 +63,66 @@ export default function AgentPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // ── Mémoire conversationnelle ────────────────────────────────────────────
+  const loadConversationHistory = async () => {
+    if (!user) return
+    try {
+      const { data, error } = await supabase
+        .from('agent_conversations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (error) {
+        console.error('[agent] history load error:', error)
+        return
+      }
+
+      const sorted = (data || []).reverse() // ordre chronologique
+      if (sorted.length > 0) {
+        const loadedMessages: Message[] = sorted.map((row: any) => ({
+          id: row.id,
+          role: row.role,
+          content: row.content,
+          timestamp: new Date(row.created_at),
+        }))
+        setMessages(loadedMessages)
+        setShowHome(false)
+      }
+    } catch (err) {
+      console.error('[agent] history fetch error:', err)
+    } finally {
+      setHistoryLoaded(true)
+    }
+  }
+
+  const persistMessage = async (role: 'user' | 'assistant', content: string) => {
+    if (!user) return
+    try {
+      await supabase.from('agent_conversations').insert({
+        user_id: user.id,
+        role,
+        content,
+      })
+    } catch (err) {
+      console.error('[agent] persist error:', err)
+    }
+  }
+
+  const clearHistory = async () => {
+    if (!user) return
+    if (!confirm('Effacer tout ton historique de conversation avec NOVAÉ ? Cette action est irréversible.')) return
+    try {
+      await supabase.from('agent_conversations').delete().eq('user_id', user.id)
+      setMessages([])
+      setShowHome(true)
+    } catch (err) {
+      console.error('[agent] clear history error:', err)
+    }
+  }
+
+  // ── Contexte app ─────────────────────────────────────────────────────────
   const loadAppContext = async () => {
     if (!user) return
     setContextLoading(true)
@@ -108,11 +170,9 @@ export default function AgentPage() {
     const pendingRoutines = ctx.routines.filter(r => !r.completed)
     const doneRoutines = ctx.routines.filter(r => r.completed)
 
-    // Montrer tous les repas planifiés (meal_plan est sans date de semaine)
-    const currentDayName = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'][today.getDay()]
+    const currentDayName = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'][today.getDay()]
     const relevantMealPlans = ctx.mealPlans
 
-    // Extraction allergies depuis le champ JSONB data
     const allergies = ctx.familyMembers
       .filter(m => m.data?.allergies && m.data.allergies.length > 0)
       .map(m => {
@@ -125,7 +185,6 @@ export default function AgentPage() {
       ? allergies.map(a => `${a.name} : ${a.allergies.join(', ')}`).join('\n')
       : 'Aucune allergie déclarée'
 
-    // Détection proactive des conflits allergie dans les repas planifiés
     const allergyConflicts: string[] = []
     allergies.forEach(({ name, allergies: allergyList }) => {
       relevantMealPlans.forEach((m: any) => {
@@ -147,21 +206,21 @@ export default function AgentPage() {
       ? '\n\n🚨 ALERTES ALLERGIE DÉTECTÉES :\n' + allergyConflicts.join('\n')
       : ''
 
-    // Formatage des repas planifiés avec ingrédients lisibles
     const mealPlansText = relevantMealPlans.length > 0
       ? relevantMealPlans.map((m: any) => {
-          const recipe = m.recipes
-          if (!recipe) return `${m.day_of_week} ${m.meal_type} : ${m.custom_meal || 'Repas sans détail'}`
-          const ingredientList = Array.isArray(recipe.ingredients)
-            ? recipe.ingredients.map((i: any) => typeof i === 'string' ? i : i.name || '').filter(Boolean).join(', ')
-            : ''
-          return `${m.day_of_week} ${m.meal_type} : ${recipe.title} (ingrédients : ${ingredientList || 'non renseignés'})`
-        }).join('\n')
+        const recipe = m.recipes
+        if (!recipe) return `${m.day_of_week} ${m.meal_type} : ${m.custom_meal || 'Repas sans détail'}`
+        const ingredientList = Array.isArray(recipe.ingredients)
+          ? recipe.ingredients.map((i: any) => typeof i === 'string' ? i : i.name || '').filter(Boolean).join(', ')
+          : ''
+        return `${m.day_of_week} ${m.meal_type} : ${recipe.title} (ingrédients : ${ingredientList || 'non renseignés'})`
+      }).join('\n')
       : 'Aucun repas planifié pour le reste de la semaine'
 
     return `Tu es NOVAÉ, l'agent IA personnel de l'application RISE NOVAÉ. Tu es bienveillante, directe et orientée action.
 ⚠️ DISCLAIMER OBLIGATOIRE : Tu es un guide IA, pas un professionnel de santé, de coaching, de nutrition ou de psychologie. Si l'utilisatrice mentionne une détresse émotionnelle sérieuse, une maladie ou un problème médical, oriente-la vers un professionnel qualifié.
 Tu as accès en temps réel à TOUTES les données de l'utilisatrice ci-dessous. Tu DOIS les utiliser pour répondre — ne dis JAMAIS que tu n'y as pas accès.
+Tu as aussi accès à ton historique de conversations passées avec elle — utilise-le pour assurer une continuité (rappels de discussions précédentes, suivi des engagements pris).
 Aujourd'hui : ${ctx.dayOfWeek} ${ctx.todayDate}.${isSunday ? ' C\'est dimanche — propose un bilan hebdomadaire complet en fin de réponse.' : ''}
 
 === DONNÉES RÉELLES DE L'UTILISATRICE ===
@@ -180,11 +239,11 @@ ${JSON.stringify(pendingRoutines, null, 2)}
 
 RECETTES DISPONIBLES (${ctx.recipes.length}) :
 ${ctx.recipes.slice(0, 10).map((r: any) => {
-  const ingredientList = Array.isArray(r.ingredients)
-    ? r.ingredients.map((i: any) => typeof i === 'string' ? i : i.name || '').filter(Boolean).join(', ')
-    : ''
-  return `- ${r.title} (${r.course || 'plat'}) : ${ingredientList}`
-}).join('\n')}
+      const ingredientList = Array.isArray(r.ingredients)
+        ? r.ingredients.map((i: any) => typeof i === 'string' ? i : i.name || '').filter(Boolean).join(', ')
+        : ''
+      return `- ${r.title} (${r.course || 'plat'}) : ${ingredientList}`
+    }).join('\n')}
 
 REPAS PLANIFIÉS CETTE SEMAINE — aujourd'hui c'est ${currentDayName} (${ctx.mealPlans.length} repas au total) :
 ${mealPlansText}
@@ -222,9 +281,10 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
 4. ALLERGIES — RÈGLE ABSOLUE : Pour chaque recette mentionnée ou analysée, vérifie IMMÉDIATEMENT si ses ingrédients contiennent un allergène de la section "ALLERGIES FAMILLE". Si oui, affiche : "⚠️ ALLERGIE : [prénom] est allergique à [ingrédient] présent dans [recette]."
 5. FAMILLE : Alerte sur les anniversaires dans les 7 prochains jours (champ birthday dans data JSONB).
 6. BILAN HEBDO : Chaque dimanche, analyse tous les modules automatiquement.
-7. MODIFICATIONS : Quand tu proposes d'ajouter une tâche ou cocher une routine, ajoute en fin de message : ACTION_JSON:{"type":"add_task","data":{"title":"...","date":"...","category":"self"}}
-8. Tu tutoies toujours l'utilisatrice. Réponses concises sauf pour les bilans.
-9. Tu réponds UNIQUEMENT sur les sujets liés à l'app (planning, routines, recettes, famille, programme, bien-être). Pour tout autre sujet, redirige poliment.
+7. CONTINUITÉ : Référence-toi aux messages précédents quand pertinent — "tu m'avais dit que…", "comme on en parlait la dernière fois…".
+8. MODIFICATIONS : Quand tu proposes d'ajouter une tâche ou cocher une routine, ajoute en fin de message : ACTION_JSON:{"type":"add_task","data":{"title":"...","date":"...","category":"self"}}
+9. Tu tutoies toujours l'utilisatrice. Réponses concises sauf pour les bilans.
+10. Tu réponds UNIQUEMENT sur les sujets liés à l'app (planning, routines, recettes, famille, programme, bien-être). Pour tout autre sujet, redirige poliment.
 - Maximum 4-5 phrases sauf pour les bilans. Pas de listes à 6+ points — maximum 4 points par liste.
 - N'utilise JAMAIS ### ou ## dans tes réponses. Utilise uniquement le gras **texte** pour les titres.`
   }
@@ -335,9 +395,13 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
     setMessages(prev => [...prev, userMessage])
     setIsLoading(true)
 
+    // Persistance non-bloquante
+    persistMessage('user', text)
+
     try {
       const ctx = appContext
-      const conversationHistory = messages.slice(-6).map(m => ({
+      // 10 derniers messages pour le contexte conversationnel
+      const conversationHistory = messages.slice(-10).map(m => ({
         role: m.role,
         content: m.content
       }))
@@ -356,7 +420,7 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
       const rawContent = data.response || "Je n'ai pas pu traiter ta demande."
       const { cleanContent, actions } = parseActions(rawContent)
 
-      // Sauvegarde automatique du bilan du dimanche
+      // Bilan dimanche → weekly_debriefs
       const today = new Date()
       if (today.getDay() === 0 && text.toLowerCase().includes('bilan')) {
         const weekNumber = Math.ceil((today.getDate()) / 7)
@@ -380,6 +444,9 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
         timestamp: new Date(),
         actions
       }])
+
+      // Persistance assistant
+      persistMessage('assistant', cleanContent)
     } catch (error) {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
@@ -409,13 +476,12 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
 
   const resetToHome = () => {
     setShowHome(true)
-    setMessages([])
   }
 
-  if (authLoading) {
+  if (authLoading || !historyLoaded) {
     return (
       <div className="flex flex-col h-screen bg-novae-cream items-center justify-center">
-        <div className="text-novae-anthracite/40 text-sm">Connexion en cours...</div>
+        <div className="text-novae-anthracite/40 text-sm">Chargement de NOVAÉ...</div>
       </div>
     )
   }
@@ -445,12 +511,23 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
             </div>
           </div>
         </div>
-        <button onClick={loadAppContext} className="text-novae-anthracite/40 hover:text-novae-gold transition-colors" title="Actualiser">
-          🔄
-        </button>
+        <div className="flex items-center gap-1">
+          {!showHome && messages.length > 0 && (
+            <button
+              onClick={clearHistory}
+              className="text-novae-anthracite/30 hover:text-red-500 transition-colors p-1"
+              title="Effacer l'historique"
+            >
+              🗑️
+            </button>
+          )}
+          <button onClick={loadAppContext} className="text-novae-anthracite/40 hover:text-novae-gold transition-colors p-1" title="Actualiser">
+            🔄
+          </button>
+        </div>
       </div>
 
-      {/* Ecran d'accueil Agent */}
+      {/* Ecran d'accueil */}
       {showHome && (
         <div className="flex-1 overflow-y-auto px-4 py-6">
           <div className="max-w-lg mx-auto">
@@ -460,6 +537,11 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
               <p className="text-sm text-novae-anthracite/50">
                 {appContext ? `Connecté · ${appContext.tasks.length} tâches · ${appContext.routines.length} routines · ${appContext.mealPlans.length} repas · Jour ${appContext.programProgress?.current_day || 0}/90` : 'Chargement de tes données...'}
               </p>
+              {messages.length > 0 && (
+                <p className="text-xs text-novae-gold/70 mt-2">
+                  ✦ {messages.length} message{messages.length > 1 ? 's' : ''} dans ton historique
+                </p>
+              )}
               <p className="text-xs text-novae-anthracite/30 mt-2 italic px-4" style={{ lineHeight: 1.5 }}>
                 ⚠️ Guide IA uniquement — Ne remplace pas un professionnel de santé, de coaching ou un médecin.
               </p>
@@ -474,6 +556,15 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
                 </button>
               ))}
             </div>
+
+            {messages.length > 0 && (
+              <button
+                onClick={() => setShowHome(false)}
+                className="w-full py-3 mb-3 bg-novae-gold/10 border border-novae-gold/30 text-novae-gold rounded-xl text-sm font-medium hover:bg-novae-gold hover:text-white transition-all"
+              >
+                ✦ Reprendre la conversation
+              </button>
+            )}
 
             <div className="bg-white rounded-xl border border-novae-beige/20 p-4">
               <p className="text-xs text-novae-anthracite/40 mb-2 font-medium uppercase tracking-wide">Question libre</p>
@@ -504,11 +595,10 @@ ADAPTE TON TON ET TES CONSEILS à ce profil à chaque réponse.
                       <span className="text-xs text-novae-anthracite/40">NOVAÉ</span>
                     </div>
                   )}
-                  <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                    message.role === 'user'
-                      ? 'bg-novae-gold text-white rounded-tr-sm'
-                      : 'bg-white text-novae-anthracite rounded-tl-sm shadow-sm border border-novae-beige/20'
-                  }`}>
+                  <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user'
+                    ? 'bg-novae-gold text-white rounded-tr-sm'
+                    : 'bg-white text-novae-anthracite rounded-tl-sm shadow-sm border border-novae-beige/20'
+                    }`}>
                     <div dangerouslySetInnerHTML={{ __html: formatContent(message.content) }} />
                   </div>
                   {message.actions && message.actions.length > 0 && (
