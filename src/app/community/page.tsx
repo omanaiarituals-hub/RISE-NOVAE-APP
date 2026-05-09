@@ -341,11 +341,26 @@ export default function CommunityPage() {
     if (!user || !newComment[postId]?.trim()) return
     const content = newComment[postId].trim()
     setNewComment(prev => ({ ...prev, [postId]: '' }))
-    const { data, error } = await supabase.from('community_comments').insert({ post_id: postId, user_id: user.id, content }).select().single()
-    if (error || !data) { setNewComment(prev => ({ ...prev, [postId]: content })); return }
-    await supabase.rpc('increment_comment_count', { post_id: postId })
+
+    const { data, error } = await supabase
+      .from('community_comments')
+      .insert({ post_id: postId, user_id: user.id, content })
+      .select()
+      .single()
+
+    if (error || !data) {
+      setNewComment(prev => ({ ...prev, [postId]: content }))
+      return
+    }
+
+    // Calcul du nouveau compteur sans dépendre de la RPC
+    const post = posts.find(p => p.id === postId)
+    const newCount = (post?.comments_count || 0) + 1
+    await supabase.from('community_posts').update({ comments_count: newCount }).eq('id', postId)
+
     setComments(prev => ({ ...prev, [postId]: [...(prev[postId] || []), { ...data, pseudo }] }))
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p))
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: newCount } : p))
+
     const targetPost = posts.find(p => p.id === postId)
     if (targetPost && targetPost.user_id !== user.id) {
       try {
@@ -362,7 +377,7 @@ export default function CommunityPage() {
       } catch (err) { console.error('Reply notif error:', err) }
     }
   }
-
+  
   const handleJoinChallenge = async (challengeId: string) => {
     if (!user) return
     await supabase.from('challenge_participations').insert({ challenge_id: challengeId, user_id: user.id, completed: false })
