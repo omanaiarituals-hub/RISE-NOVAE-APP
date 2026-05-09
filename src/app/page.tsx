@@ -77,9 +77,6 @@ export default function HomePage() {
   // Communauté
   const [newCommunityPosts, setNewCommunityPosts] = useState<number | null>(null)
 
-  // Cloche : conflits planning + allergies + anniversaires (placeholder)
-  const [bellAlertsCount, setBellAlertsCount] = useState(0)
-
   const hour = new Date().getHours()
   const greeting = hour < 5 ? 'Bonne nuit' : hour < 12 ? 'Bonjour' : hour < 18 ? 'Bonne après-midi' : 'Bonsoir'
 
@@ -119,7 +116,6 @@ export default function HomePage() {
   const loadData = async () => {
     if (!user) return
 
-    // Programme + tasks (chargés en priorité)
     try {
       const [prog, tasks] = await Promise.all([
         supabase.from('program_progress').select('*').eq('user_id', user.id).maybeSingle(),
@@ -135,7 +131,6 @@ export default function HomePage() {
         setProgramProgress(Math.round((d / 90) * 100))
         setStreak(prog.data.streak || 0)
       } else {
-        // Pas de programme actif → afficher tout de même la carte avec état "Démarrer"
         setCurrentDay(0)
         setProgramProgress(0)
         setStreak(0)
@@ -145,15 +140,14 @@ export default function HomePage() {
       console.error('[HomePage] loadData error:', err)
     }
 
-    // Communauté + planner + challenges (en background, non bloquant)
     loadCommunityCountFast()
     loadTodayPlanner()
     loadActiveChallenges()
   }
 
   const loadCommunityCountFast = async () => {
+    if (!user) return
     try {
-      // Cache court (60s) en sessionStorage pour éviter de re-requêter à chaque navigation
       const cacheKey = 'novae-community-count'
       const cacheTimeKey = 'novae-community-count-time'
       const cached = sessionStorage.getItem(cacheKey)
@@ -168,12 +162,13 @@ export default function HomePage() {
       const lastVisit = localStorage.getItem('novae-community-last-visit')
       const since = lastVisit
         ? new Date(lastVisit).toISOString()
-        : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+        : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
       const { count, error } = await supabase
         .from('community_posts')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', since)
+        .neq('user_id', user.id)
 
       if (error) {
         console.error('[HomePage] community count error:', error)
@@ -313,7 +308,7 @@ export default function HomePage() {
             {/* Cloche notifs */}
             <NotificationBell />
 
-            {/* Pill Mon Profil — onboarding + débriefs + analyses IA */}
+            {/* Pill Mon Profil */}
             {user && (
               <Link
                 href="/profil"
@@ -415,7 +410,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* ════════ CARTE PROGRAMME 90J — TOUJOURS AFFICHÉE ════════ */}
+          {/* ════════ CARTE PROGRAMME 90J ════════ */}
           <Link href="/program" style={{ textDecoration: 'none', display: 'block', marginBottom: 16 }}>
             <div
               style={{
@@ -761,7 +756,7 @@ export default function HomePage() {
             />
           </div>
 
-          {/* ════════ GRILLE MODULES (toujours visible) ════════ */}
+          {/* ════════ GRILLE MODULES ════════ */}
           <div
             style={{
               display: 'grid',
@@ -841,7 +836,7 @@ export default function HomePage() {
           </div>
         </main>
 
-        {/* ════════ BOTTOM NAV FIXE SCROLLABLE ════════ */}
+        {/* ════════ BOTTOM NAV ════════ */}
         <div
           style={{
             position: 'fixed',
