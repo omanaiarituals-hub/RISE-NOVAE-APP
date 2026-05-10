@@ -13,8 +13,7 @@ import NotificationBell from '@/components/NotificationBell'
 import { detectStruggleMode, type StruggleState } from '@/lib/struggle/detect'
 import StreakFlame from '@/components/StreakFlame';
 
-// Dans ton JSX, là où tu veux la flamme (typiquement sous le "Bonjour, Ness 👋"):
-<StreakFlame />
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Modules
 // ─────────────────────────────────────────────────────────────────────────────
@@ -416,6 +415,11 @@ const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason:
             </p>
           </div>
 
+{/* ════════ FLAMME DU JOUR ════════ */}
+          <div style={{ marginBottom: 22 }}>
+            <StreakFlame />
+          </div>
+          
           {/* ════════ MODE TRAVERSÉE DIFFICILE ════════ */}
           {struggle.active && (
             <Link href="/agent" style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}>
