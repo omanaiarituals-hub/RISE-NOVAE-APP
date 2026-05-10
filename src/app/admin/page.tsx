@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 
 const ADMIN_EMAILS = ['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com']
+const LAUNCH_DATE = new Date('2026-05-01') // Référence pour M1 / M2 / M3
+const REVIEW_STORAGE_KEY = 'novae_admin_review_v1'
 
 const C = {
   cream: '#f3dcc6',
@@ -18,6 +20,7 @@ const C = {
   copperDark: '#8b5a3c',
   red: '#c44a4a',
   green: '#7ba869',
+  yellow: '#d4a738',
   purple: '#7B6FA0',
 }
 
@@ -56,17 +59,104 @@ interface Post {
   pseudo?: string
 }
 
+interface ManualKpis {
+  conversion: string
+  mrr: string
+  churn: string
+  tiktokViews: string
+  ctrBio: string
+  emailOpenRate: string
+  kFactor: string
+}
+
+const DEFAULT_MANUAL_KPIS: ManualKpis = {
+  conversion: '', mrr: '', churn: '',
+  tiktokViews: '', ctrBio: '', emailOpenRate: '', kFactor: '',
+}
+
 type KpiKey = 'all' | 'onboarded' | 'active_24h' | 'active_7d' | 'on_program' | 'struggling' | 'community' | 'never_active'
+type Tab = 'stats' | 'challenges' | 'posts' | 'review'
+
+// ─── Roadmap status — extrait du dossier V2 Pro ───
+const ROADMAP_VALIDATED: Record<string, string[]> = {
+  'Modules app (P.1 du dossier)': [
+    'Dashboard 9 tuiles',
+    'Programme 90j (3 phases)',
+    'Planner + To-do',
+    'Habit Tracker',
+    'Défis + Badges',
+    'Recettes & Courses',
+    'Famille & Proches',
+    'Agent IA NOVAÉ (Claude API + bilan hebdo cron)',
+    'Paramètres',
+    'Démo /demo',
+    'Onboarding 10Q (UI flow complet)',
+  ],
+  'Infra & lancement': [
+    'Domaine novae-by-omanaia.com (landing)',
+    'app.novae-by-omanaia.com (app)',
+    'Brevo SMTP configuré',
+    'Email J0 bienvenue automatique (template 6)',
+    'Late Welcome batch 10/10 (template 16)',
+    'Cron Vercel 18h UTC notif flammes en danger',
+  ],
+  'Sprint Streak + Badges (10/05/2026)': [
+    'Tables user_streaks / user_badges / user_events',
+    'Flamme animée compacte + bouton « Je suis là »',
+    'Jour de répit 1/sem',
+    '10 badges + modale + partage communauté',
+    'Page /profil/badges',
+  ],
+  'Stratégie contenu': [
+    '90 épisodes Chroniques de NOVAÉ scriptés',
+  ],
+}
+
+const ROADMAP_PENDING: Record<string, string[]> = {
+  'P0 — bloqueurs': [
+    'Stripe Premium (~3j) — bloqueur revenu',
+    'Paywall élégant (dépend Stripe)',
+    'Email J+2 inactif Brevo (rédigé, paramétrage à faire)',
+    'Bug template Brevo #16 → rediriger vers app.novae-by-omanaia.com/retour?p={{params.prenom}}',
+  ],
+  'P1 — semaines 2-4': [
+    'Emails J+7 / J+10 / J+30 (rédigés, paramétrage Brevo)',
+    'Lettre IA fin de Phase 1 (J30)',
+    'Streak freeze Premium (1x/mois)',
+    'Missions contenu J31-J60',
+    'Mode Traversée Difficile IA (auto-trigger)',
+    'Habit tracker : 3 → illimité Premium',
+  ],
+  'P2 — mois 2': [
+    'Referral program (lien unique)',
+    'Communauté feed (community-badges.ts à brancher)',
+    'Badges J60 / J90 + lettres IA',
+    'A/B test onboarding 5Q vs 10Q',
+    'Pinterest 3 pins/sem',
+  ],
+  'Bugs / nettoyage': [
+    'Doublon streak : retirer 🔥 8j de la carte Programme 90j',
+    'Tester cron streak-reminder demain 18h UTC',
+  ],
+}
 
 export default function AdminPage() {
   const { user, loading: authLoading } = useSupabaseAuth()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<'stats' | 'challenges' | 'posts'>('stats')
+  const [activeTab, setActiveTab] = useState<Tab>('stats')
   const [loading, setLoading] = useState(true)
   const [users, setUsers] = useState<UserRow[]>([])
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   const [selectedKpi, setSelectedKpi] = useState<KpiKey>('all')
+
+  // Streaks (table user_streaks — sprint 10/05)
+  const [avgStreak, setAvgStreak] = useState(0)
+  const [streakCount, setStreakCount] = useState(0)
+
+  // Saisies manuelles revue dominicale (Stripe + Marketing)
+  const [manualKpis, setManualKpis] = useState<ManualKpis>(DEFAULT_MANUAL_KPIS)
+  const [lastReviewAt, setLastReviewAt] = useState<string | null>(null)
 
   // Formulaire défi
   const [showForm, setShowForm] = useState(false)
@@ -86,10 +176,54 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading])
 
+  // Charger les saisies manuelles depuis localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = localStorage.getItem(REVIEW_STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        setManualKpis({ ...DEFAULT_MANUAL_KPIS, ...(parsed.kpis || {}) })
+        setLastReviewAt(parsed.lastReviewAt || null)
+      }
+    } catch {}
+  }, [])
+
+  const persistManualKpis = (next: ManualKpis) => {
+    setManualKpis(next)
+    if (typeof window === 'undefined') return
+    const data = { kpis: next, lastReviewAt: new Date().toISOString() }
+    try {
+      localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(data))
+      setLastReviewAt(data.lastReviewAt)
+    } catch {}
+  }
+
+  const updateManualKpi = (key: keyof ManualKpis, value: string) => {
+    persistManualKpis({ ...manualKpis, [key]: value })
+  }
+
   const loadAll = async () => {
     setLoading(true)
-    await Promise.all([loadUsers(), loadChallenges(), loadPosts()])
+    await Promise.all([loadUsers(), loadChallenges(), loadPosts(), loadStreaks()])
     setLoading(false)
+  }
+
+  const loadStreaks = async () => {
+    // Si ta colonne s'appelle autrement (ex: current, streak_count), adapte ici.
+    const { data, error } = await supabase
+      .from('user_streaks')
+      .select('current_count')
+    if (error || !data || data.length === 0) {
+      setAvgStreak(0); setStreakCount(0); return
+    }
+    const counts = data
+      .map((r: any) => Number(r.current_count) || 0)
+      .filter(n => n > 0)
+    if (counts.length === 0) { setAvgStreak(0); setStreakCount(0); return }
+    const avg = counts.reduce((a, b) => a + b, 0) / counts.length
+    setAvgStreak(avg)
+    setStreakCount(counts.length)
   }
 
   const loadUsers = async () => {
@@ -111,14 +245,12 @@ export default function AdminPage() {
 
     const progressMap = new Map(progresses.map(p => [p.user_id, p]))
 
-    // Aggregate per user
     const userRows: UserRow[] = profiles.map(p => {
       const prog = progressMap.get(p.user_id)
       const userMissions = missions.filter(m => m.user_id === p.user_id)
       const userConvs = convs.filter(c => c.user_id === p.user_id)
       const userPosts = allPosts.filter(post => post.user_id === p.user_id)
 
-      // Toutes les activités confondues (sur les 7 derniers jours pour mission/conv, all-time pour posts)
       const allActivities = [
         ...userMissions.map(m => m.completed_at),
         ...userConvs.map(c => c.created_at),
@@ -197,13 +329,16 @@ export default function AdminPage() {
     })))
   }
 
-  // ─ KPIs ────────────────────────────────────────────
+  // ─ KPIs Stats (existant) ────────────────────────────────────────────
   const total = users.length
   const onboardedCount = users.filter(u => u.profile_created_at).length
   const onProgramCount = users.filter(u => u.current_day > 0).length
 
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
   const sevenDayAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+  const fourteenDayAgo = Date.now() - 14 * 24 * 60 * 60 * 1000
+  const thirtyDayAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+  const fortyFiveDayAgo = Date.now() - 45 * 24 * 60 * 60 * 1000
 
   const active24hCount = users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > oneDayAgo).length
   const active7dCount = users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > sevenDayAgo).length
@@ -211,7 +346,6 @@ export default function AdminPage() {
   const neverActiveCount = users.filter(u => !u.last_activity).length
   const communityPostsTotal = users.reduce((sum, u) => sum + u.community_posts, 0)
 
-  // Distribution programme
   const distribution = {
     j0: users.filter(u => u.current_day === 0).length,
     j1_7: users.filter(u => u.current_day >= 1 && u.current_day <= 7).length,
@@ -222,7 +356,6 @@ export default function AdminPage() {
   }
   const maxDist = Math.max(distribution.j0, distribution.j1_7, distribution.j8_30, distribution.j31_60, distribution.j61_90, distribution.j90plus, 1)
 
-  // Filtered users based on selectedKpi
   const filteredUsers = (() => {
     switch (selectedKpi) {
       case 'onboarded': return users
@@ -235,6 +368,38 @@ export default function AdminPage() {
       default: return users
     }
   })()
+
+  // ─ KPIs Revue dimanche (auto Supabase) ─────────────────────────────
+  const weeklySignups = users.filter(u =>
+    new Date(u.profile_created_at).getTime() > sevenDayAgo
+  ).length
+
+  const j1Cohort = users.filter(u => new Date(u.profile_created_at).getTime() < oneDayAgo)
+  const j1Activated = j1Cohort.filter(u => u.current_day >= 1)
+  const j1Rate = j1Cohort.length > 0 ? (j1Activated.length / j1Cohort.length) * 100 : 0
+
+  const j7Cohort = users.filter(u => {
+    const t = new Date(u.profile_created_at).getTime()
+    return t < sevenDayAgo && t > fourteenDayAgo
+  })
+  const j7Active = j7Cohort.filter(u => u.last_activity && new Date(u.last_activity).getTime() > sevenDayAgo)
+  const j7Rate = j7Cohort.length > 0 ? (j7Active.length / j7Cohort.length) * 100 : 0
+
+  const j30Cohort = users.filter(u => {
+    const t = new Date(u.profile_created_at).getTime()
+    return t < thirtyDayAgo && t > fortyFiveDayAgo
+  })
+  const j30Active = j30Cohort.filter(u => u.last_activity && new Date(u.last_activity).getTime() > sevenDayAgo)
+  const j30Rate = j30Cohort.length > 0 ? (j30Active.length / j30Cohort.length) * 100 : 0
+
+  // Phase actuelle (M1, M2, M3) basée sur la date de lancement
+  const monthsSinceLaunch = (Date.now() - LAUNCH_DATE.getTime()) / (30 * 24 * 60 * 60 * 1000)
+  const currentMonth: 1 | 2 | 3 = monthsSinceLaunch < 1 ? 1 : monthsSinceLaunch < 2 ? 2 : 3
+
+  // Prochain dimanche
+  const today = new Date()
+  const daysToSunday = today.getDay() === 0 ? 7 : 7 - today.getDay()
+  const nextSunday = new Date(today.getTime() + daysToSunday * 24 * 60 * 60 * 1000)
 
   const formatRelative = (dateStr: string | null) => {
     if (!dateStr) return 'Jamais'
@@ -371,15 +536,16 @@ export default function AdminPage() {
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 20px 60px' }}>
 
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
             {[
               { id: 'stats', label: '📊 Stats' },
               { id: 'challenges', label: '🎯 Défis' },
               { id: 'posts', label: '💬 Posts' },
+              { id: 'review', label: '✦ Revue dimanche' },
             ].map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as Tab)}
                 style={{
                   padding: '10px 18px', borderRadius: 12,
                   background: activeTab === tab.id
@@ -403,61 +569,20 @@ export default function AdminPage() {
               <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: '0 0 6px', fontWeight: 500 }}>Vue d'ensemble</h2>
               <p style={{ fontSize: 12, color: C.brownLight, margin: '0 0 20px', fontStyle: 'italic' }}>Clique sur une tuile pour filtrer le tableau ci-dessous.</p>
 
-              {/* Tuiles KPI */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 28 }}>
-                <KpiTile
-                  selected={selectedKpi === 'all'}
-                  onClick={() => setSelectedKpi('all')}
-                  emoji="👥" label="Inscrites" value={total} accent={C.copperDark}
-                />
-                <KpiTile
-                  selected={selectedKpi === 'onboarded'}
-                  onClick={() => setSelectedKpi('onboarded')}
-                  emoji="✦" label="Onboarding fait" value={onboardedCount} accent={C.copper}
-                  sub={total > 0 ? `${Math.round((onboardedCount / total) * 100)}% conversion` : undefined}
-                />
-                <KpiTile
-                  selected={selectedKpi === 'active_24h'}
-                  onClick={() => setSelectedKpi('active_24h')}
-                  emoji="🔥" label="Actives 24h" value={active24hCount} accent={C.red}
-                  sub={total > 0 ? `${Math.round((active24hCount / total) * 100)}%` : undefined}
-                />
-                <KpiTile
-                  selected={selectedKpi === 'active_7d'}
-                  onClick={() => setSelectedKpi('active_7d')}
-                  emoji="✨" label="Actives 7j" value={active7dCount} accent={C.green}
-                  sub={total > 0 ? `${Math.round((active7dCount / total) * 100)}%` : undefined}
-                />
-                <KpiTile
-                  selected={selectedKpi === 'on_program'}
-                  onClick={() => setSelectedKpi('on_program')}
-                  emoji="🎯" label="Programme actif" value={onProgramCount} accent={C.purple}
-                />
-                <KpiTile
-                  selected={selectedKpi === 'struggling'}
-                  onClick={() => setSelectedKpi('struggling')}
-                  emoji="🌙" label="Mode traversée" value={strugglingCount} accent={C.brownMid}
-                  sub="inactives 4j+"
-                />
-                <KpiTile
-                  selected={selectedKpi === 'community'}
-                  onClick={() => setSelectedKpi('community')}
-                  emoji="💬" label="Posts communauté" value={communityPostsTotal} accent={C.purple}
-                  sub={`par ${users.filter(u => u.community_posts > 0).length} utilisatrices`}
-                />
-                <KpiTile
-                  selected={selectedKpi === 'never_active'}
-                  onClick={() => setSelectedKpi('never_active')}
-                  emoji="💤" label="Jamais actives" value={neverActiveCount} accent={C.brownLight}
-                  sub="aucune trace"
-                />
+                <KpiTile selected={selectedKpi === 'all'} onClick={() => setSelectedKpi('all')} emoji="👥" label="Inscrites" value={total} accent={C.copperDark} />
+                <KpiTile selected={selectedKpi === 'onboarded'} onClick={() => setSelectedKpi('onboarded')} emoji="✦" label="Onboarding fait" value={onboardedCount} accent={C.copper} sub={total > 0 ? `${Math.round((onboardedCount / total) * 100)}% conversion` : undefined} />
+                <KpiTile selected={selectedKpi === 'active_24h'} onClick={() => setSelectedKpi('active_24h')} emoji="🔥" label="Actives 24h" value={active24hCount} accent={C.red} sub={total > 0 ? `${Math.round((active24hCount / total) * 100)}%` : undefined} />
+                <KpiTile selected={selectedKpi === 'active_7d'} onClick={() => setSelectedKpi('active_7d')} emoji="✨" label="Actives 7j" value={active7dCount} accent={C.green} sub={total > 0 ? `${Math.round((active7dCount / total) * 100)}%` : undefined} />
+                <KpiTile selected={selectedKpi === 'on_program'} onClick={() => setSelectedKpi('on_program')} emoji="🎯" label="Programme actif" value={onProgramCount} accent={C.purple} />
+                <KpiTile selected={selectedKpi === 'struggling'} onClick={() => setSelectedKpi('struggling')} emoji="🌙" label="Mode traversée" value={strugglingCount} accent={C.brownMid} sub="inactives 4j+" />
+                <KpiTile selected={selectedKpi === 'community'} onClick={() => setSelectedKpi('community')} emoji="💬" label="Posts communauté" value={communityPostsTotal} accent={C.purple} sub={`par ${users.filter(u => u.community_posts > 0).length} utilisatrices`} />
+                <KpiTile selected={selectedKpi === 'never_active'} onClick={() => setSelectedKpi('never_active')} emoji="💤" label="Jamais actives" value={neverActiveCount} accent={C.brownLight} sub="aucune trace" />
               </div>
 
-              {/* Distribution programme 90j */}
               <div style={glassCard}>
                 <h3 style={sectionTitle}>Distribution programme 90j</h3>
                 <p style={sectionDesc}>Combien d'utilisatrices à chaque étape du parcours.</p>
-
                 <div style={{ display: 'grid', gap: 10 }}>
                   {[
                     { label: 'Pas démarré (J0)', value: distribution.j0, color: C.brownLight },
@@ -470,12 +595,7 @@ export default function AdminPage() {
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ flex: '0 0 220px', fontSize: 12, color: C.brownLight }}>{d.label}</div>
                       <div style={{ flex: 1, height: 22, background: 'rgba(255,255,255,0.4)', border: '1px solid rgba(212,165,116,0.2)', borderRadius: 6, overflow: 'hidden', position: 'relative' }}>
-                        <div style={{
-                          width: `${(d.value / maxDist) * 100}%`,
-                          height: '100%',
-                          background: `linear-gradient(90deg, ${d.color}, ${d.color}cc)`,
-                          transition: 'width 0.6s ease',
-                        }} />
+                        <div style={{ width: `${(d.value / maxDist) * 100}%`, height: '100%', background: `linear-gradient(90deg, ${d.color}, ${d.color}cc)`, transition: 'width 0.6s ease' }} />
                       </div>
                       <div style={{ flex: '0 0 30px', textAlign: 'right', fontSize: 14, fontWeight: 700, color: C.brown }}>{d.value}</div>
                     </div>
@@ -483,7 +603,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Tableau utilisatrices */}
               <div style={glassCard}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <h3 style={sectionTitle}>
@@ -494,9 +613,7 @@ export default function AdminPage() {
                       background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.3)',
                       borderRadius: 8, padding: '4px 10px', color: C.copperDark, fontSize: 11,
                       cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
-                      ← Toutes
-                    </button>
+                    }}>← Toutes</button>
                   )}
                 </div>
 
@@ -534,25 +651,16 @@ export default function AdminPage() {
                             } else {
                               statusBadge = { label: 'Engagée', color: C.green, bg: 'rgba(123,168,105,0.15)' }
                             }
-
                             return (
                               <tr key={u.user_id} style={{ borderBottom: '1px solid rgba(212,165,116,0.15)' }}>
-                                <td style={td}>
-                                  <span style={{ fontWeight: 600, color: C.brown }}>{u.pseudo}</span>
-                                </td>
+                                <td style={td}><span style={{ fontWeight: 600, color: C.brown }}>{u.pseudo}</span></td>
                                 <td style={td}>{formatDate(u.profile_created_at)}</td>
-                                <td style={td}>
-                                  {u.current_day === 0 ? <span style={{ color: C.brownLight }}>—</span> : <strong>J{u.current_day}/90</strong>}
-                                </td>
+                                <td style={td}>{u.current_day === 0 ? <span style={{ color: C.brownLight }}>—</span> : <strong>J{u.current_day}/90</strong>}</td>
                                 <td style={td}>{formatRelative(u.last_activity)}</td>
                                 <td style={td}>{u.community_posts}</td>
                                 <td style={td}>{u.agent_messages}</td>
                                 <td style={td}>
-                                  <span style={{
-                                    fontSize: 11, fontWeight: 600,
-                                    padding: '3px 9px', borderRadius: 20,
-                                    background: statusBadge.bg, color: statusBadge.color,
-                                  }}>
+                                  <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: statusBadge.bg, color: statusBadge.color }}>
                                     {statusBadge.label}
                                   </span>
                                 </td>
@@ -578,9 +686,7 @@ export default function AdminPage() {
                   border: 'none', borderRadius: 12, color: '#fff', fontSize: 13, fontWeight: 700,
                   cursor: 'pointer', fontFamily: 'inherit',
                   boxShadow: '0 4px 12px rgba(139, 90, 60, 0.2)',
-                }}>
-                  + Nouveau défi
-                </button>
+                }}>+ Nouveau défi</button>
               </div>
 
               {challenges.length === 0 ? (
@@ -606,9 +712,7 @@ export default function AdminPage() {
                               color: challenge.is_active ? C.green : C.brownLight,
                               border: `1px solid ${challenge.is_active ? 'rgba(123,168,105,0.3)' : 'rgba(107,83,64,0.18)'}`,
                               fontWeight: 700,
-                            }}>
-                              {challenge.is_active ? '● Actif' : '○ Inactif'}
-                            </span>
+                            }}>{challenge.is_active ? '● Actif' : '○ Inactif'}</span>
                           </div>
                           {challenge.description && <p style={{ margin: '0 0 8px', fontSize: 13, color: C.brownLight, lineHeight: 1.5 }}>{challenge.description}</p>}
                           <div style={{ display: 'flex', gap: 14, fontSize: 11, color: C.brownLight, flexWrap: 'wrap' }}>
@@ -618,26 +722,16 @@ export default function AdminPage() {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
-                          <button onClick={() => toggleActive(challenge)} style={smallBtn}>
-                            {challenge.is_active ? 'Désactiver' : 'Activer'}
-                          </button>
-                          <button onClick={() => openForm(challenge)} style={{ ...smallBtn, color: C.copperDark, borderColor: 'rgba(196,149,106,0.4)' }}>
-                            ✏️
-                          </button>
-                          <button onClick={() => setConfirmDelete(challenge.id)} style={{ ...smallBtn, color: C.red, borderColor: 'rgba(196,74,74,0.3)' }}>
-                            🗑️
-                          </button>
+                          <button onClick={() => toggleActive(challenge)} style={smallBtn}>{challenge.is_active ? 'Désactiver' : 'Activer'}</button>
+                          <button onClick={() => openForm(challenge)} style={{ ...smallBtn, color: C.copperDark, borderColor: 'rgba(196,149,106,0.4)' }}>✏️</button>
+                          <button onClick={() => setConfirmDelete(challenge.id)} style={{ ...smallBtn, color: C.red, borderColor: 'rgba(196,74,74,0.3)' }}>🗑️</button>
                         </div>
                       </div>
                       {confirmDelete === challenge.id && (
                         <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(196,74,74,0.1)', border: '1px solid rgba(196,74,74,0.25)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
                           <span style={{ fontSize: 13, color: C.red, flex: 1 }}>Confirmer la suppression de ce défi ?</span>
-                          <button onClick={() => deleteChallenge(challenge.id)} style={{ ...smallBtn, background: C.red, color: '#fff', borderColor: C.red }}>
-                            Supprimer
-                          </button>
-                          <button onClick={() => setConfirmDelete(null)} style={smallBtn}>
-                            Annuler
-                          </button>
+                          <button onClick={() => deleteChallenge(challenge.id)} style={{ ...smallBtn, background: C.red, color: '#fff', borderColor: C.red }}>Supprimer</button>
+                          <button onClick={() => setConfirmDelete(null)} style={smallBtn}>Annuler</button>
                         </div>
                       )}
                     </div>
@@ -651,7 +745,6 @@ export default function AdminPage() {
           {activeTab === 'posts' && (
             <div>
               <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: '0 0 20px', fontWeight: 500 }}>Modération des posts</h2>
-
               {posts.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 0', color: C.brownLight }}>
                   <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
@@ -662,12 +755,7 @@ export default function AdminPage() {
                   {posts.map(post => (
                     <div key={post.id} style={{ ...glassCard, marginBottom: 0, padding: '14px 18px' }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #c4956a, #8b5a3c)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0,
-                        }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #c4956a, #8b5a3c)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
                           {post.pseudo?.charAt(0).toUpperCase()}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -678,25 +766,237 @@ export default function AdminPage() {
                           </div>
                           <p style={{ margin: 0, fontSize: 13, color: C.brown, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{post.content}</p>
                         </div>
-                        <button onClick={() => setConfirmDelete('post_' + post.id)} style={{ ...smallBtn, color: C.red, borderColor: 'rgba(196,74,74,0.3)', flexShrink: 0 }}>
-                          🗑️
-                        </button>
+                        <button onClick={() => setConfirmDelete('post_' + post.id)} style={{ ...smallBtn, color: C.red, borderColor: 'rgba(196,74,74,0.3)', flexShrink: 0 }}>🗑️</button>
                       </div>
                       {confirmDelete === 'post_' + post.id && (
                         <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(196,74,74,0.1)', border: '1px solid rgba(196,74,74,0.25)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
                           <span style={{ fontSize: 12, color: C.red, flex: 1 }}>Supprimer ce post ?</span>
-                          <button onClick={() => deletePost(post.id)} style={{ ...smallBtn, background: C.red, color: '#fff', borderColor: C.red }}>
-                            Supprimer
-                          </button>
-                          <button onClick={() => setConfirmDelete(null)} style={smallBtn}>
-                            Annuler
-                          </button>
+                          <button onClick={() => deletePost(post.id)} style={{ ...smallBtn, background: C.red, color: '#fff', borderColor: C.red }}>Supprimer</button>
+                          <button onClick={() => setConfirmDelete(null)} style={smallBtn}>Annuler</button>
                         </div>
                       )}
                     </div>
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ─── REVUE DIMANCHE ─── */}
+          {activeTab === 'review' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: 0, fontWeight: 500 }}>Revue du dimanche</h2>
+                  <p style={{ fontSize: 12, color: C.brownLight, margin: '4px 0 0', fontStyle: 'italic' }}>
+                    Tableau 10.4 du dossier V2 Pro · Phase actuelle : <strong>M{currentMonth}</strong>
+                  </p>
+                </div>
+                <div style={{ textAlign: 'right', fontSize: 11, color: C.brownLight }}>
+                  <div>Aujourd'hui : <strong style={{ color: C.brown }}>{formatDate(today.toISOString())}</strong></div>
+                  <div style={{ marginTop: 2 }}>Prochain dimanche : <strong style={{ color: C.copperDark }}>{formatDate(nextSunday.toISOString())}</strong></div>
+                  {lastReviewAt && (
+                    <div style={{ marginTop: 2, opacity: 0.8 }}>Dernière saisie : {formatRelative(lastReviewAt)}</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 1 — Auto Supabase */}
+              <div style={{ ...glassCard, marginTop: 20 }}>
+                <h3 style={sectionTitle}>📊 KPIs automatiques (Supabase)</h3>
+                <p style={sectionDesc}>Calculés en temps réel à partir de tes tables. Cible <strong>M{currentMonth}</strong> + alerte selon le tableau 10.4.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+                  <ReviewKpi
+                    label="Nouvelles inscriptions / sem"
+                    source="Supabase ai_personality_profile"
+                    value={weeklySignups}
+                    unit=""
+                    targetByMonth={[25, 50, 75]}
+                    alert={10}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub={`${total} inscrites au total`}
+                  />
+                  <ReviewKpi
+                    label="J1 Activation"
+                    source="Supabase program_progress"
+                    value={j1Rate}
+                    unit="%"
+                    targetByMonth={[30, 40, 50]}
+                    alert={20}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub={`${j1Activated.length}/${j1Cohort.length} cohorte 24h+`}
+                  />
+                  <ReviewKpi
+                    label="J7 Retention"
+                    source="Supabase activity 7-14j"
+                    value={j7Rate}
+                    unit="%"
+                    targetByMonth={[20, 30, 40]}
+                    alert={15}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub={j7Cohort.length === 0 ? 'cohorte vide' : `${j7Active.length}/${j7Cohort.length} cohorte 7-14j`}
+                  />
+                  <ReviewKpi
+                    label="J30 Retention"
+                    source="Supabase activity 30-45j"
+                    value={j30Rate}
+                    unit="%"
+                    targetByMonth={[12, 18, 25]}
+                    alert={8}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub={j30Cohort.length === 0 ? 'cohorte vide (trop tôt)' : `${j30Active.length}/${j30Cohort.length} cohorte 30-45j`}
+                  />
+                  <ReviewKpi
+                    label="Streak moyen"
+                    source="Supabase user_streaks"
+                    value={avgStreak}
+                    unit="j"
+                    targetByMonth={[5, 8, 12]}
+                    alert={3}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub={`sur ${streakCount} streaks actifs`}
+                  />
+                </div>
+              </div>
+
+              {/* Section 2 — Manuel Stripe */}
+              <div style={glassCard}>
+                <h3 style={sectionTitle}>💳 Monétisation (Stripe — saisie manuelle)</h3>
+                <p style={sectionDesc}>À récupérer dans ton dashboard Stripe chaque dimanche. Auto-sauvegardé.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+                  <ReviewKpi
+                    label="Conversion free → premium"
+                    source="Stripe Dashboard"
+                    isManual
+                    manualValue={manualKpis.conversion}
+                    onManualChange={v => updateManualKpi('conversion', v)}
+                    unit="%"
+                    targetByMonth={[2, 5, 8]}
+                    alert={1}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                  />
+                  <ReviewKpi
+                    label="MRR"
+                    source="Stripe Dashboard"
+                    isManual
+                    manualValue={manualKpis.mrr}
+                    onManualChange={v => updateManualKpi('mrr', v)}
+                    unit="€"
+                    targetByMonth={[50, 200, 500]}
+                    alert={0}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub="cible cumulée"
+                  />
+                  <ReviewKpi
+                    label="Churn mensuel"
+                    source="Stripe Dashboard"
+                    isManual
+                    manualValue={manualKpis.churn}
+                    onManualChange={v => updateManualKpi('churn', v)}
+                    unit="%"
+                    targetByMonth={[15, 10, 5]}
+                    alert={20}
+                    higherIsBetter={false}
+                    currentMonth={currentMonth}
+                    sub="cible : INFÉRIEUR à"
+                  />
+                </div>
+              </div>
+
+              {/* Section 3 — Manuel Marketing */}
+              <div style={glassCard}>
+                <h3 style={sectionTitle}>📱 Marketing (TikTok / Brevo — saisie manuelle)</h3>
+                <p style={sectionDesc}>À récupérer dans TikTok Studio et Brevo chaque dimanche.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+                  <ReviewKpi
+                    label="Vues TikTok / vidéo (moy.)"
+                    source="TikTok Studio"
+                    isManual
+                    manualValue={manualKpis.tiktokViews}
+                    onManualChange={v => updateManualKpi('tiktokViews', v)}
+                    unit=""
+                    targetByMonth={[5000, 10000, 20000]}
+                    alert={1000}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                  />
+                  <ReviewKpi
+                    label="CTR lien bio"
+                    source="TikTok Studio"
+                    isManual
+                    manualValue={manualKpis.ctrBio}
+                    onManualChange={v => updateManualKpi('ctrBio', v)}
+                    unit="%"
+                    targetByMonth={[2, 4, 6]}
+                    alert={1}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                  />
+                  <ReviewKpi
+                    label="Taux ouverture email"
+                    source="Brevo"
+                    isManual
+                    manualValue={manualKpis.emailOpenRate}
+                    onManualChange={v => updateManualKpi('emailOpenRate', v)}
+                    unit="%"
+                    targetByMonth={[30, 38, 45]}
+                    alert={20}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                  />
+                  <ReviewKpi
+                    label="K-factor referral"
+                    source="Manuel — formule dossier"
+                    isManual
+                    manualValue={manualKpis.kFactor}
+                    onManualChange={v => updateManualKpi('kFactor', v)}
+                    unit=""
+                    targetByMonth={[0.1, 0.2, 0.3]}
+                    alert={0.05}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub="invitations / inscriptions"
+                  />
+                </div>
+              </div>
+
+              {/* Section 4 — Roadmap status */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+                <div style={{ ...glassCard, marginBottom: 0, borderColor: 'rgba(123,168,105,0.4)' }}>
+                  <h3 style={{ ...sectionTitle, color: C.green }}>✅ Validé en prod</h3>
+                  {Object.entries(ROADMAP_VALIDATED).map(([category, items]) => (
+                    <div key={category} style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: C.copperDark, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{category}</div>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.brown, lineHeight: 1.6 }}>
+                        {items.map((item, i) => <li key={i}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ ...glassCard, marginBottom: 0, borderColor: 'rgba(212,167,56,0.4)' }}>
+                  <h3 style={{ ...sectionTitle, color: C.copperDark }}>⏳ En attente</h3>
+                  {Object.entries(ROADMAP_PENDING).map(([category, items]) => (
+                    <div key={category} style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: C.copperDark, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{category}</div>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.brown, lineHeight: 1.6 }}>
+                        {items.map((item, i) => <li key={i}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <p style={{ fontSize: 11, color: C.brownLight, fontStyle: 'italic', marginTop: 20, textAlign: 'center' }}>
+                ✦ Les saisies manuelles sont sauvegardées automatiquement dans ton navigateur. Pense à les actualiser chaque dimanche.
+              </p>
             </div>
           )}
         </div>
@@ -778,9 +1078,7 @@ export default function AdminPage() {
                     padding: '12px 20px', background: '#fff',
                     border: '1px solid rgba(212,165,116,0.3)', borderRadius: 12,
                     color: C.brownLight, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
-                  }}>
-                    Annuler
-                  </button>
+                  }}>Annuler</button>
                 </div>
               </div>
             </div>
@@ -814,6 +1112,113 @@ function KpiTile({ emoji, label, value, accent, sub, selected, onClick }: { emoj
       <div style={{ fontSize: 12, color: '#3d2618', marginTop: 6, fontWeight: 600 }}>{label}</div>
       {sub && <div style={{ fontSize: 10, color: '#6b5340', marginTop: 2, fontStyle: 'italic' }}>{sub}</div>}
     </button>
+  )
+}
+
+interface ReviewKpiProps {
+  label: string
+  source: string
+  value?: number
+  unit: string
+  targetByMonth: [number, number, number] // M1, M2, M3
+  alert: number
+  higherIsBetter?: boolean
+  currentMonth: 1 | 2 | 3
+  sub?: string
+  isManual?: boolean
+  manualValue?: string
+  onManualChange?: (v: string) => void
+}
+
+function ReviewKpi({
+  label, source, value, unit,
+  targetByMonth, alert, higherIsBetter = true,
+  currentMonth, sub,
+  isManual = false, manualValue, onManualChange,
+}: ReviewKpiProps) {
+  const target = targetByMonth[currentMonth - 1]
+
+  // Valeur effective utilisée pour le calcul du statut
+  const effectiveValue = isManual
+    ? (manualValue && manualValue !== '' ? parseFloat(manualValue) : null)
+    : (value ?? null)
+
+  const C_ = {
+    green: '#7ba869', yellow: '#d4a738', red: '#c44a4a',
+    grey: '#9c8a76', brown: '#3d2618', brownLight: '#6b5340',
+  }
+
+  let statusColor = C_.grey
+  let statusEmoji = '⚪'
+
+  if (effectiveValue !== null) {
+    if (higherIsBetter) {
+      if (effectiveValue >= target) { statusColor = C_.green; statusEmoji = '🟢' }
+      else if (effectiveValue >= alert) { statusColor = C_.yellow; statusEmoji = '🟡' }
+      else { statusColor = C_.red; statusEmoji = '🔴' }
+    } else {
+      if (effectiveValue <= target) { statusColor = C_.green; statusEmoji = '🟢' }
+      else if (effectiveValue <= alert) { statusColor = C_.yellow; statusEmoji = '🟡' }
+      else { statusColor = C_.red; statusEmoji = '🔴' }
+    }
+  }
+
+  const formatVal = (n: number) => {
+    if (unit === '%') return n.toFixed(1)
+    if (unit === '€') return Math.round(n).toString()
+    if (unit === '' && n >= 1000) return n.toLocaleString('fr-FR')
+    if (n < 1 && n > 0) return n.toFixed(2)
+    return Math.round(n).toString()
+  }
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(255,255,255,0.65), rgba(255,255,255,0.35))',
+      backdropFilter: 'blur(18px)',
+      WebkitBackdropFilter: 'blur(18px)',
+      border: '1px solid rgba(255,255,255,0.6)',
+      borderRadius: 14, padding: '14px 14px',
+      boxShadow: '0 2px 8px rgba(139, 90, 60, 0.05)',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, color: C_.brown, fontWeight: 700, lineHeight: 1.3 }}>{label}</div>
+          <div style={{ fontSize: 10, color: C_.brownLight, opacity: 0.8, marginTop: 2 }}>{source}</div>
+        </div>
+        <div style={{ fontSize: 14, flexShrink: 0 }}>{statusEmoji}</div>
+      </div>
+
+      {isManual ? (
+        <input
+          type="number"
+          step="any"
+          value={manualValue ?? ''}
+          onChange={e => onManualChange?.(e.target.value)}
+          placeholder="—"
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: '#faf7f2',
+            border: `1.5px solid ${effectiveValue !== null ? statusColor + '55' : 'rgba(212,165,116,0.25)'}`,
+            borderRadius: 10,
+            padding: '6px 10px',
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 26, fontWeight: 600,
+            color: statusColor,
+            outline: 'none',
+          }}
+        />
+      ) : (
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 600, color: statusColor, lineHeight: 1 }}>
+          {value !== undefined ? formatVal(value) : '—'}{unit}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 10, color: C_.brownLight, gap: 6 }}>
+        <span>Cible M{currentMonth} : <strong style={{ color: C_.brown }}>{higherIsBetter ? '≥' : '≤'} {target}{unit}</strong></span>
+        <span>Alerte : <strong style={{ color: C_.red }}>{higherIsBetter ? '<' : '>'} {alert}{unit}</strong></span>
+      </div>
+      {sub && <div style={{ fontSize: 10, color: C_.brownLight, marginTop: 4, fontStyle: 'italic' }}>{sub}</div>}
+    </div>
   )
 }
 
