@@ -7,7 +7,13 @@ import { sendBrevoEmail, addBrevoContact } from '@/lib/brevo/send'
 const ADMIN_EMAIL = 'nesserinesediri@gmail.com'
 
 export async function POST(req: Request) {
-      try {
+  // Lecture optionnelle du templateId depuis le body
+  let customTemplateId: number | undefined
+  try {
+    const body = await req.json()
+    if (body && typeof body.templateId === 'number') customTemplateId = body.templateId
+  } catch {}
+        try {
     // Vérifier admin
     const cookieStore = await cookies()
     const userClient = createServerClient(
@@ -79,10 +85,10 @@ export async function POST(req: Request) {
           },
         })
 
-        // Envoie le J0
+       // Envoie le mail (templateId 6 = J0 par défaut, ou custom si passé)
         const result = await sendBrevoEmail({
           to: { email, name: prenom },
-          templateId,
+          templateId: customTemplateId || 6,
           params: { prenom },
         })
 
