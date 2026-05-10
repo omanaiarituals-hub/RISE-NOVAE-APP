@@ -11,7 +11,10 @@ import { OnboardingTour } from '@/components/OnboardingTour'
 import { getProverbeDuJour } from '@/lib/proverbes'
 import NotificationBell from '@/components/NotificationBell'
 import { detectStruggleMode, type StruggleState } from '@/lib/struggle/detect'
+import StreakFlame from '@/components/StreakFlame';
 
+// Dans ton JSX, là où tu veux la flamme (typiquement sous le "Bonjour, Ness 👋"):
+<StreakFlame />
 // ─────────────────────────────────────────────────────────────────────────────
 // Modules
 // ─────────────────────────────────────────────────────────────────────────────
