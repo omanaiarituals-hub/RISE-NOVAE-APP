@@ -2,10 +2,37 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 
-const ADMIN_EMAIL = 'nesserinesediri@gmail.com'
+const ADMIN_EMAILS = ['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com']
+
+const C = {
+  cream: '#f3dcc6',
+  brown: '#3d2618',
+  brownLight: '#6b5340',
+  brownMid: '#8b6f55',
+  copper: '#c4956a',
+  copperLight: '#d4a574',
+  copperDark: '#8b5a3c',
+  red: '#c44a4a',
+  green: '#7ba869',
+  purple: '#7B6FA0',
+}
+
+interface UserRow {
+  user_id: string
+  pseudo: string
+  profile_created_at: string
+  current_day: number
+  program_started_at: string | null
+  last_activity: string | null
+  activity_count_7d: number
+  community_posts: number
+  agent_messages: number
+  is_struggling: boolean
+}
 
 interface Challenge {
   id: string
@@ -29,72 +56,100 @@ interface Post {
   pseudo?: string
 }
 
-interface Stats {
-  total_users: number
-  total_posts: number
-  total_challenges: number
-  total_participations: number
-  active_this_week: number
-}
+type KpiKey = 'all' | 'onboarded' | 'active_24h' | 'active_7d' | 'on_program' | 'struggling' | 'community' | 'never_active'
 
 export default function AdminPage() {
   const { user, loading: authLoading } = useSupabaseAuth()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'stats' | 'challenges' | 'posts'>('stats')
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState<Stats>({ total_users: 0, total_posts: 0, total_challenges: 0, total_participations: 0, active_this_week: 0 })
+  const [users, setUsers] = useState<UserRow[]>([])
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [posts, setPosts] = useState<Post[]>([])
+  const [selectedKpi, setSelectedKpi] = useState<KpiKey>('all')
 
   // Formulaire défi
   const [showForm, setShowForm] = useState(false)
   const [editingChallenge, setEditingChallenge] = useState<Challenge | null>(null)
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    emoji: '🎯',
-    starts_at: '',
-    ends_at: '',
-    is_active: true
+    title: '', description: '', emoji: '🎯',
+    starts_at: '', ends_at: '', is_active: true,
   })
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
-useEffect(() => {
-  if (authLoading) return
-  if (!user) { router.push('/auth'); return }
-  if (user.email !== ADMIN_EMAIL) { router.push('/'); return }
-  loadAll()
-// eslint-disable-next-line react-hooks/exhaustive-deps
-}, [user, authLoading])
+  useEffect(() => {
+    if (authLoading) return
+    if (!user) { router.push('/auth'); return }
+    if (!user.email || !ADMIN_EMAILS.includes(user.email)) { router.push('/'); return }
+    loadAll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, authLoading])
 
   const loadAll = async () => {
     setLoading(true)
-    await Promise.all([loadStats(), loadChallenges(), loadPosts()])
+    await Promise.all([loadUsers(), loadChallenges(), loadPosts()])
     setLoading(false)
   }
 
-  const loadStats = async () => {
-    const [usersRes, postsRes, challengesRes, participationsRes] = await Promise.all([
-      supabase.from('ai_personality_profile').select('*', { count: 'exact', head: true }),
-      supabase.from('community_posts').select('*', { count: 'exact', head: true }),
-      supabase.from('community_challenges').select('*', { count: 'exact', head: true }),
-      supabase.from('challenge_participations').select('*', { count: 'exact', head: true }),
+  const loadUsers = async () => {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    const [profilesRes, progressRes, missionsRes, convRes, postsRes] = await Promise.all([
+      supabase.from('ai_personality_profile').select('user_id, pseudo, created_at, updated_at'),
+      supabase.from('program_progress').select('user_id, current_day, started_at'),
+      supabase.from('mission_responses').select('user_id, completed_at').gte('completed_at', sevenDaysAgo),
+      supabase.from('agent_conversations').select('user_id, created_at').gte('created_at', sevenDaysAgo),
+      supabase.from('community_posts').select('user_id, created_at'),
     ])
 
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    const { count: activeCount } = await supabase
-      .from('community_posts')
-      .select('user_id', { count: 'exact', head: true })
-      .gte('created_at', weekAgo)
+    const profiles = profilesRes.data || []
+    const progresses = progressRes.data || []
+    const missions = missionsRes.data || []
+    const convs = convRes.data || []
+    const allPosts = postsRes.data || []
 
-    setStats({
-      total_users: usersRes.count || 0,
-      total_posts: postsRes.count || 0,
-      total_challenges: challengesRes.count || 0,
-      total_participations: participationsRes.count || 0,
-      active_this_week: activeCount || 0,
+    const progressMap = new Map(progresses.map(p => [p.user_id, p]))
+
+    // Aggregate per user
+    const userRows: UserRow[] = profiles.map(p => {
+      const prog = progressMap.get(p.user_id)
+      const userMissions = missions.filter(m => m.user_id === p.user_id)
+      const userConvs = convs.filter(c => c.user_id === p.user_id)
+      const userPosts = allPosts.filter(post => post.user_id === p.user_id)
+
+      // Toutes les activités confondues (sur les 7 derniers jours pour mission/conv, all-time pour posts)
+      const allActivities = [
+        ...userMissions.map(m => m.completed_at),
+        ...userConvs.map(c => c.created_at),
+        ...userPosts.map(post => post.created_at),
+      ].filter(Boolean) as string[]
+
+      const lastActivity = allActivities.length > 0
+        ? allActivities.sort().reverse()[0]
+        : null
+
+      const currentDay = prog?.current_day || 0
+      const isStruggling = currentDay > 0 && (
+        !lastActivity ||
+        (Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24) >= 4
+      )
+
+      return {
+        user_id: p.user_id,
+        pseudo: p.pseudo || p.user_id.slice(0, 8),
+        profile_created_at: p.created_at,
+        current_day: currentDay,
+        program_started_at: prog?.started_at || null,
+        last_activity: lastActivity,
+        activity_count_7d: userMissions.length + userConvs.length,
+        community_posts: userPosts.length,
+        agent_messages: userConvs.length,
+        is_struggling: isStruggling,
+      }
     })
+
+    setUsers(userRows)
   }
 
   const loadChallenges = async () => {
@@ -102,7 +157,6 @@ useEffect(() => {
       .from('community_challenges')
       .select('*')
       .order('created_at', { ascending: false })
-
     if (!data) return
 
     const enriched = await Promise.all(data.map(async (c) => {
@@ -117,7 +171,6 @@ useEffect(() => {
         .eq('completed', true)
       return { ...c, participants_count: total || 0, completed_count: completed || 0 }
     }))
-
     setChallenges(enriched)
   }
 
@@ -126,8 +179,7 @@ useEffect(() => {
       .from('community_posts')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(50)
-
+      .limit(100)
     if (!data) return
 
     const userIds = Array.from(new Set(data.map(p => p.user_id)))
@@ -137,14 +189,68 @@ useEffect(() => {
       .in('user_id', userIds)
 
     const pseudoMap: Record<string, string> = {}
-    profiles?.forEach(p => { pseudoMap[p.user_id] = p.pseudo })
+    profiles?.forEach(p => { if (p.pseudo) pseudoMap[p.user_id] = p.pseudo })
 
     setPosts(data.map(p => ({
       ...p,
-      pseudo: pseudoMap[p.user_id] || p.user_id.slice(0, 8)
+      pseudo: pseudoMap[p.user_id] || p.user_id.slice(0, 8),
     })))
   }
 
+  // ─ KPIs ────────────────────────────────────────────
+  const total = users.length
+  const onboardedCount = users.filter(u => u.profile_created_at).length
+  const onProgramCount = users.filter(u => u.current_day > 0).length
+
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
+  const sevenDayAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+
+  const active24hCount = users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > oneDayAgo).length
+  const active7dCount = users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > sevenDayAgo).length
+  const strugglingCount = users.filter(u => u.is_struggling).length
+  const neverActiveCount = users.filter(u => !u.last_activity).length
+  const communityPostsTotal = users.reduce((sum, u) => sum + u.community_posts, 0)
+
+  // Distribution programme
+  const distribution = {
+    j0: users.filter(u => u.current_day === 0).length,
+    j1_7: users.filter(u => u.current_day >= 1 && u.current_day <= 7).length,
+    j8_30: users.filter(u => u.current_day >= 8 && u.current_day <= 30).length,
+    j31_60: users.filter(u => u.current_day >= 31 && u.current_day <= 60).length,
+    j61_90: users.filter(u => u.current_day >= 61 && u.current_day <= 90).length,
+    j90plus: users.filter(u => u.current_day > 90).length,
+  }
+  const maxDist = Math.max(distribution.j0, distribution.j1_7, distribution.j8_30, distribution.j31_60, distribution.j61_90, distribution.j90plus, 1)
+
+  // Filtered users based on selectedKpi
+  const filteredUsers = (() => {
+    switch (selectedKpi) {
+      case 'onboarded': return users
+      case 'active_24h': return users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > oneDayAgo)
+      case 'active_7d': return users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > sevenDayAgo)
+      case 'on_program': return users.filter(u => u.current_day > 0)
+      case 'struggling': return users.filter(u => u.is_struggling)
+      case 'community': return users.filter(u => u.community_posts > 0)
+      case 'never_active': return users.filter(u => !u.last_activity)
+      default: return users
+    }
+  })()
+
+  const formatRelative = (dateStr: string | null) => {
+    if (!dateStr) return 'Jamais'
+    const diffMs = Date.now() - new Date(dateStr).getTime()
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    const hours = Math.floor(diffMs / (1000 * 60 * 60))
+    if (days >= 1) return `il y a ${days}j`
+    if (hours >= 1) return `il y a ${hours}h`
+    const mins = Math.floor(diffMs / (1000 * 60))
+    return mins < 5 ? "à l'instant" : `il y a ${mins}min`
+  }
+
+  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+  const formatDateTime = (dateStr: string) => new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+
+  // ── Défis CRUD ──
   const openForm = (challenge?: Challenge) => {
     if (challenge) {
       setEditingChallenge(challenge)
@@ -154,19 +260,17 @@ useEffect(() => {
         emoji: challenge.emoji || '🎯',
         starts_at: challenge.starts_at.slice(0, 16),
         ends_at: challenge.ends_at.slice(0, 16),
-        is_active: challenge.is_active
+        is_active: challenge.is_active,
       })
     } else {
       setEditingChallenge(null)
       const now = new Date()
       const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
       setFormData({
-        title: '',
-        description: '',
-        emoji: '🎯',
+        title: '', description: '', emoji: '🎯',
         starts_at: now.toISOString().slice(0, 16),
         ends_at: nextWeek.toISOString().slice(0, 16),
-        is_active: true
+        is_active: true,
       })
     }
     setShowForm(true)
@@ -177,20 +281,16 @@ useEffect(() => {
     setSaving(true)
     try {
       const payload = {
-        title: formData.title,
-        description: formData.description,
-        emoji: formData.emoji,
+        title: formData.title, description: formData.description, emoji: formData.emoji,
         starts_at: new Date(formData.starts_at).toISOString(),
         ends_at: new Date(formData.ends_at).toISOString(),
-        is_active: formData.is_active
+        is_active: formData.is_active,
       }
-
       if (editingChallenge) {
         await supabase.from('community_challenges').update(payload).eq('id', editingChallenge.id)
       } else {
         await supabase.from('community_challenges').insert(payload)
       }
-
       setShowForm(false)
       loadChallenges()
     } finally {
@@ -199,9 +299,7 @@ useEffect(() => {
   }
 
   const toggleActive = async (challenge: Challenge) => {
-    await supabase.from('community_challenges')
-      .update({ is_active: !challenge.is_active })
-      .eq('id', challenge.id)
+    await supabase.from('community_challenges').update({ is_active: !challenge.is_active }).eq('id', challenge.id)
     setChallenges(prev => prev.map(c => c.id === challenge.id ? { ...c, is_active: !c.is_active } : c))
   }
 
@@ -217,285 +315,556 @@ useEffect(() => {
     setConfirmDelete(null)
   }
 
-  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
-  const formatDateTime = (dateStr: string) => new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-
   if (authLoading || loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: '#C4956A', fontFamily: 'serif', fontSize: 18 }}>Chargement admin...</p>
+      <div style={{ minHeight: '100vh', background: C.cream, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: C.brownLight, fontFamily: "'DM Sans', sans-serif", fontSize: 14 }}>Chargement admin…</p>
       </div>
     )
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#1A1A1A', fontFamily: "'DM Sans', sans-serif", color: '#FFFFFF' }}>
+    <>
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 0,
+        background:
+          'radial-gradient(ellipse at 20% 0%, #e8c4a8 0%, transparent 55%),' +
+          'radial-gradient(ellipse at 80% 100%, #d4a574 0%, transparent 55%),' +
+          'linear-gradient(180deg, #f3dcc6 0%, #ead0b5 50%, #e0c4a3 100%)',
+      }} />
 
-      {/* Header */}
-      <div style={{ background: '#111', borderBottom: '1px solid rgba(196,149,106,0.2)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 }}>
-        <div>
-          <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, color: '#C4956A', fontWeight: 600 }}>NOVAÉ</span>
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginLeft: 10, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Admin</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{user?.email}</span>
-          <button onClick={loadAll} style={{ background: 'rgba(196,149,106,0.1)', border: '1px solid rgba(196,149,106,0.3)', borderRadius: 8, padding: '6px 12px', color: '#C4956A', fontSize: 12, cursor: 'pointer' }}>
-            🔄 Actualiser
-          </button>
-          <button onClick={() => router.push('/')} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 12px', color: 'rgba(255,255,255,0.5)', fontSize: 12, cursor: 'pointer' }}>
-            ← App
-          </button>
-        </div>
-      </div>
+      <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", color: C.brown, position: 'relative', zIndex: 2 }}>
 
-      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '24px 20px' }}>
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-          {[
-            { id: 'stats', label: '📊 Stats', },
-            { id: 'challenges', label: '🎯 Défis', },
-            { id: 'posts', label: '💬 Posts', },
-          ].map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-              style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: activeTab === tab.id ? '#C4956A' : 'rgba(255,255,255,0.05)', color: activeTab === tab.id ? 'white' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: activeTab === tab.id ? 600 : 400, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.2s' }}>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* ── STATS ── */}
-        {activeTab === 'stats' && (
+        {/* Header */}
+        <div style={{
+          background: 'rgba(255,255,255,0.55)',
+          backdropFilter: 'blur(18px)',
+          WebkitBackdropFilter: 'blur(18px)',
+          borderBottom: '1px solid rgba(212,165,116,0.3)',
+          padding: '14px 24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          position: 'sticky', top: 0, zIndex: 10,
+        }}>
           <div>
-            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 28, color: '#C4956A', marginBottom: 20 }}>Vue d'ensemble</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginBottom: 32 }}>
-              {[
-                { label: 'Utilisatrices', value: stats.total_users, emoji: '👥', color: '#C4956A' },
-                { label: 'Posts communauté', value: stats.total_posts, emoji: '💬', color: '#7B6FA0' },
-                { label: 'Défis créés', value: stats.total_challenges, emoji: '🎯', color: '#4CAF50' },
-                { label: 'Participations', value: stats.total_participations, emoji: '⚡', color: '#FF9800' },
-                { label: 'Actives cette semaine', value: stats.active_this_week, emoji: '🔥', color: '#F44336' },
-              ].map((stat, i) => (
-                <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '20px 18px' }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>{stat.emoji}</div>
-                  <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 40, fontWeight: 600, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>{stat.label}</div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background: 'rgba(196,149,106,0.08)', border: '1px solid rgba(196,149,106,0.2)', borderRadius: 16, padding: '20px 24px' }}>
-              <h3 style={{ fontSize: 14, color: '#C4956A', fontWeight: 600, margin: '0 0 12px' }}>Actions rapides</h3>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button onClick={() => { setActiveTab('challenges'); openForm() }}
-                  style={{ padding: '10px 18px', background: '#C4956A', border: 'none', borderRadius: 10, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  + Créer un défi
-                </button>
-                <button onClick={() => setActiveTab('posts')}
-                  style={{ padding: '10px 18px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: 'rgba(255,255,255,0.7)', fontSize: 13, cursor: 'pointer' }}>
-                  Modérer les posts
-                </button>
-              </div>
-            </div>
+            <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: C.copperDark, fontWeight: 600 }}>NOVAÉ</span>
+            <span style={{ fontSize: 11, color: C.brownLight, marginLeft: 10, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Admin</span>
           </div>
-        )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, color: C.brownLight }}>{user?.email}</span>
+            <button onClick={loadAll} style={{
+              background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.35)',
+              borderRadius: 8, padding: '6px 12px', color: C.copperDark, fontSize: 12,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              ↻ Actualiser
+            </button>
+            <Link href="/" style={{
+              background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(212,165,116,0.3)',
+              borderRadius: 8, padding: '6px 12px', color: C.brownLight, fontSize: 12,
+              textDecoration: 'none',
+            }}>
+              ← App
+            </Link>
+          </div>
+        </div>
 
-        {/* ── DÉFIS ── */}
-        {activeTab === 'challenges' && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 28, color: '#C4956A', margin: 0 }}>Défis communauté</h2>
-              <button onClick={() => openForm()}
-                style={{ padding: '10px 20px', background: '#C4956A', border: 'none', borderRadius: 10, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                + Nouveau défi
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 20px 60px' }}>
+
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+            {[
+              { id: 'stats', label: '📊 Stats' },
+              { id: 'challenges', label: '🎯 Défis' },
+              { id: 'posts', label: '💬 Posts' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                style={{
+                  padding: '10px 18px', borderRadius: 12, border: 'none',
+                  background: activeTab === tab.id
+                    ? 'linear-gradient(135deg, #c4956a, #8b5a3c)'
+                    : 'rgba(255,255,255,0.45)',
+                  color: activeTab === tab.id ? '#fff' : C.brownLight,
+                  fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 500,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  border: activeTab === tab.id ? 'none' : '1px solid rgba(212,165,116,0.3)',
+                  boxShadow: activeTab === tab.id ? '0 4px 12px rgba(139, 90, 60, 0.18)' : 'none',
+                }}
+              >
+                {tab.label}
               </button>
-            </div>
+            ))}
+          </div>
 
-            {challenges.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.3)' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>🎯</div>
-                <p>Aucun défi créé. Lance le premier !</p>
+          {/* ─── STATS ─── */}
+          {activeTab === 'stats' && (
+            <div>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: '0 0 6px', fontWeight: 500 }}>Vue d'ensemble</h2>
+              <p style={{ fontSize: 12, color: C.brownLight, margin: '0 0 20px', fontStyle: 'italic' }}>Clique sur une tuile pour filtrer le tableau ci-dessous.</p>
+
+              {/* Tuiles KPI */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 28 }}>
+                <KpiTile
+                  selected={selectedKpi === 'all'}
+                  onClick={() => setSelectedKpi('all')}
+                  emoji="👥" label="Inscrites" value={total} accent={C.copperDark}
+                />
+                <KpiTile
+                  selected={selectedKpi === 'onboarded'}
+                  onClick={() => setSelectedKpi('onboarded')}
+                  emoji="✦" label="Onboarding fait" value={onboardedCount} accent={C.copper}
+                  sub={total > 0 ? `${Math.round((onboardedCount / total) * 100)}% conversion` : undefined}
+                />
+                <KpiTile
+                  selected={selectedKpi === 'active_24h'}
+                  onClick={() => setSelectedKpi('active_24h')}
+                  emoji="🔥" label="Actives 24h" value={active24hCount} accent={C.red}
+                  sub={total > 0 ? `${Math.round((active24hCount / total) * 100)}%` : undefined}
+                />
+                <KpiTile
+                  selected={selectedKpi === 'active_7d'}
+                  onClick={() => setSelectedKpi('active_7d')}
+                  emoji="✨" label="Actives 7j" value={active7dCount} accent={C.green}
+                  sub={total > 0 ? `${Math.round((active7dCount / total) * 100)}%` : undefined}
+                />
+                <KpiTile
+                  selected={selectedKpi === 'on_program'}
+                  onClick={() => setSelectedKpi('on_program')}
+                  emoji="🎯" label="Programme actif" value={onProgramCount} accent={C.purple}
+                />
+                <KpiTile
+                  selected={selectedKpi === 'struggling'}
+                  onClick={() => setSelectedKpi('struggling')}
+                  emoji="🌙" label="Mode traversée" value={strugglingCount} accent={C.brownMid}
+                  sub="inactives 4j+"
+                />
+                <KpiTile
+                  selected={selectedKpi === 'community'}
+                  onClick={() => setSelectedKpi('community')}
+                  emoji="💬" label="Posts communauté" value={communityPostsTotal} accent={C.purple}
+                  sub={`par ${users.filter(u => u.community_posts > 0).length} utilisatrices`}
+                />
+                <KpiTile
+                  selected={selectedKpi === 'never_active'}
+                  onClick={() => setSelectedKpi('never_active')}
+                  emoji="💤" label="Jamais actives" value={neverActiveCount} accent={C.brownLight}
+                  sub="aucune trace"
+                />
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {challenges.map(challenge => (
-                  <div key={challenge.id} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${challenge.is_active ? 'rgba(196,149,106,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 16, padding: '18px 20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                      <span style={{ fontSize: 32, flexShrink: 0 }}>{challenge.emoji}</span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#FFFFFF' }}>{challenge.title}</h3>
-                          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: challenge.is_active ? 'rgba(76,175,80,0.15)' : 'rgba(255,255,255,0.05)', color: challenge.is_active ? '#4CAF50' : 'rgba(255,255,255,0.3)', border: `1px solid ${challenge.is_active ? 'rgba(76,175,80,0.3)' : 'rgba(255,255,255,0.1)'}`, fontWeight: 600 }}>
-                            {challenge.is_active ? '● Actif' : '○ Inactif'}
-                          </span>
+
+              {/* Distribution programme 90j */}
+              <div style={glassCard}>
+                <h3 style={sectionTitle}>Distribution programme 90j</h3>
+                <p style={sectionDesc}>Combien d'utilisatrices à chaque étape du parcours.</p>
+
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {[
+                    { label: 'Pas démarré (J0)', value: distribution.j0, color: C.brownLight },
+                    { label: 'Phase 1 — Reprogrammation (J1–7)', value: distribution.j1_7, color: C.copper },
+                    { label: 'Phase 1 — Reprogrammation (J8–30)', value: distribution.j8_30, color: C.copperDark },
+                    { label: 'Phase 2 — Action & Discipline (J31–60)', value: distribution.j31_60, color: C.purple },
+                    { label: 'Phase 3 — Expansion (J61–90)', value: distribution.j61_90, color: C.green },
+                    { label: 'Programme terminé (J90+)', value: distribution.j90plus, color: '#c9a864' },
+                  ].map((d, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ flex: '0 0 220px', fontSize: 12, color: C.brownLight }}>{d.label}</div>
+                      <div style={{ flex: 1, height: 22, background: 'rgba(255,255,255,0.4)', border: '1px solid rgba(212,165,116,0.2)', borderRadius: 6, overflow: 'hidden', position: 'relative' }}>
+                        <div style={{
+                          width: `${(d.value / maxDist) * 100}%`,
+                          height: '100%',
+                          background: `linear-gradient(90deg, ${d.color}, ${d.color}cc)`,
+                          transition: 'width 0.6s ease',
+                        }} />
+                      </div>
+                      <div style={{ flex: '0 0 30px', textAlign: 'right', fontSize: 14, fontWeight: 700, color: C.brown }}>{d.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tableau utilisatrices */}
+              <div style={glassCard}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <h3 style={sectionTitle}>
+                    Utilisatrices <span style={{ color: C.brownLight, fontWeight: 400, fontSize: 14 }}>({filteredUsers.length})</span>
+                  </h3>
+                  {selectedKpi !== 'all' && (
+                    <button onClick={() => setSelectedKpi('all')} style={{
+                      background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.3)',
+                      borderRadius: 8, padding: '4px 10px', color: C.copperDark, fontSize: 11,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                      ← Toutes
+                    </button>
+                  )}
+                </div>
+
+                {filteredUsers.length === 0 ? (
+                  <p style={{ fontSize: 13, color: C.brownLight, padding: '20px 0', textAlign: 'center' }}>Aucune utilisatrice dans cette catégorie.</p>
+                ) : (
+                  <div style={{ overflowX: 'auto', marginTop: 16 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(212,165,116,0.3)' }}>
+                          <th style={th}>Pseudo</th>
+                          <th style={th}>Inscription</th>
+                          <th style={th}>Jour</th>
+                          <th style={th}>Dernière activité</th>
+                          <th style={th}>Posts</th>
+                          <th style={th}>Msg IA (7j)</th>
+                          <th style={th}>Statut</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredUsers
+                          .sort((a, b) => {
+                            const ta = a.last_activity ? new Date(a.last_activity).getTime() : 0
+                            const tb = b.last_activity ? new Date(b.last_activity).getTime() : 0
+                            return tb - ta
+                          })
+                          .map(u => {
+                            let statusBadge: { label: string; color: string; bg: string }
+                            if (!u.last_activity) {
+                              statusBadge = { label: 'Inactive', color: C.brownLight, bg: 'rgba(107,83,64,0.12)' }
+                            } else if (u.is_struggling) {
+                              statusBadge = { label: '🌙 Traversée', color: C.copperDark, bg: 'rgba(196,149,106,0.18)' }
+                            } else if (new Date(u.last_activity).getTime() > oneDayAgo) {
+                              statusBadge = { label: '🔥 Active', color: C.red, bg: 'rgba(196,74,74,0.15)' }
+                            } else {
+                              statusBadge = { label: 'Engagée', color: C.green, bg: 'rgba(123,168,105,0.15)' }
+                            }
+
+                            return (
+                              <tr key={u.user_id} style={{ borderBottom: '1px solid rgba(212,165,116,0.15)' }}>
+                                <td style={td}>
+                                  <span style={{ fontWeight: 600, color: C.brown }}>{u.pseudo}</span>
+                                </td>
+                                <td style={td}>{formatDate(u.profile_created_at)}</td>
+                                <td style={td}>
+                                  {u.current_day === 0 ? <span style={{ color: C.brownLight }}>—</span> : <strong>J{u.current_day}/90</strong>}
+                                </td>
+                                <td style={td}>{formatRelative(u.last_activity)}</td>
+                                <td style={td}>{u.community_posts}</td>
+                                <td style={td}>{u.agent_messages}</td>
+                                <td style={td}>
+                                  <span style={{
+                                    fontSize: 11, fontWeight: 600,
+                                    padding: '3px 9px', borderRadius: 20,
+                                    background: statusBadge.bg, color: statusBadge.color,
+                                  }}>
+                                    {statusBadge.label}
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ─── DÉFIS ─── */}
+          {activeTab === 'challenges' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: 0, fontWeight: 500 }}>Défis communauté</h2>
+                <button onClick={() => openForm()} style={{
+                  padding: '10px 18px',
+                  background: 'linear-gradient(135deg, #c4956a, #8b5a3c)',
+                  border: 'none', borderRadius: 12, color: '#fff', fontSize: 13, fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  boxShadow: '0 4px 12px rgba(139, 90, 60, 0.2)',
+                }}>
+                  + Nouveau défi
+                </button>
+              </div>
+
+              {challenges.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: C.brownLight }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🎯</div>
+                  <p>Aucun défi créé. Lance le premier !</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {challenges.map(challenge => (
+                    <div key={challenge.id} style={{
+                      ...glassCard, marginBottom: 0, padding: '16px 18px',
+                      borderColor: challenge.is_active ? 'rgba(196,149,106,0.5)' : 'rgba(255,255,255,0.5)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                        <span style={{ fontSize: 32, flexShrink: 0 }}>{challenge.emoji}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
+                            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.brown }}>{challenge.title}</h3>
+                            <span style={{
+                              fontSize: 10, padding: '2px 8px', borderRadius: 20,
+                              background: challenge.is_active ? 'rgba(123,168,105,0.18)' : 'rgba(107,83,64,0.1)',
+                              color: challenge.is_active ? C.green : C.brownLight,
+                              border: `1px solid ${challenge.is_active ? 'rgba(123,168,105,0.3)' : 'rgba(107,83,64,0.18)'}`,
+                              fontWeight: 700,
+                            }}>
+                              {challenge.is_active ? '● Actif' : '○ Inactif'}
+                            </span>
+                          </div>
+                          {challenge.description && <p style={{ margin: '0 0 8px', fontSize: 13, color: C.brownLight, lineHeight: 1.5 }}>{challenge.description}</p>}
+                          <div style={{ display: 'flex', gap: 14, fontSize: 11, color: C.brownLight, flexWrap: 'wrap' }}>
+                            <span>📅 {formatDate(challenge.starts_at)} → {formatDate(challenge.ends_at)}</span>
+                            <span>👥 {challenge.participants_count} participantes</span>
+                            <span>✅ {challenge.completed_count} complétés</span>
+                          </div>
                         </div>
-                        {challenge.description && <p style={{ margin: '0 0 8px', fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>{challenge.description}</p>}
-                        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
-                          <span>📅 {formatDate(challenge.starts_at)} → {formatDate(challenge.ends_at)}</span>
-                          <span>👥 {challenge.participants_count} participantes</span>
-                          <span>✅ {challenge.completed_count} complétés</span>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+                          <button onClick={() => toggleActive(challenge)} style={smallBtn}>
+                            {challenge.is_active ? 'Désactiver' : 'Activer'}
+                          </button>
+                          <button onClick={() => openForm(challenge)} style={{ ...smallBtn, color: C.copperDark, borderColor: 'rgba(196,149,106,0.4)' }}>
+                            ✏️
+                          </button>
+                          <button onClick={() => setConfirmDelete(challenge.id)} style={{ ...smallBtn, color: C.red, borderColor: 'rgba(196,74,74,0.3)' }}>
+                            🗑️
+                          </button>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                        <button onClick={() => toggleActive(challenge)}
-                          style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: 'rgba(255,255,255,0.6)', fontSize: 12, cursor: 'pointer' }}>
-                          {challenge.is_active ? 'Désactiver' : 'Activer'}
-                        </button>
-                        <button onClick={() => openForm(challenge)}
-                          style={{ padding: '6px 12px', background: 'rgba(196,149,106,0.1)', border: '1px solid rgba(196,149,106,0.2)', borderRadius: 8, color: '#C4956A', fontSize: 12, cursor: 'pointer' }}>
-                          ✏️ Modifier
-                        </button>
-                        <button onClick={() => setConfirmDelete(challenge.id)}
-                          style={{ padding: '6px 12px', background: 'rgba(220,80,80,0.1)', border: '1px solid rgba(220,80,80,0.2)', borderRadius: 8, color: '#DC5050', fontSize: 12, cursor: 'pointer' }}>
+                      {confirmDelete === challenge.id && (
+                        <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(196,74,74,0.1)', border: '1px solid rgba(196,74,74,0.25)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ fontSize: 13, color: C.red, flex: 1 }}>Confirmer la suppression de ce défi ?</span>
+                          <button onClick={() => deleteChallenge(challenge.id)} style={{ ...smallBtn, background: C.red, color: '#fff', borderColor: C.red }}>
+                            Supprimer
+                          </button>
+                          <button onClick={() => setConfirmDelete(null)} style={smallBtn}>
+                            Annuler
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── POSTS ─── */}
+          {activeTab === 'posts' && (
+            <div>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: '0 0 20px', fontWeight: 500 }}>Modération des posts</h2>
+
+              {posts.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: C.brownLight }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
+                  <p>Aucun post dans la communauté.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {posts.map(post => (
+                    <div key={post.id} style={{ ...glassCard, marginBottom: 0, padding: '14px 18px' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #c4956a, #8b5a3c)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0,
+                        }}>
+                          {post.pseudo?.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: C.copperDark }}>{post.pseudo}</span>
+                            <span style={{ fontSize: 11, color: C.brownLight }}>{formatDateTime(post.created_at)}</span>
+                            <span style={{ fontSize: 11, color: C.brownLight }}>💛 {post.likes_count} · 💬 {post.comments_count}</span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: 13, color: C.brown, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{post.content}</p>
+                        </div>
+                        <button onClick={() => setConfirmDelete('post_' + post.id)} style={{ ...smallBtn, color: C.red, borderColor: 'rgba(196,74,74,0.3)', flexShrink: 0 }}>
                           🗑️
                         </button>
                       </div>
-                    </div>
-
-                    {/* Confirmation suppression défi */}
-                    {confirmDelete === challenge.id && (
-                      <div style={{ marginTop: 12, padding: '12px 16px', background: 'rgba(220,80,80,0.1)', border: '1px solid rgba(220,80,80,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ fontSize: 13, color: '#DC5050', flex: 1 }}>Confirmer la suppression de ce défi ?</span>
-                        <button onClick={() => deleteChallenge(challenge.id)}
-                          style={{ padding: '6px 14px', background: '#DC5050', border: 'none', borderRadius: 8, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                          Supprimer
-                        </button>
-                        <button onClick={() => setConfirmDelete(null)}
-                          style={{ padding: '6px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: 'rgba(255,255,255,0.5)', fontSize: 12, cursor: 'pointer' }}>
-                          Annuler
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── POSTS ── */}
-        {activeTab === 'posts' && (
-          <div>
-            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 28, color: '#C4956A', marginBottom: 20 }}>Modération des posts</h2>
-            {posts.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.3)' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
-                <p>Aucun post dans la communauté.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {posts.map(post => (
-                  <div key={post.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '14px 18px' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(196,149,106,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C4956A', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
-                        {post.pseudo?.charAt(0).toUpperCase()}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: '#C4956A' }}>{post.pseudo}</span>
-                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>{formatDateTime(post.created_at)}</span>
-                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>💛 {post.likes_count} · 💬 {post.comments_count}</span>
+                      {confirmDelete === 'post_' + post.id && (
+                        <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(196,74,74,0.1)', border: '1px solid rgba(196,74,74,0.25)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 12, color: C.red, flex: 1 }}>Supprimer ce post ?</span>
+                          <button onClick={() => deletePost(post.id)} style={{ ...smallBtn, background: C.red, color: '#fff', borderColor: C.red }}>
+                            Supprimer
+                          </button>
+                          <button onClick={() => setConfirmDelete(null)} style={smallBtn}>
+                            Annuler
+                          </button>
                         </div>
-                        <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{post.content}</p>
-                      </div>
-                      <button onClick={() => setConfirmDelete('post_' + post.id)}
-                        style={{ padding: '6px 10px', background: 'rgba(220,80,80,0.1)', border: '1px solid rgba(220,80,80,0.2)', borderRadius: 8, color: '#DC5050', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
-                        🗑️
-                      </button>
+                      )}
                     </div>
-                    {confirmDelete === 'post_' + post.id && (
-                      <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(220,80,80,0.1)', border: '1px solid rgba(220,80,80,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 12, color: '#DC5050', flex: 1 }}>Supprimer ce post ?</span>
-                        <button onClick={() => deletePost(post.id)}
-                          style={{ padding: '5px 12px', background: '#DC5050', border: 'none', borderRadius: 6, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                          Supprimer
-                        </button>
-                        <button onClick={() => setConfirmDelete(null)}
-                          style={{ padding: '5px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.5)', fontSize: 12, cursor: 'pointer' }}>
-                          Annuler
-                        </button>
-                      </div>
-                    )}
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ─── MODAL DÉFI ─── */}
+        {showForm && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(26,26,26,0.55)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}>
+            <div style={{
+              background: '#fff', border: '1px solid rgba(212,165,116,0.3)',
+              borderRadius: 20, maxWidth: 520, width: '100%', padding: '28px 28px',
+              maxHeight: '90vh', overflowY: 'auto',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
+            }}>
+              <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, color: C.brown, margin: '0 0 22px', fontWeight: 600 }}>
+                {editingChallenge ? '✏️ Modifier le défi' : '+ Nouveau défi'}
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ flex: '0 0 80px' }}>
+                    <FormLabel>Emoji</FormLabel>
+                    <input value={formData.emoji} onChange={e => setFormData(p => ({ ...p, emoji: e.target.value }))}
+                      style={{ ...formInput, fontSize: 22, textAlign: 'center', padding: 10 }} />
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── MODAL FORMULAIRE DÉFI ── */}
-      {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#1E1E1E', border: '1px solid rgba(196,149,106,0.3)', borderRadius: 20, maxWidth: 520, width: '100%', padding: '32px 28px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 24, color: '#C4956A', margin: '0 0 24px' }}>
-              {editingChallenge ? '✏️ Modifier le défi' : '+ Nouveau défi'}
-            </h3>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: '0 0 80px' }}>
-                  <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Emoji</label>
-                  <input value={formData.emoji} onChange={e => setFormData(p => ({ ...p, emoji: e.target.value }))}
-                    style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px', fontSize: 24, textAlign: 'center', outline: 'none', color: 'white', boxSizing: 'border-box' as const }} />
+                  <div style={{ flex: 1 }}>
+                    <FormLabel>Titre *</FormLabel>
+                    <input value={formData.title} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))}
+                      placeholder="Ex: 5 jours de routine matin" style={formInput} />
+                  </div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Titre *</label>
-                  <input value={formData.title} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))}
-                    placeholder="Ex: 5 jours de routine matin"
-                    style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 14px', fontSize: 14, outline: 'none', color: 'white', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' as const }}
-                    onFocus={e => e.target.style.borderColor = '#C4956A'}
-                    onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />
-                </div>
-              </div>
 
-              <div>
-                <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Description</label>
-                <textarea value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
-                  placeholder="Décris le défi en détail..."
-                  rows={3}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 14px', fontSize: 14, outline: 'none', color: 'white', fontFamily: "'DM Sans', sans-serif", resize: 'vertical', boxSizing: 'border-box' as const }}
-                  onFocus={e => e.target.style.borderColor = '#C4956A'}
-                  onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Début *</label>
-                  <input type="datetime-local" value={formData.starts_at} onChange={e => setFormData(p => ({ ...p, starts_at: e.target.value }))}
-                    style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 12px', fontSize: 13, outline: 'none', color: 'white', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' as const, colorScheme: 'dark' }}
-                    onFocus={e => e.target.style.borderColor = '#C4956A'}
-                    onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />
+                  <FormLabel>Description</FormLabel>
+                  <textarea value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
+                    placeholder="Décris le défi en détail…" rows={3}
+                    style={{ ...formInput, resize: 'vertical' as const }} />
                 </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Fin *</label>
-                  <input type="datetime-local" value={formData.ends_at} onChange={e => setFormData(p => ({ ...p, ends_at: e.target.value }))}
-                    style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 12px', fontSize: 13, outline: 'none', color: 'white', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' as const, colorScheme: 'dark' }}
-                    onFocus={e => e.target.style.borderColor = '#C4956A'}
-                    onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <FormLabel>Début *</FormLabel>
+                    <input type="datetime-local" value={formData.starts_at}
+                      onChange={e => setFormData(p => ({ ...p, starts_at: e.target.value }))}
+                      style={formInput} />
+                  </div>
+                  <div>
+                    <FormLabel>Fin *</FormLabel>
+                    <input type="datetime-local" value={formData.ends_at}
+                      onChange={e => setFormData(p => ({ ...p, ends_at: e.target.value }))}
+                      style={formInput} />
+                  </div>
                 </div>
-              </div>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                <input type="checkbox" checked={formData.is_active} onChange={e => setFormData(p => ({ ...p, is_active: e.target.checked }))}
-                  style={{ width: 16, height: 16, accentColor: '#C4956A' }} />
-                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Défi actif (visible dans la communauté)</span>
-              </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={formData.is_active}
+                    onChange={e => setFormData(p => ({ ...p, is_active: e.target.checked }))}
+                    style={{ width: 16, height: 16, accentColor: C.copper }} />
+                  <span style={{ fontSize: 13, color: C.brown }}>Défi actif (visible dans la communauté)</span>
+                </label>
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                <button onClick={saveChallenge} disabled={saving || !formData.title}
-                  style={{ flex: 1, padding: '12px', background: formData.title ? '#C4956A' : 'rgba(196,149,106,0.3)', border: 'none', borderRadius: 10, color: 'white', fontSize: 14, fontWeight: 600, cursor: formData.title ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif" }}>
-                  {saving ? 'Enregistrement...' : editingChallenge ? '✓ Mettre à jour' : '✓ Créer le défi'}
-                </button>
-                <button onClick={() => setShowForm(false)}
-                  style={{ padding: '12px 20px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: 'rgba(255,255,255,0.5)', fontSize: 14, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  Annuler
-                </button>
+                <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                  <button onClick={saveChallenge} disabled={saving || !formData.title} style={{
+                    flex: 1, padding: '12px',
+                    background: formData.title
+                      ? 'linear-gradient(135deg, #c4956a, #8b5a3c)'
+                      : 'rgba(196,149,106,0.3)',
+                    border: 'none', borderRadius: 12, color: '#fff',
+                    fontSize: 14, fontWeight: 700,
+                    cursor: formData.title ? 'pointer' : 'not-allowed',
+                    fontFamily: 'inherit',
+                  }}>
+                    {saving ? 'Enregistrement…' : editingChallenge ? '✓ Mettre à jour' : '✓ Créer le défi'}
+                  </button>
+                  <button onClick={() => setShowForm(false)} style={{
+                    padding: '12px 20px', background: '#fff',
+                    border: '1px solid rgba(212,165,116,0.3)', borderRadius: 12,
+                    color: C.brownLight, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                    Annuler
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   )
+}
+
+// ─ Composants helpers ─
+function KpiTile({ emoji, label, value, accent, sub, selected, onClick }: { emoji: string; label: string; value: number; accent: string; sub?: string; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: selected
+          ? 'linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.55))'
+          : 'linear-gradient(135deg, rgba(255,255,255,0.55), rgba(255,255,255,0.25))',
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
+        border: selected ? `1.5px solid ${accent}` : '1px solid rgba(255,255,255,0.5)',
+        borderRadius: 16, padding: '16px 14px',
+        cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+        transition: 'all 0.2s',
+        boxShadow: selected ? `0 6px 20px ${accent}44` : '0 4px 16px rgba(139, 90, 60, 0.06)',
+      }}
+    >
+      <div style={{ fontSize: 24, marginBottom: 8 }}>{emoji}</div>
+      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 600, color: accent, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 12, color: '#3d2618', marginTop: 6, fontWeight: 600 }}>{label}</div>
+      {sub && <div style={{ fontSize: 10, color: '#6b5340', marginTop: 2, fontStyle: 'italic' }}>{sub}</div>}
+    </button>
+  )
+}
+
+function FormLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label style={{
+      fontSize: 11, color: '#6b5340', display: 'block', marginBottom: 6,
+      textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600,
+    }}>{children}</label>
+  )
+}
+
+const formInput: React.CSSProperties = {
+  width: '100%', background: '#faf7f2',
+  border: '1px solid rgba(212,165,116,0.3)', borderRadius: 10,
+  padding: '10px 14px', fontSize: 14, outline: 'none', color: '#3d2618',
+  fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box',
+}
+
+const glassCard: React.CSSProperties = {
+  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.25))',
+  backdropFilter: 'blur(18px)',
+  WebkitBackdropFilter: 'blur(18px)',
+  border: '1px solid rgba(255, 255, 255, 0.5)',
+  borderRadius: 20, padding: 22, marginBottom: 16,
+  boxShadow: '0 4px 16px rgba(139, 90, 60, 0.06)',
+}
+
+const sectionTitle: React.CSSProperties = {
+  fontFamily: "'Cormorant Garamond', serif",
+  fontSize: 20, color: '#3d2618',
+  margin: '0 0 4px', fontWeight: 500,
+}
+
+const sectionDesc: React.CSSProperties = {
+  fontSize: 12, color: '#6b5340',
+  margin: '0 0 16px', opacity: 0.85,
+}
+
+const th: React.CSSProperties = {
+  textAlign: 'left', padding: '8px 10px',
+  fontSize: 10, fontWeight: 700,
+  color: '#6b5340', textTransform: 'uppercase', letterSpacing: '0.08em',
+}
+
+const td: React.CSSProperties = {
+  padding: '10px 10px', fontSize: 12, color: '#3d2618',
+}
+
+const smallBtn: React.CSSProperties = {
+  padding: '6px 10px', background: 'rgba(255,255,255,0.5)',
+  border: '1px solid rgba(212,165,116,0.3)', borderRadius: 8,
+  color: '#6b5340', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
 }
