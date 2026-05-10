@@ -154,6 +154,15 @@ export default function AdminPage() {
   const [avgStreak, setAvgStreak] = useState(0)
   const [streakCount, setStreakCount] = useState(0)
 
+  // Stats Brevo (auto via API route)
+  const [brevoStats, setBrevoStats] = useState<{
+    period: { startDate: string; endDate: string; days: number }
+    raw: { requests: number; delivered: number; uniqueOpens: number; uniqueClicks: number; hardBounces: number; softBounces: number; totalBounces: number }
+    computed: { openRate: number; clickRate: number; bounceRate: number; deliveryRate: number }
+  } | null>(null)
+  const [brevoLoading, setBrevoLoading] = useState(false)
+  const [brevoError, setBrevoError] = useState<string | null>(null)
+
   // Saisies manuelles revue dominicale (Stripe + Marketing)
   const [manualKpis, setManualKpis] = useState<ManualKpis>(DEFAULT_MANUAL_KPIS)
   const [lastReviewAt, setLastReviewAt] = useState<string | null>(null)
@@ -205,7 +214,7 @@ export default function AdminPage() {
 
   const loadAll = async () => {
     setLoading(true)
-    await Promise.all([loadUsers(), loadChallenges(), loadPosts(), loadStreaks()])
+    await Promise.all([loadUsers(), loadChallenges(), loadPosts(), loadStreaks(), loadBrevoStats()])
     setLoading(false)
   }
 
@@ -224,6 +233,35 @@ export default function AdminPage() {
     const avg = counts.reduce((a, b) => a + b, 0) / counts.length
     setAvgStreak(avg)
     setStreakCount(counts.length)
+  }
+
+  const loadBrevoStats = async () => {
+    setBrevoLoading(true)
+    setBrevoError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        setBrevoError('Pas de session active')
+        setBrevoStats(null)
+        return
+      }
+      const res = await fetch('/api/admin/metrics/brevo?days=7', {
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+        cache: 'no-store',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setBrevoError(data.error || `Erreur ${res.status}`)
+        setBrevoStats(null)
+      } else {
+        setBrevoStats(data)
+      }
+    } catch (e: any) {
+      setBrevoError(e?.message || 'Erreur inconnue')
+      setBrevoStats(null)
+    } finally {
+      setBrevoLoading(false)
+    }
   }
 
   const loadUsers = async () => {
@@ -941,15 +979,19 @@ export default function AdminPage() {
                   />
                   <ReviewKpi
                     label="Taux ouverture email"
-                    source="Brevo"
-                    isManual
-                    manualValue={manualKpis.emailOpenRate}
-                    onManualChange={v => updateManualKpi('emailOpenRate', v)}
+                    source="Auto Brevo (7j)"
+                    value={brevoStats?.computed?.openRate}
                     unit="%"
                     targetByMonth={[30, 38, 45]}
                     alert={20}
                     higherIsBetter
                     currentMonth={currentMonth}
+                    sub={
+                      brevoLoading ? 'Chargement…' :
+                      brevoError ? `Erreur : ${brevoError}` :
+                      brevoStats ? `${brevoStats.raw.uniqueOpens} ouvertures / ${brevoStats.raw.delivered} envoyés` :
+                      'Aucune donnée'
+                    }
                   />
                   <ReviewKpi
                     label="K-factor referral"
@@ -965,6 +1007,71 @@ export default function AdminPage() {
                     sub="invitations / inscriptions"
                   />
                 </div>
+              </div>
+
+              {/* Section 3 bis — Détail Brevo auto-fetché */}
+              <div style={glassCard}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <h3 style={sectionTitle}>📧 Stats Brevo détaillées (7 derniers jours)</h3>
+                    <p style={sectionDesc}>
+                      Récupéré automatiquement via l'API Brevo. {brevoStats?.period && `Période : ${brevoStats.period.startDate} → ${brevoStats.period.endDate}.`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={loadBrevoStats}
+                    disabled={brevoLoading}
+                    style={{
+                      background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.35)',
+                      borderRadius: 8, padding: '6px 12px', color: C.copperDark, fontSize: 12,
+                      cursor: brevoLoading ? 'wait' : 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                    }}
+                  >
+                    {brevoLoading ? '…' : '↻ Recharger'}
+                  </button>
+                </div>
+
+                {brevoLoading && !brevoStats ? (
+                  <p style={{ fontSize: 12, color: C.brownLight, padding: '16px 0' }}>Chargement des stats Brevo…</p>
+                ) : brevoError && !brevoStats ? (
+                  <div style={{ padding: '14px 16px', background: 'rgba(196,74,74,0.08)', border: '1px solid rgba(196,74,74,0.25)', borderRadius: 10 }}>
+                    <p style={{ fontSize: 13, color: C.red, margin: 0, fontWeight: 600 }}>Impossible de joindre Brevo</p>
+                    <p style={{ fontSize: 11, color: C.brownLight, margin: '4px 0 0' }}>{brevoError}</p>
+                    <p style={{ fontSize: 11, color: C.brownLight, margin: '4px 0 0', fontStyle: 'italic' }}>
+                      Vérifie que <code>BREVO_API_KEY</code> est bien configurée sur Vercel et que le déploiement est à jour.
+                    </p>
+                  </div>
+                ) : brevoStats ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+                    <BrevoCell label="Emails envoyés" value={brevoStats.raw.requests.toLocaleString('fr-FR')} />
+                    <BrevoCell
+                      label="Délivrés"
+                      value={brevoStats.raw.delivered.toLocaleString('fr-FR')}
+                      sub={`${brevoStats.computed.deliveryRate.toFixed(1)}% de livraison`}
+                      accent={brevoStats.computed.deliveryRate >= 95 ? 'green' : brevoStats.computed.deliveryRate >= 90 ? 'yellow' : 'red'}
+                    />
+                    <BrevoCell
+                      label="Ouvertures uniques"
+                      value={brevoStats.raw.uniqueOpens.toLocaleString('fr-FR')}
+                      sub={`${brevoStats.computed.openRate.toFixed(1)}% taux d'ouverture`}
+                      accent={brevoStats.computed.openRate >= 30 ? 'green' : brevoStats.computed.openRate >= 20 ? 'yellow' : 'red'}
+                    />
+                    <BrevoCell
+                      label="Clics uniques"
+                      value={brevoStats.raw.uniqueClicks.toLocaleString('fr-FR')}
+                      sub={`${brevoStats.computed.clickRate.toFixed(1)}% taux de clic`}
+                      accent={brevoStats.computed.clickRate >= 3 ? 'green' : brevoStats.computed.clickRate >= 1 ? 'yellow' : 'red'}
+                    />
+                    <BrevoCell
+                      label="Bounces totaux"
+                      value={brevoStats.raw.totalBounces.toLocaleString('fr-FR')}
+                      sub={`${brevoStats.computed.bounceRate.toFixed(1)}% taux de bounce`}
+                      accent={brevoStats.computed.bounceRate <= 2 ? 'green' : brevoStats.computed.bounceRate <= 5 ? 'yellow' : 'red'}
+                    />
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 12, color: C.brownLight, padding: '16px 0' }}>Aucune donnée disponible.</p>
+                )}
               </div>
 
               {/* Section 4 — Roadmap status */}
@@ -1218,6 +1325,49 @@ function ReviewKpi({
         <span>Alerte : <strong style={{ color: C_.red }}>{higherIsBetter ? '<' : '>'} {alert}{unit}</strong></span>
       </div>
       {sub && <div style={{ fontSize: 10, color: C_.brownLight, marginTop: 4, fontStyle: 'italic' }}>{sub}</div>}
+    </div>
+  )
+}
+
+function BrevoCell({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string
+  value: string | number
+  sub?: string
+  accent?: 'green' | 'yellow' | 'red'
+}) {
+  const C_ = {
+    brown: '#3d2618', brownLight: '#6b5340',
+    green: '#5C8C4A', yellow: '#A88A4A', red: '#A8423A',
+    neutral: '#8b5a3c',
+  }
+  const valueColor = accent === 'green' ? C_.green
+    : accent === 'yellow' ? C_.yellow
+    : accent === 'red' ? C_.red
+    : C_.neutral
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(255,255,255,0.65), rgba(255,255,255,0.35))',
+      backdropFilter: 'blur(18px)',
+      WebkitBackdropFilter: 'blur(18px)',
+      border: '1px solid rgba(255,255,255,0.6)',
+      borderRadius: 14, padding: '14px 14px',
+    }}>
+      <div style={{ fontSize: 11, color: C_.brownLight, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+        {label}
+      </div>
+      <div style={{
+        fontFamily: "'Cormorant Garamond', serif",
+        fontSize: 30, fontWeight: 600, color: valueColor, lineHeight: 1,
+      }}>
+        {value}
+      </div>
+      {sub && <div style={{ fontSize: 11, color: C_.brownLight, marginTop: 6, fontStyle: 'italic' }}>{sub}</div>}
     </div>
   )
 }
