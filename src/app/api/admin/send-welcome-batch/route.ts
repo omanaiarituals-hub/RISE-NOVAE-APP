@@ -6,8 +6,8 @@ import { sendBrevoEmail, addBrevoContact } from '@/lib/brevo/send'
 
 const ADMIN_EMAIL = 'nesserinesediri@gmail.com'
 
-export async function POST() {
-  try {
+export async function POST(req: Request) {
+      try {
     // Vérifier admin
     const cookieStore = await cookies()
     const userClient = createServerClient(
@@ -30,6 +30,13 @@ export async function POST() {
     if (!user || user.email !== ADMIN_EMAIL) {
       return NextResponse.json({ error: 'Forbidden - admin only' }, { status: 403 })
     }
+
+       // Récupère le templateId depuis le body (par défaut 6 = J0 BIENVENUE)
+    let templateId = 6
+    try {
+      const body = await req.json()
+      if (body.templateId) templateId = Number(body.templateId)
+    } catch {}
 
     // Admin client pour récupérer toutes les données
     const supabaseAdmin = createClient(
@@ -75,7 +82,7 @@ export async function POST() {
         // Envoie le J0
         const result = await sendBrevoEmail({
           to: { email, name: prenom },
-          templateId: 6,
+          templateId,
           params: { prenom },
         })
 
