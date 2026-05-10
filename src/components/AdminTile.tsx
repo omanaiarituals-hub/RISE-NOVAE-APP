@@ -1,35 +1,29 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase/client'
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 
-// ⚠️ Doit correspondre à la liste dans app/admin/page.tsx
+// ⚠️ Doit correspondre à la liste dans app/admin/page.tsx — TOUT EN MINUSCULES
 const ADMIN_EMAILS = ['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com']
 
 /**
  * Tuile « Admin » — visible UNIQUEMENT pour les emails dans ADMIN_EMAILS.
- * Pour toutes les autres utilisatrices : retourne null (rien dans le DOM).
+ * Pour toutes les autres utilisatrices : retourne null.
  *
- * Conçue pour s'intégrer dans la grille MODULES_GRID de la home :
- * même structure (Link > div avec icône + titre), mêmes dimensions,
- * mais teinte foncée copper/brown pour la distinguer comme tuile admin.
+ * Utilise le hook useSupabaseAuth (cohérent avec le reste de l'app).
  */
 export default function AdminTile() {
-  const [isAdmin, setIsAdmin] = useState(false)
+  const { user } = useSupabaseAuth()
 
-  useEffect(() => {
-    let cancelled = false
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (cancelled) return
-      if (user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
-        setIsAdmin(true)
-      }
-    })
-    return () => { cancelled = true }
-  }, [])
+  // Debug temporaire — à retirer après que la tuile apparaît bien.
+  // Ouvre la console (F12) sur ton tel via Chrome DevTools ou en desktop pour voir le log.
+  if (typeof window !== 'undefined' && user) {
+    // eslint-disable-next-line no-console
+    console.log('[AdminTile] email connecté =', user.email, '— admin?', user.email && ADMIN_EMAILS.includes(user.email.toLowerCase()))
+  }
 
-  if (!isAdmin) return null
+  if (!user?.email) return null
+  if (!ADMIN_EMAILS.includes(user.email.toLowerCase())) return null
 
   return (
     <Link href="/admin" style={{ textDecoration: 'none' }}>
