@@ -381,7 +381,7 @@ export default function AdminPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
                 style={{
-                  padding: '10px 18px', borderRadius: 12, border: 'none',
+                  padding: '10px 18px', borderRadius: 12,
                   background: activeTab === tab.id
                     ? 'linear-gradient(135deg, #c4956a, #8b5a3c)'
                     : 'rgba(255,255,255,0.45)',
