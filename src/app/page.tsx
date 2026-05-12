@@ -12,6 +12,7 @@ import { getProverbeDuJour } from '@/lib/proverbes'
 import NotificationBell from '@/components/NotificationBell'
 import { detectStruggleMode, type StruggleState } from '@/lib/struggle/detect'
 import StreakFlame from '@/components/StreakFlame';
+import AdminTile from '@/components/AdminTile'
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,7 +30,8 @@ const modules = [
   { href: '/family',    emoji: '💛', title: 'Famille'        },
   { href: '/notes',     emoji: '📝', title: 'Notes'          },
   { href: '/community', emoji: '👥', title: 'Communauté'     },
-  { href: '/astuces',   emoji: '💡', title: 'Astuces'        },
+  { href: '/astuces',   emoji: '💡', title: 'Astuces'
+          },
 ]
 
 const MODULES_GRID = [
@@ -41,7 +43,8 @@ const MODULES_GRID = [
   { href: '/recipes',   emoji: '🍴', title: 'Recettes',      tone: 'ic-recettes'  },
   { href: '/family',    emoji: '💛', title: 'Famille',       tone: 'ic-famille'   },
   { href: '/notes',     emoji: '📝', title: 'Notes',         tone: 'ic-notes'     },
-  { href: '/astuces',   emoji: '💡', title: 'Astuces',       tone: 'ic-astuces'   },
+  { href: '/astuces',   emoji: '💡', title: 'Astuces',       tone: 'ic-astuces'
+     },
 ]
 
 const PHASE_MESSAGES: Record<string, { label: string; message: string; phase: string }> = {
@@ -419,7 +422,7 @@ const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason:
           <div style={{ marginBottom: 22 }}>
             <StreakFlame />
           </div>
-          
+
           {/* ════════ MODE TRAVERSÉE DIFFICILE ════════ */}
           {struggle.active && (
             <Link href="/agent" style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}>
@@ -836,6 +839,7 @@ const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason:
                 </div>
               </Link>
             ))}
+                        <AdminTile />
           </div>
 
           {/* ════════ TUTO + PARAMS ════════ */}

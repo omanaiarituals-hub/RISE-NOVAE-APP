@@ -15,13 +15,6 @@ const ADMIN_EMAILS = ['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com']
 export default function AdminTile() {
   const { user } = useSupabaseAuth()
 
-  // Debug temporaire — à retirer après que la tuile apparaît bien.
-  // Ouvre la console (F12) sur ton tel via Chrome DevTools ou en desktop pour voir le log.
-  if (typeof window !== 'undefined' && user) {
-    // eslint-disable-next-line no-console
-    console.log('[AdminTile] email connecté =', user.email, '— admin?', user.email && ADMIN_EMAILS.includes(user.email.toLowerCase()))
-  }
-
   if (!user?.email) return null
   if (!ADMIN_EMAILS.includes(user.email.toLowerCase())) return null
 
