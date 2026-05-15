@@ -31,6 +31,11 @@ interface Recipe {
   is_favorite: boolean
   is_public?: boolean
   calories?: number
+  photo_url?: string
+}
+
+interface ScanPrefill extends Partial<Recipe> {
+  _photoFile?: File
 }
 
 interface MealSlot {
@@ -156,6 +161,23 @@ function mergeQuantities(quantities: string[]): string {
   return quantities.join(' + ')
 }
 
+// ─── HELPER UPLOAD PHOTO ──────────────────────────────────────────────────────
+async function uploadRecipePhoto(file: File, userId: string): Promise<string> {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+  const filename = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('recipe-photos')
+    .upload(filename, file, { cacheControl: '3600', upsert: false })
+
+  if (uploadError) {
+    throw new Error(`Échec upload photo : ${uploadError.message}`)
+  }
+
+  const { data } = supabase.storage.from('recipe-photos').getPublicUrl(filename)
+  return data.publicUrl
+}
+
 // ─── BANDEAU ALLERGIE ─────────────────────────────────────────────────────────
 function AllergyBanner({ alerts, onDismiss }: { alerts: AllergyAlert[]; onDismiss: () => void }) {
   if (alerts.length === 0) return null
@@ -189,7 +211,13 @@ function RecipeCard({ recipe, onDragStart, onSelect, isSelected, onEdit, onDelet
     <div draggable onDragStart={onDragStart} onClick={onSelect}
       style={{ background: isSelected ? mc.bg : C.blanc, border: `1.5px solid ${hasAllergyWarning ? 'rgba(220,60,60,0.4)' : isSelected ? mc.border : C.grisClair}`, borderRadius: 14, padding: '12px 14px', marginBottom: 8, cursor: 'grab', transition: 'all 0.15s', boxShadow: hasAllergyWarning ? '0 2px 8px rgba(220,60,60,0.15)' : isSelected ? `0 2px 12px ${mc.border}33` : 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontSize: 28, flexShrink: 0 }}>{recipe.emoji}</span>
+        {recipe.photo_url ? (
+          <img src={recipe.photo_url} alt={recipe.title}
+            style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0, background: C.cream }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+        ) : (
+          <span style={{ fontSize: 28, flexShrink: 0 }}>{recipe.emoji}</span>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.noir, fontFamily: "'Cormorant Garamond',serif" }}>{recipe.title}</p>
@@ -231,7 +259,13 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 48 }}>{recipe.emoji}</div>
+            {recipe.photo_url ? (
+              <img src={recipe.photo_url} alt={recipe.title}
+                style={{ width: 120, height: 120, borderRadius: 16, objectFit: 'cover', display: 'block', marginBottom: 8 }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+            ) : (
+              <div style={{ fontSize: 48 }}>{recipe.emoji}</div>
+            )}
             <h2 style={{ margin: '8px 0 4px', fontFamily: "'Cormorant Garamond',serif", fontSize: 26, color: C.noir }}>{recipe.title}</h2>
             {recipe.description && <p style={{ margin: '0 0 8px', fontSize: 13, color: C.gris }}>{recipe.description}</p>}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -295,31 +329,58 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
 // ─── MODAL AJOUT / MODIFICATION ───────────────────────────────────────────────
 const DRAFT_KEY = 'novae_recipe_draft'
 
-function RecipeModal({ initial, onSave, onClose }: {  initial?: Recipe; onSave: (r: Partial<Recipe>) => void; onClose: () => void
+function RecipeModal({ initial, prefill, onSave, onClose, userId }: {
+  initial?: Recipe
+  prefill?: ScanPrefill
+  onSave: (r: Partial<Recipe>) => void
+  onClose: () => void
+  userId: string
 }) {
- const savedDraft = !initial && typeof window !== 'undefined'
+  const src = initial || (prefill as Partial<Recipe> | undefined)
+
+  const savedDraft = !initial && !prefill && typeof window !== 'undefined'
     ? (() => { try { const d = localStorage.getItem(DRAFT_KEY); return d ? JSON.parse(d) : null } catch { return null } })()
     : null
 
-  const [title, setTitle] = useState(initial?.title || savedDraft?.title || '')
-  const [emoji, setEmoji] = useState(initial?.emoji || savedDraft?.emoji || '🍝')
-  const [description, setDescription] = useState(initial?.description || savedDraft?.description || '')
-  const [prepTime, setPrepTime] = useState(initial?.prep_time || savedDraft?.prepTime || '15')
-  const [cookTime, setCookTime] = useState(initial?.cook_time || savedDraft?.cookTime || '0')
-  const [mealType, setMealType] = useState<MealType>(initial?.meal_type || savedDraft?.mealType || 'plat')
-  const [category, setCategory] = useState<Category>(initial?.category || savedDraft?.category || 'express')
-  const [difficulty, setDifficulty] = useState<Difficulty>(initial?.difficulty || savedDraft?.difficulty || 'facile')
-  const [servings, setServings] = useState(initial?.servings || savedDraft?.servings || 4)
-  const [calories, setCalories] = useState(initial?.calories || savedDraft?.calories || 0)
+  const [title, setTitle] = useState(src?.title || savedDraft?.title || '')
+  const [emoji, setEmoji] = useState(src?.emoji || savedDraft?.emoji || '🍝')
+  const [description, setDescription] = useState(src?.description || savedDraft?.description || '')
+  const [prepTime, setPrepTime] = useState(src?.prep_time || savedDraft?.prepTime || '15')
+  const [cookTime, setCookTime] = useState(src?.cook_time || savedDraft?.cookTime || '0')
+  const [mealType, setMealType] = useState<MealType>(src?.meal_type || savedDraft?.mealType || 'plat')
+  const [category, setCategory] = useState<Category>(src?.category || savedDraft?.category || 'express')
+  const [difficulty, setDifficulty] = useState<Difficulty>(src?.difficulty || savedDraft?.difficulty || 'facile')
+  const [servings, setServings] = useState(src?.servings || savedDraft?.servings || 4)
+  const [calories, setCalories] = useState(src?.calories || savedDraft?.calories || 0)
   const [ingredientsText, setIngredientsText] = useState(
-    initial?.ingredients?.map(i => `${i.name}: ${i.quantity}`).join('\n') || savedDraft?.ingredientsText || ''
+    src?.ingredients?.map(i => `${i.name}: ${i.quantity}`).join('\n') || savedDraft?.ingredientsText || ''
   )
-  const [stepsText, setStepsText] = useState(initial?.steps?.join('\n') || savedDraft?.stepsText || '')
+  const [stepsText, setStepsText] = useState(src?.steps?.join('\n') || savedDraft?.stepsText || '')
   const [showEmoji, setShowEmoji] = useState(false)
   const [draftSaved, setDraftSaved] = useState(false)
 
+  // Photo state
+  const [photoFile, setPhotoFile] = useState<File | null>(prefill?._photoFile || null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(() => {
+    if (prefill?._photoFile) return URL.createObjectURL(prefill._photoFile)
+    if (initial?.photo_url) return initial.photo_url
+    return null
+  })
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
   useEffect(() => {
-    if (initial) return
+    // Cleanup ObjectURL on unmount
+    return () => {
+      if (photoPreview && photoFile) {
+        URL.revokeObjectURL(photoPreview)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (initial || prefill) return
     const draft = { title, emoji, description, prepTime, cookTime, mealType, category, difficulty, servings, calories, ingredientsText, stepsText }
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
@@ -327,36 +388,105 @@ function RecipeModal({ initial, onSave, onClose }: {  initial?: Recipe; onSave: 
       const t = setTimeout(() => setDraftSaved(false), 1500)
       return () => clearTimeout(t)
     } catch {}
-  }, [title, emoji, description, prepTime, cookTime, mealType, category, difficulty, servings, calories, ingredientsText, stepsText, initial])
+  }, [title, emoji, description, prepTime, cookTime, mealType, category, difficulty, servings, calories, ingredientsText, stepsText, initial, prefill])
 
-  const handleSave = () => {
-    try { localStorage.removeItem(DRAFT_KEY) } catch {}
-    
-    if (!title.trim() || !ingredientsText.trim()) return
-    const ingredients: Ingredient[] = ingredientsText.split('\n').map((l: string) => {
-      const parts = l.split(':')
-      return { name: parts[0]?.trim() || l.trim(), quantity: parts[1]?.trim() || '' }
-    }).filter((i: Ingredient) => i.name)
-    const steps = stepsText.split('\n').map((s: string) => s.trim()).filter(Boolean)
-    onSave({
-      title, emoji, description, prep_time: prepTime, cook_time: cookTime,
-      meal_type: mealType, category, difficulty, servings,
-      calories: calories || undefined, ingredients,
-      steps: steps.length > 0 ? steps : ['Préparer selon votre goût'],
-      is_favorite: initial?.is_favorite || false, is_public: false
-    })
-    onClose()
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      setSaveError('Image trop lourde (max 5 MB)')
+      return
+    }
+    if (photoPreview && photoFile) URL.revokeObjectURL(photoPreview)
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+    setSaveError(null)
   }
+
+  const removePhoto = () => {
+    if (photoPreview && photoFile) URL.revokeObjectURL(photoPreview)
+    setPhotoFile(null)
+    setPhotoPreview(null)
+  }
+
+  const handleSave = async () => {
+    if (!title.trim() || !ingredientsText.trim()) return
+    setSaving(true)
+    setSaveError(null)
+
+    try {
+      let photo_url: string | undefined = initial?.photo_url || undefined
+
+      if (photoFile) {
+        photo_url = await uploadRecipePhoto(photoFile, userId)
+      }
+
+      try { localStorage.removeItem(DRAFT_KEY) } catch {}
+
+      const ingredients: Ingredient[] = ingredientsText.split('\n').map((l: string) => {
+        const parts = l.split(':')
+        return { name: parts[0]?.trim() || l.trim(), quantity: parts[1]?.trim() || '' }
+      }).filter((i: Ingredient) => i.name)
+      const steps = stepsText.split('\n').map((s: string) => s.trim()).filter(Boolean)
+
+      onSave({
+        title, emoji, description, prep_time: prepTime, cook_time: cookTime,
+        meal_type: mealType, category, difficulty, servings,
+        calories: calories || undefined, ingredients,
+        steps: steps.length > 0 ? steps : ['Préparer selon votre goût'],
+        is_favorite: initial?.is_favorite || false, is_public: false,
+        photo_url,
+      })
+      onClose()
+    } catch (err) {
+      setSaveError((err as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const isFromScan = !!prefill && !initial
+  const isEdit = !!initial
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div style={{ background: C.blanc, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 600, padding: '20px 20px 40px', maxHeight: '94vh', overflowY: 'auto' }}>
         <div style={{ width: 40, height: 4, background: C.grisClair, borderRadius: 4, margin: '0 auto 20px' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <h3 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: C.noir }}>{initial ? 'Modifier la recette' : 'Nouvelle recette'}</h3>
-          {!initial && draftSaved && <span style={{ fontSize: 10, color: '#90C8A8', fontWeight: 600 }}>✓ Brouillon sauvegardé</span>}
+          <h3 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: C.noir }}>
+            {isEdit ? 'Modifier la recette' : isFromScan ? '✨ Recette extraite' : 'Nouvelle recette'}
+          </h3>
+          {!isEdit && !isFromScan && draftSaved && <span style={{ fontSize: 10, color: '#90C8A8', fontWeight: 600 }}>✓ Brouillon sauvegardé</span>}
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.gris }}>×</button>
         </div>
+
+        {isFromScan && (
+          <div style={{ background: 'rgba(196,149,106,0.08)', border: '1.5px solid rgba(196,149,106,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
+            <p style={{ margin: 0, fontSize: 12, color: C.rose, fontWeight: 600 }}>✨ Extrait par IA — vérifie et complète Type, Catégorie, Personnes avant d'enregistrer.</p>
+          </div>
+        )}
+
+        {/* Photo */}
+        <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>
+          📷 Photo {isFromScan ? '(récupérée depuis la source)' : '(optionnel)'}
+        </p>
+        <div style={{ marginBottom: 14 }}>
+          {photoPreview ? (
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <img src={photoPreview} alt="Aperçu"
+                style={{ width: 100, height: 100, borderRadius: 12, objectFit: 'cover', display: 'block', border: `1.5px solid ${C.grisClair}` }} />
+              <button onClick={removePhoto}
+                style={{ position: 'absolute', top: -8, right: -8, width: 24, height: 24, borderRadius: '50%', border: `1.5px solid ${C.grisClair}`, background: 'white', cursor: 'pointer', fontSize: 14, color: C.gris, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>×</button>
+            </div>
+          ) : (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10, border: `1.5px dashed ${C.grisClair}`, background: C.cream, cursor: 'pointer', fontSize: 12, color: C.gris }}>
+              <span style={{ fontSize: 16 }}>📷</span>
+              <span>Choisir une photo depuis ma galerie</span>
+              <input type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
+            </label>
+          )}
+        </div>
+
         <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
           <button onClick={() => setShowEmoji(!showEmoji)} style={{ width: 52, height: 52, borderRadius: 14, border: `2px solid ${showEmoji ? C.rose : C.grisClair}`, background: C.cream, fontSize: 26, cursor: 'pointer', flexShrink: 0 }}>{emoji}</button>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Nom de la recette..." autoFocus
@@ -407,9 +537,16 @@ function RecipeModal({ initial, onSave, onClose }: {  initial?: Recipe; onSave: 
         <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 6px' }}>Préparation <span style={{ fontWeight: 400, textTransform: 'none' }}>(une étape par ligne)</span></p>
         <textarea value={stepsText} onChange={e => setStepsText(e.target.value)} placeholder={"Préchauffer le four à 180°C\nCouper les légumes"} rows={4}
           style={{ width: '100%', border: `1.5px solid ${C.grisClair}`, borderRadius: 12, padding: '10px 14px', fontSize: 13, outline: 'none', color: C.noir, background: C.cream, resize: 'none', boxSizing: 'border-box' as const, marginBottom: 16 }} />
-        <button onClick={handleSave} disabled={!title.trim() || !ingredientsText.trim()}
-          style={{ width: '100%', padding: '14px 0', borderRadius: 14, border: 'none', background: title.trim() && ingredientsText.trim() ? C.rose : C.grisClair, color: title.trim() && ingredientsText.trim() ? 'white' : '#aaa', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
-          {initial ? '✓ Enregistrer les modifications' : '+ Créer la recette'}
+
+        {saveError && (
+          <div style={{ background: 'rgba(220,60,60,0.08)', border: '1.5px solid rgba(220,60,60,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, color: '#C04040', fontSize: 12 }}>
+            ❌ {saveError}
+          </div>
+        )}
+
+        <button onClick={handleSave} disabled={!title.trim() || !ingredientsText.trim() || saving}
+          style={{ width: '100%', padding: '14px 0', borderRadius: 14, border: 'none', background: title.trim() && ingredientsText.trim() && !saving ? C.rose : C.grisClair, color: title.trim() && ingredientsText.trim() && !saving ? 'white' : '#aaa', fontSize: 15, fontWeight: 700, cursor: saving ? 'wait' : 'pointer' }}>
+          {saving ? '⏳ Enregistrement...' : isEdit ? '✓ Enregistrer les modifications' : '+ Créer la recette'}
         </button>
       </div>
     </div>
@@ -506,6 +643,11 @@ export default function RecipesPage() {
   const [loading, setLoading] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
 
+  // Scan state
+  const [scanPrefill, setScanPrefill] = useState<ScanPrefill | undefined>(undefined)
+  const [scanning, setScanning] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768)
     check()
@@ -577,6 +719,7 @@ export default function RecipesPage() {
     servings: r.servings || 4, ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
     steps: Array.isArray(r.steps) ? r.steps : [], is_favorite: r.is_favorite || false,
     is_public: r.is_public || false, calories: r.calories,
+    photo_url: r.photo_url || undefined,
   })
 
   const saveRecipe = async (data: Partial<Recipe>) => {
@@ -589,6 +732,7 @@ export default function RecipesPage() {
       if (inserted) setRecipes(prev => [normalizeRecipe(inserted), ...prev])
     }
     setEditingRecipe(undefined)
+    setScanPrefill(undefined)
   }
 
   const deleteRecipe = async (id: string) => {
@@ -597,6 +741,123 @@ export default function RecipesPage() {
     await supabase.from('recipes').delete().eq('id', id)
     setRecipes(prev => prev.filter(r => r.id !== id))
     setMealSlots(prev => prev.filter(s => s.recipe_id !== id))
+  }
+
+  // ─── HANDLER SCAN ───────────────────────────────────────────────────────────
+  const handleScanFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+
+    // Reset input so the same file can be re-selected later
+    e.target.value = ''
+
+    if (file.size > 5 * 1024 * 1024) {
+      setScanError('Image trop lourde (max 5 MB)')
+      return
+    }
+
+    setScanning(true)
+    setScanError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('image', file)
+
+      const response = await fetch('/api/recipes/extract', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || `Extraction échouée (HTTP ${response.status})`)
+      }
+
+      const extracted = data.recipe || {}
+
+      const ingredients: Ingredient[] = (extracted.ingredients || []).map((ing: any) => {
+        const qty = ing.quantity != null
+          ? `${ing.quantity}${ing.unit ? ' ' + ing.unit : ''}`.trim()
+          : ''
+        return { name: ing.name || '', quantity: qty }
+      })
+
+      const prefill: ScanPrefill = {
+        title: extracted.title || '',
+        emoji: extracted.emoji || '🍽️',
+        ingredients,
+        steps: Array.isArray(extracted.steps) ? extracted.steps : [],
+        servings: extracted.servings ?? 4,
+        cook_time: extracted.cooking_time_minutes != null ? String(extracted.cooking_time_minutes) : '0',
+        prep_time: '0',
+        // Type / Catégorie / Difficulté → laissées au défaut, à choisir par la user
+        _photoFile: file,
+      }
+
+      setScanPrefill(prefill)
+      setEditingRecipe(undefined)
+      setShowModal(true)
+    } catch (err) {
+      setScanError((err as Error).message)
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  // ─── SYNC LISTE DE COURSES (recettes uniquement, préserve les items custom) ──
+  const syncRecipeShoppingItems = async (slotsOverride?: MealSlot[]) => {
+    if (!user) return
+    const slots = slotsOverride ?? mealSlots
+
+    // Supprime SEULEMENT les items issus de recettes (preserve les custom)
+    await supabase.from('shopping_list').delete()
+      .eq('user_id', user.id)
+      .not('recipe_id', 'is', null)
+
+    // Reconstruit depuis le planning courant
+    const map = new Map<string, { quantities: string[]; recipeId: string; titles: string[] }>()
+    slots.forEach(slot => {
+      const recipe = slot.recipe || recipes.find(r => r.id === slot.recipe_id)
+      if (!recipe) return
+      recipe.ingredients.forEach(ing => {
+        const key = ing.name.toLowerCase().trim()
+        if (!map.has(key)) map.set(key, { quantities: [], recipeId: recipe.id, titles: [] })
+        const e = map.get(key)!
+        e.quantities.push(ing.quantity)
+        if (!e.titles.includes(recipe.title)) e.titles.push(recipe.title)
+      })
+    })
+
+    const newItems = Array.from(map.entries()).map(([key, val]) => {
+      const originalName = recipes.flatMap(r => r.ingredients).find(i => i.name.toLowerCase().trim() === key)?.name || key
+      return {
+        user_id: user.id,
+        ingredient: originalName,
+        quantity: mergeQuantities(val.quantities),
+        recipe_id: val.recipeId,
+        checked: false,
+        in_stock: false,
+        to_buy: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    })
+
+    let recipeItems: ShoppingItem[] = []
+    if (newItems.length > 0) {
+      const { data } = await supabase.from('shopping_list').insert(newItems).select()
+      recipeItems = (data || []).map(s => ({
+        ...s,
+        recipe_title: map.get(s.ingredient?.toLowerCase().trim())?.titles.join(', ') || ''
+      })) as ShoppingItem[]
+    }
+
+    // Met à jour le state : items recettes remplacés, items custom préservés
+    setShoppingItems(prev => {
+      const customItems = prev.filter(i => !i.recipe_id)
+      return [...recipeItems, ...customItems]
+    })
   }
 
   const addToPlan = async (recipeId: string, day: string, slot: PlanSlot) => {
@@ -613,10 +874,11 @@ export default function RecipesPage() {
       const alerts = computeAllergyAlerts(newSlots, familyData || [])
       setAllergyAlerts(alerts)
       setShowAllergyBanner(alerts.length > 0)
+      await syncRecipeShoppingItems(newSlots)
     }
   }
 
-  const removeFromPlan = async (slotId: string) => {
+ const removeFromPlan = async (slotId: string) => {
     await supabase.from('meal_plan').delete().eq('id', slotId)
     const newSlots = mealSlots.filter(s => s.id !== slotId)
     setMealSlots(newSlots)
@@ -624,34 +886,12 @@ export default function RecipesPage() {
     const alerts = computeAllergyAlerts(newSlots, familyData || [])
     setAllergyAlerts(alerts)
     setShowAllergyBanner(alerts.length > 0)
+    await syncRecipeShoppingItems(newSlots)
   }
 
   const generateShopping = async () => {
     if (!user) return
-    await supabase.from('shopping_list').delete().eq('user_id', user.id).not('recipe_id', 'is', null)
-    const map = new Map<string, { quantities: string[]; recipeId: string; titles: string[] }>()
-    mealSlots.forEach(slot => {
-      const recipe = slot.recipe || recipes.find(r => r.id === slot.recipe_id)
-      if (!recipe) return
-      recipe.ingredients.forEach(ing => {
-        const key = ing.name.toLowerCase().trim()
-        if (!map.has(key)) map.set(key, { quantities: [], recipeId: recipe.id, titles: [] })
-        const e = map.get(key)!
-        e.quantities.push(ing.quantity)
-        if (!e.titles.includes(recipe.title)) e.titles.push(recipe.title)
-      })
-    })
-    const newItems = Array.from(map.entries()).map(([key, val]) => {
-      const originalName = recipes.flatMap(r => r.ingredients).find(i => i.name.toLowerCase().trim() === key)?.name || key
-      return { user_id: user.id, ingredient: originalName, quantity: mergeQuantities(val.quantities), recipe_id: val.recipeId, checked: false, in_stock: false, to_buy: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-    })
-    let allItems: ShoppingItem[] = shoppingItems.filter(i => !i.recipe_id)
-    if (newItems.length > 0) {
-      const { data } = await supabase.from('shopping_list').insert(newItems).select()
-      const enriched = (data || []).map(s => ({ ...s, recipe_title: map.get(s.ingredient?.toLowerCase().trim())?.titles.join(', ') || '' })) as ShoppingItem[]
-      allItems = [...enriched, ...allItems]
-    }
-    setShoppingItems(allItems)
+    await syncRecipeShoppingItems(mealSlots)
     setShowShopping(true)
   }
 
@@ -696,7 +936,6 @@ export default function RecipesPage() {
     )
   }
 
-  // Visibilité des panneaux : sur mobile on suit les onglets, sur desktop on affiche tout
   const showLibrary = isMobile ? activeView === 'library' : true
   const showPlan = isMobile ? activeView === 'plan' : true
 
@@ -727,6 +966,15 @@ export default function RecipesPage() {
           <AllergyBanner alerts={allergyAlerts} onDismiss={() => setShowAllergyBanner(false)} />
         )}
 
+        {/* Bandeau erreur scan */}
+        {scanError && (
+          <div style={{ background: 'rgba(220,60,60,0.08)', border: '1.5px solid rgba(220,60,60,0.25)', borderRadius: 12, padding: '12px 16px', margin: '12px 20px 0', display: 'flex', gap: 12, alignItems: 'center' }}>
+            <span style={{ fontSize: 18 }}>❌</span>
+            <p style={{ margin: 0, flex: 1, fontSize: 13, color: '#C04040' }}>{scanError}</p>
+            <button onClick={() => setScanError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#C04040', fontSize: 16 }}>×</button>
+          </div>
+        )}
+
         {/* Tabs */}
         <div style={{ display: 'flex', background: C.blanc, borderBottom: `1px solid ${C.grisClair}`, padding: '0 20px' }}>
           {[{ key: 'library', label: '📚 Recettes' }, { key: 'plan', label: `📅 Planning${totalPlan > 0 ? ` (${totalPlan})` : ''}` }].map(tab => (
@@ -742,10 +990,17 @@ export default function RecipesPage() {
           {/* ── BIBLIOTHÈQUE ── */}
           <div style={{ display: showLibrary ? 'block' : 'none' }}>
             <div style={{ background: C.blanc, borderRadius: 16, padding: 16, boxShadow: '0 2px 12px rgba(44,44,44,0.05)', marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
                 <h2 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: C.noir }}>Mes recettes ({recipes.length})</h2>
-                <button onClick={() => { setEditingRecipe(undefined); setShowModal(true) }}
-                  style={{ padding: '6px 12px', borderRadius: 10, border: 'none', background: C.rose, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Nouvelle</button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => { setEditingRecipe(undefined); setScanPrefill(undefined); setShowModal(true) }}
+                    style={{ padding: '6px 12px', borderRadius: 10, border: 'none', background: C.rose, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Nouvelle</button>
+                  <label
+                    style={{ padding: '6px 12px', borderRadius: 10, border: `1.5px solid ${C.violet}`, background: scanning ? 'rgba(123,111,160,0.3)' : 'rgba(123,111,160,0.1)', color: C.violet, fontSize: 12, fontWeight: 600, cursor: scanning ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {scanning ? '⏳ Extraction...' : '📷 Extraire d\'une photo'}
+                    <input type="file" accept="image/*" onChange={handleScanFile} disabled={scanning} style={{ display: 'none' }} />
+                  </label>
+                </div>
               </div>
               <div style={{ marginBottom: 8 }}>
                 <p style={{ fontSize: 10, color: '#aaa', margin: '0 0 5px', textTransform: 'uppercase' }}>Type</p>
@@ -774,7 +1029,7 @@ export default function RecipesPage() {
                   hasAllergyWarning={allergyRecipeTitles.has(r.title)}
                   onDragStart={() => setDraggedRecipe(r)}
                   onSelect={() => setSelectedRecipe(selectedRecipe?.id === r.id ? null : r)}
-                  onEdit={() => { setEditingRecipe(r); setShowModal(true) }}
+                  onEdit={() => { setEditingRecipe(r); setScanPrefill(undefined); setShowModal(true) }}
                   onDelete={() => deleteRecipe(r.id)}
                 />
               ))}
@@ -786,15 +1041,14 @@ export default function RecipesPage() {
             <div style={{ background: C.blanc, borderRadius: 16, padding: 16, boxShadow: '0 2px 12px rgba(44,44,44,0.05)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <h2 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: C.noir }}>Planning de la semaine</h2>
-                <button onClick={async () => { await supabase.from('meal_plan').delete().eq('user_id', user?.id); setMealSlots([]); setAllergyAlerts([]) }}
+                <button onClick={async () => { await supabase.from('meal_plan').delete().eq('user_id', user?.id); setMealSlots([]); setAllergyAlerts([]); await syncRecipeShoppingItems([]) }}
                   style={{ fontSize: 11, color: C.gris, background: 'none', border: `1px solid ${C.grisClair}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>Vider</button>
-              </div>
+                  </div>
               <p style={{ margin: '0 0 14px', fontSize: 11, color: C.gris, opacity: 0.7 }}>
                 {isMobile ? 'Clique sur un créneau vide pour ajouter une recette' : "Glisse une recette ou clique pour l'ajouter à un créneau"}
               </p>
 
               {isMobile ? (
-                /* ─── LAYOUT VERTICAL MOBILE ─── */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {DAYS.map((day, i) => (
                     <div key={day} style={{ background: C.cream, borderRadius: 12, padding: '10px 12px', border: `1px solid ${C.grisClair}` }}>
@@ -835,7 +1089,6 @@ export default function RecipesPage() {
                   ))}
                 </div>
               ) : (
-                /* ─── LAYOUT GRID DESKTOP ─── */
                 <div style={{ overflowX: 'auto' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '80px repeat(7, 1fr)', gap: 4, minWidth: 600 }}>
                     <div />
@@ -892,8 +1145,14 @@ export default function RecipesPage() {
             allergyWarnings={allergyAlerts}
             onAddToPlan={(day, slot) => { addToPlan(selectedRecipe.id, day, slot); setSelectedRecipe(null) }} />
         )}
-        {showModal && (
-          <RecipeModal initial={editingRecipe} onSave={saveRecipe} onClose={() => { setShowModal(false); setEditingRecipe(undefined) }} />
+        {showModal && user && (
+          <RecipeModal
+            initial={editingRecipe}
+            prefill={scanPrefill}
+            userId={user.id}
+            onSave={saveRecipe}
+            onClose={() => { setShowModal(false); setEditingRecipe(undefined); setScanPrefill(undefined) }}
+          />
         )}
         {showShopping && (
           <ShoppingPanel items={shoppingItems} onToggle={toggleItem} onClose={() => setShowShopping(false)} onAddCustom={addCustomItem} onDelete={deleteItem} />
