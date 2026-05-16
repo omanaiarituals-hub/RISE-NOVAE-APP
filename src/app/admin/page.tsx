@@ -323,8 +323,8 @@ const resetRoadmap = () => {
 
   const loadAll = async () => {
     setLoading(true)
-    await Promise.all([loadUsers(), loadChallenges(), loadPosts(), loadStreaks(), loadBrevoStats(),loadLandingStats()])
-    setLoading(false)
+await Promise.all([loadUsers(), loadChallenges(), loadPosts(), loadStreaks(), loadBrevoStats(), loadLandingStats(), loadAuthUserCount()])  
+  setLoading(false)
   }
 
   const loadStreaks = async () => {
@@ -762,9 +762,25 @@ const loadAuthUserCount = async () => {
               <p style={{ fontSize: 12, color: C.brownLight, margin: '0 0 20px', fontStyle: 'italic' }}>Clique sur une tuile pour filtrer le tableau ci-dessous.</p>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 28 }}>
-                <KpiTile selected={selectedKpi === 'all'} onClick={() => setSelectedKpi('all')} emoji="👥" label="Inscrites" value={total} accent={C.copperDark} />
-                <KpiTile selected={selectedKpi === 'onboarded'} onClick={() => setSelectedKpi('onboarded')} emoji="✦" label="Onboarding fait" value={onboardedCount} accent={C.copper} sub={total > 0 ? `${Math.round((onboardedCount / total) * 100)}% conversion` : undefined} />
-                <KpiTile selected={selectedKpi === 'active_24h'} onClick={() => setSelectedKpi('active_24h')} emoji="🔥" label="Actives 24h" value={active24hCount} accent={C.red} sub={total > 0 ? `${Math.round((active24hCount / total) * 100)}%` : undefined} />
+                <KpiTile 
+  selected={selectedKpi === 'all'} 
+  onClick={() => setSelectedKpi('all')} 
+  emoji="👥" 
+  label="Inscrites total" 
+  value={authUserCount ?? total} 
+  accent={C.copperDark}
+  sub={authUserCount !== null && authUserCount !== total ? `${total} avec profil créé` : undefined}
+/>
+<KpiTile 
+  selected={selectedKpi === 'onboarded'} 
+  onClick={() => setSelectedKpi('onboarded')} 
+  emoji="✦" 
+  label="Onboarding fait" 
+  value={onboardedCount} 
+  accent={C.copper} 
+  sub={authUserCount && authUserCount > 0 ? `${Math.round((onboardedCount / authUserCount) * 100)}% conversion` : undefined} 
+/>
+<KpiTile selected={selectedKpi === 'active_24h'} onClick={() => setSelectedKpi('active_24h')} emoji="🔥" label="Actives 24h" value={active24hCount} accent={C.red} sub={total > 0 ? `${Math.round((active24hCount / total) * 100)}%` : undefined} />
                 <KpiTile selected={selectedKpi === 'active_7d'} onClick={() => setSelectedKpi('active_7d')} emoji="✨" label="Actives 7j" value={active7dCount} accent={C.green} sub={total > 0 ? `${Math.round((active7dCount / total) * 100)}%` : undefined} />
                 <KpiTile selected={selectedKpi === 'on_program'} onClick={() => setSelectedKpi('on_program')} emoji="🎯" label="Programme actif" value={onProgramCount} accent={C.purple} />
                 <KpiTile selected={selectedKpi === 'struggling'} onClick={() => setSelectedKpi('struggling')} emoji="🌙" label="Mode traversée" value={strugglingCount} accent={C.brownMid} sub="inactives 4j+" />
@@ -1387,23 +1403,23 @@ const loadAuthUserCount = async () => {
             accent={C.copperDark}
             sub={`${landingStats.pageViews.last24h} sur 24h · ${landingStats.pageViews.total} total`}
           />
-          <KpiTile 
-  selected={selectedKpi === 'all'} 
-  onClick={() => setSelectedKpi('all')} 
-  emoji="👥" 
-  label="Inscrites total" 
-  value={authUserCount ?? total} 
-  accent={C.copperDark}
-  sub={authUserCount !== null && authUserCount !== total ? `${total} avec profil créé` : undefined}
+          <KpiTile
+  selected={false}
+  onClick={() => {}}
+  emoji="👤"
+  label="Visiteuses uniques (7j)"
+  value={landingStats.uniqueVisitors.last7d}
+  accent={C.copper}
+  sub={`${landingStats.uniqueVisitors.last24h} sur 24h · ${landingStats.uniqueVisitors.total} total`}
 />
-<KpiTile 
-  selected={selectedKpi === 'onboarded'} 
-  onClick={() => setSelectedKpi('onboarded')} 
-  emoji="✦" 
-  label="Onboarding fait" 
-  value={onboardedCount} 
-  accent={C.copper} 
-  sub={authUserCount && authUserCount > 0 ? `${Math.round((onboardedCount / authUserCount) * 100)}% conversion` : undefined} 
+<KpiTile
+  selected={false}
+  onClick={() => {}}
+  emoji="✦"
+  label="Clics CTA total"
+  value={landingStats.cta.totalClicks}
+  accent={C.green}
+  sub={`${landingStats.cta.totalSessions > 0 ? landingStats.cta.conversionRate.toFixed(1) : '0'}% de conversion`}
 />
           <KpiTile
             selected={false}
