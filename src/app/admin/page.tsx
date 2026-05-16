@@ -69,13 +69,41 @@ interface ManualKpis {
   kFactor: string
 }
 
+interface LandingMetrics {
+  period: { days: number; since: string }
+  pageViews:      { last24h: number; last7d: number; total: number }
+  uniqueVisitors: { last24h: number; last7d: number; total: number }
+  cta: {
+    totalClicks: number
+    breakdown: { label: string; count: number }[]
+    conversionRate: number
+    sessionsClickedAnyMain: number
+    sessionsClickedHero: number
+    sessionsClickedFinal: number
+    sessionsClickedDemo: number
+    totalSessions: number
+  }
+  traffic: {
+    directVisits: number
+    topReferrers: { referrer: string; count: number }[]
+    utmBreakdown: { source: string; medium: string; campaign: string; count: number }[]
+  }
+  scrollDepth: {
+    totalSessions: number
+    reachedQuarter: number
+    reachedHalf: number
+    reachedThreeQuarters: number
+    reachedFull: number
+  }
+}
+
 const DEFAULT_MANUAL_KPIS: ManualKpis = {
   conversion: '', mrr: '', churn: '',
   tiktokViews: '', ctrBio: '', emailOpenRate: '', kFactor: '',
 }
 
 type KpiKey = 'all' | 'onboarded' | 'active_24h' | 'active_7d' | 'on_program' | 'struggling' | 'community' | 'never_active'
-type Tab = 'stats' | 'challenges' | 'posts' | 'review'
+type Tab = 'stats' | 'challenges' | 'posts' | 'review' | 'landing'
 
 // ─── Roadmap status — extrait du dossier V2 Pro ───
 const ROADMAP_VALIDATED: Record<string, string[]> = {
@@ -162,6 +190,9 @@ export default function AdminPage() {
   } | null>(null)
   const [brevoLoading, setBrevoLoading] = useState(false)
   const [brevoError, setBrevoError] = useState<string | null>(null)
+  const [landingStats, setLandingStats] = useState<LandingMetrics | null>(null)
+const [landingLoading, setLandingLoading] = useState(false)
+const [landingError, setLandingError] = useState<string | null>(null)
 
   // Saisies manuelles revue dominicale (Stripe + Marketing)
   const [manualKpis, setManualKpis] = useState<ManualKpis>(DEFAULT_MANUAL_KPIS)
@@ -214,7 +245,7 @@ export default function AdminPage() {
 
   const loadAll = async () => {
     setLoading(true)
-    await Promise.all([loadUsers(), loadChallenges(), loadPosts(), loadStreaks(), loadBrevoStats()])
+    await Promise.all([loadUsers(), loadChallenges(), loadPosts(), loadStreaks(), loadBrevoStats(),loadLandingStats()])
     setLoading(false)
   }
 
@@ -263,6 +294,35 @@ export default function AdminPage() {
       setBrevoLoading(false)
     }
   }
+
+  const loadLandingStats = async () => {
+  setLandingLoading(true)
+  setLandingError(null)
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      setLandingError('Pas de session active')
+      setLandingStats(null)
+      return
+    }
+    const res = await fetch('/api/admin/metrics/landing?days=30', {
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+      cache: 'no-store',
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setLandingError(data.error || `Erreur ${res.status}`)
+      setLandingStats(null)
+    } else {
+      setLandingStats(data)
+    }
+  } catch (e: any) {
+    setLandingError(e?.message || 'Erreur inconnue')
+    setLandingStats(null)
+  } finally {
+    setLandingLoading(false)
+  }
+}
 
   const loadUsers = async () => {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -580,6 +640,7 @@ export default function AdminPage() {
               { id: 'challenges', label: '🎯 Défis' },
               { id: 'posts', label: '💬 Posts' },
               { id: 'review', label: '✦ Revue dimanche' },
+              { id: 'landing',    label: '📈 Landing' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1008,6 +1069,7 @@ export default function AdminPage() {
                   />
                 </div>
               </div>
+              
 
               {/* Section 3 bis — Détail Brevo auto-fetché */}
               <div style={glassCard}>
@@ -1103,10 +1165,223 @@ export default function AdminPage() {
 
               <p style={{ fontSize: 11, color: C.brownLight, fontStyle: 'italic', marginTop: 20, textAlign: 'center' }}>
                 ✦ Les saisies manuelles sont sauvegardées automatiquement dans ton navigateur. Pense à les actualiser chaque dimanche.
-              </p>
+                 </p>
+            </div>
+          )}
+
+          {activeTab === 'landing' && (
+  <div>
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, gap: 12, flexWrap: 'wrap' }}>
+      <div>
+        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: 0, fontWeight: 500 }}>
+          Landing page
+        </h2>
+        <p style={{ fontSize: 12, color: C.brownLight, margin: '4px 0 0', fontStyle: 'italic' }}>
+          Trafic et clics sur novae-by-omanaia.com · 30 derniers jours
+        </p>
+      </div>
+      <button
+        onClick={loadLandingStats}
+        disabled={landingLoading}
+        style={{
+          background: 'rgba(196,149,106,0.15)',
+          border: '1px solid rgba(196,149,106,0.35)',
+          borderRadius: 8, padding: '6px 12px',
+          color: C.copperDark, fontSize: 12,
+          cursor: landingLoading ? 'wait' : 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        {landingLoading ? '…' : '↻ Recharger'}
+      </button>
+    </div>
+ 
+    {landingLoading && !landingStats ? (
+      <div style={{ ...glassCard, textAlign: 'center', padding: '40px 20px' }}>
+        <p style={{ fontSize: 13, color: C.brownLight }}>Chargement des stats landing…</p>
+      </div>
+    ) : landingError && !landingStats ? (
+      <div style={{ ...glassCard, padding: '20px', background: 'rgba(196,74,74,0.06)', borderColor: 'rgba(196,74,74,0.25)' }}>
+        <p style={{ fontSize: 13, color: C.red, margin: 0, fontWeight: 600 }}>Impossible de charger les stats</p>
+        <p style={{ fontSize: 11, color: C.brownLight, margin: '4px 0 0' }}>{landingError}</p>
+        <p style={{ fontSize: 11, color: C.brownLight, margin: '8px 0 0', fontStyle: 'italic' }}>
+          Vérifie que la migration SQL <code>landing_events</code> a bien été exécutée et que la landing pousse les events.
+        </p>
+      </div>
+    ) : landingStats ? (
+      <>
+        {/* ─── KPIS PRINCIPAUX ─── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+          <KpiTile
+            selected={false}
+            onClick={() => {}}
+            emoji="👁️"
+            label="Vues (30j)"
+            value={landingStats.pageViews.last7d}
+            accent={C.copperDark}
+            sub={`${landingStats.pageViews.last24h} sur 24h · ${landingStats.pageViews.total} total`}
+          />
+          <KpiTile
+            selected={false}
+            onClick={() => {}}
+            emoji="👤"
+            label="Visiteuses uniques (7j)"
+            value={landingStats.uniqueVisitors.last7d}
+            accent={C.copper}
+            sub={`${landingStats.uniqueVisitors.last24h} sur 24h · ${landingStats.uniqueVisitors.total} total`}
+          />
+          <KpiTile
+            selected={false}
+            onClick={() => {}}
+            emoji="✦"
+            label="Clics CTA total"
+            value={landingStats.cta.totalClicks}
+            accent={C.green}
+            sub={`${landingStats.cta.totalSessions > 0 ? landingStats.cta.conversionRate.toFixed(1) : '0'}% de conversion`}
+          />
+          <KpiTile
+            selected={false}
+            onClick={() => {}}
+            emoji="🎬"
+            label="Clic démo"
+            value={landingStats.cta.sessionsClickedDemo}
+            accent={C.purple}
+            sub="sessions ayant ouvert /demo"
+          />
+        </div>
+ 
+        {/* ─── CTA BREAKDOWN ─── */}
+        <div style={glassCard}>
+          <h3 style={sectionTitle}>Clics par bouton</h3>
+          <p style={sectionDesc}>Quel CTA convertit le mieux. Idéal pour A/B test du copy.</p>
+          {landingStats.cta.breakdown.length === 0 ? (
+            <p style={{ fontSize: 13, color: C.brownLight, padding: '14px 0' }}>Aucun clic encore enregistré.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {landingStats.cta.breakdown.map((c, i) => {
+                const max = landingStats.cta.breakdown[0].count
+                const pct = Math.round((c.count / max) * 100)
+                const labelMap: Record<string, string> = {
+                  'nav_cta':       'Nav top — Avant-première gratuite',
+                  'hero_primary':  'Hero — Teste le changement',
+                  'hero_demo':     'Hero — Découvre la démo',
+                  'mirror_cta':    'Mirror — Teste le changement',
+                  'community_cta': 'Communauté — Rejoins-les',
+                  'final_primary': 'Final — Teste le changement',
+                  'final_demo':    'Final — Découvre la démo',
+                }
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ flex: '0 0 260px', fontSize: 12, color: C.brown }}>
+                      {labelMap[c.label] || c.label}
+                    </div>
+                    <div style={{ flex: 1, height: 22, background: 'rgba(255,255,255,0.4)', border: '1px solid rgba(212,165,116,0.2)', borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${C.copper}, ${C.copperDark})`, transition: 'width 0.6s ease' }} />
+                    </div>
+                    <div style={{ flex: '0 0 50px', textAlign: 'right', fontSize: 14, fontWeight: 700, color: C.brown }}>{c.count}</div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
+ 
+        {/* ─── FUNNEL ─── */}
+        <div style={glassCard}>
+          <h3 style={sectionTitle}>Funnel principal</h3>
+          <p style={sectionDesc}>Combien de visiteuses ont cliqué un CTA sur les 30 derniers jours.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+            <FunnelStep label="Visiteuses uniques" value={landingStats.cta.totalSessions} max={landingStats.cta.totalSessions} color={C.copperDark} />
+            <FunnelStep
+              label="Ont cliqué un CTA principal"
+              value={landingStats.cta.sessionsClickedAnyMain}
+              max={landingStats.cta.totalSessions}
+              color={C.copper}
+            />
+            <FunnelStep
+              label="Ont cliqué hero (haut de page)"
+              value={landingStats.cta.sessionsClickedHero}
+              max={landingStats.cta.totalSessions}
+              color={C.green}
+            />
+            <FunnelStep
+              label="Ont cliqué final (bas de page)"
+              value={landingStats.cta.sessionsClickedFinal}
+              max={landingStats.cta.totalSessions}
+              color={C.purple}
+            />
+          </div>
+        </div>
+ 
+        {/* ─── SCROLL DEPTH ─── */}
+        <div style={glassCard}>
+          <h3 style={sectionTitle}>Profondeur de lecture</h3>
+          <p style={sectionDesc}>Combien de visiteuses scrollent jusqu'au bout de la page.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            <ScrollBucket label="25%" value={landingStats.scrollDepth.reachedQuarter} total={landingStats.scrollDepth.totalSessions} color={C.copper} />
+            <ScrollBucket label="50%" value={landingStats.scrollDepth.reachedHalf} total={landingStats.scrollDepth.totalSessions} color={C.copperDark} />
+            <ScrollBucket label="75%" value={landingStats.scrollDepth.reachedThreeQuarters} total={landingStats.scrollDepth.totalSessions} color={C.green} />
+            <ScrollBucket label="100%" value={landingStats.scrollDepth.reachedFull} total={landingStats.scrollDepth.totalSessions} color={C.purple} />
+          </div>
+        </div>
+ 
+        {/* ─── TRAFFIC SOURCES ─── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
+          <div style={{ ...glassCard, marginBottom: 0 }}>
+            <h3 style={sectionTitle}>Top sources de trafic</h3>
+            <p style={sectionDesc}>D'où viennent tes visiteuses.</p>
+            {landingStats.traffic.topReferrers.length === 0 && landingStats.traffic.directVisits === 0 ? (
+              <p style={{ fontSize: 13, color: C.brownLight }}>Pas encore de données.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 6 }}>
+                {landingStats.traffic.directVisits > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(212,165,116,0.15)' }}>
+                    <span style={{ fontSize: 12, color: C.brown, fontStyle: 'italic' }}>Direct (lien tapé, bio, etc.)</span>
+                    <strong style={{ fontSize: 13, color: C.copperDark }}>{landingStats.traffic.directVisits}</strong>
+                  </div>
+                )}
+                {landingStats.traffic.topReferrers.map((r, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(212,165,116,0.15)' }}>
+                    <span style={{ fontSize: 12, color: C.brown }}>{r.referrer}</span>
+                    <strong style={{ fontSize: 13, color: C.copperDark }}>{r.count}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+ 
+          <div style={{ ...glassCard, marginBottom: 0 }}>
+            <h3 style={sectionTitle}>Campagnes UTM</h3>
+            <p style={sectionDesc}>Pour tagger tes posts TikTok/Insta : ajoute <code>?utm_source=tiktok&amp;utm_campaign=chronique-1</code></p>
+            {landingStats.traffic.utmBreakdown.length === 0 ? (
+              <p style={{ fontSize: 13, color: C.brownLight }}>Aucune campagne taguée pour l'instant.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 6 }}>
+                {landingStats.traffic.utmBreakdown.map((u, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(212,165,116,0.15)' }}>
+                    <span style={{ fontSize: 12, color: C.brown }}>
+                      <strong>{u.source}</strong>
+                      {u.medium !== '–' && <span style={{ color: C.brownLight }}> / {u.medium}</span>}
+                      {u.campaign !== '–' && <span style={{ color: C.brownLight, fontStyle: 'italic' }}> · {u.campaign}</span>}
+                    </span>
+                    <strong style={{ fontSize: 13, color: C.copperDark }}>{u.count}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </>
+    ) : (
+      <div style={glassCard}>
+        <p style={{ fontSize: 13, color: C.brownLight, textAlign: 'center', padding: '20px 0' }}>
+          Aucune donnée disponible pour le moment.
+        </p>
+      </div>
+    )}
+  </div>
+)}
+ </div> 
 
         {/* ─── MODAL DÉFI ─── */}
         {showForm && (
@@ -1378,6 +1653,49 @@ function FormLabel({ children }: { children: React.ReactNode }) {
       fontSize: 11, color: '#6b5340', display: 'block', marginBottom: 6,
       textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600,
     }}>{children}</label>
+  )
+}
+
+function FunnelStep({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(255,255,255,0.65), rgba(255,255,255,0.35))',
+      backdropFilter: 'blur(18px)',
+      WebkitBackdropFilter: 'blur(18px)',
+      border: '1px solid rgba(255,255,255,0.6)',
+      borderRadius: 14, padding: '14px 14px',
+    }}>
+      <div style={{ fontSize: 11, color: '#6b5340', fontWeight: 600, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 600, color: color, lineHeight: 1 }}>
+        {value}
+      </div>
+      <div style={{ fontSize: 11, color: '#6b5340', marginTop: 4, fontStyle: 'italic' }}>
+        {pct}% des visiteuses
+      </div>
+    </div>
+  )
+}
+
+function ScrollBucket({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(255,255,255,0.65), rgba(255,255,255,0.35))',
+      backdropFilter: 'blur(18px)',
+      border: '1px solid rgba(255,255,255,0.6)',
+      borderRadius: 14, padding: '14px 14px', textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 11, color: '#6b5340', fontWeight: 600, letterSpacing: '1.5px' }}>
+        SCROLL {label}
+      </div>
+      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 600, color: color, lineHeight: 1, margin: '8px 0 4px' }}>
+        {pct}%
+      </div>
+      <div style={{ fontSize: 11, color: '#6b5340', fontStyle: 'italic' }}>
+        {value} / {total} sessions
+      </div>
+    </div>
   )
 }
 

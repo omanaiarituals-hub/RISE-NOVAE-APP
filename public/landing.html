@@ -3,11 +3,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NOVAÉ — 90 jours pour te transformer</title>
-<meta name="description" content="NOVAÉ connecte ton programme 90 jours, agent IA, routines, planner et famille. Une seule app. Zéro chaos.">
+<title>NOVAÉ — Ne plus survivre. Vivre.</title>
+<meta name="description" content="L'app qui t'aide à reprendre ton quotidien — sans devenir quelqu'un d'autre. Avant-première gratuite jusqu'au 1er juin 2026.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500;1,600&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<!--
+  ───────────────────────────────────────────────────────────────────────────
+  IMAGES — À VALIDER / REMPLACER PAR NESS
+  ───────────────────────────────────────────────────────────────────────────
+  Les IDs Unsplash ci-dessous sont des suggestions. Si tu veux les remplacer :
+  - Va sur https://unsplash.com/s/photos/<ta-requete>
+  - Copie l'URL d'une photo (format : https://images.unsplash.com/photo-XXXXXX)
+  - Remplace dans le code (cherche "IMG:" dans les commentaires)
+
+  Recherches conseillées Unsplash :
+  • Hero       → "woman thoughtful morning" / "woman calm window"
+  • Mère       → "mother daughter tender" / "mom child reading"
+  • Couple     → "couple laughing home" / "couple genuine moment"
+  • Café solo  → "woman cafe alone reading" / "woman coffee window light"
+  • Communauté → "women friends supporting" / "women circle laughing"
+  ───────────────────────────────────────────────────────────────────────────
+-->
+
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 
@@ -91,10 +110,11 @@ nav.scrolled{
 }
 .hero-bg{
   position:absolute;inset:0;
-  background-image:url('https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=1800&q=85');
+  /* IMG: HERO — femme contemplative lumière douce (search: "woman thoughtful natural light") */
+  background-image:url('https://images.unsplash.com/photo-1569925444984-9e2e5fc3d1fb?w=1800&q=85');
   background-size:cover;
-  background-position:center 30%;
-  filter:saturate(1.05) brightness(.92);
+  background-position:center 25%;
+  filter:saturate(1.02) brightness(.88);
   transform:scale(1.04);
   animation:zoomout 16s ease-out forwards;
 }
@@ -102,8 +122,8 @@ nav.scrolled{
 .hero-overlay{
   position:absolute;inset:0;
   background:
-    radial-gradient(ellipse at 30% 30%,rgba(243,220,198,.25) 0%,transparent 60%),
-    linear-gradient(160deg,rgba(91,56,33,.55) 0%,rgba(112,73,45,.4) 40%,rgba(243,220,198,.5) 100%);
+    radial-gradient(ellipse at 25% 35%,rgba(243,220,198,.15) 0%,transparent 60%),
+    linear-gradient(150deg,rgba(91,56,33,.62) 0%,rgba(112,73,45,.45) 45%,rgba(243,220,198,.4) 100%);
 }
 .hero-content{
   position:relative;z-index:2;
@@ -138,9 +158,9 @@ nav.scrolled{
 .hero-h1 em{font-style:italic;color:var(--copper-3)}
 .hero-sub{
   font-size:17px;font-weight:400;line-height:1.65;
-  color:rgba(255,255,255,.88);
-  max-width:540px;margin:0 auto 44px;
-  text-shadow:0 1px 8px rgba(0,0,0,.2);
+  color:rgba(255,255,255,.92);
+  max-width:560px;margin:0 auto 44px;
+  text-shadow:0 1px 8px rgba(0,0,0,.25);
   opacity:0;animation:fadeup .8s .5s forwards;
 }
 .hero-btns{
@@ -165,7 +185,7 @@ nav.scrolled{
 .btn-main .star{font-size:14px}
 .btn-demo{
   display:inline-flex;align-items:center;gap:6px;
-  color:rgba(255,255,255,.85);
+  color:rgba(255,255,255,.88);
   font-size:13.5px;font-weight:500;
   border-bottom:1px solid rgba(255,255,255,.4);
   padding-bottom:3px;text-decoration:none;
@@ -173,19 +193,29 @@ nav.scrolled{
 }
 .btn-demo:hover{color:var(--copper-3);border-color:var(--copper-3)}
 
-/* MIRROR */
+.hero-launch-pill{
+  display:inline-block;
+  margin-top:34px;
+  font-size:11px;font-weight:500;
+  color:rgba(255,255,255,.7);
+  letter-spacing:1px;
+  opacity:0;animation:fadeup .8s .8s forwards;
+}
+.hero-launch-pill strong{color:var(--copper-3);font-weight:600}
+
+/* MIRROR — Le piège qu'on vit toutes */
 .mirror{
   background:
     radial-gradient(ellipse at 80% 100%,var(--rose-2) 0%,transparent 60%),
     linear-gradient(180deg,var(--cream-1) 0%,var(--cream-2) 100%);
   padding:110px 40px;
-  display:grid;grid-template-columns:1fr 1fr;gap:80px;
+  display:grid;grid-template-columns:1fr 1.05fr;gap:80px;
   align-items:center;
   position:relative;
 }
 .mirror-img{
   position:relative;border-radius:24px;overflow:hidden;
-  height:540px;
+  height:580px;
   box-shadow:0 30px 70px var(--shadow-deep);
 }
 .mirror-img img{width:100%;height:100%;object-fit:cover;object-position:center top}
@@ -205,7 +235,7 @@ nav.scrolled{
 }
 .mirror-caption-sub{
   font-size:13.5px;font-weight:400;
-  color:rgba(255,255,255,.85);line-height:1.65;
+  color:rgba(255,255,255,.88);line-height:1.65;
 }
 .mirror-tag{
   display:inline-flex;align-items:center;gap:8px;
@@ -216,37 +246,47 @@ nav.scrolled{
 .mirror-tag .star{font-size:12px;color:var(--copper-1)}
 .mirror-h2{
   font-family:'Cormorant Garamond',serif;
-  font-size:clamp(34px,4.4vw,54px);
+  font-size:clamp(34px,4.4vw,52px);
   font-weight:400;line-height:1.08;
   color:var(--brown-text);
-  margin-bottom:32px;letter-spacing:.3px;
+  margin-bottom:28px;letter-spacing:.3px;
 }
 .mirror-h2 em{font-style:italic;color:var(--brown-italic)}
+
+/* Pain quotes — la voix de la persona */
 .pain-list{
-  display:flex;flex-direction:column;gap:14px;
-  margin-bottom:34px;
+  display:flex;flex-direction:column;gap:12px;
+  margin-bottom:28px;
 }
-.pain-item{
-  display:flex;gap:16px;align-items:flex-start;
-  padding:16px 20px;
-  background:linear-gradient(135deg,rgba(255,255,255,.5),rgba(255,255,255,.25));
+.pain-quote{
+  display:flex;gap:14px;align-items:flex-start;
+  padding:14px 20px;
+  background:linear-gradient(135deg,rgba(255,255,255,.55),rgba(255,255,255,.25));
   backdrop-filter:blur(12px);
   -webkit-backdrop-filter:blur(12px);
   border:1px solid rgba(255,255,255,.5);
   border-left:3px solid var(--copper-2);
-  border-radius:14px;
+  border-radius:12px;
   font-size:14.5px;color:var(--brown-text);
-  line-height:1.6;
+  line-height:1.55;
+  font-style:italic;
   box-shadow:0 4px 14px rgba(139,90,60,.06);
 }
-.pain-icon{font-size:20px;flex-shrink:0;margin-top:1px}
+.pain-quote::before{
+  content:'\201C';
+  font-family:'Cormorant Garamond',serif;
+  font-size:32px;color:var(--copper-2);
+  line-height:1;flex-shrink:0;
+  margin-top:-4px;
+}
 .mirror-answer{
   font-size:15.5px;font-weight:400;line-height:1.75;
-  color:var(--brown-soft);font-style:italic;
+  color:var(--brown-soft);
   margin-bottom:30px;
+  padding:0 4px;
 }
 .mirror-answer strong{
-  color:var(--brown-italic);font-style:normal;
+  color:var(--brown-italic);
   font-weight:600;
 }
 .mirror-cta{
@@ -268,45 +308,74 @@ nav.scrolled{
 }
 .mirror-cta .star{color:var(--copper-3);font-size:14px}
 
-/* TRIADE */
-.triade{
+/* PROMESSE — La triade humaine */
+.promise{
+  background:
+    radial-gradient(ellipse at 20% 100%,var(--rose-1) 0%,transparent 55%),
+    linear-gradient(180deg,var(--cream-2) 0%,var(--cream-3) 100%);
+  padding:110px 40px;
+  text-align:center;
+}
+.promise-intro{
+  max-width:680px;margin:0 auto 60px;
+}
+.promise-h2{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(34px,4.4vw,52px);
+  font-weight:400;line-height:1.1;
+  color:var(--brown-text);
+  margin-bottom:22px;letter-spacing:.3px;
+}
+.promise-h2 em{font-style:italic;color:var(--brown-italic)}
+.promise-sub{
+  font-size:16px;font-weight:400;line-height:1.7;
+  color:var(--brown-soft);
+}
+.promise-sub strong{color:var(--brown-text);font-weight:600}
+.triade-human{
   display:grid;grid-template-columns:repeat(3,1fr);
-  height:320px;overflow:hidden;
+  gap:22px;max-width:1100px;margin:0 auto;
 }
-.triade-item{
-  position:relative;overflow:hidden;
+.triade-card{
+  position:relative;border-radius:20px;overflow:hidden;
+  height:440px;
+  box-shadow:0 20px 50px rgba(91,56,33,.18);
+  transition:transform .4s ease;
 }
-.triade-item img{
-  width:100%;height:100%;object-fit:cover;
-  transition:transform .8s ease;
-}
-.triade-item:hover img{transform:scale(1.06)}
-.triade-item::after{
+.triade-card:hover{transform:translateY(-6px)}
+.triade-card img{width:100%;height:100%;object-fit:cover}
+.triade-card::after{
   content:'';position:absolute;inset:0;
-  background:linear-gradient(to top,rgba(91,56,33,.78) 0%,transparent 65%);
+  background:linear-gradient(to top,rgba(26,18,12,.85) 0%,rgba(91,56,33,.2) 50%,transparent 80%);
 }
-.triade-content{
-  position:absolute;bottom:24px;left:26px;right:26px;z-index:2;
+.triade-card-content{
+  position:absolute;bottom:0;left:0;right:0;z-index:2;
+  padding:32px 28px;color:#fff;
 }
-.triade-num{
+.triade-card-tag{
+  display:inline-block;
+  font-size:10px;font-weight:600;letter-spacing:2.5px;
+  text-transform:uppercase;
+  color:var(--copper-3);
+  margin-bottom:10px;
+}
+.triade-card-h{
   font-family:'Cormorant Garamond',serif;
-  font-size:14px;font-style:italic;font-weight:500;
-  color:var(--copper-3);margin-bottom:4px;
-  letter-spacing:1px;
+  font-size:30px;font-style:italic;font-weight:400;
+  margin-bottom:8px;line-height:1.1;
+  text-shadow:0 2px 10px rgba(0,0,0,.4);
 }
-.triade-label{
-  font-family:'Cormorant Garamond',serif;
-  font-size:24px;font-style:italic;font-weight:400;
-  color:#fff;
-  text-shadow:0 1px 8px rgba(0,0,0,.3);
+.triade-card-desc{
+  font-size:13.5px;font-weight:400;line-height:1.6;
+  color:rgba(255,255,255,.88);
 }
 
 /* FEATURES */
 .features{
   padding:110px 40px;text-align:center;
   background:
-    radial-gradient(ellipse at 20% 0%,var(--rose-1) 0%,transparent 55%),
-    linear-gradient(180deg,var(--cream-2) 0%,var(--cream-3) 100%);
+    radial-gradient(ellipse at 80% 0%,var(--rose-1) 0%,transparent 55%),
+    linear-gradient(180deg,var(--cream-3) 0%,var(--cream-2) 100%);
   position:relative;
 }
 .section-tag{
@@ -322,7 +391,7 @@ nav.scrolled{
 .section-tag .star{color:var(--copper-2);font-size:13px}
 .section-h2{
   font-family:'Cormorant Garamond',serif;
-  font-size:clamp(34px,4.4vw,54px);
+  font-size:clamp(34px,4.4vw,52px);
   font-weight:400;line-height:1.08;
   color:var(--brown-text);
   margin-bottom:60px;letter-spacing:.3px;
@@ -337,7 +406,7 @@ nav.scrolled{
   backdrop-filter:blur(14px);
   -webkit-backdrop-filter:blur(14px);
   border:1px solid rgba(255,255,255,.55);
-  border-radius:18px;padding:32px 26px;
+  border-radius:18px;padding:30px 24px;
   text-align:left;
   box-shadow:0 8px 24px rgba(139,90,60,.08);
   transition:transform .3s ease,box-shadow .3s ease;
@@ -347,29 +416,61 @@ nav.scrolled{
   box-shadow:0 14px 36px rgba(139,90,60,.14);
 }
 .feat-icon{
-  font-size:28px;margin-bottom:18px;
+  font-size:26px;margin-bottom:16px;
   display:inline-flex;align-items:center;justify-content:center;
-  width:54px;height:54px;border-radius:14px;
+  width:50px;height:50px;border-radius:13px;
   background:linear-gradient(135deg,var(--copper-3),var(--copper-2));
   box-shadow:0 6px 16px rgba(196,149,106,.3);
 }
 .feat-title{
   font-family:'Cormorant Garamond',serif;
   font-size:22px;font-weight:500;
-  color:var(--brown-text);margin-bottom:10px;
+  color:var(--brown-text);margin-bottom:8px;
   letter-spacing:.2px;
 }
 .feat-desc{
   font-size:13px;font-weight:400;
-  color:var(--brown-soft);line-height:1.7;
+  color:var(--brown-soft);line-height:1.65;
 }
 .feat-badge{
-  display:inline-block;margin-top:14px;
+  display:inline-block;margin-top:12px;
   font-size:9px;font-weight:700;letter-spacing:1.2px;
   text-transform:uppercase;
   color:var(--brown-italic);
   background:rgba(196,149,106,.18);
   padding:4px 10px;border-radius:6px;
+}
+
+/* COMMUNAUTÉ */
+.community{
+  background:linear-gradient(180deg,var(--cream-2) 0%,var(--cream-1) 100%);
+  padding:110px 40px;
+  display:grid;grid-template-columns:1.05fr 1fr;gap:80px;
+  align-items:center;
+}
+.community-content{padding-right:20px}
+.community-img{
+  position:relative;border-radius:24px;overflow:hidden;
+  height:520px;
+  box-shadow:0 30px 70px var(--shadow-deep);
+}
+.community-img img{width:100%;height:100%;object-fit:cover}
+.community-h2{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(34px,4.4vw,52px);
+  font-weight:400;line-height:1.08;
+  color:var(--brown-text);
+  margin-bottom:24px;letter-spacing:.3px;
+}
+.community-h2 em{font-style:italic;color:var(--brown-italic)}
+.community-sub{
+  font-size:16px;font-weight:400;line-height:1.75;
+  color:var(--brown-soft);
+  margin-bottom:30px;
+}
+.community-sub em{
+  font-style:italic;color:var(--brown-italic);
+  font-weight:500;
 }
 
 /* CTA FINAL */
@@ -410,10 +511,10 @@ nav.scrolled{
 .cta-h2 em{font-style:italic;color:var(--copper-3)}
 .cta-sub{
   font-size:16px;font-weight:400;
-  color:rgba(243,220,198,.65);
+  color:rgba(243,220,198,.7);
   line-height:1.7;
   margin-bottom:46px;
-  max-width:520px;margin-left:auto;margin-right:auto;
+  max-width:540px;margin-left:auto;margin-right:auto;
 }
 .cta-sub strong{color:var(--copper-1);font-weight:500}
 .cta-btns{
@@ -461,6 +562,54 @@ footer{
 footer a{color:rgba(243,220,198,.5);text-decoration:none;transition:color .2s ease}
 footer a:hover{color:var(--copper-1)}
 footer .links{display:flex;gap:22px}
+
+/* FOUNDER BANDEAU */
+.founder{
+  background:linear-gradient(180deg,var(--cream-1) 0%,var(--cream-2) 100%);
+  padding:60px 40px;
+  display:flex;align-items:center;justify-content:center;
+  gap:32px;flex-wrap:wrap;
+  border-top:1px solid rgba(196,149,106,.15);
+  border-bottom:1px solid rgba(196,149,106,.15);
+}
+.founder-photo{
+  width:110px;height:110px;border-radius:50%;
+  overflow:hidden;flex-shrink:0;
+  border:3px solid var(--copper-1);
+  box-shadow:0 8px 24px rgba(91,56,33,.18);
+}
+.founder-photo img{width:100%;height:100%;object-fit:cover}
+.founder-text{max-width:520px}
+.founder-quote{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(20px,2.4vw,26px);
+  font-style:italic;font-weight:400;
+  color:var(--brown-text);line-height:1.4;
+  margin-bottom:10px;
+}
+.founder-quote em{color:var(--brown-italic);font-weight:500}
+.founder-signature{
+  font-size:10.5px;font-weight:600;
+  letter-spacing:2.5px;text-transform:uppercase;
+  color:var(--copper-2);
+}
+@media(max-width:700px){
+  .founder{padding:40px 22px;flex-direction:column;text-align:center;gap:20px}
+}
+
+/* CTA PRICE */
+.cta-price{
+  margin-top:32px;
+  font-size:13px;
+  color:rgba(243,220,198,.65);
+}
+.cta-price strong{color:var(--copper-3);font-weight:600}
+.cta-price-tagline{
+  font-family:'Cormorant Garamond',serif;
+  font-style:italic;font-size:18px;
+  color:var(--copper-1);
+  margin-top:8px;
+}
 
 /* COOKIE BANNER */
 #cookieBanner{
@@ -518,14 +667,19 @@ footer .links{display:flex;gap:22px}
   .btn-main{width:100%;justify-content:center}
 
   .mirror{grid-template-columns:1fr;gap:48px;padding:70px 22px}
-  .mirror-img{height:380px}
+  .mirror-img{height:420px}
   .mirror-cta{width:100%;justify-content:center}
 
-  .triade{grid-template-columns:1fr;height:auto}
-  .triade-item{height:200px}
+  .promise{padding:70px 22px}
+  .triade-human{grid-template-columns:1fr;gap:18px}
+  .triade-card{height:380px}
 
   .features{padding:70px 22px}
   .features-grid{grid-template-columns:1fr;gap:14px}
+
+  .community{grid-template-columns:1fr;gap:48px;padding:70px 22px}
+  .community-content{padding-right:0;order:2}
+  .community-img{height:380px;order:1}
 
   .cta-section{padding:90px 24px}
   .cta-btns{flex-direction:column;gap:14px;width:100%}
@@ -545,7 +699,7 @@ footer .links{display:flex;gap:22px}
 
 <!-- COOKIE BANNER -->
 <div id="cookieBanner">
-  <p>🍪 NOVAÉ utilise des cookies essentiels pour la navigation et des cookies analytiques pour améliorer l'expérience. <a href="https://app.novae-by-omanaia.com/confidentialite">En savoir plus</a></p>
+  <p>🍪 NOVAÉ utilise des cookies essentiels et des cookies analytiques pour comprendre comment tu utilises le site. <a href="https://app.novae-by-omanaia.com/confidentialite">En savoir plus</a></p>
   <div class="cookie-btns">
     <button class="cookie-refuse" onclick="refuseCookies()">Refuser</button>
     <button class="cookie-accept" onclick="acceptCookies()">Accepter ✦</button>
@@ -558,7 +712,7 @@ footer .links{display:flex;gap:22px}
     Novaé
     <span class="by">by Omanaïa</span>
   </div>
-  <a href="https://app.novae-by-omanaia.com" class="nav-cta">Accès bêta →</a>
+  <a href="https://app.novae-by-omanaia.com" class="nav-cta" data-track="nav_cta">Avant-première gratuite →</a>
 </nav>
 
 <!-- HERO -->
@@ -566,88 +720,136 @@ footer .links{display:flex;gap:22px}
   <div class="hero-bg"></div>
   <div class="hero-overlay"></div>
   <div class="hero-content">
-    <div class="hero-eyebrow"><span class="star">✦</span> Bêta ouverte · Places limitées</div>
-    <h1 class="hero-h1">90 jours pour<br><em>te transformer.</em></h1>
-    <p class="hero-sub">Une app qui connecte ton programme, ton coach IA, tes routines et ta famille. Tu te concentres sur toi — NOVAÉ gère le reste.</p>
+    <div class="hero-eyebrow"><span class="star">✦</span> Avant-première · Gratuit jusqu'au 1er juin</div>
+    <h1 class="hero-h1">Ne plus survivre.<br><em>Vivre.</em></h1>
+    <p class="hero-sub">L'app qui t'aide à reprendre ton quotidien — sans devenir quelqu'un d'autre, sans ajouter une corvée à ta liste.</p>
     <div class="hero-btns">
-      <a href="https://app.novae-by-omanaia.com" class="btn-main"><span class="star">✦</span> Deviens une Novaé</a>
-      <a href="https://app.novae-by-omanaia.com/demo" class="btn-demo">Découvre ce que NOVAÉ va faire pour toi →</a>
+      <a href="https://app.novae-by-omanaia.com" class="btn-main" data-track="hero_primary"><span class="star">✦</span> Teste le changement maintenant</a>
+      <a href="https://app.novae-by-omanaia.com/demo" class="btn-demo" data-track="hero_demo">Découvre la démo →</a>
     </div>
+    <div class="hero-launch-pill">Lancement officiel <strong>1er juin 2026</strong> · Accès complet et gratuit jusque-là</div>
   </div>
 </section>
 
-<!-- MIRROR -->
+<!-- MIRROR — Tu te reconnais ? -->
 <section class="mirror">
   <div class="mirror-img reveal">
-    <img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=900&q=85" alt="Femmes ensemble qui rient">
+    <!-- IMG: MÈRE — moment de tendresse mère/enfant ou femme épuisée (search: "mother child tender" / "tired mom phone evening") -->
+    <img src="https://images.unsplash.com/photo-1752652016157-a282ba4ea9fe?w=900&q=85" alt="Femme avec ses enfants">
     <div class="mirror-caption-block">
-      <div class="mirror-caption">La force d'une communauté.</div>
-      <div class="mirror-caption-sub">Dans NOVAÉ, tu n'avances pas seule. Des femmes comme toi partagent, encouragent, se donnent de la force — chaque jour.</div>
+      <div class="mirror-caption">Tu portes tout.</div>
+      <div class="mirror-caption-sub">Le boulot, les enfants, la maison, la liste mentale. Et à la fin, il ne reste plus rien pour toi.</div>
     </div>
   </div>
   <div class="reveal">
-    <div class="mirror-tag"><span class="star">✦</span> Tu te reconnais ?</div>
-    <h2 class="mirror-h2">Tu as tout pour réussir.<br><em>Et pourtant.</em></h2>
+    <div class="mirror-tag"><span class="star">✦</span> Si tu te reconnais dans une de ces phrases, lis la suite</div>
+    <h2 class="mirror-h2">Tu te promets tous les soirs.<br><em>Tu lâches tous les matins.</em></h2>
     <div class="pain-list">
-      <div class="pain-item"><span class="pain-icon">📱</span>Tu jongles entre 5 apps sans jamais avoir une vision claire de ta semaine</div>
-      <div class="pain-item"><span class="pain-icon">🌀</span>Tes routines s'effondrent au premier imprévu, et tu repars de zéro</div>
-      <div class="pain-item"><span class="pain-icon">🧠</span>Ta tête est pleine avant même de commencer la journée</div>
-      <div class="pain-item"><span class="pain-icon">💫</span>Tu sais exactement qui tu veux devenir — mais les jours passent</div>
+      <div class="pain-quote">Le soir je suis motivée. Le matin je suis morte.</div>
+      <div class="pain-quote">J'ai combien d'agendas abandonnés dans mes tiroirs ?</div>
+      <div class="pain-quote">Mon mari il y croit même plus quand je dis que je commence un truc.</div>
+      <div class="pain-quote">Je crie sur mes enfants, et après je me déteste.</div>
+      <div class="pain-quote">« T'as tout pour être heureuse. » — Combien de fois on me l'a dit.</div>
     </div>
-    <p class="mirror-answer">NOVAÉ n'est pas une app de plus. C'est la première qui <strong>connecte tout</strong> — programme, coach IA, repas, famille — pour que tu n'aies plus qu'une seule chose à faire : avancer.</p>
-    <a href="https://app.novae-by-omanaia.com" class="mirror-cta"><span class="star">✦</span> Deviens une cofondatrice</a>
+    <p class="mirror-answer">C'est pas ta volonté qui flanche. C'est que t'as <strong>14 outils, zéro plan, et personne autour qui comprend</strong> ce que tu construis. NOVAÉ change ça.</p>
+    <a href="https://app.novae-by-omanaia.com" class="mirror-cta" data-track="mirror_cta"><span class="star">✦</span> Teste le changement maintenant</a>
   </div>
 </section>
 
-<!-- TRIADE -->
-<div class="triade">
-  <div class="triade-item">
-    <img src="https://images.unsplash.com/photo-1685979978561-9fa3e0b6010d?w=900&q=80" alt="Clarté — femme cocktail piscine">
-    <div class="triade-content">
-      <div class="triade-num">— I —</div>
-      <div class="triade-label">Clarté.</div>
+<!-- PROMESSE — La triade humaine -->
+<section class="promise">
+  <div class="promise-intro reveal">
+    <div class="section-tag"><span class="star">✦</span> La promesse</div>
+    <h2 class="promise-h2">NOVAÉ ne te vend pas <em>une vie de rêve.</em></h2>
+    <p class="promise-sub">Juste des <strong>petites victoires quotidiennes</strong> qui rendent du temps et de la patience pour ce qui compte vraiment.</p>
+  </div>
+
+  <div class="triade-human reveal">
+    <div class="triade-card">
+      <!-- IMG: ENFANTS — mère + enfants moment joyeux (search: "mother kids playing happy") -->
+      <img src="https://images.unsplash.com/photo-1511895426328-dc8714191300?w=900&q=85" alt="Mère et enfants moment de joie">
+      <div class="triade-card-content">
+        <div class="triade-card-tag">— Pour eux —</div>
+        <div class="triade-card-h">Tes enfants.</div>
+        <div class="triade-card-desc">Plus de patience parce que ta tête est moins encombrée. Tu ne cries plus pour rien.</div>
+      </div>
+    </div>
+    <div class="triade-card">
+      <!-- IMG: COUPLE — moment authentique (search: "couple laughing home genuine") -->
+<img src="https://images.unsplash.com/photo-1591969851586-adbbd4accf81?w=900&q=85" alt="Couple silhouette coucher de soleil">      <div class="triade-card-content">
+        <div class="triade-card-tag">— Pour lui —</div>
+        <div class="triade-card-h">Ton couple.</div>
+        <div class="triade-card-desc">Plus de présence parce que tu es revenue à toi. Tu l'écoutes vraiment, sans te sentir « saoulée ».</div>
+      </div>
+    </div>
+    <div class="triade-card">
+      <!-- IMG: SOLO — femme épanouie seule, terrasse café (search: "woman cafe alone peaceful coffee window") -->
+      <img src="https://images.unsplash.com/photo-1569925444984-9e2e5fc3d1fb?w=900&q=85" alt="Femme épanouie seule">
+      <div class="triade-card-content">
+        <div class="triade-card-tag">— Pour toi —</div>
+        <div class="triade-card-h">Toi.</div>
+        <div class="triade-card-desc">Plus de temps parce que tu ne portes plus tout. Et tu te retrouves enfin.</div>
+      </div>
     </div>
   </div>
-  <div class="triade-item">
-    <img src="https://images.unsplash.com/photo-1752652016157-a282ba4ea9fe?w=900&q=80" alt="Structure — mère et enfants en cuisine">
-    <div class="triade-content">
-      <div class="triade-num">— II —</div>
-      <div class="triade-label">Structure.</div>
-    </div>
-  </div>
-  <div class="triade-item">
-    <img src="https://images.unsplash.com/photo-1569925444984-9e2e5fc3d1fb?w=900&q=80" alt="Transformation — femme rayonnante sérénité">
-    <div class="triade-content">
-      <div class="triade-num">— III —</div>
-      <div class="triade-label">Transformation.</div>
-    </div>
-  </div>
-</div>
+</section>
 
 <!-- FEATURES -->
 <section class="features">
   <div class="section-tag reveal"><span class="star">✦</span> 10 modules · tout connecté</div>
   <h2 class="section-h2 reveal">Une app.<br><em>Zéro chaos.</em></h2>
   <div class="features-grid reveal">
-    <div class="feat"><div class="feat-icon">🎯</div><div class="feat-title">Programme 90 jours</div><div class="feat-desc">3 phases · mission guidée chaque jour · adaptée à ton profil</div></div>
-    <div class="feat"><div class="feat-icon">🤖</div><div class="feat-title">Agent IA NOVAÉ</div><div class="feat-desc">Lit tes données en temps réel. Détecte les conflits. Agit directement.</div><div class="feat-badge">IA connectée</div></div>
+    <div class="feat"><div class="feat-icon">🎯</div><div class="feat-title">Programme 90 jours</div><div class="feat-desc">3 phases · une mission guidée chaque jour · adaptée à ton profil et à tes cycles</div></div>
+    <div class="feat"><div class="feat-icon">🤖</div><div class="feat-title">Agent IA NOVAÉ</div><div class="feat-desc">Lit tes données en temps réel. Détecte tes blocages. Te répond sans te juger.</div><div class="feat-badge">IA connectée</div></div>
     <div class="feat"><div class="feat-icon">☀️</div><div class="feat-title">Routines & Planner</div><div class="feat-desc">Tes rituels matin et soir. Ton agenda. Jamais de conflit entre les deux.</div></div>
-    <div class="feat"><div class="feat-icon">🍳</div><div class="feat-title">Recettes & Courses</div><div class="feat-desc">Planning repas · liste auto · batch cooking · allergies croisées</div></div>
-    <div class="feat"><div class="feat-icon">💡</div><div class="feat-title">Astuces & Économies</div><div class="feat-desc">30 astuces maison, alimentation, budget. Jusqu'à 340€ économisés par mois.</div></div>
-    <div class="feat"><div class="feat-icon">📊</div><div class="feat-title">Bilan dimanche</div><div class="feat-desc">Ton agent analyse tout et te donne 3 axes d'amélioration chaque semaine.</div></div>
+    <div class="feat"><div class="feat-icon">🍳</div><div class="feat-title">Recettes & Courses</div><div class="feat-desc">Planning repas · liste auto · batch cooking. Fini le « qu'est-ce qu'on mange ? »</div></div>
+    <div class="feat"><div class="feat-icon">💡</div><div class="feat-title">Astuces & Économies</div><div class="feat-desc">Astuces maison, alimentation, budget. Jusqu'à 340€ économisés par mois.</div></div>
+    <div class="feat"><div class="feat-icon">📊</div><div class="feat-title">Bilan dimanche</div><div class="feat-desc">Ton IA analyse ta semaine et te donne 3 axes concrets. Pas une note. Une direction.</div></div>
+  </div>
+</section>
+
+<!-- COMMUNAUTÉ -->
+<section class="community">
+  <div class="community-content reveal">
+    <div class="mirror-tag"><span class="star">✦</span> Tu n'avances pas seule</div>
+    <h2 class="community-h2">Une communauté de femmes<br><em>qui te ramassent.</em></h2>
+    <p class="community-sub">Les coups de mou, ça arrive. <em>Personne tient à 100% tous les jours.</em> Avec NOVAÉ, tu trouves toujours une femme qui sait par quoi tu passes et qui te dit <em>« je suis passée par là, tiens bon. »</em></p>
+    <p class="community-sub">Pas d'entourage qui te répond <em>« t'as tout pour être heureuse »</em>. Pas de jugement. Juste des femmes alignées qui avancent dans la même direction que toi.</p>
+    <a href="https://app.novae-by-omanaia.com" class="mirror-cta" data-track="community_cta"><span class="star">✦</span> Rejoins-les maintenant</a>
+  </div>
+  <div class="community-img reveal">
+    <!-- IMG: COMMUNAUTÉ — femmes ensemble, soutien (search: "women friends supporting laughing") -->
+    <img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=900&q=85" alt="Communauté de femmes soutien">
+  </div>
+</section>
+
+<!-- FOUNDER BANDEAU -->
+<section class="founder reveal">
+  <div class="founder-photo">
+    <img src="/ness-portrait.jpg" alt="Ness, fondatrice de NOVAÉ">
+  </div>
+  <div class="founder-text">
+    <p class="founder-quote">« Créée par une femme qui était <em>submergée</em> — pour les femmes qui veulent <em>avancer</em>. »</p>
+    <div class="founder-signature">✦ Ness · Fondatrice de NOVAÉ</div>
   </div>
 </section>
 
 <!-- CTA FINAL -->
 <section class="cta-section">
   <div class="cta-inner">
-    <div class="cta-tag"><span class="star">✦</span> Bêta ouverte · Accès gratuit</div>
-    <h2 class="cta-h2">Reprends le contrôle<br><em>de ta vie.</em></h2>
-    <p class="cta-sub">Rejoins les premières femmes qui utilisent NOVAÉ. <strong>Accès complet, gratuit pendant la bêta.</strong></p>
+    <div class="cta-tag"><span class="star">✦</span> Avant-première · Gratuit jusqu'au 1er juin</div>
+    <h2 class="cta-h2">Reprends ton quotidien.<br><em>Maintenant.</em></h2>
+    <p class="cta-sub">L'avant-première est ouverte. <strong>Accès complet, gratuit jusqu'au lancement officiel du 1er juin 2026.</strong> Après, ce sera payant — et tu auras perdu un mois sans avoir testé.</p>
     <div class="cta-btns">
-      <a href="https://app.novae-by-omanaia.com" class="btn-cta-main"><span class="star">✦</span> Rejoins la communauté Novaé</a>
-      <a href="https://app.novae-by-omanaia.com/demo" class="btn-cta-ghost">Voir la démo →</a>
+      <a href="https://app.novae-by-omanaia.com" class="btn-cta-main" data-track="final_primary"><span class="star">✦</span> Teste le changement maintenant</a>
+      <a href="https://app.novae-by-omanaia.com/demo" class="btn-cta-ghost" data-track="final_demo">Découvre la démo →</a>
     </div>
+
+    <div class="cta-price">
+      <strong>7,90 €/mois</strong> après le 1er juin · gratuit jusque-là
+      <div class="cta-price-tagline">Un petit prix pour de grands pas.</div>
+    </div>
+
   </div>
 </section>
 
@@ -657,11 +859,120 @@ footer .links{display:flex;gap:22px}
   <div class="links">
     <a href="https://app.novae-by-omanaia.com/cgu">CGU</a>
     <a href="https://app.novae-by-omanaia.com/confidentialite">Confidentialité</a>
-    <a href="mailto:contact@novae-by-omanaia.com">Contact</a>
+<a href="mailto:contact@novae-by-omanaia.com" data-track="footer_contact">contact@novae-by-omanaia.com</a>
   </div>
   <span>Fait avec ✦ pour les femmes qui osent</span>
 </footer>
 
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+  ANALYTICS NOVAÉ — Tracking page_view + cta_click vers Supabase
+  ═══════════════════════════════════════════════════════════════════════════
+  ⚠️ AVANT DÉPLOIEMENT :
+  1. Remplace SUPABASE_URL et SUPABASE_ANON_KEY ci-dessous
+  2. Exécute la migration SQL fournie (table landing_events + RLS)
+  3. Déploie. Les stats remontent dans /admin → onglet « Landing »
+  ═══════════════════════════════════════════════════════════════════════════
+-->
+<script>
+(function() {
+  // ⚠️ À REMPLACER PAR TES VRAIES VALEURS
+  const SUPABASE_URL  = 'https://lkknxxeeazzalqcogyjq.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxra254eGVlYXp6YWxxY29neWpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjgxNDcsImV4cCI6MjA5MjEwNDE0N30.1EE3R95Km5ET8xLIwMV--x2j0p9tqzSr-Xhk5J6JPos';
+
+  // ─── Session ID anonyme (persistant) ───
+  function getSessionId() {
+    try {
+      let sid = localStorage.getItem('novae_session_id');
+      if (!sid) {
+        sid = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem('novae_session_id', sid);
+      }
+      return sid;
+    } catch (e) { return null; }
+  }
+
+  // ─── UTM params ───
+  function getUtm() {
+    try {
+      const p = new URLSearchParams(location.search);
+      return {
+        utm_source:   p.get('utm_source')   || null,
+        utm_medium:   p.get('utm_medium')   || null,
+        utm_campaign: p.get('utm_campaign') || null,
+      };
+    } catch (e) { return { utm_source:null, utm_medium:null, utm_campaign:null }; }
+  }
+
+  // ─── Track event ───
+  function track(eventType, eventLabel) {
+    if (SUPABASE_ANON === 'YOUR_SUPABASE_ANON_KEY_HERE') return; // pas configuré
+    const utm = getUtm();
+    const body = {
+      event_type:   eventType,
+      event_label:  eventLabel || null,
+      page:         location.pathname || '/',
+      referrer:     document.referrer || null,
+      session_id:   getSessionId(),
+      utm_source:   utm.utm_source,
+      utm_medium:   utm.utm_medium,
+      utm_campaign: utm.utm_campaign,
+    };
+    try {
+      // sendBeacon préféré (résiste au unload de page)
+      if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify(body)], { type: 'application/json' });
+        // sendBeacon ne supporte pas les headers personnalisés → fallback fetch avec keepalive
+        return navigator.sendBeacon(
+          SUPABASE_URL + '/rest/v1/landing_events?apikey=' + SUPABASE_ANON,
+          blob
+        );
+      }
+      fetch(SUPABASE_URL + '/rest/v1/landing_events', {
+        method: 'POST',
+        keepalive: true,
+        headers: {
+          'apikey': SUPABASE_ANON,
+          'Authorization': 'Bearer ' + SUPABASE_ANON,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {}
+  }
+
+  // ─── Page view au chargement ───
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => track('page_view', 'home'));
+  } else {
+    track('page_view', 'home');
+  }
+
+  // ─── CTA clicks (tous les éléments avec data-track) ───
+  document.addEventListener('click', function(e) {
+    const el = e.target.closest('[data-track]');
+    if (!el) return;
+    track('cta_click', el.getAttribute('data-track'));
+  });
+
+  // ─── Scroll depth (25 / 50 / 75 / 100) ───
+  const fired = { 25:false, 50:false, 75:false, 100:false };
+  function checkScroll() {
+    const h = document.documentElement;
+    const pct = Math.round((h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100);
+    [25, 50, 75, 100].forEach(threshold => {
+      if (pct >= threshold && !fired[threshold]) {
+        fired[threshold] = true;
+        track('scroll_depth', String(threshold));
+      }
+    });
+  }
+  window.addEventListener('scroll', () => { clearTimeout(window._sd); window._sd = setTimeout(checkScroll, 200); }, { passive: true });
+})();
+</script>
+
+<!-- UI SCRIPT (nav scroll + reveal + cookies) -->
 <script>
 window.addEventListener('scroll', () => {
   document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 60);
