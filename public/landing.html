@@ -860,47 +860,17 @@ footer .links{display:flex;gap:22px}
 
 <!--
   ═══════════════════════════════════════════════════════════════════════════
-  ANALYTICS NOVAÉ — Tracking page_view + cta_click vers Supabase
+  ANALYTICS NOVAÉ — Tracking via /api/track-landing (serveur)
   ═══════════════════════════════════════════════════════════════════════════
-  ⚠️ AVANT DÉPLOIEMENT :
-  1. Remplace SUPABASE_URL et SUPABASE_ANON_KEY ci-dessous
-  2. Exécute la migration SQL fournie (table landing_events + RLS)
-  3. Déploie. Les stats remontent dans /admin → onglet « Landing »
+  Tout passe par une API route Next.js sur le même domaine, donc :
+  - Pas de problème CORS
+  - Pas d'interception par le service worker
+  - Pas de clé Supabase exposée dans le HTML
   ═══════════════════════════════════════════════════════════════════════════
 -->
 <script>
 (function() {
-  // ⚠️ À REMPLACER PAR TES VRAIES VALEURS
-function track(eventType, eventLabel) {
-    const utm = getUtm();
-    const payload = JSON.stringify({
-      event_type:   eventType,
-      event_label:  eventLabel || null,
-      page:         location.pathname || '/',
-      referrer:     document.referrer || null,
-      session_id:   getSessionId(),
-      utm_source:   utm.utm_source,
-      utm_medium:   utm.utm_medium,
-      utm_campaign: utm.utm_campaign,
-    });
-    try {
-      // Endpoint sur TON propre domaine — pas de CORS, pas de SW qui bloque
-      const url = '/api/track-landing';
-      if (navigator.sendBeacon) {
-        // text/plain évite tout préflight, le serveur sait parser quand même
-        navigator.sendBeacon(url, new Blob([payload], { type: 'text/plain' }));
-        return;
-      }
-      fetch(url, {
-        method: 'POST',
-        keepalive: true,
-        credentials: 'omit',
-        headers: { 'Content-Type': 'text/plain' },
-        body: payload,
-      });
-    } catch (e) {}
-  }
-  
+
   // ─── Session ID anonyme (persistant) ───
   function getSessionId() {
     try {
@@ -925,11 +895,10 @@ function track(eventType, eventLabel) {
     } catch (e) { return { utm_source:null, utm_medium:null, utm_campaign:null }; }
   }
 
-  // ─── Track event ───
+  // ─── Track ───
   function track(eventType, eventLabel) {
-    if (SUPABASE_ANON === 'YOUR_SUPABASE_ANON_KEY_HERE') return; // pas configuré
     const utm = getUtm();
-    const body = {
+    const payload = JSON.stringify({
       event_type:   eventType,
       event_label:  eventLabel || null,
       page:         location.pathname || '/',
@@ -938,27 +907,19 @@ function track(eventType, eventLabel) {
       utm_source:   utm.utm_source,
       utm_medium:   utm.utm_medium,
       utm_campaign: utm.utm_campaign,
-    };
+    });
     try {
-      // sendBeacon préféré (résiste au unload de page)
+      const url = '/api/track-landing';
       if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(body)], { type: 'application/json' });
-        // sendBeacon ne supporte pas les headers personnalisés → fallback fetch avec keepalive
-        return navigator.sendBeacon(
-          SUPABASE_URL + '/rest/v1/landing_events?apikey=' + SUPABASE_ANON,
-          blob
-        );
+        navigator.sendBeacon(url, new Blob([payload], { type: 'text/plain' }));
+        return;
       }
-      fetch(SUPABASE_URL + '/rest/v1/landing_events', {
+      fetch(url, {
         method: 'POST',
         keepalive: true,
-        headers: {
-          'apikey': SUPABASE_ANON,
-          'Authorization': 'Bearer ' + SUPABASE_ANON,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify(body),
+        credentials: 'omit',
+        headers: { 'Content-Type': 'text/plain' },
+        body: payload,
       });
     } catch (e) {}
   }
