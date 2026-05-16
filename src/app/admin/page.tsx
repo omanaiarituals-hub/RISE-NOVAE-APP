@@ -193,6 +193,20 @@ export default function AdminPage() {
   const [landingStats, setLandingStats] = useState<LandingMetrics | null>(null)
 const [landingLoading, setLandingLoading] = useState(false)
 const [landingError, setLandingError] = useState<string | null>(null)
+const [authUserCount, setAuthUserCount] = useState<number | null>(null)
+
+// ─── ROADMAP éditable (persistée en localStorage) ───
+const ROADMAP_STORAGE_KEY = 'novae_admin_roadmap_v1'
+const DEFAULT_ROADMAP = {
+  validated: ROADMAP_VALIDATED,
+  pending:   ROADMAP_PENDING,
+}
+const [roadmapData, setRoadmapData] = useState<{
+  validated: Record<string, string[]>
+  pending:   Record<string, string[]>
+}>(DEFAULT_ROADMAP)
+const [adding, setAdding] = useState<{column: 'validated' | 'pending', category: string} | null>(null)
+const [newItemText, setNewItemText] = useState('')
 
   // Saisies manuelles revue dominicale (Stripe + Marketing)
   const [manualKpis, setManualKpis] = useState<ManualKpis>(DEFAULT_MANUAL_KPIS)
@@ -229,6 +243,15 @@ const [landingError, setLandingError] = useState<string | null>(null)
     } catch {}
   }, [])
 
+  // Charger la roadmap depuis localStorage
+useEffect(() => {
+  if (typeof window === 'undefined') return
+  try {
+    const raw = localStorage.getItem(ROADMAP_STORAGE_KEY)
+    if (raw) setRoadmapData(JSON.parse(raw))
+  } catch {}
+}, [])
+
   const persistManualKpis = (next: ManualKpis) => {
     setManualKpis(next)
     if (typeof window === 'undefined') return
@@ -238,6 +261,61 @@ const [landingError, setLandingError] = useState<string | null>(null)
       setLastReviewAt(data.lastReviewAt)
     } catch {}
   }
+
+  // Persiste la roadmap
+const persistRoadmap = (next: typeof roadmapData) => {
+  setRoadmapData(next)
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(ROADMAP_STORAGE_KEY, JSON.stringify(next)) } catch {}
+}
+
+// Déplace un item d'une colonne à l'autre (validé ↔ en attente)
+const toggleItem = (from: 'validated' | 'pending', category: string, item: string) => {
+  const to = from === 'validated' ? 'pending' : 'validated'
+  persistRoadmap({
+    ...roadmapData,
+    [from]: {
+      ...roadmapData[from],
+      [category]: (roadmapData[from][category] || []).filter(i => i !== item),
+    },
+    [to]: {
+      ...roadmapData[to],
+      [category]: [...(roadmapData[to][category] || []), item],
+    },
+  })
+}
+
+// Supprime définitivement
+const removeItem = (column: 'validated' | 'pending', category: string, item: string) => {
+  persistRoadmap({
+    ...roadmapData,
+    [column]: {
+      ...roadmapData[column],
+      [category]: (roadmapData[column][category] || []).filter(i => i !== item),
+    },
+  })
+}
+
+// Ajoute un nouvel item
+const addItem = (column: 'validated' | 'pending', category: string) => {
+  const text = newItemText.trim()
+  if (!text) return
+  persistRoadmap({
+    ...roadmapData,
+    [column]: {
+      ...roadmapData[column],
+      [category]: [...(roadmapData[column][category] || []), text],
+    },
+  })
+  setNewItemText('')
+  setAdding(null)
+}
+
+// Reset complet
+const resetRoadmap = () => {
+  if (!confirm('Restaurer la roadmap par défaut ? Tu perdras tes modifications.')) return
+  persistRoadmap(DEFAULT_ROADMAP)
+}
 
   const updateManualKpi = (key: keyof ManualKpis, value: string) => {
     persistManualKpis({ ...manualKpis, [key]: value })
@@ -322,6 +400,21 @@ const [landingError, setLandingError] = useState<string | null>(null)
   } finally {
     setLandingLoading(false)
   }
+}
+
+const loadAuthUserCount = async () => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) return
+    const res = await fetch('/api/admin/auth-users-count', {
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+      cache: 'no-store',
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setAuthUserCount(data.total)
+    }
+  } catch {}
 }
 
   const loadUsers = async () => {
@@ -1136,32 +1229,105 @@ const [landingError, setLandingError] = useState<string | null>(null)
                 )}
               </div>
 
-              {/* Section 4 — Roadmap status */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
-                <div style={{ ...glassCard, marginBottom: 0, borderColor: 'rgba(123,168,105,0.4)' }}>
-                  <h3 style={{ ...sectionTitle, color: C.green }}>✅ Validé en prod</h3>
-                  {Object.entries(ROADMAP_VALIDATED).map(([category, items]) => (
-                    <div key={category} style={{ marginBottom: 14 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: C.copperDark, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{category}</div>
-                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.brown, lineHeight: 1.6 }}>
-                        {items.map((item, i) => <li key={i}>{item}</li>)}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
+              {/* Section 4 — Roadmap interactive */}
+<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 16 }}>
+  <h3 style={{ ...sectionTitle, margin: 0 }}>📌 Roadmap vivante</h3>
+  <button onClick={resetRoadmap} style={{
+    background: 'transparent', border: 'none', color: C.brownLight,
+    fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+    textDecoration: 'underline', opacity: 0.7,
+  }}>
+    ↺ Réinitialiser
+  </button>
+</div>
 
-                <div style={{ ...glassCard, marginBottom: 0, borderColor: 'rgba(212,167,56,0.4)' }}>
-                  <h3 style={{ ...sectionTitle, color: C.copperDark }}>⏳ En attente</h3>
-                  {Object.entries(ROADMAP_PENDING).map(([category, items]) => (
-                    <div key={category} style={{ marginBottom: 14 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: C.copperDark, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{category}</div>
-                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.brown, lineHeight: 1.6 }}>
-                        {items.map((item, i) => <li key={i}>{item}</li>)}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </div>
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+
+  {/* Validé */}
+  <div style={{ ...glassCard, marginBottom: 0, borderColor: 'rgba(123,168,105,0.4)' }}>
+    <h3 style={{ ...sectionTitle, color: C.green }}>✅ Validé en prod</h3>
+    {Object.entries(roadmapData.validated).map(([category, items]) => (
+      <div key={category} style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.copperDark, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+          {category}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {items.map((item, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '3px 0', fontSize: 12, color: C.brown, lineHeight: 1.5 }}>
+              <button onClick={() => toggleItem('validated', category, item)} title="Remettre en attente"
+                style={{ background: 'rgba(123,168,105,0.15)', border: '1px solid rgba(123,168,105,0.4)', cursor: 'pointer', padding: 0, width: 16, height: 16, borderRadius: 4, fontSize: 11, color: C.green, flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                ✓
+              </button>
+              <span style={{ flex: 1 }}>{item}</span>
+              <button onClick={() => removeItem('validated', category, item)} title="Supprimer"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', fontSize: 14, color: C.brownLight, flexShrink: 0, opacity: 0.4 }}>
+                ×
+              </button>
+            </div>
+          ))}
+          {adding?.column === 'validated' && adding?.category === category ? (
+            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+              <input autoFocus value={newItemText} onChange={e => setNewItemText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addItem('validated', category); if (e.key === 'Escape') { setAdding(null); setNewItemText('') } }}
+                placeholder="Nouvel item…"
+                style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(123,168,105,0.4)', background: '#faf7f2', color: C.brown, fontFamily: 'inherit', outline: 'none' }} />
+              <button onClick={() => addItem('validated', category)} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>✓</button>
+              <button onClick={() => { setAdding(null); setNewItemText('') }} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>×</button>
+            </div>
+          ) : (
+            <button onClick={() => setAdding({ column: 'validated', category })}
+              style={{ background: 'none', border: 'none', color: C.green, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', padding: '4px 0 0', opacity: 0.7 }}>
+              + Ajouter
+            </button>
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+
+  {/* En attente */}
+  <div style={{ ...glassCard, marginBottom: 0, borderColor: 'rgba(212,167,56,0.4)' }}>
+    <h3 style={{ ...sectionTitle, color: C.copperDark }}>⏳ En attente</h3>
+    {Object.entries(roadmapData.pending).map(([category, items]) => (
+      <div key={category} style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.copperDark, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+          {category}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {items.map((item, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '3px 0', fontSize: 12, color: C.brown, lineHeight: 1.5 }}>
+              <button onClick={() => toggleItem('pending', category, item)} title="Marquer comme validé"
+                style={{ background: '#faf7f2', border: '1px solid rgba(212,165,116,0.5)', cursor: 'pointer', padding: 0, width: 16, height: 16, borderRadius: 4, fontSize: 11, color: 'transparent', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ✓
+              </button>
+              <span style={{ flex: 1 }}>{item}</span>
+              <button onClick={() => removeItem('pending', category, item)} title="Supprimer"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', fontSize: 14, color: C.brownLight, flexShrink: 0, opacity: 0.4 }}>
+                ×
+              </button>
+            </div>
+          ))}
+          {adding?.column === 'pending' && adding?.category === category ? (
+            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+              <input autoFocus value={newItemText} onChange={e => setNewItemText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addItem('pending', category); if (e.key === 'Escape') { setAdding(null); setNewItemText('') } }}
+                placeholder="Nouvel item…"
+                style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(212,165,116,0.4)', background: '#faf7f2', color: C.brown, fontFamily: 'inherit', outline: 'none' }} />
+              <button onClick={() => addItem('pending', category)} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>✓</button>
+              <button onClick={() => { setAdding(null); setNewItemText('') }} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>×</button>
+            </div>
+          ) : (
+            <button onClick={() => setAdding({ column: 'pending', category })}
+              style={{ background: 'none', border: 'none', color: C.copperDark, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', padding: '4px 0 0', opacity: 0.7 }}>
+              + Ajouter
+            </button>
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+
+</div>
 
               <p style={{ fontSize: 11, color: C.brownLight, fontStyle: 'italic', marginTop: 20, textAlign: 'center' }}>
                 ✦ Les saisies manuelles sont sauvegardées automatiquement dans ton navigateur. Pense à les actualiser chaque dimanche.
@@ -1221,24 +1387,24 @@ const [landingError, setLandingError] = useState<string | null>(null)
             accent={C.copperDark}
             sub={`${landingStats.pageViews.last24h} sur 24h · ${landingStats.pageViews.total} total`}
           />
-          <KpiTile
-            selected={false}
-            onClick={() => {}}
-            emoji="👤"
-            label="Visiteuses uniques (7j)"
-            value={landingStats.uniqueVisitors.last7d}
-            accent={C.copper}
-            sub={`${landingStats.uniqueVisitors.last24h} sur 24h · ${landingStats.uniqueVisitors.total} total`}
-          />
-          <KpiTile
-            selected={false}
-            onClick={() => {}}
-            emoji="✦"
-            label="Clics CTA total"
-            value={landingStats.cta.totalClicks}
-            accent={C.green}
-            sub={`${landingStats.cta.totalSessions > 0 ? landingStats.cta.conversionRate.toFixed(1) : '0'}% de conversion`}
-          />
+          <KpiTile 
+  selected={selectedKpi === 'all'} 
+  onClick={() => setSelectedKpi('all')} 
+  emoji="👥" 
+  label="Inscrites total" 
+  value={authUserCount ?? total} 
+  accent={C.copperDark}
+  sub={authUserCount !== null && authUserCount !== total ? `${total} avec profil créé` : undefined}
+/>
+<KpiTile 
+  selected={selectedKpi === 'onboarded'} 
+  onClick={() => setSelectedKpi('onboarded')} 
+  emoji="✦" 
+  label="Onboarding fait" 
+  value={onboardedCount} 
+  accent={C.copper} 
+  sub={authUserCount && authUserCount > 0 ? `${Math.round((onboardedCount / authUserCount) * 100)}% conversion` : undefined} 
+/>
           <KpiTile
             selected={false}
             onClick={() => {}}
