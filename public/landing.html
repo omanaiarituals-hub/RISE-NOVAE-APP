@@ -844,12 +844,6 @@ footer .links{display:flex;gap:22px}
       <a href="https://app.novae-by-omanaia.com" class="btn-cta-main" data-track="final_primary"><span class="star">✦</span> Teste le changement maintenant</a>
       <a href="https://app.novae-by-omanaia.com/demo" class="btn-cta-ghost" data-track="final_demo">Découvre la démo →</a>
     </div>
-
-    <div class="cta-price">
-      <strong>7,90 €/mois</strong> après le 1er juin · gratuit jusque-là
-      <div class="cta-price-tagline">Un petit prix pour de grands pas.</div>
-    </div>
-
   </div>
 </section>
 
@@ -877,9 +871,36 @@ footer .links{display:flex;gap:22px}
 <script>
 (function() {
   // ⚠️ À REMPLACER PAR TES VRAIES VALEURS
-  const SUPABASE_URL  = 'https://lkknxxeeazzalqcogyjq.supabase.co';
-  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxra254eGVlYXp6YWxxY29neWpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjgxNDcsImV4cCI6MjA5MjEwNDE0N30.1EE3R95Km5ET8xLIwMV--x2j0p9tqzSr-Xhk5J6JPos';
-
+function track(eventType, eventLabel) {
+    const utm = getUtm();
+    const payload = JSON.stringify({
+      event_type:   eventType,
+      event_label:  eventLabel || null,
+      page:         location.pathname || '/',
+      referrer:     document.referrer || null,
+      session_id:   getSessionId(),
+      utm_source:   utm.utm_source,
+      utm_medium:   utm.utm_medium,
+      utm_campaign: utm.utm_campaign,
+    });
+    try {
+      // Endpoint sur TON propre domaine — pas de CORS, pas de SW qui bloque
+      const url = '/api/track-landing';
+      if (navigator.sendBeacon) {
+        // text/plain évite tout préflight, le serveur sait parser quand même
+        navigator.sendBeacon(url, new Blob([payload], { type: 'text/plain' }));
+        return;
+      }
+      fetch(url, {
+        method: 'POST',
+        keepalive: true,
+        credentials: 'omit',
+        headers: { 'Content-Type': 'text/plain' },
+        body: payload,
+      });
+    } catch (e) {}
+  }
+  
   // ─── Session ID anonyme (persistant) ───
   function getSessionId() {
     try {
