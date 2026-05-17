@@ -23,16 +23,9 @@ export async function ensureUserEntry(user: User): Promise<{ success: boolean; e
       return { success: true }
     }
 
-    // Calcul du trial : minimum 14 jours, prolongé jusqu'au 1er juin 2026
-    // pendant l'avant-première
-    const now = new Date()
-    const launchCutoff = new Date('2026-06-01T00:00:00Z')
-    const fourteenDaysLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
-    const trialEndsAt = new Date(
-      Math.max(launchCutoff.getTime(), fourteenDaysLater.getTime())
-    ).toISOString()
-
-    console.log(`[userInit] Trial fixé jusqu'au : ${trialEndsAt}`)
+    // 14 jours d'essai gratuit pour toute nouvelle inscription
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+    console.log(`[userInit] Trial 14j jusqu'au : ${trialEndsAt}`)
 
     // Créer l'entrée utilisateur
     const { error: insertError } = await supabase
