@@ -23,6 +23,17 @@ export async function ensureUserEntry(user: User): Promise<{ success: boolean; e
       return { success: true }
     }
 
+    // Calcul du trial : minimum 14 jours, prolongé jusqu'au 1er juin 2026
+    // pendant l'avant-première
+    const now = new Date()
+    const launchCutoff = new Date('2026-06-01T00:00:00Z')
+    const fourteenDaysLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+    const trialEndsAt = new Date(
+      Math.max(launchCutoff.getTime(), fourteenDaysLater.getTime())
+    ).toISOString()
+
+    console.log(`[userInit] Trial fixé jusqu'au : ${trialEndsAt}`)
+
     // Créer l'entrée utilisateur
     const { error: insertError } = await supabase
       .from('users')
@@ -33,8 +44,9 @@ export async function ensureUserEntry(user: User): Promise<{ success: boolean; e
         avatar_url: user.user_metadata?.avatar_url || null,
         onboarding_data: {},
         preferences: {},
-        subscription_tier: 'free',
+        subscription_tier: 'trial',          // ← trial auto à l'inscription
         subscription_status: 'active',
+        trial_ends_at: trialEndsAt,           // ← minimum 14j, étendu pendant avant-première
         timezone: 'UTC',
         language: 'fr',
         marketing_consent: false,
