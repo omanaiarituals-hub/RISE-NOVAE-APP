@@ -88,14 +88,30 @@ Génère un debrief en 4 parties :
 
 Ton : ${profile.ton_souhaite}. Tutoie. Maximum 300 mots.`
 
+      // Auth Supabase pour l'API chat
+      const { data: { session: chatSession } } = await supabase.auth.getSession()
+      if (!chatSession?.access_token) {
+        alert('Session expirée. Reconnecte-toi.')
+        return
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${chatSession.access_token}`,
+        },
         body: JSON.stringify({
           message: prompt,
           systemPrompt: 'Tu es une experte en psychologie positive, neurosciences et coaching de vie. Réponds en français, en tutoyant.'
         })
       })
+
+      if (response.status === 403) {
+        alert("La régénération de ton profil est réservée aux membres Premium. Va sur /subscribe pour y accéder.")
+        return
+      }
+
       const data = await response.json()
       const newDebrief = data.response || ''
 

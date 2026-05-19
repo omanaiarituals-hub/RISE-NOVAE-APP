@@ -265,16 +265,25 @@ Génère un debrief en 4 parties :
 
 Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseudo "${pseudo}" au moins une fois. Sois inspirante, précise, basée sur la psychologie réelle. Maximum 300 mots.`
 
+      // Auth Supabase pour l'API chat
+      const { data: { session: chatSession } } = await supabase.auth.getSession()
+      if (!chatSession?.access_token) {
+        console.error('[onboarding] no session for chat')
+        throw new Error('Session manquante')
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${chatSession.access_token}`,
+        },
         body: JSON.stringify({
           message: prompt,
           systemPrompt:
             "Tu es une experte en psychologie positive, neurosciences et coaching de vie. Tu génères des analyses personnalisées précises, chaleureuses et scientifiquement fondées. Réponds toujours en français, en tutoyant.",
         }),
       })
-
       const data = await response.json()
       const debriefText = data.response || ''
 

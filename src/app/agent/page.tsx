@@ -469,15 +469,44 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
         content: m.content
       }))
 
+      // Auth : récupère le token Supabase pour l'envoyer à l'API
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: "Session expirée. Reconnecte-toi pour continuer.",
+          timestamp: new Date()
+        }])
+        setIsLoading(false)
+        return
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           message: text,
           systemPrompt: ctx ? buildSystemPrompt(ctx) : undefined,
           history: conversationHistory
         })
       })
+
+      // 403 = pas Premium → on affiche un paywall dans la conversation
+      if (response.status === 403) {
+        const errorData = await response.json().catch(() => ({}))
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: `🔒 **L'Agent IA est réservé aux membres Premium**\n\n${errorData.message || "Souscris pour échanger sans limite avec ton coach NOVAÉ."}\n\n[**✦ Découvrir Premium →**](/subscribe)`,
+          timestamp: new Date()
+        }])
+        setIsLoading(false)
+        return
+      }
 
       const data = await response.json()
       const rawContent = data.response || "Je n'ai pas pu traiter ta demande."

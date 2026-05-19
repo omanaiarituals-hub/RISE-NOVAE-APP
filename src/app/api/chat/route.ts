@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import { canAccess } from '@/lib/permissions'
 
 type AnthropicMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -9,6 +11,36 @@ Pas de listes à 6+ points, pas de ### ou ##. Utilise uniquement **gras** pour l
 
 export async function POST(request: NextRequest) {
   try {
+    // ─── 1) Auth ───
+    const authHeader = request.headers.get('authorization')
+    const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
+
+    if (!token) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false } }
+    )
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
+    }
+
+    // ─── 2) Vérification Premium ───
+    const access = await canAccess(supabase, 'ai_coach_unlimited', user.id)
+    if (!access.allowed) {
+      return NextResponse.json({
+        error: 'premium_required',
+        message: "L'Agent IA NOVAÉ est réservé aux membres Premium. Souscris pour échanger sans limite avec ton coach.",
+        upgrade_url: '/subscribe',
+      }, { status: 403 })
+    }
+
+    // ─── 3) Logique existante (inchangée) ───
     const { message, systemPrompt, history, missionTitle, missionGuide, missionQuestion } =
       await request.json()
 
@@ -28,8 +60,6 @@ export async function POST(request: NextRequest) {
         ? `\n\nMission du jour : ${missionTitle}\nGuide : ${missionGuide}\nQuestion : ${missionQuestion || ''}\n\nL'utilisatrice travaille sur cette mission aujourd'hui.`
         : ''
 
-    // Anthropic exige messages user/assistant uniquement (system est séparé)
-    // Et qu'ils alternent en commençant par user
     const messages: AnthropicMessage[] = []
 
     if (Array.isArray(history)) {
