@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import BrevoEventsTable from '@/components/brevo/BrevoEventsTable'
 
-const ADMIN_EMAILS = ['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com']
+const ADMIN_EMAILS = ['nesserinesediri@gmail.com',]
 const LAUNCH_DATE = new Date('2026-05-01') // Référence pour M1 / M2 / M3
 const REVIEW_STORAGE_KEY = 'novae_admin_review_v1'
 
