@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { sendBrevoEmail, addBrevoContact } from '@/lib/brevo/send'
+import { addBrevoContact } from '@/lib/brevo/send'
 
 export async function POST(req: Request) {
   try {
@@ -30,26 +30,26 @@ export async function POST(req: Request) {
     const { pseudo } = await req.json()
     const prenom = (pseudo || user.email.split('@')[0]).trim()
 
-    // 1. Ajout contact Brevo (pour les automatisations futures)
-    await addBrevoContact({
+    // Ajout du contact dans la liste NOVAÉ - Membres (#9)
+    // → déclenche automatiquement TOUTE la welcome series Brevo :
+    //   J0 (1 min) → J+1 Recettes → J+2 Famille → J+3 Programme →
+    //   J+4 Agent IA → J+5 Organisation → J+6 Routines → J+7 Communauté →
+    //   J+11 Alerte trial → J+14 Fin trial → J+16 Win-back -20%
+    const result = await addBrevoContact({
       email: user.email,
       attributes: {
         PRENOM: prenom,
         DATE_INSCRIPTION: new Date().toISOString().split('T')[0],
       },
+      listIds: [9],
     })
 
-    // 2. Envoi du J0 (template #6)
-    const result = await sendBrevoEmail({
-to: { email: user.email, name: prenom || user.email },    
-  templateId: 6,
-params: { prenom: prenom || '' },    })
-
     if (!result.success) {
-      return NextResponse.json({ error: result.error, status: result.status }, { status: 500 })
+      console.error('[brevo welcome] add contact failed:', result.error)
+      // On log mais on ne bloque pas l'utilisateur
     }
 
-    return NextResponse.json({ success: true, messageId: result.messageId })
+    return NextResponse.json({ success: true })
   } catch (err) {
     console.error('[brevo welcome] error', err)
     return NextResponse.json({ error: String(err) }, { status: 500 })
