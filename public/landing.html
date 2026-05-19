@@ -61,7 +61,7 @@ body{
 
 /* NAV */
 nav{
-  position:fixed;top:0;left:0;right:0;z-index:100;
+  position:fixed;top:34px;left:0;right:0;z-index:100;
   display:flex;align-items:center;justify-content:space-between;
   padding:18px 40px;
   background:rgba(91,56,33,0);
@@ -106,7 +106,7 @@ nav.scrolled{
 .hero{
   position:relative;min-height:100vh;
   display:flex;align-items:center;justify-content:center;
-  overflow:hidden;padding:120px 24px 80px;
+  overflow:hidden;padding:155px 24px 80px;
 }
 .hero-bg{
   position:absolute;inset:0;
@@ -661,7 +661,7 @@ footer .links{display:flex;gap:22px}
   .nav-logo{font-size:20px}
   .nav-cta{padding:8px 16px;font-size:10.5px}
 
-  .hero{padding:110px 22px 70px;min-height:90vh}
+  .hero{padding:145px 22px 70px;min-height:90vh}
   .hero-content{padding-top:20px}
   .hero-btns{flex-direction:column;gap:14px;width:100%}
   .btn-main{width:100%;justify-content:center}
@@ -692,10 +692,106 @@ footer .links{display:flex;gap:22px}
   .cookie-btns{width:100%}
   .cookie-btns button{flex:1}
 }
+/* TRUST BAR */
+.trust-bar{
+  position:fixed;top:0;left:0;right:0;z-index:110;
+  background:linear-gradient(90deg,var(--brown-deep) 0%,var(--brown-mid) 50%,var(--brown-deep) 100%);
+  padding:8px 20px;
+  border-bottom:1px solid rgba(212,165,116,.3);
+  text-align:center;
+  font-size:11px;letter-spacing:.3px;
+  color:var(--cream-1);
+  box-shadow:0 2px 12px rgba(0,0,0,.15);
+}
+.trust-bar-inner{
+  display:flex;align-items:center;justify-content:center;
+  gap:16px;flex-wrap:wrap;font-weight:500;
+}
+.trust-bar-item{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.trust-bar-sep{color:var(--copper-2);opacity:.5;font-size:14px}
+
+@media(max-width:900px){
+  .trust-bar{font-size:10px;padding:7px 12px;letter-spacing:.2px}
+  .trust-bar-inner{gap:10px}
+  .trust-bar-sep{display:none}
+}
+@media(max-width:480px){
+  .trust-bar{font-size:9.5px;padding:6px 10px}
+  .trust-bar-inner{gap:8px}
+}
+
+/* FAQ SECTION */
+.faq-section{
+  background:
+    radial-gradient(ellipse at 50% 100%,rgba(212,165,116,.12) 0%,transparent 55%),
+    linear-gradient(180deg,var(--cream-1) 0%,var(--cream-2) 100%);
+  padding:100px 40px;
+  text-align:center;
+}
+.faq-list{
+  max-width:720px;margin:50px auto 0;
+  display:flex;flex-direction:column;gap:14px;
+  text-align:left;
+}
+.faq-item{
+  background:linear-gradient(135deg,rgba(255,255,255,.55),rgba(255,255,255,.25));
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,.5);
+  border-radius:14px;overflow:hidden;
+  transition:box-shadow .25s ease,border-color .25s ease;
+}
+.faq-item[open]{
+  box-shadow:0 8px 24px rgba(139,90,60,.1);
+  border-color:rgba(196,149,106,.35);
+}
+.faq-item summary{
+  list-style:none;cursor:pointer;
+  padding:18px 24px;
+  font-size:15px;font-weight:600;
+  color:var(--brown-text);
+  display:flex;align-items:center;justify-content:space-between;
+  gap:14px;
+  transition:color .2s ease;
+}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary::after{
+  content:'+';font-size:22px;font-weight:300;
+  color:var(--brown-italic);
+  transition:transform .25s ease;
+  flex-shrink:0;
+}
+.faq-item[open] summary::after{transform:rotate(45deg)}
+.faq-item summary:hover{color:var(--brown-italic)}
+.faq-item p{
+  padding:0 24px 22px;
+  font-size:14px;font-weight:400;
+  color:var(--brown-soft);
+  line-height:1.7;
+}
+.faq-item p strong{color:var(--brown-text);font-weight:600}
+@media(max-width:700px){
+  .faq-section{padding:70px 22px}
+  .faq-item summary{padding:16px 20px;font-size:14px}
+  .faq-item p{padding:0 20px 18px;font-size:13.5px}
+}
 </style>
 </head>
 
 <body>
+
+  <!-- TRUST BAR — bandeau sécurité -->
+<div class="trust-bar">
+  <div class="trust-bar-inner">
+    <span class="trust-bar-item">🔒 Connexion chiffrée SSL</span>
+    <span class="trust-bar-sep">·</span>
+    <span class="trust-bar-item">🛡️ Tes journaux restent privés</span>
+    <span class="trust-bar-sep">·</span>
+    <span class="trust-bar-item">✦ Paiement sécurisé Stripe</span>
+    <span class="trust-bar-sep">·</span>
+    <span class="trust-bar-item">🇪🇺 Données hébergées en Europe</span>
+  </div>
+</div>
 
 <!-- COOKIE BANNER -->
 <div id="cookieBanner">
@@ -831,6 +927,40 @@ footer .links{display:flex;gap:22px}
   <div class="founder-text">
     <p class="founder-quote">« Créée par une femme qui était <em>submergée</em> — pour les femmes qui veulent <em>avancer</em>. »</p>
     <div class="founder-signature">✦ Ness · Fondatrice de NOVAÉ</div>
+  </div>
+</section>
+
+<!-- FAQ SÉCURITÉ -->
+<section class="faq-section">
+  <div class="section-tag reveal"><span class="star">✦</span> Tes questions, mes réponses</div>
+  <h2 class="section-h2 reveal">La sécurité, <em>d'abord.</em></h2>
+  <div class="faq-list reveal">
+
+    <details class="faq-item">
+      <summary>Mes journaux et mes données, qui peut les voir ?</summary>
+      <p>Personne. <strong>Pas même moi.</strong> Tes journaux sont chiffrés et stockés sur des serveurs en Europe. Je n'y ai pas accès, mon équipe non plus. Ce que tu écris dans NOVAÉ reste strictement entre toi et toi.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>Mon paiement est-il sécurisé ?</summary>
+      <p>Oui. Tous les paiements passent par <strong>Stripe</strong>, leader mondial du paiement sécurisé en ligne (utilisé par Apple, Amazon, Spotify). Aucune donnée bancaire ne transite par NOVAÉ ni n'est stockée chez moi.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>Puis-je annuler à tout moment ?</summary>
+      <p>Oui, sans engagement. Tu peux annuler ton abonnement en un clic depuis ton espace personnel. Pas de frais cachés. Pas de questions. Tu gardes l'accès jusqu'à la fin de la période payée.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>Et si je veux quitter NOVAÉ ? Mes données ?</summary>
+      <p>Tu as la main complète. Tu peux <strong>exporter</strong> ou <strong>supprimer</strong> définitivement toutes tes données à tout moment, conformément au RGPD. Tu es propriétaire de tout ce que tu confies à NOVAÉ.</p>
+    </details>
+
+    <details class="faq-item">
+      <summary>L'agent IA, est-ce qu'il enregistre nos échanges ?</summary>
+      <p>L'IA NOVAÉ utilise tes données uniquement pour te répondre avec contexte. Elle <strong>n'est pas utilisée pour entraîner un modèle externe</strong>. Tes conversations restent privées et ne sont jamais partagées avec un tiers.</p>
+    </details>
+
   </div>
 </section>
 
