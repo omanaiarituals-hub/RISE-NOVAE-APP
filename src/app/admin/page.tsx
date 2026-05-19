@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
+import BrevoEventsTable from '@/components/brevo/BrevoEventsTable'
 
 const ADMIN_EMAILS = ['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com']
 const LAUNCH_DATE = new Date('2026-05-01') // Référence pour M1 / M2 / M3
@@ -1244,6 +1245,8 @@ const loadAuthUserCount = async () => {
                   <p style={{ fontSize: 12, color: C.brownLight, padding: '16px 0' }}>Aucune donnée disponible.</p>
                 )}
               </div>
+
+<BrevoEventsTable />
 
               {/* Section 4 — Roadmap interactive */}
 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 16 }}>
