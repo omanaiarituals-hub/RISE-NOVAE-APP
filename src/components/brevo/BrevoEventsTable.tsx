@@ -16,6 +16,19 @@ interface BrevoEvent {
   templateId?: number
 }
 
+interface MessageRow {
+  messageId: string
+  email: string
+  subject: string
+  sentAt: string
+  hasRequests: boolean
+  hasDelivered: boolean
+  hasOpened: boolean
+  hasClicked: boolean
+  hasBounced: boolean
+  hasUnsub: boolean
+}
+
 export default function BrevoEventsTable() {
   const [events, setEvents] = useState<BrevoEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,7 +45,7 @@ export default function BrevoEventsTable() {
         setEvents([])
         return
       }
-      const res = await fetch(`/api/admin/metrics/brevo-events?days=${days}&limit=500`, {
+      const res = await fetch(`/api/admin/metrics/brevo-events?days=${days}&limit=1000`, {
         headers: { authorization: `Bearer ${session.access_token}` },
         cache: 'no-store',
       })
@@ -50,17 +63,66 @@ export default function BrevoEventsTable() {
 
   useEffect(() => { load() }, [days]) // eslint-disable-line
 
-  const counters = events.reduce((acc, e) => {
-    acc[e.event] = (acc[e.event] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
+  // ─── Groupement par messageId : un email = une ligne ───
+  const messages: MessageRow[] = (() => {
+    const map = new Map<string, MessageRow>()
+    events.forEach(e => {
+      if (!e.messageId) return
+      let row = map.get(e.messageId)
+      if (!row) {
+        row = {
+          messageId: e.messageId,
+          email: e.email,
+          subject: e.subject || '',
+          sentAt: e.date,
+          hasRequests: false,
+          hasDelivered: false,
+          hasOpened: false,
+          hasClicked: false,
+          hasBounced: false,
+          hasUnsub: false,
+        }
+        map.set(e.messageId, row)
+      }
+      switch (e.event) {
+        case 'requests':
+          row.hasRequests = true
+          row.sentAt = e.date
+          break
+        case 'delivered':
+          row.hasDelivered = true
+          break
+        case 'opened':
+        case 'proxy_open':
+          row.hasOpened = true
+          break
+        case 'clicked':
+          row.hasClicked = true
+          break
+        case 'soft_bounce':
+        case 'hard_bounce':
+        case 'blocked':
+        case 'spam':
+        case 'invalid_email':
+          row.hasBounced = true
+          break
+        case 'unsubscribed':
+          row.hasUnsub = true
+          break
+      }
+    })
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime()
+    )
+  })()
 
-  const totalSent = counters.requests || 0
-  const totalDelivered = counters.delivered || 0
-  const totalOpened = counters.opened || 0
-  const totalClicked = counters.clicked || 0
-  const totalBounces = (counters.soft_bounce || 0) + (counters.hard_bounce || 0)
-  const totalUnsub = counters.unsubscribed || 0
+  // KPIs basés sur messages uniques
+  const totalSent = messages.filter(m => m.hasRequests || m.hasDelivered).length
+  const totalDelivered = messages.filter(m => m.hasDelivered).length
+  const totalOpened = messages.filter(m => m.hasOpened).length
+  const totalClicked = messages.filter(m => m.hasClicked).length
+  const totalBounces = messages.filter(m => m.hasBounced).length
+  const totalUnsub = messages.filter(m => m.hasUnsub).length
   const openRate = totalDelivered > 0 ? Math.round((totalOpened / totalDelivered) * 100) : 0
   const clickRate = totalDelivered > 0 ? Math.round((totalClicked / totalDelivered) * 100) : 0
 
@@ -69,7 +131,7 @@ export default function BrevoEventsTable() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 26, color: '#3d2618', margin: 0 }}>Activité Brevo</h3>
-          <p style={{ fontSize: 12, color: '#6b5340', margin: '4px 0 0', letterSpacing: '0.05em' }}>Détail des emails envoyés sur les derniers {days} jours</p>
+          <p style={{ fontSize: 12, color: '#6b5340', margin: '4px 0 0', letterSpacing: '0.05em' }}>Un email envoyé = une ligne · {days} derniers jours</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <select value={days} onChange={e => setDays(Number(e.target.value))} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(196,149,106,0.3)', background: '#fff', fontSize: 13, color: '#3d2618' }}>
@@ -84,6 +146,7 @@ export default function BrevoEventsTable() {
         </div>
       </div>
 
+      {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 24 }}>
         <KPI label="Envoyés" value={totalSent} />
         <KPI label="Livrés" value={totalDelivered} sub={totalSent > 0 ? `${Math.round((totalDelivered / totalSent) * 100)}%` : '—'} />
@@ -106,27 +169,47 @@ export default function BrevoEventsTable() {
               <th style={th}>Date</th>
               <th style={th}>Destinataire</th>
               <th style={th}>Objet</th>
-              <th style={th}>Statut</th>
+              <th style={{ ...th, minWidth: 320 }}>Parcours de l'email</th>
             </tr>
           </thead>
           <tbody>
-            {events.length === 0 && !loading && (
-              <tr><td colSpan={4} style={{ ...td, textAlign: 'center', color: '#6b5340', padding: 24, fontStyle: 'italic' }}>Aucun événement sur la période</td></tr>
+            {messages.length === 0 && !loading && (
+              <tr><td colSpan={4} style={{ ...td, textAlign: 'center', color: '#6b5340', padding: 24, fontStyle: 'italic' }}>Aucun email envoyé sur la période</td></tr>
             )}
-            {loading && events.length === 0 && (
+            {loading && messages.length === 0 && (
               <tr><td colSpan={4} style={{ ...td, textAlign: 'center', color: '#6b5340', padding: 24 }}>Chargement...</td></tr>
             )}
-            {events.map((e, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid rgba(196,149,106,0.08)' }}>
+            {messages.map((m) => (
+              <tr key={m.messageId} style={{ borderBottom: '1px solid rgba(196,149,106,0.08)' }}>
                 <td style={{ ...td, whiteSpace: 'nowrap', color: '#6b5340' }}>
-                  {new Date(e.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(m.sentAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                 </td>
-                <td style={{ ...td, fontFamily: 'monospace', fontSize: 12 }}>{e.email}</td>
-                <td style={{ ...td, color: '#6b5340', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {e.subject || <span style={{ color: '#a8967a' }}>—</span>}
+                <td style={{ ...td, fontFamily: 'monospace', fontSize: 12 }}>{m.email}</td>
+                <td style={{ ...td, color: '#6b5340', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {m.subject || <span style={{ color: '#a8967a' }}>—</span>}
                 </td>
-                <td style={td}>
-                  <span style={badgeStyle(e.event)}>{eventLabel(e.event)}</span>
+                <td style={{ ...td, padding: '8px 14px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                    <Pill label="Envoyé" active={m.hasRequests || m.hasDelivered} type="sent" />
+                    <Arrow active={m.hasDelivered} />
+                    <Pill label="Livré" active={m.hasDelivered} type="delivered" />
+                    <Arrow active={m.hasOpened} />
+                    <Pill label="Ouvert" active={m.hasOpened} type="opened" />
+                    <Arrow active={m.hasClicked} />
+                    <Pill label="Cliqué" active={m.hasClicked} type="clicked" />
+                    {m.hasBounced && (
+                      <>
+                        <span style={{ margin: '0 4px', color: '#c44a4a' }}>·</span>
+                        <Pill label="Bounce" active={true} type="bounce" />
+                      </>
+                    )}
+                    {m.hasUnsub && (
+                      <>
+                        <span style={{ margin: '0 4px', color: '#737373' }}>·</span>
+                        <Pill label="Désabo" active={true} type="unsub" />
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -153,35 +236,44 @@ function KPI({ label, value, sub, accent, alert }: { label: string; value: numbe
   )
 }
 
-function eventLabel(event: string): string {
-  const labels: Record<string, string> = {
-    requests: 'Envoyé', delivered: 'Livré', opened: 'Ouvert', clicked: 'Cliqué',
-    soft_bounce: 'Bounce léger', hard_bounce: 'Bounce dur', spam: 'Spam',
-    blocked: 'Bloqué', unsubscribed: 'Désabonné', invalid_email: 'Email invalide',
-    deferred: 'Différé', proxy_open: 'Ouvert (proxy)', error: 'Erreur',
+function Pill({ label, active, type }: { label: string; active: boolean; type: 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounce' | 'unsub' }) {
+  const palette: Record<string, string> = {
+    sent: '#94a3b8',
+    delivered: '#16a34a',
+    opened: '#c4956a',
+    clicked: '#8b5a3c',
+    bounce: '#c44a4a',
+    unsub: '#737373',
   }
-  return labels[event] || event
+  const color = palette[type]
+  return (
+    <span style={{
+      display: 'inline-block',
+      padding: '4px 10px',
+      borderRadius: 999,
+      background: active ? color : '#f5f5f4',
+      color: active ? '#ffffff' : '#a8a29e',
+      fontSize: 10,
+      fontWeight: 700,
+      letterSpacing: '0.05em',
+      textTransform: 'uppercase',
+      opacity: active ? 1 : 0.6,
+      whiteSpace: 'nowrap',
+    }}>
+      {label}
+    </span>
+  )
 }
 
-function badgeStyle(event: string): React.CSSProperties {
-  const colors: Record<string, { bg: string; fg: string }> = {
-    requests: { bg: '#e7e5e4', fg: '#44403c' },
-    delivered: { bg: '#dcfce7', fg: '#166534' },
-    opened: { bg: '#fef3c7', fg: '#92400e' },
-    clicked: { bg: '#fed7aa', fg: '#9a3412' },
-    soft_bounce: { bg: '#fef9c3', fg: '#854d0e' },
-    hard_bounce: { bg: '#fee2e2', fg: '#991b1b' },
-    spam: { bg: '#fee2e2', fg: '#991b1b' },
-    blocked: { bg: '#fee2e2', fg: '#991b1b' },
-    unsubscribed: { bg: '#d6d3d1', fg: '#44403c' },
-    invalid_email: { bg: '#fee2e2', fg: '#991b1b' },
-    deferred: { bg: '#e0f2fe', fg: '#075985' },
-  }
-  const c = colors[event] || { bg: '#e7e5e4', fg: '#44403c' }
-  return {
-    display: 'inline-block', padding: '3px 10px', borderRadius: 999,
-    background: c.bg, color: c.fg, fontSize: 11, fontWeight: 600,
-  }
+function Arrow({ active }: { active: boolean }) {
+  return (
+    <span style={{
+      color: active ? '#8b5a3c' : '#d6d3d1',
+      fontSize: 10,
+      fontWeight: 700,
+      opacity: active ? 1 : 0.4,
+    }}>→</span>
+  )
 }
 
 const th: React.CSSProperties = { textAlign: 'left', padding: '12px 14px', fontWeight: 700, color: '#6b5340', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }
