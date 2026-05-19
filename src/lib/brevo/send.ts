@@ -112,3 +112,58 @@ export async function deleteBrevoContact(email: string) {
     return { success: false, error: String(err) }
   }
 }
+export async function addContactToList(email: string, listId: number) {
+  const apiKey = process.env.BREVO_API_KEY
+  if (!apiKey) return { success: false, error: 'API key missing' }
+
+  try {
+    const response = await fetch(`${BREVO_API}/contacts/lists/${listId}/contacts/add`, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'api-key': apiKey,
+      },
+      body: JSON.stringify({ emails: [email] }),
+    })
+
+    if (!response.ok && response.status !== 400) {
+      const text = await response.text()
+      console.error('[brevo] add to list failed', listId, response.status, text)
+      return { success: false, error: text }
+    }
+
+    return { success: true }
+  } catch (err) {
+    console.error('[brevo] add to list error', err)
+    return { success: false, error: String(err) }
+  }
+}
+
+export async function removeContactFromList(email: string, listId: number) {
+  const apiKey = process.env.BREVO_API_KEY
+  if (!apiKey) return { success: false, error: 'API key missing' }
+
+  try {
+    const response = await fetch(`${BREVO_API}/contacts/lists/${listId}/contacts/remove`, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'api-key': apiKey,
+      },
+      body: JSON.stringify({ emails: [email] }),
+    })
+
+    if (!response.ok && response.status !== 400) {
+      const text = await response.text()
+      console.error('[brevo] remove from list failed', listId, response.status, text)
+      return { success: false, error: text }
+    }
+
+    return { success: true }
+  } catch (err) {
+    console.error('[brevo] remove from list error', err)
+    return { success: false, error: String(err) }
+  }
+}
