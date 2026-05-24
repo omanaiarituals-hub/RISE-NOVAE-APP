@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { canAccess } from '@/lib/permissions'
+import { canAccess, incrementAiChatCount } from '@/lib/permissions'
 
 type AnthropicMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -30,15 +30,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
     }
 
-    // ─── 2) Vérification Premium ───
-    const access = await canAccess(supabase, 'ai_coach_unlimited', user.id)
+    // ─── 2) Accès Agent IA : 5/mois en free, illimité en Premium/trial ───
+    const access = await canAccess(supabase, 'ai_coach', user.id)
     if (!access.allowed) {
+      const limitReached = access.reason === 'monthly_limit_reached'
       return NextResponse.json({
-        error: 'premium_required',
-        message: "L'Agent IA NOVAÉ est réservé aux membres Premium. Souscris pour échanger sans limite avec ton coach.",
+        error: access.reason || 'premium_required',
+        message: limitReached
+          ? `Tu as utilisé tes ${access.quota_max ?? 5} échanges gratuits avec NOVAÉ ce mois-ci. Passe Premium pour échanger sans limite. ✦`
+          : "L'Agent IA NOVAÉ est réservé aux membres Premium.",
+        quota_remaining: 0,
+        quota_max: access.quota_max,
+        reset_at: access.reset_at,
         upgrade_url: '/subscribe',
       }, { status: 403 })
     }
+
+    // quota_remaining n'est défini QUE pour les free → permet de savoir s'il faut incrémenter
+    const isQuotaUser = access.quota_remaining !== undefined
 
     // ─── 3) Logique existante (inchangée) ───
     const { message, systemPrompt, history, missionTitle, missionGuide, missionQuestion } =
@@ -113,7 +122,24 @@ export async function POST(request: NextRequest) {
     const block = data?.content?.[0]
     const responseText = block?.type === 'text' ? block.text : 'Je suis là pour te guider.'
 
-    return NextResponse.json({ response: responseText })
+    // ─── 4) Incrément du quota : free uniquement, après succès (non-bloquant) ───
+    if (isQuotaUser) {
+      try {
+        await incrementAiChatCount(supabase, user.id)
+      } catch (e) {
+        console.error('[api/chat] increment quota (non-blocking):', e)
+      }
+    }
+
+    return NextResponse.json({
+      response: responseText,
+      ...(isQuotaUser
+        ? {
+            quota_remaining: Math.max(0, (access.quota_remaining ?? 0) - 1),
+            quota_max: access.quota_max,
+          }
+        : {}),
+    })
   } catch (error: any) {
     console.error('[api/chat] error:', error?.message || error)
     return NextResponse.json(
