@@ -1,10 +1,10 @@
 // lib/permissions.ts
 // Single source of truth pour le contrôle d'accès par tier dans NOVAÉ.
-// Créé : 12 mai 2026
+// Spec verrouillée le 24/05/2026.
 //
 // Usage côté API route :
-//   import { canAccess } from '@/lib/permissions';
-//   const result = await canAccess(supabase, 'scan_recipe', userId);
+//   import { canAccess, incrementAiChatCount } from '@/lib/permissions';
+//   const result = await canAccess(supabase, 'ai_coach', userId);
 //   if (!result.allowed) return Response.json({ error: result.reason }, { status: 403 });
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -12,18 +12,31 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export type SubscriptionTier = 'free' | 'trial' | 'premium' | 'expired';
 
 export type Feature =
-  | 'scan_recipe'
-  | 'ai_coach_unlimited'
+  // Features à quota (free limité)
+  | 'scan_recipe'          // 3 / mois
+  | 'ai_coach'             // 5 / mois (Haiku en free)
+  | 'challenge_join'       // 5 au total (à vie)
+  // Features gratuites
+  | 'community_read'
+  | 'astuces_preview'
+  | 'family_member'
+  | 'family_birthday'
+  | 'family_allergy_note'
+  | 'routines_basic'
+  // Features Premium uniquement
+  | 'community_post'
+  | 'astuces_details'
+  | 'family_conflict_detection'
   | 'program_90_days'
-  | 'community_access'
   | 'weekly_debrief'
   | 'circle_of_week'
+  | 'routines_ai'
   | 'premium_content';
 
 export type AccessReason =
   | 'premium_required'
   | 'monthly_limit_reached'
-  | 'daily_limit_reached'
+  | 'limit_reached'
   | 'user_not_found';
 
 export type AccessResult = {
@@ -35,8 +48,9 @@ export type AccessResult = {
 };
 
 const FREE_LIMITS = {
-  scan_recipe_per_month: 5,
-  ai_chat_per_day: 10,
+  scan_recipe_per_month: 3,
+  ai_chat_per_month: 5,
+  defis_max: 5, // à vie
 } as const;
 
 /**
@@ -61,23 +75,22 @@ export async function canAccess(
 
   const tier: SubscriptionTier = (user.subscription_tier as SubscriptionTier) || 'free';
 
-  // 2. Trial actif = accès complet
+  // 2. Trial actif OU premium = accès complet
   const isTrialActive =
     tier === 'trial' &&
     user.trial_ends_at &&
     new Date(user.trial_ends_at) > new Date();
-
   const isPremiumActive = tier === 'premium';
 
   if (isPremiumActive || isTrialActive) {
     return { allowed: true };
   }
 
-  // 3. Free tier (ou trial expiré) → gating sélectif
+  // 3. Free (ou trial expiré) → gating sélectif
   switch (feature) {
     case 'scan_recipe': {
       const quota = await getOrCreateQuota(supabase, userId);
-      const remaining = FREE_LIMITS.scan_recipe_per_month - quota.scan_count_month;
+      const remaining = FREE_LIMITS.scan_recipe_per_month - (quota.scan_count_month ?? 0);
       return {
         allowed: remaining > 0,
         reason: remaining <= 0 ? 'monthly_limit_reached' : undefined,
@@ -86,21 +99,59 @@ export async function canAccess(
         reset_at: quota.scan_count_reset_at,
       };
     }
-    case 'ai_coach_unlimited':
+
+    case 'ai_coach': {
+      const quota = await getOrCreateQuota(supabase, userId);
+      const remaining = FREE_LIMITS.ai_chat_per_month - (quota.ai_chat_count_month ?? 0);
+      return {
+        allowed: remaining > 0,
+        reason: remaining <= 0 ? 'monthly_limit_reached' : undefined,
+        quota_remaining: Math.max(0, remaining),
+        quota_max: FREE_LIMITS.ai_chat_per_month,
+        reset_at: quota.ai_chat_count_reset_at,
+      };
+    }
+
+    case 'challenge_join': {
+      const quota = await getOrCreateQuota(supabase, userId);
+      const remaining = FREE_LIMITS.defis_max - (quota.defis_count ?? 0);
+      return {
+        allowed: remaining > 0,
+        reason: remaining <= 0 ? 'limit_reached' : undefined,
+        quota_remaining: Math.max(0, remaining),
+        quota_max: FREE_LIMITS.defis_max,
+      };
+    }
+
+    // Features gratuites
+    case 'community_read':
+    case 'astuces_preview':
+    case 'family_member':
+    case 'family_birthday':
+    case 'family_allergy_note':
+    case 'routines_basic':
+      return { allowed: true };
+
+    // Premium uniquement
+    case 'community_post':
+    case 'astuces_details':
+    case 'family_conflict_detection':
     case 'program_90_days':
-    case 'community_access':
     case 'weekly_debrief':
     case 'circle_of_week':
+    case 'routines_ai':
     case 'premium_content':
       return { allowed: false, reason: 'premium_required' };
+
     default:
       return { allowed: true };
   }
 }
 
-/**
- * Incrémente le compteur de scans (à appeler APRÈS un scan réussi).
- */
+/* ------------------------------------------------------------------ */
+/* Incréments (à appeler APRÈS une action réussie)                    */
+/* ------------------------------------------------------------------ */
+
 export async function incrementScanCount(
   supabase: SupabaseClient,
   userId: string
@@ -109,20 +160,56 @@ export async function incrementScanCount(
   const { error } = await supabase
     .from('user_quotas')
     .update({
-      scan_count_month: quota.scan_count_month + 1,
+      scan_count_month: (quota.scan_count_month ?? 0) + 1,
       updated_at: new Date().toISOString(),
     })
     .eq('user_id', userId);
-
   if (error) {
     console.error('[incrementScanCount] failed:', error);
     throw new Error(`Failed to increment scan count: ${error.message}`);
   }
 }
 
-/**
- * Récupère le quota d'une user, le crée si absent, et reset si périmé.
- */
+export async function incrementAiChatCount(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<void> {
+  const quota = await getOrCreateQuota(supabase, userId);
+  const { error } = await supabase
+    .from('user_quotas')
+    .update({
+      ai_chat_count_month: (quota.ai_chat_count_month ?? 0) + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
+  if (error) {
+    console.error('[incrementAiChatCount] failed:', error);
+    throw new Error(`Failed to increment ai chat count: ${error.message}`);
+  }
+}
+
+export async function incrementDefisCount(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<void> {
+  const quota = await getOrCreateQuota(supabase, userId);
+  const { error } = await supabase
+    .from('user_quotas')
+    .update({
+      defis_count: (quota.defis_count ?? 0) + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
+  if (error) {
+    console.error('[incrementDefisCount] failed:', error);
+    throw new Error(`Failed to increment defis count: ${error.message}`);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Quota : récupère, crée si absent, reset mensuel scan + IA          */
+/* ------------------------------------------------------------------ */
+
 async function getOrCreateQuota(supabase: SupabaseClient, userId: string) {
   const { data: existing } = await supabase
     .from('user_quotas')
@@ -130,37 +217,41 @@ async function getOrCreateQuota(supabase: SupabaseClient, userId: string) {
     .eq('user_id', userId)
     .maybeSingle();
 
-  // Pas de ligne → créer
+  // Pas de ligne → créer (les défauts SQL initialisent les compteurs)
   if (!existing) {
     const { data: created, error } = await supabase
       .from('user_quotas')
       .insert({ user_id: userId })
       .select()
       .single();
-
     if (error) throw new Error(`Failed to create quota: ${error.message}`);
     return created;
   }
 
-  // Auto-reset mensuel
+  // Resets mensuels (scan + IA), défis ne se reset jamais
   const now = new Date();
-  const scanResetAt = new Date(existing.scan_count_reset_at);
+  const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+  const patch: Record<string, any> = {};
 
-  if (now >= scanResetAt) {
-    const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const { data: reset, error } = await supabase
+  if (existing.scan_count_reset_at && now >= new Date(existing.scan_count_reset_at)) {
+    patch.scan_count_month = 0;
+    patch.scan_count_reset_at = nextReset;
+  }
+  if (existing.ai_chat_count_reset_at && now >= new Date(existing.ai_chat_count_reset_at)) {
+    patch.ai_chat_count_month = 0;
+    patch.ai_chat_count_reset_at = nextReset;
+  }
+
+  if (Object.keys(patch).length > 0) {
+    patch.updated_at = now.toISOString();
+    const { data: updated, error } = await supabase
       .from('user_quotas')
-      .update({
-        scan_count_month: 0,
-        scan_count_reset_at: nextReset.toISOString(),
-        updated_at: now.toISOString(),
-      })
+      .update(patch)
       .eq('user_id', userId)
       .select()
       .single();
-
     if (error) throw new Error(`Failed to reset quota: ${error.message}`);
-    return reset;
+    return updated;
   }
 
   return existing;
