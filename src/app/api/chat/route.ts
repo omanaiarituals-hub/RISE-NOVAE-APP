@@ -11,7 +11,7 @@ Pas de listes à 6+ points, pas de ### ou ##. Utilise uniquement **gras** pour l
 
 export async function POST(request: NextRequest) {
   try {
-    // ─── 1) Auth ───
+    // ─── 1) Auth : vérifier l'identité avec le token ───
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
 
@@ -19,19 +19,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     }
 
-    const supabase = createClient(
+    const authClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { auth: { persistSession: false } }
     )
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token)
     if (authError || !user) {
       return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
     }
 
+    // Client service-role : lecture du tier + gestion du quota de façon fiable
+    // (même pattern que tes webhooks ; on ne touche que la ligne de l'utilisatrice authentifiée)
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
     // ─── 2) Accès Agent IA : 5/mois en free, illimité en Premium/trial ───
-    const access = await canAccess(supabase, 'ai_coach', user.id)
+    const access = await canAccess(supabaseAdmin, 'ai_coach', user.id)
     if (!access.allowed) {
       const limitReached = access.reason === 'monthly_limit_reached'
       return NextResponse.json({
@@ -46,7 +54,6 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
-    // quota_remaining n'est défini QUE pour les free → permet de savoir s'il faut incrémenter
     const isQuotaUser = access.quota_remaining !== undefined
 
     // ─── 3) Logique existante (inchangée) ───
@@ -125,7 +132,7 @@ export async function POST(request: NextRequest) {
     // ─── 4) Incrément du quota : free uniquement, après succès (non-bloquant) ───
     if (isQuotaUser) {
       try {
-        await incrementAiChatCount(supabase, user.id)
+        await incrementAiChatCount(supabaseAdmin, user.id)
       } catch (e) {
         console.error('[api/chat] increment quota (non-blocking):', e)
       }
