@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { canAccess, incrementAiChatCount } from '@/lib/permissions'
+import missionsData from '@/data/missions.json'
 
 export const runtime = 'nodejs'
 
@@ -34,12 +35,12 @@ const TOOLS = [
   {
     name: 'valider_mission_du_jour',
     description:
-      "Marque la mission du jour du programme 90 jours comme complétée. À appeler UNIQUEMENT après confirmation explicite de l'utilisatrice.",
+      "Valide ENTIÈREMENT la mission du jour du programme 90j : coche toutes les tâches du jour, enregistre la réflexion, et fait avancer au jour suivant (uniquement si c'est le jour courant). À appeler UNIQUEMENT après confirmation explicite de l'utilisatrice.",
     input_schema: {
       type: 'object',
       properties: {
         jour: { type: 'integer', description: 'Numéro du jour à valider. Si omis, le jour courant du programme est utilisé.' },
-        reflexion: { type: 'string', description: "Réflexion / note optionnelle de l'utilisatrice." },
+        reflexion: { type: 'string', description: "Réflexion de l'utilisatrice sur sa mission (recommandée)." },
       },
       required: [],
     },
@@ -89,6 +90,34 @@ const TOOLS = [
       required: ['titre', 'date'],
     },
   },
+  {
+    name: 'planifier_repas',
+    description:
+      "Planifie un repas dans le planning de la semaine (meal_plan). À appeler UNIQUEMENT après confirmation. Fournis le jour, le type de repas, et soit le titre d'une recette existante, soit un repas libre.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        jour: {
+          type: 'string',
+          description: 'Jour de la semaine en français, 1re lettre majuscule : Lundi, Mardi, Mercredi, Jeudi, Vendredi, Samedi, Dimanche.',
+        },
+        repas: {
+          type: 'string',
+          enum: ['petit_dej', 'dejeuner', 'diner', 'collation'],
+          description: 'Type de repas.',
+        },
+        recette_titre: {
+          type: 'string',
+          description: "Titre d'une recette existante de l'utilisatrice (ex. 'Buddha Bowl végétarien'). Optionnel si repas_libre fourni.",
+        },
+        repas_libre: {
+          type: 'string',
+          description: "Texte libre si ce n'est pas une recette enregistrée (ex. 'Restes du frigo'). Optionnel.",
+        },
+      },
+      required: ['jour', 'repas'],
+    },
+  },
 ]
 
 // ── Exécuteurs (service-role) ─────────────────────────────────────────────────
@@ -126,36 +155,66 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
       }
 
       case 'valider_mission_du_jour': {
-        let jour = input?.jour
-        if (!jour) {
-          const { data: prog } = await db
-            .from('program_progress')
-            .select('current_day')
-            .eq('user_id', userId)
-            .maybeSingle()
-          jour = prog?.current_day ?? 1
-        }
+        // 1. Jour courant du programme
+        const { data: prog } = await db
+          .from('program_progress')
+          .select('current_day')
+          .eq('user_id', userId)
+          .maybeSingle()
+        const currentDay = prog?.current_day ?? 1
+        const jour = input?.jour ?? currentDay
+
+        // 2. Tâches du jour (depuis missions.json) → on coche tout (indices, comme l'app)
+        const mission = (missionsData as any[]).find((m: any) => m.day === jour)
+        const tasks = Array.isArray(mission?.tasks) ? mission.tasks : []
+        const completed_tasks = tasks.map((_: any, i: number) => i)
+
+        // 3. Préserver la réflexion existante si non fournie
         const { data: existing } = await db
           .from('mission_responses')
-          .select('id')
+          .select('reflection')
           .eq('user_id', userId)
           .eq('day_number', jour)
           .maybeSingle()
-        const payload: any = {
-          user_id: userId,
-          day_number: jour,
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+        const reflection =
+          typeof input?.reflexion === 'string' && input.reflexion.trim()
+            ? input.reflexion.trim()
+            : existing?.reflection ?? null
+
+        // 4. Upsert mission_responses — exactement comme la page du jour
+        const { error: upErr } = await db.from('mission_responses').upsert(
+          {
+            user_id: userId,
+            day_number: jour,
+            reflection,
+            completed_tasks,
+            completed_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,day_number' }
+        )
+        if (upErr) return { ok: false, message: upErr.message }
+
+        // 5. Avancer au jour suivant UNIQUEMENT si on valide le jour courant (et < 90)
+        let jour_suivant: number | null = null
+        if (jour === currentDay && jour < 90) {
+          const { error: advErr } = await db
+            .from('program_progress')
+            .update({
+              current_day: jour + 1,
+              last_access_date: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', userId)
+          if (!advErr) jour_suivant = jour + 1
         }
-        if (input?.reflexion) payload.reflection = input.reflexion
-        if (existing) {
-          const { error } = await db.from('mission_responses').update(payload).eq('id', existing.id)
-          if (error) return { ok: false, message: error.message }
-        } else {
-          const { error } = await db.from('mission_responses').insert(payload)
-          if (error) return { ok: false, message: error.message }
+
+        return {
+          ok: true,
+          jour_valide: jour,
+          taches_cochees: completed_tasks.length,
+          reflexion_enregistree: !!reflection,
+          jour_suivant, // null si jour passé ou J90 (pas d'avancement)
         }
-        return { ok: true, jour_valide: jour }
       }
 
       case 'creer_note': {
@@ -230,6 +289,48 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
         }
       }
 
+      case 'planifier_repas': {
+        const jourRaw = (input?.jour ?? '').trim()
+        if (!jourRaw) return { ok: false, message: 'Jour manquant.' }
+        // Normalise → "Lundi", "Mardi"… (1re lettre majuscule, reste minuscule)
+        const jour = jourRaw.charAt(0).toUpperCase() + jourRaw.slice(1).toLowerCase()
+        const repas = (input?.repas ?? 'diner').toLowerCase()
+
+        let recipe_id: string | null = null
+        let custom_meal: string | null = input?.repas_libre ?? null
+
+        // Si un titre de recette est donné, on retrouve son id (recettes perso OU publiques)
+        if (input?.recette_titre) {
+          const { data: recipe } = await db
+            .from('recipes')
+            .select('id, title')
+            .or(`user_id.eq.${userId},is_public.eq.true`)
+            .ilike('title', `%${input.recette_titre}%`)
+            .limit(1)
+            .maybeSingle()
+          if (recipe) recipe_id = recipe.id
+          else custom_meal = custom_meal ?? input.recette_titre // pas trouvée → repas libre
+        }
+
+        if (!recipe_id && !custom_meal) {
+          return { ok: false, message: 'Donne soit une recette existante, soit un repas libre.' }
+        }
+
+        const { data, error } = await db
+          .from('meal_plan')
+          .insert({ user_id: userId, day_of_week: jour, meal_type: repas, recipe_id, custom_meal })
+          .select('id')
+          .single()
+        if (error) return { ok: false, message: error.message }
+        return {
+          ok: true,
+          meal_plan_id: data.id,
+          jour,
+          repas,
+          recette: recipe_id ? input.recette_titre : custom_meal,
+        }
+      }
+
       default:
         return { ok: false, message: `Outil inconnu: ${name}` }
     }
@@ -266,7 +367,7 @@ async function buildSystemPrompt(db: SupabaseClient, userId: string) {
     .join('\n')
 
   return `Tu es NOVAÉ, l'assistante de transformation de ${pseudo} dans l'app NOVAÉ by OMANAÏA. On t'appelle "Nova".
-Tu peux à la fois PARLER avec elle ET AGIR dans son espace grâce à des outils (lire sa journée, valider sa mission, créer une note, ajouter une tâche, ajouter un événement au planner).
+Tu peux à la fois PARLER avec elle ET AGIR dans son espace grâce à des outils (lire sa journée, valider sa mission du jour, créer une note, ajouter une tâche, ajouter un événement au planner, planifier un repas).
 
 ## Ta voix
 Chaleureuse, directe, honnête. Tu tutoies. Réponses concises (3-4 phrases). Une seule question à la fois.
@@ -278,6 +379,7 @@ Anti-perfectionniste : tu déculpabilises, tu ne survends pas, pas de faux entho
 - Si tu n'es pas sûre de ce qu'elle veut, tu DEMANDES. Tu ne devines jamais une écriture.
 - Pour planifier un événement : appelle d'abord 'lire_ma_journee' pour repérer un éventuel conflit d'horaire, et préviens-la si tu en vois un.
 - Après exécution, tu confirmes UNIQUEMENT sur la base du vrai résultat de l'outil.
+- Si tu n'as PAS d'outil pour une action demandée, dis-le honnêtement (« je ne peux pas encore faire ça directement dans l'app, mais voilà comment faire toi-même… »). Tu n'annonces JAMAIS un succès (« ajouté ✅ », « c'est fait ») pour une action que tu n'as pas réellement exécutée via un outil.
 
 ## Ce que tu sais d'elle
 ${ctx || 'Profil non encore renseigné.'}
