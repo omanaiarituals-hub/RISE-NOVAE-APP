@@ -16,13 +16,17 @@ export async function POST(req: NextRequest) {
       ? postPreview.slice(0, 50) + (postPreview.length > 50 ? '...' : '')
       : 'ton message'
 
+    // Lien profond : on amene direct sur le post concerne (la page communaute
+    // lit ?post=... pour scroller + ouvrir les reponses). Fallback /community.
+    const deepLink = postId ? `/community?post=${postId}` : '/community'
+
     // Envoi via Web Push natif (filtre par preference notif_communaute)
     const result = await sendPushToUser(
       targetUserId,
       {
         title: `💬 ${replierPseudo} a répondu`,
         body: `à ton message : "${preview}" ✦`,
-        url: '/community',
+        url: deepLink,
         tag: `reply-${postId}`,
       },
       'notif_communaute' // ne pas envoyer si l user a desactive cette pref
