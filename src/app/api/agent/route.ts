@@ -362,6 +362,17 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
         const categorie = ['morning', 'midday', 'evening'].includes(input?.categorie)
           ? input.categorie
           : 'morning'
+        // Anti-doublon : si une routine au titre identique existe déjà, on ne recrée pas
+        const { data: dup } = await db
+          .from('routines')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('title', input.titre)
+          .limit(1)
+          .maybeSingle()
+        if (dup) {
+          return { ok: true, routine_id: dup.id, titre: input.titre, categorie, deja_existante: true }
+        }
         const jours =
           Array.isArray(input?.jours) && input.jours.length > 0
             ? input.jours
@@ -437,6 +448,7 @@ Anti-perfectionniste : tu déculpabilises, tu ne survends pas, pas de faux entho
 - Pour planifier un événement : appelle d'abord 'lire_ma_journee' pour repérer un éventuel conflit d'horaire, et préviens-la si tu en vois un.
 - Après exécution, tu confirmes UNIQUEMENT sur la base du vrai résultat de l'outil.
 - Si tu n'as PAS d'outil pour une action demandée, dis-le honnêtement (« je ne peux pas encore faire ça directement dans l'app, mais voilà comment faire toi-même… »). Tu n'annonces JAMAIS un succès (« ajouté ✅ », « c'est fait ») pour une action que tu n'as pas réellement exécutée via un outil.
+- Quand on te demande de créer PLUSIEURS éléments (routines, tâches, repas…) : tu crées CHAQUE élément exactement UNE fois, avec un seul titre clair. Dès qu'un outil te renvoie ok:true, l'élément EST créé — tu ne le recrées jamais et tu ne reformules pas son titre pour le recréer. Quand tout ce qui était demandé est créé, tu réponds en texte et tu n'appelles plus AUCUN outil.
 
 ## Ce que tu sais d'elle
 ${ctx || 'Profil non encore renseigné.'}
