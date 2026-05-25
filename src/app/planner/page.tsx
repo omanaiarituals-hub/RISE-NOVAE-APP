@@ -167,8 +167,7 @@ function Modal({ title, form, setForm, onConfirm, onCancel, onDelete, confirmLab
         </div>
         {onDelete && (
           <button onClick={onDelete} style={{ width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid rgba(220,50,50,0.2)", background: "rgba(220,50,50,0.06)", color: "#c0392b", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600 }}>
-            🗑 Supprimer {onDelete ? "" : ""}cet événement
-          </button>
+🗑 Supprimer cet événement          </button>
         )}
       </div>
     </div>
