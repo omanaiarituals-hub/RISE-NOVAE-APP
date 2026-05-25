@@ -425,7 +425,7 @@ export default function PlannerNovae() {
       }));
     }
 
-    const TODAY_KEY_P = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
+    const DAY_KEYS_P = ['sun','mon','tue','wed','thu','fri','sat'];
     const { data: routinesData } = await supabase
       .from('routines')
       .select('id, title, description, preferred_time, duration_minutes, frequency, custom_days, category')
@@ -433,42 +433,55 @@ export default function PlannerNovae() {
       .not('preferred_time', 'is', null);
 
     if (routinesData) {
-      const today = fmtDate(new Date());
-      const rEvents: CalEvent[] = routinesData
-        .filter((r: any) => {
-          if (!r.preferred_time) return false;
-          if (r.frequency === 'daily') return true;
-          const days = r.custom_days
-            ? (Array.isArray(r.custom_days) ? r.custom_days : r.custom_days.replace(/[{}]/g, '').split(',').map((d: string) => d.trim()))
-            : [];
-          return days.length === 0 || days.length === 7 || days.includes(TODAY_KEY_P);
-        })
-        .map((r: any) => {
-          const parts = r.preferred_time.split(':');
-          const startMin = parseInt(parts[0]) * 60 + (parseInt(parts[1]) || 0);
-          const durMin = r.duration_minutes || 60;
-          return {
-            id: `routine-${r.id}`,
+      const todayStr = fmtDate(new Date());
+
+      // Fenêtre : 30j avant → 90j après. Une occurrence par jour où la routine s'applique
+      // → elle apparaît TOUS les jours dans l'agenda.
+      const baseNow = new Date();
+      const windowDates: Date[] = [];
+      for (let i = -30; i <= 90; i++) {
+        const d = new Date(baseNow);
+        d.setDate(baseNow.getDate() + i);
+        windowDates.push(d);
+      }
+
+      const rEvents: CalEvent[] = [];
+      for (const r of routinesData as any[]) {
+        if (!r.preferred_time) continue;
+        const parts = r.preferred_time.split(':');
+        const startMin = parseInt(parts[0]) * 60 + (parseInt(parts[1]) || 0);
+        const durMin = r.duration_minutes || 60;
+        const days = r.custom_days
+          ? (Array.isArray(r.custom_days) ? r.custom_days : r.custom_days.replace(/[{}]/g, '').split(',').map((d: string) => d.trim()))
+          : [];
+        for (const d of windowDates) {
+          const key = DAY_KEYS_P[d.getDay()];
+          const applies = r.frequency === 'daily' || days.length === 0 || days.length === 7 || days.includes(key);
+          if (!applies) continue;
+          rEvents.push({
+            id: `routine-${r.id}-${fmtDate(d)}`,
             title: `${r.description || '✨'} ${r.title}`,
-            date: today,
+            date: fmtDate(d),
             startMinutes: startMin,
             endMinutes: startMin + durMin,
             cat: 'moi' as CategoryKey,
             done: false, fromTodo: false, replanNeeded: false,
-          };
-        });
+          });
+        }
+      }
       setRoutineEvents(rEvents);
 
+      // Conflits : uniquement sur les occurrences d'aujourd'hui
       if (eventsData && rEvents.length > 0) {
         const newConflicts: {routine: string, event: string, hour: number}[] = [];
-        rEvents.forEach((re) => {
+        rEvents.filter((re) => re.date === todayStr).forEach((re) => {
           eventsData.forEach((ev: any) => {
             const evStart = (ev.start_hour || 9) * 60;
             const evEnd = evStart + (ev.duration_hours || 1) * 60;
             const evDate = ev.date ? ev.date.split("T")[0] : '';
-if (evDate === fmtDate(new Date()) && re.startMinutes < evEnd && re.endMinutes > evStart) {
-  newConflicts.push({ routine: re.title, event: ev.title, hour: Math.floor(re.startMinutes / 60) });
-}
+            if (evDate === todayStr && re.startMinutes < evEnd && re.endMinutes > evStart) {
+              newConflicts.push({ routine: re.title, event: ev.title, hour: Math.floor(re.startMinutes / 60) });
+            }
           });
         });
         if (newConflicts.length > 0) {
