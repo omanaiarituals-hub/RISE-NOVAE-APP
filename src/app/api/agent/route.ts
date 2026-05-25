@@ -67,7 +67,7 @@ const TOOLS = [
         description: { type: 'string', description: 'Détail (optionnel).' },
         date: { type: 'string', description: 'Date YYYY-MM-DD (optionnel).' },
         priorite: { type: 'string', description: "Priorité : 'basse' | 'moyenne' | 'haute' (optionnel)." },
-        categorie: { type: 'string', description: "Catégorie (optionnel, défaut 'perso')." },
+        categorie: { type: 'string', enum: ['pro', 'self', 'family', 'social'], description: "Catégorie de la tâche (défaut 'self')." },
       },
       required: ['titre'],
     },
@@ -116,6 +116,32 @@ const TOOLS = [
         },
       },
       required: ['jour', 'repas'],
+    },
+  },
+  {
+    name: 'creer_routine',
+    description:
+      "Crée une routine récurrente (table routines) avec rappel. À appeler UNIQUEMENT après confirmation. Pour créer plusieurs routines, appelle cet outil plusieurs fois.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        titre: { type: 'string', description: "Intitulé de la routine (ex. 'Dîner avant 20h')." },
+        categorie: {
+          type: 'string',
+          enum: ['morning', 'midday', 'evening'],
+          description: 'Moment de la journée : morning (matin), midday (midi), evening (soir).',
+        },
+        description: { type: 'string', description: 'Détail optionnel.' },
+        heure_preferee: { type: 'string', description: 'Heure préférée HH:MM (optionnel).' },
+        duree_minutes: { type: 'integer', description: 'Durée en minutes (optionnel).' },
+        jours: {
+          type: 'array',
+          items: { type: 'string', enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] },
+          description: "Jours actifs (défaut : tous les jours).",
+        },
+        rappel_minutes_avant: { type: 'integer', description: 'Minutes de rappel avant (défaut 15).' },
+      },
+      required: ['titre', 'categorie'],
     },
   },
 ]
@@ -236,7 +262,7 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
             user_id: userId,
             title: input.titre,
             description: input.description ?? null,
-            category: input.categorie ?? 'perso',
+            category: ['pro', 'self', 'family', 'social'].includes(input.categorie) ? input.categorie : 'self',
             status: 'pending',
             date: input.date ?? null,
             priority: input.priorite ?? null,
@@ -331,6 +357,37 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
         }
       }
 
+      case 'creer_routine': {
+        if (!input?.titre) return { ok: false, message: 'Titre manquant.' }
+        const categorie = ['morning', 'midday', 'evening'].includes(input?.categorie)
+          ? input.categorie
+          : 'morning'
+        const jours =
+          Array.isArray(input?.jours) && input.jours.length > 0
+            ? input.jours
+            : ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+        const { data, error } = await db
+          .from('routines')
+          .insert({
+            user_id: userId,
+            title: input.titre,
+            description: input.description ?? '✨',
+            frequency: 'daily',
+            category: categorie,
+            preferred_time: input.heure_preferee ?? null,
+            duration_minutes: input.duree_minutes ?? null,
+            completed: false,
+            streak_count: 0,
+            custom_days: jours,
+            reminder_enabled: true,
+            reminder_minutes_before: input.rappel_minutes_avant ?? 15,
+          })
+          .select('id')
+          .single()
+        if (error) return { ok: false, message: error.message }
+        return { ok: true, routine_id: data.id, titre: input.titre, categorie }
+      }
+
       default:
         return { ok: false, message: `Outil inconnu: ${name}` }
     }
@@ -367,7 +424,7 @@ async function buildSystemPrompt(db: SupabaseClient, userId: string) {
     .join('\n')
 
   return `Tu es NOVAÉ, l'assistante de transformation de ${pseudo} dans l'app NOVAÉ by OMANAÏA. On t'appelle "Nova".
-Tu peux à la fois PARLER avec elle ET AGIR dans son espace grâce à des outils (lire sa journée, valider sa mission du jour, créer une note, ajouter une tâche, ajouter un événement au planner, planifier un repas).
+Tu peux à la fois PARLER avec elle ET AGIR dans son espace grâce à des outils (lire sa journée, valider sa mission du jour, créer une note, ajouter une tâche, ajouter un événement au planner, planifier un repas, créer une routine).
 
 ## Ta voix
 Chaleureuse, directe, honnête. Tu tutoies. Réponses concises (3-4 phrases). Une seule question à la fois.
