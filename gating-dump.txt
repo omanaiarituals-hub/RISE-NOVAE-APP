@@ -1,0 +1,426 @@
+
+
+========== src\lib\permissions.ts ==========
+// lib/permissions.ts
+// Single source of truth pour le contrôle d'accès par tier dans NOVAÉ.
+// Créé : 12 mai 2026
+//
+// Usage côté API route :
+//   import { canAccess } from '@/lib/permissions';
+//   const result = await canAccess(supabase, 'scan_recipe', userId);
+//   if (!result.allowed) return Response.json({ error: result.reason }, { status: 403 });
+
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+export type SubscriptionTier = 'free' | 'trial' | 'premium' | 'expired';
+
+export type Feature =
+  | 'scan_recipe'
+  | 'ai_coach_unlimited'
+  | 'program_90_days'
+  | 'community_access'
+  | 'weekly_debrief'
+  | 'circle_of_week'
+  | 'premium_content';
+
+export type AccessReason =
+  | 'premium_required'
+  | 'monthly_limit_reached'
+  | 'daily_limit_reached'
+  | 'user_not_found';
+
+export type AccessResult = {
+  allowed: boolean;
+  reason?: AccessReason;
+  quota_remaining?: number;
+  quota_max?: number;
+  reset_at?: string;
+};
+
+const FREE_LIMITS = {
+  scan_recipe_per_month: 5,
+  ai_chat_per_day: 10,
+} as const;
+
+/**
+ * Vérifie si une utilisatrice peut accéder à une feature.
+ * À appeler côté server (API routes, Server Components).
+ */
+export async function canAccess(
+  supabase: SupabaseClient,
+  feature: Feature,
+  userId: string
+): Promise<AccessResult> {
+  // 1. Récupérer le tier et le trial
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('subscription_tier, trial_ends_at')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (userError || !user) {
+    return { allowed: false, reason: 'user_not_found' };
+  }
+
+  const tier: SubscriptionTier = (user.subscription_tier as SubscriptionTier) || 'free';
+
+  // 2. Trial actif = accès complet
+  const isTrialActive =
+    tier === 'trial' &&
+    user.trial_ends_at &&
+    new Date(user.trial_ends_at) > new Date();
+
+  const isPremiumActive = tier === 'premium';
+
+  if (isPremiumActive || isTrialActive) {
+    return { allowed: true };
+  }
+
+  // 3. Free tier (ou trial expiré) → gating sélectif
+  switch (feature) {
+    case 'scan_recipe': {
+      const quota = await getOrCreateQuota(supabase, userId);
+      const remaining = FREE_LIMITS.scan_recipe_per_month - quota.scan_count_month;
+      return {
+        allowed: remaining > 0,
+        reason: remaining <= 0 ? 'monthly_limit_reached' : undefined,
+        quota_remaining: Math.max(0, remaining),
+        quota_max: FREE_LIMITS.scan_recipe_per_month,
+        reset_at: quota.scan_count_reset_at,
+      };
+    }
+    case 'ai_coach_unlimited':
+    case 'program_90_days':
+    case 'community_access':
+    case 'weekly_debrief':
+    case 'circle_of_week':
+    case 'premium_content':
+      return { allowed: false, reason: 'premium_required' };
+    default:
+      return { allowed: true };
+  }
+}
+
+/**
+ * Incrémente le compteur de scans (à appeler APRÈS un scan réussi).
+ */
+export async function incrementScanCount(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<void> {
+  const quota = await getOrCreateQuota(supabase, userId);
+  const { error } = await supabase
+    .from('user_quotas')
+    .update({
+      scan_count_month: quota.scan_count_month + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('[incrementScanCount] failed:', error);
+    throw new Error(`Failed to increment scan count: ${error.message}`);
+  }
+}
+
+/**
+ * Récupère le quota d'une user, le crée si absent, et reset si périmé.
+ */
+async function getOrCreateQuota(supabase: SupabaseClient, userId: string) {
+  const { data: existing } = await supabase
+    .from('user_quotas')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  // Pas de ligne → créer
+  if (!existing) {
+    const { data: created, error } = await supabase
+      .from('user_quotas')
+      .insert({ user_id: userId })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create quota: ${error.message}`);
+    return created;
+  }
+
+  // Auto-reset mensuel
+  const now = new Date();
+  const scanResetAt = new Date(existing.scan_count_reset_at);
+
+  if (now >= scanResetAt) {
+    const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const { data: reset, error } = await supabase
+      .from('user_quotas')
+      .update({
+        scan_count_month: 0,
+        scan_count_reset_at: nextReset.toISOString(),
+        updated_at: now.toISOString(),
+      })
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to reset quota: ${error.message}`);
+    return reset;
+  }
+
+  return existing;
+}
+
+========== src\middleware.ts ==========
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
+
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({
+    request,
+  })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          )
+          response = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  // Refresh la session si necessaire (synchronise les cookies)
+  await supabase.auth.getUser()
+
+  return response
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match toutes les routes sauf:
+     * - _next/static (fichiers statiques)
+     * - _next/image (images optimisees)
+     * - favicon.ico
+     * - sw.js, OneSignalSDKWorker.js, manifest.json (PWA files)
+     * - les fichiers .svg, .png, .jpg
+     */
+    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|OneSignalSDKWorker\\.js|manifest\\.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+}
+
+========== src\lib\supabase\userInit.ts ==========
+import { supabase } from './client'
+import { User } from '@supabase/supabase-js'
+
+export async function ensureUserEntry(user: User): Promise<{ success: boolean; error?: any }> {
+  try {
+    console.log('Vérification entrée utilisateur pour:', user.id)
+    
+    // Vérifier si l'utilisateur existe déjà
+    const { data: existingUser, error: selectError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', user.id)
+      .single()
+
+    if (selectError && selectError.code !== 'PGRST116') {
+      console.error('Erreur vérification utilisateur:', selectError)
+      return { success: false, error: selectError }
+    }
+
+    // Si l'utilisateur existe déjà, retourner succès
+    if (existingUser) {
+      console.log('Entrée utilisateur existe déjà')
+      return { success: true }
+    }
+
+    // 14 jours d'essai gratuit pour toute nouvelle inscription
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+    console.log(`[userInit] Trial 14j jusqu'au : ${trialEndsAt}`)
+
+    // Créer l'entrée utilisateur
+    const { error: insertError } = await supabase
+      .from('users')
+      .insert({
+        id: user.id,
+        email: user.email || '',
+        full_name: user.user_metadata?.full_name || null,
+        avatar_url: user.user_metadata?.avatar_url || null,
+        onboarding_data: {},
+        preferences: {},
+        subscription_tier: 'trial',          // ← trial auto à l'inscription
+        subscription_status: 'active',
+        trial_ends_at: trialEndsAt,           // ← minimum 14j, étendu pendant avant-première
+        timezone: 'UTC',
+        language: 'fr',
+        marketing_consent: false,
+        onboarding_completed: false
+      })
+
+    if (insertError) {
+      console.error('Erreur création utilisateur:', insertError)
+      return { success: false, error: insertError }
+    }
+
+    console.log('Entrée utilisateur créée avec succès')
+    return { success: true }
+  } catch (error) {
+    console.error('Erreur inattendue ensureUserEntry:', error)
+    return { success: false, error }
+  }
+}
+
+export async function ensureProgramProgress(userId: string): Promise<{ success: boolean; error?: any }> {
+  try {
+    console.log('Vérification program_progress pour:', userId)
+    
+    // Vérifier si program_progress existe déjà
+    const { data: existingProgress, error: selectError } = await supabase
+      .from('program_progress')
+      .select('id')
+      .eq('user_id', userId)
+      .single()
+
+    if (selectError && selectError.code !== 'PGRST116') {
+      console.error('Erreur vérification program_progress:', selectError)
+      return { success: false, error: selectError }
+    }
+
+    // Si program_progress existe déjà, retourner succès
+    if (existingProgress) {
+      console.log('Program_progress existe déjà')
+      return { success: true }
+    }
+
+    // Créer l'entrée program_progress
+    const { error: insertError } = await supabase
+      .from('program_progress')
+      .insert({
+        user_id: userId,
+        current_day: 1,
+        start_date: new Date().toISOString(),
+        last_access_date: new Date().toISOString(),
+        completed_missions: 0,
+        mission_responses: [],
+        total_time_spent_minutes: 0,
+        streak_days: 0,
+        ai_personality_profile: {}
+      })
+
+    if (insertError) {
+      console.error('Erreur création program_progress:', insertError)
+      return { success: false, error: insertError }
+    }
+
+    console.log('Program_progress créé avec succès')
+    return { success: true }
+  } catch (error) {
+    console.error('Erreur inattendue ensureProgramProgress:', error)
+    return { success: false, error }
+  }
+}
+
+export async function initializeUserData(user: User): Promise<{ success: boolean; error?: any }> {
+  console.log('Initialisation données utilisateur pour:', user.id)
+  
+  // Créer l'entrée utilisateur
+  const userResult = await ensureUserEntry(user)
+  if (!userResult.success) {
+    return userResult
+  }
+
+  // Créer program_progress
+  const progressResult = await ensureProgramProgress(user.id)
+  if (!progressResult.success) {
+    return progressResult
+  }
+
+  console.log('Initialisation données utilisateur terminée')
+  return { success: true }
+}
+
+
+========== src\app\api\chat\route.ts (35 premieres lignes) ==========
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import { canAccess } from '@/lib/permissions'
+
+type AnthropicMessage = { role: 'user' | 'assistant'; content: string }
+
+const FALLBACK_SYSTEM_PROMPT = `Tu es NOVAÉ, l'agent IA de l'app NOVAÉ by OMANAÏA. Coach bienveillante, directe, orientée action.
+Tu tutoies l'utilisatrice. Tes réponses sont concises (3-4 phrases sauf pour les bilans).
+Pas de listes à 6+ points, pas de ### ou ##. Utilise uniquement **gras** pour les titres.
+⚠️ Disclaimer : tu es un guide IA, pas un médecin/psy/coach diplômé. En cas de détresse sérieuse, oriente vers un professionnel.`
+
+export async function POST(request: NextRequest) {
+  try {
+    // ─── 1) Auth ───
+    const authHeader = request.headers.get('authorization')
+    const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
+
+    if (!token) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false } }
+    )
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
+    }
+
+    // ─── 2) Vérification Premium ───
+    const access = await canAccess(supabase, 'ai_coach_unlimited', user.id)
+    if (!access.allowed) {
+
+========== src\app\api\recipes\extract\route.ts (35 premieres lignes) ==========
+// src/app/api/recipes/extract/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { canAccess, incrementScanCount } from '@/lib/permissions'
+
+export const runtime = 'nodejs'
+export const maxDuration = 30
+
+const EXTRACTION_PROMPT = `Tu es un assistant qui extrait des recettes depuis des images.
+Analyse cette image et extrais la recette au format JSON STRICT suivant :
+
+{
+  "title": "string",
+  "servings": number | null,
+  "ingredients": [
+    {"name": "string", "quantity": number | null, "unit": "string | null"}
+  ],
+  "steps": ["string"],
+  "cooking_time_minutes": number | null,
+  "category": "string | null",
+  "emoji": "string | null"
+}
+
+RÈGLES STRICTES :
+- Réponds UNIQUEMENT avec le JSON, sans préambule, sans markdown, sans \`\`\`
+- Si l'image contient PLUSIEURS recettes, extrais SEULEMENT la première
+- Si une info n'est pas trouvable, mets null
+- "ingredients" : les quantités numériques quand c'est possible, l'unité séparément (g, ml, cuillère à soupe, etc.)
+- "steps" : tableau de strings, une étape par string, dans l'ordre
+- "emoji" : choisis 1 emoji représentatif (ex: 🥞 pour pancakes, 🍝 pour pâtes)`
+
+async function getSupabaseServerClient() {
+  const cookieStore = await cookies()
+  return createServerClient(

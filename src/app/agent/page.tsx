@@ -482,7 +482,7 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
         return
       }
 
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/agent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -490,7 +490,7 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
         },
         body: JSON.stringify({
           message: text,
-          systemPrompt: ctx ? buildSystemPrompt(ctx) : undefined,
+          clientContext: ctx ? buildSystemPrompt(ctx) : undefined,
           history: conversationHistory
         })
       })

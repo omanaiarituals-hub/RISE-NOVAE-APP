@@ -30,8 +30,7 @@ const modules = [
   { href: '/family',    emoji: '💛', title: 'Famille'        },
   { href: '/notes',     emoji: '📝', title: 'Notes'          },
   { href: '/community', emoji: '👥', title: 'Communauté'     },
-  { href: '/astuces',   emoji: '💡', title: 'Astuces'
-          },
+  { href: '/astuces',   emoji: '💡', title: 'Astuces'        },
 ]
 
 const MODULES_GRID = [
@@ -43,8 +42,7 @@ const MODULES_GRID = [
   { href: '/recipes',   emoji: '🍴', title: 'Recettes',      tone: 'ic-recettes'  },
   { href: '/family',    emoji: '💛', title: 'Famille',       tone: 'ic-famille'   },
   { href: '/notes',     emoji: '📝', title: 'Notes',         tone: 'ic-notes'     },
-  { href: '/astuces',   emoji: '💡', title: 'Astuces',       tone: 'ic-astuces'
-     },
+  { href: '/astuces',   emoji: '💡', title: 'Astuces',       tone: 'ic-astuces'   },
 ]
 
 const PHASE_MESSAGES: Record<string, { label: string; message: string; phase: string }> = {
@@ -81,9 +79,9 @@ export default function HomePage() {
   const [activeChallengesCount, setActiveChallengesCount] = useState(0)
 
   // Communauté
-const [newCommunityPosts, setNewCommunityPosts] = useState<number | null>(null)
+  const [newCommunityPosts, setNewCommunityPosts] = useState<number | null>(null)
 
-const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason: null })
+  const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason: null })
   const hour = new Date().getHours()
   const greeting = hour < 5 ? 'Bonne nuit' : hour < 12 ? 'Bonjour' : hour < 18 ? 'Bonne après-midi' : 'Bonsoir'
 
@@ -368,57 +366,32 @@ const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason:
         {/* ════════ CONTENU SCROLLABLE ════════ */}
         <main style={{ maxWidth: 600, margin: '0 auto', padding: '20px 18px 40px' }}>
 
-          {/* Greeting + proverbe */}
+          {/* Greeting + Nova + proverbe */}
           <div style={{ marginBottom: 20 }}>
-            <p
-              style={{
-                fontSize: 10.5,
-                color: '#8b6f55',
-                textTransform: 'uppercase',
-                letterSpacing: '2.5px',
-                margin: '0 0 6px',
-                fontWeight: 600,
-              }}
-            >
-              {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </p>
-            <h1
-              style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: 36,
-                fontWeight: 400,
-                color: '#3d2618',
-                margin: '0 0 4px',
-                lineHeight: 1,
-                letterSpacing: '0.5px',
-              }}
-            >
-              {greeting}
-              {pseudo && (
-                <>
-                  , <span style={{ color: '#8b5a3c', fontStyle: 'italic' }}>{pseudo}</span>
-                </>
-              )}{' '}
-              👋
-            </h1>
-            <p
-              style={{
-                marginTop: 14,
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: 15,
-                fontStyle: 'italic',
-                color: '#6b5340',
-                lineHeight: 1.45,
-                borderLeft: '2px solid #c4956a',
-                paddingLeft: 12,
-                margin: '14px 0 0',
-              }}
-            >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 10.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2.5px', margin: '0 0 6px', fontWeight: 600 }}>
+                  {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </p>
+                <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 400, color: '#3d2618', margin: '0 0 4px', lineHeight: 1, letterSpacing: '0.5px' }}>
+                  {greeting}
+                  {pseudo && (<>, <span style={{ color: '#8b5a3c', fontStyle: 'italic' }}>{pseudo}</span></>)}{' '}👋
+                </h1>
+              </div>
+              {/* Bouton Nova */}
+              <Link href="/agent" style={{ textDecoration: 'none', flexShrink: 0, marginTop: 16 }}>
+                <div style={novaButtonStyle}>
+                  <span style={{ fontSize: 13, lineHeight: 1 }}>✦</span>
+                  <span>Nova</span>
+                </div>
+              </Link>
+            </div>
+            <p style={{ marginTop: 14, fontFamily: "'Cormorant Garamond', serif", fontSize: 15, fontStyle: 'italic', color: '#6b5340', lineHeight: 1.45, borderLeft: '2px solid #c4956a', paddingLeft: 12, margin: '14px 0 0' }}>
               « {proverbeDuJour} »
             </p>
           </div>
 
-{/* ════════ FLAMME DU JOUR ════════ */}
+          {/* ════════ FLAMME DU JOUR ════════ */}
           <div style={{ marginBottom: 22 }}>
             <StreakFlame />
           </div>
@@ -839,7 +812,7 @@ const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason:
                 </div>
               </Link>
             ))}
-                        <AdminTile />
+            <AdminTile />
           </div>
 
           {/* ════════ TUTO + PARAMS ════════ */}
@@ -993,6 +966,22 @@ const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason:
 // ─────────────────────────────────────────────────────────────────────────────
 // Styles partagés
 // ─────────────────────────────────────────────────────────────────────────────
+
+const novaButtonStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '9px 15px',
+  borderRadius: 999,
+  background: 'linear-gradient(135deg, #c4956a 0%, #b07d5a 55%, #c98b86 100%)',
+  color: '#fff',
+  fontFamily: "'Cormorant Garamond', serif",
+  fontSize: 16,
+  fontWeight: 600,
+  letterSpacing: '0.4px',
+  boxShadow: '0 6px 18px rgba(176,125,90,0.45), 0 0 0 3px rgba(196,149,106,0.12)',
+  whiteSpace: 'nowrap',
+}
 
 const quickTileStyle: React.CSSProperties = {
   background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.25))',
