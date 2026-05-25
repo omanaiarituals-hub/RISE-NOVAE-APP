@@ -75,15 +75,20 @@ const TOOLS = [
   {
     name: 'ajouter_evenement_planner',
     description:
-      "Ajoute un événement dans le planner/agenda. À appeler UNIQUEMENT après confirmation de l'utilisatrice.",
+      "Ajoute un événement daté sur le calendrier/agenda (Planner) à une heure précise. C'est ce qu'on utilise pour 'récupérer les filles à 18h', 'créneau de travail', 'faire les courses', un RDV, etc. À appeler UNIQUEMENT après confirmation de l'utilisatrice.",
     input_schema: {
       type: 'object',
       properties: {
         titre: { type: 'string', description: "Titre de l'événement." },
         date: { type: 'string', description: 'Date YYYY-MM-DD (obligatoire).' },
-        heure_debut: { type: 'string', description: 'Heure de début HH:MM (optionnel).' },
+        heure_debut: { type: 'string', description: 'Heure de début HH:MM (optionnel, défaut 09:00).' },
         heure_fin: { type: 'string', description: 'Heure de fin HH:MM (optionnel).' },
         journee_entiere: { type: 'boolean', description: 'true si toute la journée.' },
+        categorie: {
+          type: 'string',
+          enum: ['pro', 'self', 'family', 'social'],
+          description: "Catégorie/couleur : 'pro' (travail), 'self' (perso/moi), 'family' (famille/enfants), 'social' (amis/couple). Défaut 'self'.",
+        },
         lieu: { type: 'string', description: 'Lieu (optionnel).' },
         description: { type: 'string', description: 'Description (optionnel).' },
       },
@@ -128,8 +133,8 @@ const TOOLS = [
         titre: { type: 'string', description: "Intitulé de la routine (ex. 'Dîner avant 20h')." },
         categorie: {
           type: 'string',
-          enum: ['morning', 'midday', 'evening'],
-          description: 'Moment de la journée : morning (matin), midday (midi), evening (soir).',
+          enum: ['morning', 'evening'],
+          description: "Moment : 'morning' (matin) ou 'evening' (soir). L'app n'a QUE ces deux moments — une routine de l'après-midi ou du midi va dans 'evening'.",
         },
         description: { type: 'string', description: 'Détail optionnel.' },
         heure_preferee: { type: 'string', description: 'Heure préférée HH:MM (optionnel).' },
@@ -137,7 +142,7 @@ const TOOLS = [
         jours: {
           type: 'array',
           items: { type: 'string', enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] },
-          description: "Jours actifs (défaut : tous les jours).",
+          description: "Jours actifs. Par défaut TOUS les jours de la semaine — ne restreins ces jours QUE si l'utilisatrice le demande explicitement.",
         },
         rappel_minutes_avant: { type: 'integer', description: 'Minutes de rappel avant (défaut 15).' },
       },
@@ -164,12 +169,11 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           .eq('status', 'pending')
           .limit(20)
         const { data: events } = await db
-          .from('planner_events')
-          .select('title, start_date, end_date, location')
+          .from('tasks')
+          .select('title, date, start_hour, duration_hours, category, status')
           .eq('user_id', userId)
-          .gte('start_date', `${today}T00:00:00`)
-          .lte('start_date', `${today}T23:59:59`)
-          .order('start_date', { ascending: true })
+          .eq('date', today)
+          .order('start_hour', { ascending: true })
         return {
           ok: true,
           jour_programme: prog?.current_day ?? null,
@@ -275,35 +279,54 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
 
       case 'ajouter_evenement_planner': {
         if (!input?.titre || !input?.date) return { ok: false, message: 'Titre ou date manquant.' }
+        // Le Planner affiche les événements depuis la table `tasks`
+        // (start_hour entier + duration_hours). On écrit donc ici, pas dans planner_events.
         const allDay = !!input.journee_entiere
-        const start = allDay ? `${input.date}T00:00:00` : `${input.date}T${input.heure_debut ?? '09:00'}:00`
-        let end: string
-        if (allDay) {
-          end = `${input.date}T23:59:00`
-        } else if (input.heure_fin) {
-          end = `${input.date}T${input.heure_fin}:00`
-        } else {
-          const [h, m] = (input.heure_debut ?? '09:00').split(':').map(Number)
-          const eh = String((h + 1) % 24).padStart(2, '0')
-          end = `${input.date}T${eh}:${String(m ?? 0).padStart(2, '0')}:00`
+        const parseHM = (s: string) => {
+          const [h, m] = String(s).split(':').map((x) => parseInt(x, 10))
+          return { h: isNaN(h) ? 9 : h, m: isNaN(m) ? 0 : m }
         }
-        // Détection de conflit (chevauchement) le même jour
-        const { data: clash } = await db
-          .from('planner_events')
-          .select('title, start_date, end_date')
+        const startHM = parseHM(input.heure_debut ?? '09:00')
+        const startHour = allDay ? 0 : startHM.h
+        let durationHours = 1
+        if (allDay) {
+          durationHours = 24
+        } else if (input.heure_fin) {
+          const endHM = parseHM(input.heure_fin)
+          const diff = (endHM.h * 60 + endHM.m - (startHM.h * 60 + startHM.m)) / 60
+          durationHours = diff > 0 ? Math.round(diff * 100) / 100 : 1
+        }
+        const categorie = ['pro', 'self', 'family', 'social'].includes(input?.categorie)
+          ? input.categorie
+          : 'self'
+
+        // Détection de conflit sur le même jour (chevauchement d'horaire)
+        const { data: sameDay } = await db
+          .from('tasks')
+          .select('title, start_hour, duration_hours')
           .eq('user_id', userId)
-          .lt('start_date', end)
-          .gt('end_date', start)
+          .eq('date', input.date)
+        const newStart = startHour
+        const newEnd = startHour + durationHours
+        const conflits = (sameDay ?? []).filter((t: any) => {
+          const s = t.start_hour ?? 9
+          const e = s + (t.duration_hours ?? 1)
+          return newStart < e && newEnd > s
+        })
+
         const { data, error } = await db
-          .from('planner_events')
+          .from('tasks')
           .insert({
             user_id: userId,
             title: input.titre,
-            description: input.description ?? null,
-            location: input.lieu ?? null,
-            start_date: start,
-            end_date: end,
-            is_all_day: allDay,
+            description: [input.description, input.lieu ? `Lieu : ${input.lieu}` : '']
+              .filter(Boolean)
+              .join(' · ') || null,
+            date: input.date,
+            start_hour: startHour,
+            duration_hours: durationHours,
+            category: categorie,
+            status: 'pending',
           })
           .select('id')
           .single()
@@ -311,7 +334,13 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
         return {
           ok: true,
           evenement_id: data.id,
-          conflit: clash && clash.length > 0 ? { message: "Chevauchement d'horaire détecté", evenements: clash } : null,
+          jour: input.date,
+          heure: `${String(startHour).padStart(2, '0')}:00`,
+          duree_h: durationHours,
+          conflit:
+            conflits.length > 0
+              ? { message: "Chevauchement d'horaire détecté", evenements: conflits.map((c: any) => c.title) }
+              : null,
         }
       }
 
@@ -359,7 +388,7 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
 
       case 'creer_routine': {
         if (!input?.titre) return { ok: false, message: 'Titre manquant.' }
-        const categorie = ['morning', 'midday', 'evening'].includes(input?.categorie)
+        const categorie = ['morning', 'evening'].includes(input?.categorie)
           ? input.categorie
           : 'morning'
         // Anti-doublon : si une routine au titre identique existe déjà, on ne recrée pas
