@@ -5,7 +5,7 @@ import { DemoBanner } from '@/components/DemoBanner'
 
 // ─── TYPES ─────────────────────────────────────────────────
 type Priority = "high" | "medium" | "low";
-type CategoryKey = "pro" | "moi" | "famille" | "couple" | "amis";
+type CategoryKey = "pro" | "moi" | "famille" | "rdvfamille" | "couple" | "amis";
 type MobileTab = "todo" | "planner";
 
 interface Todo {
@@ -25,6 +25,8 @@ interface CalEvent {
   done: boolean;
   fromTodo: boolean;
   replanNeeded: boolean;
+  recurring: boolean;
+  recurrenceDays: string[];
 }
 
 interface FormData {
@@ -33,6 +35,7 @@ interface FormData {
   startMinutes: number;
   endMinutes: number;
   cat: CategoryKey;
+  recurrenceDays: string[];
 }
 
 // ─── PALETTE ───────────────────────────────────────────────
@@ -43,33 +46,39 @@ const C = {
 };
 
 const CATEGORIES: Record<CategoryKey, { label: string; emoji: string; bg: string; border: string; text: string }> = {
-  pro:     { label: "Professionnel",   emoji: "💼", bg: "#C8D8E8", border: "#A0BEDC", text: "#2C5F8A" },
-  moi:     { label: "Personnel / Moi", emoji: "🌸", bg: "#F2E0D8", border: "#D4A090", text: "#8A4A3A" },
-  famille: { label: "Famille",         emoji: "💛", bg: "#FBF0CC", border: "#E8D080", text: "#7A6010" },
-  couple:  { label: "Couple",          emoji: "💕", bg: "#F5D0DC", border: "#E0A0B8", text: "#8A3050" },
-  amis:    { label: "Amis",            emoji: "🌿", bg: "#CCE8D8", border: "#90C8A8", text: "#2A6A48" },
+  pro:        { label: "Professionnel",   emoji: "💼", bg: "#C8D8E8", border: "#A0BEDC", text: "#2C5F8A" },
+  moi:        { label: "Personnel / Moi", emoji: "🌸", bg: "#F2E0D8", border: "#D4A090", text: "#8A4A3A" },
+  famille:    { label: "Moment famille",  emoji: "💛", bg: "#FBF0CC", border: "#E8D080", text: "#7A6010" },
+  rdvfamille: { label: "RDV famille",     emoji: "🗓️", bg: "#FCE0CC", border: "#E8A86A", text: "#9A5A1A" },
+  couple:     { label: "Couple",          emoji: "💕", bg: "#F5D0DC", border: "#E0A0B8", text: "#8A3050" },
+  amis:       { label: "Amis",            emoji: "🌿", bg: "#CCE8D8", border: "#90C8A8", text: "#2A6A48" },
 };
 
 const CAT_TO_DB: Record<CategoryKey, string> = {
-  pro: "pro", moi: "self", famille: "family", couple: "social", amis: "social"
+  pro: "pro", moi: "self", famille: "family", rdvfamille: "rdv_famille", couple: "social", amis: "social"
 };
 const DB_TO_CAT: Record<string, CategoryKey> = {
-  "pro": "pro", "self": "moi", "family": "famille", "social": "amis",
+  "pro": "pro", "self": "moi", "family": "famille", "rdv_famille": "rdvfamille", "social": "amis",
 };
 
 const PRIORITY_COLORS: Record<Priority, string> = { high: "#D4956A", medium: "#D4A090", low: "#6B6B6B" };
 
+// ─── RÉCURRENCE ────────────────────────────────────────────
+const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat']; // index = Date.getDay()
+const RECUR_DAYS = [
+  { k: 'mon', l: 'L' }, { k: 'tue', l: 'M' }, { k: 'wed', l: 'M' },
+  { k: 'thu', l: 'J' }, { k: 'fri', l: 'V' }, { k: 'sat', l: 'S' }, { k: 'sun', l: 'D' },
+];
+const RECUR_DAY_NAMES: Record<string, string> = { mon: 'Lun', tue: 'Mar', wed: 'Mer', thu: 'Jeu', fri: 'Ven', sat: 'Sam', sun: 'Dim' };
+
 // ─── CRÉNEAUX 15 MIN ───────────────────────────────────────
 const SLOT_HEIGHT = 15; // px par 15 minutes
-const QUARTER_SLOTS = Array.from({ length: 24 * 4 }, (_, i) => i); // 0..95
 
 function minutesToLabel(m: number): string {
   const h = Math.floor(m / 60);
   const min = m % 60;
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
-
-function minutesToHourDecimal(m: number): number { return m / 60; }
 
 // Générer options par tranche de 15 min
 const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => ({
@@ -94,10 +103,7 @@ function getWeekDates(date: Date): Date[] {
   return Array.from({ length: 7 }, (_, i) => { const x = new Date(mon); x.setDate(mon.getDate() + i); return x; });
 }
 function getDaysInMonth(y: number, m: number): number { return new Date(y, m + 1, 0).getDate(); }
-function uid() { return Math.random().toString(36).slice(2); }
-
-// Convertir heure entière (ancien format) → minutes
-function hourToMinutes(h: number): number { return h * 60; }
+function masterId(id: string): string { return id.startsWith('recur::') ? id.split('::')[1] : id; }
 
 // ─── STYLE HELPERS ─────────────────────────────────────────
 const inputStyle = (): React.CSSProperties => ({ width: "100%", border: "1px solid #E8E4DF", borderRadius: 8, padding: "8px 10px", fontSize: 13, fontFamily: "'DM Sans',sans-serif", background: "#FAF7F2", outline: "none", boxSizing: "border-box", color: "#1A1A1A" });
@@ -110,13 +116,15 @@ function Modal({ title, form, setForm, onConfirm, onCancel, onDelete, confirmLab
   title: string; form: FormData; setForm: React.Dispatch<React.SetStateAction<FormData>>;
   onConfirm: () => void; onCancel: () => void; onDelete?: () => void; confirmLabel?: string;
 }) {
+  const toggleRecur = (k: string) =>
+    setForm(f => ({ ...f, recurrenceDays: f.recurrenceDays.includes(k) ? f.recurrenceDays.filter(x => x !== k) : [...f.recurrenceDays, k] }));
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 24, width: "100%", maxWidth: 380, boxShadow: "0 8px 40px rgba(0,0,0,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
         <h3 style={{ margin: "0 0 18px", fontFamily: "'Cormorant Garamond',serif", fontSize: 20, color: "#1A1A1A" }}>{title}</h3>
         <label style={labelStyle()}>Titre</label>
         <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Nom de l'événement…" style={{ ...inputStyle(), marginBottom: 12 }} />
-        <label style={labelStyle()}>Date</label>
+        <label style={labelStyle()}>{form.recurrenceDays.length > 0 ? "Date de début" : "Date"}</label>
         <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} style={{ ...inputStyle(), marginBottom: 12 }} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
           <div>
@@ -133,19 +141,33 @@ function Modal({ title, form, setForm, onConfirm, onCancel, onDelete, confirmLab
           </div>
         </div>
         <label style={labelStyle()}>Catégorie</label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 18 }}>
           {(Object.keys(CATEGORIES) as CategoryKey[]).map(key => {
             const cat = CATEGORIES[key]; const sel = form.cat === key;
             return <button key={key} onClick={() => setForm(f => ({ ...f, cat: key }))} style={{ padding: "8px 6px", borderRadius: 8, border: `2px solid ${sel ? cat.border : "#E8E4DF"}`, background: sel ? cat.bg : "#FFFFFF", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: sel ? cat.text : "#6B6B6B", textAlign: "left" }}>{cat.emoji} {cat.label}</button>;
           })}
         </div>
+        <label style={labelStyle()}>Répétition <span style={{ textTransform: "none", letterSpacing: 0 }}>(optionnel)</span></label>
+        <div style={{ display: "flex", gap: 5, marginBottom: 6 }}>
+          {RECUR_DAYS.map(d => {
+            const sel = form.recurrenceDays.includes(d.k);
+            return <button key={d.k} type="button" onClick={() => toggleRecur(d.k)} style={{ flex: 1, height: 34, borderRadius: 8, border: `2px solid ${sel ? C.roseDark : "#E8E4DF"}`, background: sel ? C.roseLight : "#FFFFFF", cursor: "pointer", fontSize: 12, fontWeight: 700, color: sel ? C.roseDark : "#bbb" }}>{d.l}</button>;
+          })}
+        </div>
+        <p style={{ fontSize: 11, color: C.gris, margin: "0 0 18px" }}>
+          {form.recurrenceDays.length === 0
+            ? "Événement ponctuel à la date choisie."
+            : form.recurrenceDays.length === 7
+              ? "🔁 Se répète tous les jours."
+              : `🔁 Se répète : ${form.recurrenceDays.map(k => RECUR_DAY_NAMES[k]).join(', ')}`}
+        </p>
         <div style={{ display: "flex", gap: 10, marginBottom: onDelete ? 10 : 0 }}>
           <button onClick={onCancel} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "1px solid #E8E4DF", background: "#FFFFFF", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", color: "#6B6B6B" }}>Annuler</button>
           <button onClick={onConfirm} style={{ flex: 2, padding: "10px 0", borderRadius: 8, border: "none", background: "#D4A090", color: "#FFFFFF", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontWeight: 600 }}>{confirmLabel}</button>
         </div>
         {onDelete && (
           <button onClick={onDelete} style={{ width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid rgba(220,50,50,0.2)", background: "rgba(220,50,50,0.06)", color: "#c0392b", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600 }}>
-            🗑 Supprimer cet événement
+            🗑 Supprimer {onDelete ? "" : ""}cet événement
           </button>
         )}
       </div>
@@ -154,7 +176,7 @@ function Modal({ title, form, setForm, onConfirm, onCancel, onDelete, confirmLab
 }
 
 // ─── DAY EVENTS ────────────────────────────────────────────
-function renderDayEvents(dayEvents: CalEvent[], onToggle: (id: string) => void, onDelete: (id: string) => void, onReplan: (ev: CalEvent) => void, onEdit: (ev: CalEvent) => void) {
+function renderDayEvents(dayEvents: CalEvent[], onToggle: (id: string) => void, onReplan: (ev: CalEvent) => void, onEdit: (ev: CalEvent) => void) {
   if (!dayEvents.length) return null;
   const sorted = [...dayEvents].sort((a, b) => a.startMinutes - b.startMinutes);
   const columns: CalEvent[][] = [];
@@ -166,17 +188,20 @@ function renderDayEvents(dayEvents: CalEvent[], onToggle: (id: string) => void, 
   const totalCols = columns.length;
   return columns.map((col, ci) => col.map(ev => {
     const cat = CATEGORIES[ev.cat];
+    const isRoutine = ev.id.startsWith('routine-');
     const top = (ev.startMinutes / 60) * HOUR_HEIGHT;
     const height = Math.max(((ev.endMinutes - ev.startMinutes) / 60) * HOUR_HEIGHT - 2, 20);
     return (
       <div key={ev.id} style={{ position: "absolute", top, left: `calc(52px + (100% - 52px) / ${totalCols} * ${ci})`, width: `calc((100% - 52px) / ${totalCols})`, height, background: ev.done ? "#E8E4DF" : cat.bg, border: `1.5px solid ${ev.replanNeeded ? "#D4956A" : (ev.done ? "#E8E4DF" : cat.border)}`, borderLeft: `4px solid ${ev.done ? "#6B6B6B" : cat.border}`, borderRadius: 8, padding: "4px 8px", boxSizing: "border-box", opacity: ev.done ? 0.55 : 1, overflow: "hidden", zIndex: 2 }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 4 }}>
-          <input type="checkbox" checked={ev.done} onChange={() => onToggle(ev.id)} style={{ accentColor: cat.border, cursor: "pointer", marginTop: 2, flexShrink: 0 }} />
+          {ev.recurring
+            ? <span title="Récurrent" style={{ fontSize: 12, marginTop: 1, flexShrink: 0, color: cat.text }}>🔁</span>
+            : <input type="checkbox" checked={ev.done} onChange={() => onToggle(ev.id)} style={{ accentColor: cat.border, cursor: "pointer", marginTop: 2, flexShrink: 0 }} />}
           <div style={{ flex: 1, overflow: "hidden" }}>
             <div style={{ fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans',sans-serif", color: ev.done ? "#6B6B6B" : cat.text, textDecoration: ev.done ? "line-through" : "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cat.emoji} {ev.title}</div>
             <div style={{ fontSize: 10, color: "#6B6B6B" }}>{minutesToLabel(ev.startMinutes)} → {minutesToLabel(ev.endMinutes)}</div>
           </div>
-          <button onClick={() => onEdit(ev)} title="Modifier" style={{ background: "none", border: "none", cursor: "pointer", color: "#6B6B6B", fontSize: 14, padding: "1px 3px" }}>✏️</button>
+          {!isRoutine && <button onClick={() => onEdit(ev)} title="Modifier" style={{ background: "none", border: "none", cursor: "pointer", color: "#6B6B6B", fontSize: 14, padding: "1px 3px" }}>✏️</button>}
         </div>
         {ev.replanNeeded && !ev.done && <button onClick={() => onReplan(ev)} style={{ marginTop: 4, background: "#D4956A", color: "#FFF", border: "none", borderRadius: 4, padding: "2px 6px", fontSize: 10, cursor: "pointer" }}>↻ Replanifier</button>}
       </div>
@@ -185,9 +210,9 @@ function renderDayEvents(dayEvents: CalEvent[], onToggle: (id: string) => void, 
 }
 
 // ─── DAY VIEW ──────────────────────────────────────────────
-function DayView({ currentDate, events, onNewEvent, onToggle, onDelete, onReplan, onEdit }: {
+function DayView({ currentDate, events, onNewEvent, onToggle, onReplan, onEdit }: {
   currentDate: Date; events: CalEvent[]; onNewEvent: (date: string, startMinutes: number) => void;
-  onToggle: (id: string) => void; onDelete: (id: string) => void; onReplan: (ev: CalEvent) => void; onEdit: (ev: CalEvent) => void;
+  onToggle: (id: string) => void; onReplan: (ev: CalEvent) => void; onEdit: (ev: CalEvent) => void;
 }) {
   const dateStr = fmtDate(currentDate);
   const dayEvents = events.filter(e => e.date === dateStr);
@@ -204,57 +229,94 @@ function DayView({ currentDate, events, onNewEvent, onToggle, onDelete, onReplan
         </div>
       </div>
       <div style={{ position: "relative" }}>
-        {/* Lignes heures */}
         {HOURS.map(h => (
           <div key={h} style={{ display: "flex", height: HOUR_HEIGHT, borderBottom: `1px solid ${C.grisClair}` }}>
             <div style={{ width: 52, padding: "6px 8px 0", fontSize: 11, color: C.gris, flexShrink: 0, borderRight: `1px solid ${C.grisClair}` }}>{String(h).padStart(2,"0")}:00</div>
             <div style={{ flex: 1, position: "relative" }}>
-              {/* Lignes 15/30/45 min */}
               {[15, 30, 45].map(min => (
                 <div key={min} style={{ position: "absolute", left: 0, right: 0, top: (min / 60) * HOUR_HEIGHT, borderTop: `1px dashed ${min === 30 ? "#E0DCD8" : "#F0EDEA"}`, pointerEvents: "none" }} />
               ))}
             </div>
           </div>
         ))}
-        {/* Ligne "maintenant" */}
         {isToday(currentDate) && (
           <div style={{ position: "absolute", left: 52, right: 0, top: (now.getHours() * 60 + now.getMinutes()) / 60 * HOUR_HEIGHT, height: 2, background: C.roseDark, zIndex: 10, display: "flex", alignItems: "center", pointerEvents: "none" }}>
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.roseDark, marginLeft: -3 }} />
           </div>
         )}
-        {renderDayEvents(dayEvents, onToggle, onDelete, onReplan, onEdit)}
+        {renderDayEvents(dayEvents, onToggle, onReplan, onEdit)}
       </div>
     </div>
   );
 }
 
-// ─── WEEK VIEW ─────────────────────────────────────────────
+// ─── WEEK VIEW (time-blocking) ─────────────────────────────
 function WeekView({ weekDates, events, onDayClick }: { weekDates: Date[]; events: CalEvent[]; onDayClick: (d: Date) => void; }) {
-  const HOURS = Array.from({ length: 17 }, (_, i) => i + 6); // 6h→22h
+  const START_H = 6, END_H = 23;
+  const HOURS = Array.from({ length: END_H - START_H + 1 }, (_, i) => i + START_H);
+  const totalH = (END_H - START_H + 1) * HOUR_HEIGHT;
+
+  // Découpe les événements qui se chevauchent en colonnes côte à côte
+  const layout = (dayEvents: CalEvent[]) => {
+    const sorted = [...dayEvents].sort((a, b) => a.startMinutes - b.startMinutes);
+    const cols: CalEvent[][] = [];
+    for (const ev of sorted) {
+      let placed = false;
+      for (const col of cols) { if (col[col.length - 1].endMinutes <= ev.startMinutes) { col.push(ev); placed = true; break; } }
+      if (!placed) cols.push([ev]);
+    }
+    const n = cols.length || 1;
+    const blocks: { ev: CalEvent; ci: number; n: number }[] = [];
+    cols.forEach((col, ci) => col.forEach(ev => blocks.push({ ev, ci, n })));
+    return blocks;
+  };
+
   return (
-    <div style={{ flex: 1, overflowX: "auto", overflowY: "auto" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "52px repeat(7,1fr)", minWidth: 560 }}>
-        <div style={{ borderBottom: `1px solid ${C.grisClair}`, borderRight: `1px solid ${C.grisClair}`, padding: 8 }} />
-        {weekDates.map((d, i) => (
-          <div key={i} onClick={() => onDayClick(d)} style={{ padding: "8px 4px", textAlign: "center", cursor: "pointer", borderBottom: `1px solid ${C.grisClair}`, borderRight: `1px solid ${C.grisClair}`, background: isToday(d) ? C.roseLight : "transparent" }}>
-            <div style={{ fontSize: 10, color: C.gris, letterSpacing: 1, textTransform: "uppercase" }}>{DAYS_SHORT[i]}</div>
-            <div style={{ fontSize: 16, fontWeight: 600, fontFamily: "'Cormorant Garamond',serif", background: isToday(d) ? C.roseDark : "transparent", color: isToday(d) ? C.blanc : C.noir, borderRadius: "50%", width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", margin: "3px auto 0" }}>{d.getDate()}</div>
+    <div style={{ flex: 1, overflow: "auto" }}>
+      <div style={{ minWidth: 620 }}>
+        {/* Header jours */}
+        <div style={{ display: "grid", gridTemplateColumns: "44px repeat(7,1fr)", position: "sticky", top: 0, background: C.blanc, zIndex: 5 }}>
+          <div style={{ borderBottom: `1px solid ${C.grisClair}`, borderRight: `1px solid ${C.grisClair}` }} />
+          {weekDates.map((d, i) => (
+            <div key={i} onClick={() => onDayClick(d)} style={{ padding: "6px 2px", textAlign: "center", cursor: "pointer", borderBottom: `1px solid ${C.grisClair}`, borderRight: `1px solid ${C.grisClair}`, background: isToday(d) ? C.roseLight : C.blanc }}>
+              <div style={{ fontSize: 9, color: C.gris, letterSpacing: 1, textTransform: "uppercase" }}>{DAYS_SHORT[i]}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'Cormorant Garamond',serif", background: isToday(d) ? C.roseDark : "transparent", color: isToday(d) ? C.blanc : C.noir, borderRadius: "50%", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto 0" }}>{d.getDate()}</div>
+            </div>
+          ))}
+        </div>
+        {/* Corps : gouttière heures + 7 colonnes */}
+        <div style={{ display: "grid", gridTemplateColumns: "44px repeat(7,1fr)" }}>
+          <div style={{ position: "relative", height: totalH, borderRight: `1px solid ${C.grisClair}` }}>
+            {HOURS.map((h, idx) => (
+              <div key={h} style={{ position: "absolute", top: idx * HOUR_HEIGHT - 6, left: 0, right: 0, fontSize: 10, color: C.gris, padding: "0 4px", textAlign: "right" }}>{String(h).padStart(2, "0")}:00</div>
+            ))}
           </div>
-        ))}
-        {HOURS.map(h => (
-          <>
-            <div key={`l${h}`} style={{ padding: "8px 6px 0", fontSize: 11, color: C.gris, borderRight: `1px solid ${C.grisClair}`, borderBottom: `1px solid ${C.grisClair}`, minHeight: 52 }}>{String(h).padStart(2,"0")}:00</div>
-            {weekDates.map((d, i) => {
-              const ds = fmtDate(d);
-              const evs = events.filter(e => e.date === ds && e.startMinutes >= h * 60 && e.startMinutes < (h + 1) * 60);
-              return (
-                <div key={`${h}-${i}`} style={{ borderRight: `1px solid ${C.grisClair}`, borderBottom: `1px solid ${C.grisClair}`, minHeight: 52, padding: 2, background: isToday(d) ? "#FDF8F5" : "transparent" }}>
-                  {evs.map(ev => { const cat = CATEGORIES[ev.cat]; return <div key={ev.id} title={ev.title} onClick={() => onDayClick(d)} style={{ background: cat.bg, border: `1px solid ${cat.border}`, borderRadius: 4, padding: "2px 5px", fontSize: 11, color: cat.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", marginBottom: 1 }}>{cat.emoji} {ev.title} <span style={{ opacity: 0.6, fontSize: 9 }}>{minutesToLabel(ev.startMinutes)}</span></div>; })}
-                </div>
-              );
-            })}
-          </>
-        ))}
+          {weekDates.map((d, di) => {
+            const ds = fmtDate(d);
+            const blocks = layout(events.filter(e => e.date === ds));
+            return (
+              <div key={di} style={{ position: "relative", height: totalH, borderRight: `1px solid ${C.grisClair}`, background: isToday(d) ? "#FDF8F5" : "transparent" }}>
+                {HOURS.map((h, idx) => (
+                  <div key={h} style={{ position: "absolute", top: idx * HOUR_HEIGHT, left: 0, right: 0, borderTop: `1px solid ${C.grisClair}` }} />
+                ))}
+                {blocks.map(({ ev, ci, n }) => {
+                  const cat = CATEGORIES[ev.cat];
+                  const topMin = Math.max(ev.startMinutes - START_H * 60, 0);
+                  const top = (topMin / 60) * HOUR_HEIGHT;
+                  const visStart = Math.max(ev.startMinutes, START_H * 60);
+                  const height = Math.max(((ev.endMinutes - visStart) / 60) * HOUR_HEIGHT - 1, 15);
+                  return (
+                    <div key={ev.id} title={`${ev.title} · ${minutesToLabel(ev.startMinutes)}-${minutesToLabel(ev.endMinutes)}`} onClick={() => onDayClick(d)}
+                      style={{ position: "absolute", top, height, left: `calc(${(ci / n) * 100}% + 1px)`, width: `calc(${100 / n}% - 2px)`, background: ev.done ? "#E8E4DF" : cat.bg, borderLeft: `3px solid ${ev.done ? "#6B6B6B" : cat.border}`, borderRadius: 4, padding: "1px 3px", boxSizing: "border-box", overflow: "hidden", cursor: "pointer", opacity: ev.done ? 0.55 : 1, fontSize: 9, color: ev.done ? C.gris : cat.text, lineHeight: 1.15 }}>
+                      <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cat.emoji} {ev.title}</div>
+                      {height > 26 && <div style={{ fontSize: 8, opacity: 0.7 }}>{minutesToLabel(ev.startMinutes)}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -366,7 +428,7 @@ export default function PlannerNovae() {
   const [eventModal, setEventModal] = useState(false);
   const [editModal, setEditModal] = useState<CalEvent | null>(null);
   const [replanModal, setReplanModal] = useState<CalEvent | null>(null);
-  const [form, setForm] = useState<FormData>({ title: "", date: fmtDate(new Date()), startMinutes: 9 * 60, endMinutes: 10 * 60, cat: "pro" });
+  const [form, setForm] = useState<FormData>({ title: "", date: fmtDate(new Date()), startMinutes: 9 * 60, endMinutes: 10 * 60, cat: "pro", recurrenceDays: [] });
   const [mobileTab, setMobileTab] = useState<MobileTab>("planner");
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -384,10 +446,10 @@ export default function PlannerNovae() {
 
   useEffect(() => { loadData(); }, []);
 
-  async function loadData() {
-    setLoading(true);
+  async function loadData(silent = false) {
+    if (!silent) setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
+    if (!user) { if (!silent) setLoading(false); return; }
 
     const { data: todosData } = await supabase
       .from("todo_list")
@@ -405,27 +467,53 @@ export default function PlannerNovae() {
 
     const { data: eventsData } = await supabase
       .from("tasks")
-      .select("id, title, category, date, start_hour, duration_hours, status")
+      .select("id, title, category, date, start_hour, duration_hours, status, recurrence_days")
       .eq("user_id", user.id)
       .order("date", { ascending: true });
 
+    // Fenêtre d'expansion (récurrence) : 30j avant → 90j après
+    const baseNow = new Date();
+    const windowDates: Date[] = [];
+    for (let i = -30; i <= 90; i++) { const d = new Date(baseNow); d.setDate(baseNow.getDate() + i); windowDates.push(d); }
+
     if (eventsData) {
-      setEvents(eventsData.map((e: any) => {
-        const startH = e.start_hour || 9;
-        const durH = e.duration_hours || 1;
-        return {
-          id: e.id, title: e.title,
-          date: e.date ? e.date.split("T")[0] : fmtDate(new Date()),
-          startMinutes: startH * 60, // compatibilité ancien format (heures entières)
-          endMinutes: (startH + durH) * 60,
-          cat: DB_TO_CAT[e.category?.toLowerCase()] || "pro",
-          done: e.status === "completed" || e.status === "done",
-          fromTodo: false, replanNeeded: false,
-        };
-      }));
+      const built: CalEvent[] = [];
+      for (const e of eventsData as any[]) {
+        const startH = e.start_hour ?? 9;
+        const durH = e.duration_hours ?? 1;
+        const startMinutes = startH * 60;
+        const endMinutes = (startH + durH) * 60;
+        const cat = DB_TO_CAT[e.category?.toLowerCase()] || "pro";
+        const recurDays: string[] = Array.isArray(e.recurrence_days)
+          ? e.recurrence_days
+          : (typeof e.recurrence_days === "string" && e.recurrence_days
+              ? e.recurrence_days.replace(/[{}]/g, "").split(",").map((x: string) => x.trim()).filter(Boolean)
+              : []);
+        if (recurDays.length > 0) {
+          for (const d of windowDates) {
+            if (!recurDays.includes(DAY_KEYS[d.getDay()])) continue;
+            built.push({
+              id: `recur::${e.id}::${fmtDate(d)}`,
+              title: e.title, date: fmtDate(d),
+              startMinutes, endMinutes, cat,
+              done: false, fromTodo: false, replanNeeded: false,
+              recurring: true, recurrenceDays: recurDays,
+            });
+          }
+        } else {
+          built.push({
+            id: e.id, title: e.title,
+            date: e.date ? e.date.split("T")[0] : fmtDate(new Date()),
+            startMinutes, endMinutes, cat,
+            done: e.status === "completed" || e.status === "done",
+            fromTodo: false, replanNeeded: false,
+            recurring: false, recurrenceDays: [],
+          });
+        }
+      }
+      setEvents(built);
     }
 
-    const DAY_KEYS_P = ['sun','mon','tue','wed','thu','fri','sat'];
     const { data: routinesData } = await supabase
       .from('routines')
       .select('id, title, description, preferred_time, duration_minutes, frequency, custom_days, category')
@@ -434,17 +522,6 @@ export default function PlannerNovae() {
 
     if (routinesData) {
       const todayStr = fmtDate(new Date());
-
-      // Fenêtre : 30j avant → 90j après. Une occurrence par jour où la routine s'applique
-      // → elle apparaît TOUS les jours dans l'agenda.
-      const baseNow = new Date();
-      const windowDates: Date[] = [];
-      for (let i = -30; i <= 90; i++) {
-        const d = new Date(baseNow);
-        d.setDate(baseNow.getDate() + i);
-        windowDates.push(d);
-      }
-
       const rEvents: CalEvent[] = [];
       for (const r of routinesData as any[]) {
         if (!r.preferred_time) continue;
@@ -455,7 +532,7 @@ export default function PlannerNovae() {
           ? (Array.isArray(r.custom_days) ? r.custom_days : r.custom_days.replace(/[{}]/g, '').split(',').map((d: string) => d.trim()))
           : [];
         for (const d of windowDates) {
-          const key = DAY_KEYS_P[d.getDay()];
+          const key = DAY_KEYS[d.getDay()];
           const applies = r.frequency === 'daily' || days.length === 0 || days.length === 7 || days.includes(key);
           if (!applies) continue;
           rEvents.push({
@@ -466,16 +543,17 @@ export default function PlannerNovae() {
             endMinutes: startMin + durMin,
             cat: 'moi' as CategoryKey,
             done: false, fromTodo: false, replanNeeded: false,
+            recurring: true, recurrenceDays: [],
           });
         }
       }
       setRoutineEvents(rEvents);
 
-      // Conflits : uniquement sur les occurrences d'aujourd'hui
+      // Conflits (occurrences d'aujourd'hui uniquement) routine vs tâche ponctuelle
       if (eventsData && rEvents.length > 0) {
         const newConflicts: {routine: string, event: string, hour: number}[] = [];
         rEvents.filter((re) => re.date === todayStr).forEach((re) => {
-          eventsData.forEach((ev: any) => {
+          (eventsData as any[]).forEach((ev: any) => {
             const evStart = (ev.start_hour || 9) * 60;
             const evEnd = evStart + (ev.duration_hours || 1) * 60;
             const evDate = ev.date ? ev.date.split("T")[0] : '';
@@ -491,7 +569,7 @@ export default function PlannerNovae() {
       }
     }
 
-    setLoading(false);
+    if (!silent) setLoading(false);
   }
 
   useEffect(() => {
@@ -500,7 +578,7 @@ export default function PlannerNovae() {
       const nowMinutes = now.getHours() * 60 + now.getMinutes();
       const todayStr = fmtDate(now);
       setEvents(prev => prev.map(e => {
-        if (!e.done && !e.replanNeeded && e.date === todayStr && e.endMinutes < nowMinutes) {
+        if (!e.recurring && !e.done && !e.replanNeeded && e.date === todayStr && e.endMinutes < nowMinutes) {
           return { ...e, replanNeeded: true };
         }
         return e;
@@ -535,25 +613,27 @@ export default function PlannerNovae() {
   // ─── EVENT ACTIONS ──────────────────────────────────────
   const toggleEvent = useCallback(async (id: string) => {
     const ev = events.find(e => e.id === id);
-    if (!ev) return;
+    if (!ev || ev.recurring) return;
     const newDone = !ev.done;
     setEvents(p => p.map(e => e.id === id ? { ...e, done: newDone, replanNeeded: false } : e));
     await supabase.from("tasks").update({ status: newDone ? "completed" : "pending", updated_at: new Date().toISOString() }).eq("id", id);
   }, [events]);
 
   const deleteEvent = useCallback(async (id: string) => {
-    setEvents(p => p.filter(e => e.id !== id));
-    await supabase.from("tasks").delete().eq("id", id);
+    const ev = events.find(e => e.id === id);
+    await supabase.from("tasks").delete().eq("id", masterId(id));
     setEditModal(null);
-  }, []);
+    if (ev?.recurring) { await loadData(true); }
+    else { setEvents(p => p.filter(e => e.id !== id)); }
+  }, [events]);
 
   const openReplan = useCallback((ev: CalEvent) => {
-    setForm({ title: ev.title, date: fmtDate(new Date()), startMinutes: ev.startMinutes, endMinutes: ev.endMinutes, cat: ev.cat });
+    setForm({ title: ev.title, date: fmtDate(new Date()), startMinutes: ev.startMinutes, endMinutes: ev.endMinutes, cat: ev.cat, recurrenceDays: ev.recurrenceDays || [] });
     setReplanModal(ev);
   }, []);
 
   function openPlanTodo(todo: Todo) {
-    setForm({ title: todo.text, date: fmtDate(new Date()), startMinutes: 9 * 60, endMinutes: 10 * 60, cat: "pro" });
+    setForm({ title: todo.text, date: fmtDate(new Date()), startMinutes: 9 * 60, endMinutes: 10 * 60, cat: "pro", recurrenceDays: [] });
     setPlanModal(todo);
   }
 
@@ -562,22 +642,25 @@ export default function PlannerNovae() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const durH = (form.endMinutes - form.startMinutes) / 60;
+    const recurring = form.recurrenceDays.length > 0;
     const { data } = await supabase.from("tasks").insert({
       user_id: user.id, title: form.title, date: form.date,
       start_hour: Math.floor(form.startMinutes / 60),
       duration_hours: Math.max(0.25, durH),
       category: CAT_TO_DB[form.cat], status: "pending",
+      recurrence_days: recurring ? form.recurrenceDays : null,
     }).select().single();
-    if (data) {
-      setEvents(p => [...p, { id: data.id, title: form.title, date: form.date, startMinutes: form.startMinutes, endMinutes: form.endMinutes, cat: form.cat, done: false, fromTodo: true, replanNeeded: false }]);
-    }
     await supabase.from("todo_list").delete().eq("id", planModal.id);
     setTodos(p => p.filter(t => t.id !== planModal.id));
     setPlanModal(null);
+    if (recurring) { await loadData(true); }
+    else if (data) {
+      setEvents(p => [...p, { id: data.id, title: form.title, date: form.date, startMinutes: form.startMinutes, endMinutes: form.endMinutes, cat: form.cat, done: false, fromTodo: true, replanNeeded: false, recurring: false, recurrenceDays: [] }]);
+    }
   }
 
   function openNewEvent(date?: string, startMinutes?: number) {
-    setForm({ title: "", date: date || fmtDate(currentDate), startMinutes: startMinutes ?? 9 * 60, endMinutes: (startMinutes ?? 9 * 60) + 60, cat: "pro" });
+    setForm({ title: "", date: date || fmtDate(currentDate), startMinutes: startMinutes ?? 9 * 60, endMinutes: (startMinutes ?? 9 * 60) + 60, cat: "pro", recurrenceDays: [] });
     setEventModal(true);
   }
 
@@ -586,44 +669,56 @@ export default function PlannerNovae() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const durH = (form.endMinutes - form.startMinutes) / 60;
+    const recurring = form.recurrenceDays.length > 0;
     const { data } = await supabase.from("tasks").insert({
       user_id: user.id, title: form.title, date: form.date,
       start_hour: Math.floor(form.startMinutes / 60),
       duration_hours: Math.max(0.25, durH),
       category: CAT_TO_DB[form.cat], status: "pending",
+      recurrence_days: recurring ? form.recurrenceDays : null,
     }).select().single();
-    if (data) setEvents(p => [...p, { id: data.id, title: form.title, date: form.date, startMinutes: form.startMinutes, endMinutes: form.endMinutes, cat: form.cat, done: false, fromTodo: false, replanNeeded: false }]);
     setEventModal(false);
+    if (recurring) { await loadData(true); }
+    else if (data) {
+      setEvents(p => [...p, { id: data.id, title: form.title, date: form.date, startMinutes: form.startMinutes, endMinutes: form.endMinutes, cat: form.cat, done: false, fromTodo: false, replanNeeded: false, recurring: false, recurrenceDays: [] }]);
+    }
   }
 
   function openEdit(ev: CalEvent) {
-    setForm({ title: ev.title, date: ev.date, startMinutes: ev.startMinutes, endMinutes: ev.endMinutes, cat: ev.cat });
+    setForm({ title: ev.title, date: ev.date, startMinutes: ev.startMinutes, endMinutes: ev.endMinutes, cat: ev.cat, recurrenceDays: ev.recurrenceDays || [] });
     setEditModal(ev);
   }
 
   async function confirmEdit() {
     if (!editModal) return;
-    setEvents(p => p.map(e => e.id === editModal.id ? { ...e, title: form.title, date: form.date, startMinutes: form.startMinutes, endMinutes: form.endMinutes, cat: form.cat, replanNeeded: false } : e));
     const durH = (form.endMinutes - form.startMinutes) / 60;
+    const recurring = form.recurrenceDays.length > 0;
     await supabase.from("tasks").update({
       title: form.title, date: form.date,
       start_hour: Math.floor(form.startMinutes / 60),
       duration_hours: Math.max(0.25, durH),
-      category: CAT_TO_DB[form.cat], updated_at: new Date().toISOString()
-    }).eq("id", editModal.id);
+      category: CAT_TO_DB[form.cat],
+      recurrence_days: recurring ? form.recurrenceDays : null,
+      updated_at: new Date().toISOString()
+    }).eq("id", masterId(editModal.id));
+    const wasRecurring = editModal.recurring;
     setEditModal(null);
+    if (recurring || wasRecurring) { await loadData(true); }
+    else {
+      setEvents(p => p.map(e => e.id === editModal.id ? { ...e, title: form.title, date: form.date, startMinutes: form.startMinutes, endMinutes: form.endMinutes, cat: form.cat, replanNeeded: false } : e));
+    }
   }
 
   async function confirmReplan() {
     if (!replanModal) return;
-    setEvents(p => p.map(e => e.id === replanModal.id ? { ...e, date: form.date, startMinutes: form.startMinutes, endMinutes: form.endMinutes, replanNeeded: false, done: false } : e));
     const durH = (form.endMinutes - form.startMinutes) / 60;
     await supabase.from("tasks").update({
       date: form.date,
       start_hour: Math.floor(form.startMinutes / 60),
       duration_hours: Math.max(0.25, durH),
       status: "pending", updated_at: new Date().toISOString()
-    }).eq("id", replanModal.id);
+    }).eq("id", masterId(replanModal.id));
+    setEvents(p => p.map(e => e.id === replanModal.id ? { ...e, date: form.date, startMinutes: form.startMinutes, endMinutes: form.endMinutes, replanNeeded: false, done: false } : e));
     setReplanModal(null);
   }
 
@@ -655,7 +750,7 @@ export default function PlannerNovae() {
 
   const plannerContent = (
     <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      {view === "day" && <DayView currentDate={currentDate} events={[...events, ...routineEvents]} onNewEvent={openNewEvent} onToggle={toggleEvent} onDelete={deleteEvent} onReplan={openReplan} onEdit={openEdit} />}
+      {view === "day" && <DayView currentDate={currentDate} events={[...events, ...routineEvents]} onNewEvent={openNewEvent} onToggle={toggleEvent} onReplan={openReplan} onEdit={openEdit} />}
       {view === "week" && <WeekView weekDates={weekDates} events={[...events, ...routineEvents]} onDayClick={d => { setCurrentDate(d); setView("day"); }} />}
       {view === "month" && <MonthView currentDate={currentDate} events={[...events, ...routineEvents]} onDayClick={d => { setCurrentDate(d); setView("day"); }} />}
     </div>
