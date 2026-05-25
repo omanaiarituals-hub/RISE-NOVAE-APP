@@ -15,6 +15,7 @@ interface Post {
   created_at: string
   pseudo?: string
   liked_by_me?: boolean
+  last_other_comment_at?: string | null
 }
 
 interface Comment {
@@ -60,6 +61,8 @@ const BADGE_DEFINITIONS: Record<string, { emoji: string; label: string; desc: st
   three_challenges: { emoji: '🔥', label: 'Inépuisable',             desc: '3 défis complétés' },
 }
 
+const SEEN_KEY = 'novae-community-seen'
+
 const menuItemStyle: React.CSSProperties = {
   display: 'block',
   width: '100%',
@@ -89,6 +92,13 @@ export default function CommunityPage() {
   const [newComment, setNewComment] = useState<Record<string, string>>({})
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Non-lu (réponses pas encore vues) + orientation depuis une notif
+  const [seenMap, setSeenMap] = useState<Record<string, string>>({})
+  const [seenReady, setSeenReady] = useState(false)
+  const [highlightedPost, setHighlightedPost] = useState<string | null>(null)
+  const postRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const didAutoScroll = useRef(false)
+
   // Édition / suppression
   const [editingPost, setEditingPost] = useState<string | null>(null)
   const [editPostContent, setEditPostContent] = useState('')
@@ -96,6 +106,15 @@ export default function CommunityPage() {
   const [editingComment, setEditingComment] = useState<string | null>(null)
   const [editCommentContent, setEditCommentContent] = useState('')
   const [commentMenuOpen, setCommentMenuOpen] = useState<string | null>(null)
+
+  // Charger l'état "déjà vu" depuis le navigateur
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SEEN_KEY)
+      if (raw) setSeenMap(JSON.parse(raw))
+    } catch {}
+    setSeenReady(true)
+  }, [])
 
   useEffect(() => {
     if (!user) return
@@ -116,6 +135,48 @@ export default function CommunityPage() {
     document.addEventListener('click', handleClick)
     return () => document.removeEventListener('click', handleClick)
   }, [postMenuOpen, commentMenuOpen])
+
+  // Marquer un post comme vu (persistant)
+  const markPostSeen = (postId: string) => {
+    setSeenMap(prev => {
+      const next = { ...prev, [postId]: new Date().toISOString() }
+      try { localStorage.setItem(SEEN_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  // Un post a-t-il des réponses non lues (d'une AUTRE personne) ?
+  const isUnread = (post: Post) =>
+    !!post.last_other_comment_at &&
+    (!seenMap[post.id] || post.last_other_comment_at > seenMap[post.id])
+
+  // Orientation auto : depuis une notif (?post=...) ou vers la 1re réponse non lue
+  useEffect(() => {
+    if (loading || !seenReady || posts.length === 0 || didAutoScroll.current) return
+    let target: string | null = null
+    try {
+      target = new URLSearchParams(window.location.search).get('post')
+    } catch {}
+    if (!target) {
+      target = posts.find(p => isUnread(p))?.id || null
+    }
+    if (!target || !posts.some(p => p.id === target)) return
+    didAutoScroll.current = true
+    setActiveTab('feed')
+    const targetId = target
+    setTimeout(() => {
+      const el = postRefs.current[targetId]
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setExpandedPost(targetId)
+      if (!comments[targetId]) loadComments(targetId)
+      setHighlightedPost(targetId)
+      setTimeout(() => setHighlightedPost(null), 3500)
+      // On laisse l'anneau visible un instant avant de marquer comme lu
+      setTimeout(() => markPostSeen(targetId), 1400)
+    }, 400)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, seenReady, posts])
 
   const loadAll = async () => {
     if (!user) return
@@ -146,14 +207,40 @@ export default function CommunityPage() {
       .from('community_posts').select('*')
       .order('created_at', { ascending: false }).limit(50)
     if (!postsData) return
+
+    const postIds = postsData.map(p => p.id)
+
+    // ── VRAIS compteurs de réponses (on ne fait plus confiance à comments_count) ──
+    // On compte les lignes réelles de community_comments, et on repère la dernière
+    // réponse d'une AUTRE personne (sert au "non-lu").
+    const countMap: Record<string, number> = {}
+    const lastOtherMap: Record<string, string> = {}
+    if (postIds.length) {
+      const { data: allComments } = await supabase
+        .from('community_comments')
+        .select('post_id, user_id, created_at')
+        .in('post_id', postIds)
+      allComments?.forEach(c => {
+        countMap[c.post_id] = (countMap[c.post_id] || 0) + 1
+        if (c.user_id !== user.id) {
+          if (!lastOtherMap[c.post_id] || c.created_at > lastOtherMap[c.post_id]) {
+            lastOtherMap[c.post_id] = c.created_at
+          }
+        }
+      })
+    }
+
     const userIds = Array.from(new Set(postsData.map(p => p.user_id)))
     const { data: profiles } = await supabase.from('ai_personality_profile').select('user_id, pseudo').in('user_id', userIds)
     const pseudoMap: Record<string, string> = {}
     profiles?.forEach(p => { if (p.pseudo) pseudoMap[p.user_id] = p.pseudo })
     const { data: myLikes } = await supabase.from('community_likes').select('post_id').eq('user_id', user.id)
     const likedIds = new Set(myLikes?.map(l => l.post_id) || [])
+
     setPosts(postsData.map(p => ({
       ...p,
+      comments_count: countMap[p.id] || 0,
+      last_other_comment_at: lastOtherMap[p.id] || null,
       pseudo: pseudoMap[p.user_id] || p.user_id.slice(0, 8),
       liked_by_me: likedIds.has(p.id),
     })))
@@ -208,6 +295,8 @@ export default function CommunityPage() {
       ...prev,
       [postId]: data.map(c => ({ ...c, pseudo: pseudoMap[c.user_id] || c.user_id.slice(0, 8) }))
     }))
+    // Auto-réparation : le compteur affiché = le vrai nombre de réponses
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: data.length } : p))
   }
 
   const handlePost = async () => {
@@ -216,7 +305,7 @@ export default function CommunityPage() {
     try {
       const { data } = await supabase.from('community_posts').insert({ user_id: user.id, content: newPost.trim() }).select().single()
       if (data) {
-        setPosts(prev => [{ ...data, pseudo, liked_by_me: false }, ...prev])
+        setPosts(prev => [{ ...data, comments_count: 0, last_other_comment_at: null, pseudo, liked_by_me: false }, ...prev])
         setNewPost('')
         const postCount = posts.filter(p => p.user_id === user.id).length + 1
         if (postCount === 1) await grantBadge('first_post', '✍️ Première voix')
@@ -360,6 +449,8 @@ export default function CommunityPage() {
 
     setComments(prev => ({ ...prev, [postId]: [...(prev[postId] || []), { ...data, pseudo }] }))
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: newCount } : p))
+    // Je viens de répondre : ce post est forcément "vu" pour moi
+    markPostSeen(postId)
 
     const targetPost = posts.find(p => p.id === postId)
     if (targetPost && targetPost.user_id !== user.id) {
@@ -404,7 +495,11 @@ export default function CommunityPage() {
 
   const toggleComments = (postId: string) => {
     if (expandedPost === postId) { setExpandedPost(null) }
-    else { setExpandedPost(postId); if (!comments[postId]) loadComments(postId) }
+    else {
+      setExpandedPost(postId)
+      if (!comments[postId]) loadComments(postId)
+      markPostSeen(postId) // ouvrir = lire → le badge "nouveau" disparaît
+    }
   }
 
   const formatDate = (dateStr: string) => {
@@ -447,6 +542,10 @@ export default function CommunityPage() {
   return (
     <>
       <DemoBanner />
+      <style>{`
+        @keyframes novaePulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+        .novae-unread-dot{ display:inline-block;width:6px;height:6px;border-radius:50%;background:#fff;animation:novaePulse 1.5s ease-in-out infinite; }
+      `}</style>
       <div className="flex flex-col min-h-screen bg-novae-cream">
 
         {/* Header */}
@@ -515,10 +614,26 @@ export default function CommunityPage() {
                   <p className="text-novae-anthracite/40 text-sm">Sois la première à partager quelque chose !</p>
                 </div>
               ) : (
-                posts.map(post => (
-                  <div key={post.id} className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm overflow-hidden" style={{ position: 'relative' }}>
+                posts.map(post => {
+                  const unread = isUnread(post)
+                  return (
+                  <div
+                    key={post.id}
+                    ref={(el) => { postRefs.current[post.id] = el }}
+                    className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm overflow-hidden"
+                    style={{
+                      position: 'relative',
+                      boxShadow:
+                        highlightedPost === post.id
+                          ? '0 0 0 2px rgba(196,149,106,0.75), 0 10px 28px rgba(196,149,106,0.28)'
+                          : unread
+                            ? '0 0 0 1.5px rgba(196,149,106,0.5)'
+                            : undefined,
+                      transition: 'box-shadow .4s ease',
+                    }}
+                  >
 
-                    {/* Bulle réponses haut droite */}
+                    {/* Bulle réponses haut droite (vive si non lu, sobre si déjà vu) */}
                     {post.comments_count > 0 && (
                       <button
                         onClick={() => toggleComments(post.id)}
@@ -527,27 +642,28 @@ export default function CommunityPage() {
                           top: 12,
                           right: 12,
                           zIndex: 5,
-                          background: 'linear-gradient(135deg, #C4956A, #7B6FA0)',
-                          color: 'white',
+                          background: unread ? 'linear-gradient(135deg, #C4956A, #7B6FA0)' : 'rgba(196,149,106,0.12)',
+                          color: unread ? 'white' : '#8b6f55',
                           fontSize: 11,
                           fontWeight: 700,
                           padding: '4px 10px',
                           borderRadius: 999,
-                          boxShadow: '0 2px 6px rgba(196,149,106,0.3)',
+                          boxShadow: unread ? '0 2px 8px rgba(196,149,106,0.4)' : 'none',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 4,
-                          border: 'none',
+                          gap: 5,
+                          border: unread ? 'none' : '1px solid rgba(196,149,106,0.25)',
                           cursor: 'pointer',
                         }}
                       >
+                        {unread && <span className="novae-unread-dot" />}
                         💬 {post.comments_count} {post.comments_count === 1 ? 'réponse' : 'réponses'}
                       </button>
                     )}
 
                     <div className="p-4">
                       {/* Header post */}
-                      <div className="flex items-center gap-2 mb-3" style={{ paddingRight: post.comments_count > 0 ? 110 : 0 }}>
+                      <div className="flex items-center gap-2 mb-3" style={{ paddingRight: post.comments_count > 0 ? 120 : 0 }}>
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-novae-gold/60 to-novae-rose/60 flex items-center justify-center text-white text-xs font-bold">
                           {post.pseudo?.charAt(0).toUpperCase()}
                         </div>
@@ -745,7 +861,8 @@ export default function CommunityPage() {
                       </div>
                     )}
                   </div>
-                ))
+                  )
+                })
               )}
             </div>
           )}
@@ -803,7 +920,7 @@ export default function CommunityPage() {
                             </button>
                           ) : challenge.my_participation.completed ? (
                             <div className="w-full py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-medium text-green-600 text-center">
-                              ✅ Défi relevé — Bravo !
+                              ✅ Défi relevé, bravo !
                             </div>
                           ) : (
                             <button
