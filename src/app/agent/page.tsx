@@ -73,6 +73,22 @@ export default function AgentPage() {
   const [voiceMode, setVoiceMode] = useState(false)
   const [voices, setVoices] = useState<any[]>([])
   const [voiceName, setVoiceName] = useState('')
+  const [paused, setPaused] = useState(false)
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false)
+  const [rate, setRate] = useState(1)
+  const [pitch, setPitch] = useState(1.05)
+  const voiceModeRef = useRef(false)
+  const pausedRef = useRef(false)
+  const speakingRef = useRef(false)
+  const rateRef = useRef(1)
+  const pitchRef = useRef(1.05)
+
+  // Garde les refs synchros pour la boucle de dialogue
+  useEffect(() => { voiceModeRef.current = voiceMode }, [voiceMode])
+  useEffect(() => { pausedRef.current = paused }, [paused])
+  useEffect(() => { speakingRef.current = speaking }, [speaking])
+  useEffect(() => { rateRef.current = rate }, [rate])
+  useEffect(() => { pitchRef.current = pitch }, [pitch])
 
   useEffect(() => {
     if (user && !authLoading) {
@@ -102,7 +118,17 @@ export default function AgentPage() {
           if (transcript.trim()) sendRef.current(transcript.trim())
         }
         rec.onerror = () => setListening(false)
-        rec.onend = () => setListening(false)
+        rec.onend = () => {
+          setListening(false)
+          // Mode dialogue : on relance le micro tout seul si on n'est ni en pause ni pendant que Nova parle
+          if (voiceModeRef.current && !pausedRef.current && !speakingRef.current) {
+            setTimeout(() => {
+              if (voiceModeRef.current && !pausedRef.current && !speakingRef.current) {
+                try { recognitionRef.current?.start(); setListening(true) } catch {}
+              }
+            }, 450)
+          }
+        }
         recognitionRef.current = rec
         setSttSupported(true)
       } catch { setSttSupported(false) }
@@ -126,6 +152,12 @@ export default function AgentPage() {
       }
       loadVoices()
       window.speechSynthesis.onvoiceschanged = loadVoices
+      try {
+        const r = parseFloat(localStorage.getItem('novae-voice-rate') || '')
+        const p = parseFloat(localStorage.getItem('novae-voice-pitch') || '')
+        if (!isNaN(r)) { setRate(r); rateRef.current = r }
+        if (!isNaN(p)) { setPitch(p); pitchRef.current = p }
+      } catch {}
     }
     return () => { try { window.speechSynthesis?.cancel() } catch {} }
   }, [])
@@ -163,11 +195,27 @@ export default function AgentPage() {
     const u = new SpeechSynthesisUtterance(clean)
     u.lang = 'fr-FR'
     if (ttsVoiceRef.current) u.voice = ttsVoiceRef.current
-    u.rate = 1
-    u.pitch = 1.05
-    u.onstart = () => setSpeaking(true)
-    u.onend = () => setSpeaking(false)
-    u.onerror = () => setSpeaking(false)
+    u.rate = rateRef.current
+    u.pitch = pitchRef.current
+    u.onstart = () => {
+      setSpeaking(true); speakingRef.current = true
+      // Couper le micro pendant que Nova parle (sinon elle s'entend)
+      try { recognitionRef.current?.stop() } catch {}
+      setListening(false)
+    }
+    const reopen = () => {
+      setSpeaking(false); speakingRef.current = false
+      // Mode dialogue : rouvrir le micro quand Nova a fini
+      if (voiceModeRef.current && !pausedRef.current) {
+        setTimeout(() => {
+          if (voiceModeRef.current && !pausedRef.current) {
+            try { recognitionRef.current?.start(); setListening(true) } catch {}
+          }
+        }, 500)
+      }
+    }
+    u.onend = reopen
+    u.onerror = reopen
     window.speechSynthesis.speak(u)
   }
 
@@ -193,8 +241,11 @@ export default function AgentPage() {
 
   const enterVoiceMode = () => {
     setVoiceMode(true)
+    voiceModeRef.current = true
     setVoiceOn(true)
     voiceOnRef.current = true
+    setPaused(false)
+    pausedRef.current = false
     setShowHome(false)
     const rec = recognitionRef.current
     if (rec && !listening) {
@@ -208,10 +259,29 @@ export default function AgentPage() {
 
   const exitVoiceMode = () => {
     setVoiceMode(false)
+    voiceModeRef.current = false
+    setPaused(false)
+    pausedRef.current = false
     try { recognitionRef.current?.stop() } catch {}
     setListening(false)
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
-    setSpeaking(false)
+    setSpeaking(false); speakingRef.current = false
+    setShowVoiceSettings(false)
+  }
+
+  const togglePause = () => {
+    if (pausedRef.current) {
+      // Reprendre le dialogue
+      setPaused(false); pausedRef.current = false
+      try { recognitionRef.current?.start(); setListening(true) } catch {}
+    } else {
+      // Mettre en pause
+      setPaused(true); pausedRef.current = true
+      try { recognitionRef.current?.stop() } catch {}
+      setListening(false)
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+      setSpeaking(false); speakingRef.current = false
+    }
   }
 
   const changeVoice = (name: string) => {
@@ -219,6 +289,16 @@ export default function AgentPage() {
     const v = voices.find(x => x.name === name) || null
     ttsVoiceRef.current = v
     try { localStorage.setItem('novae-voice-name', name) } catch {}
+  }
+
+  const changeRate = (val: number) => {
+    setRate(val); rateRef.current = val
+    try { localStorage.setItem('novae-voice-rate', String(val)) } catch {}
+  }
+
+  const changePitch = (val: number) => {
+    setPitch(val); pitchRef.current = val
+    try { localStorage.setItem('novae-voice-pitch', String(val)) } catch {}
   }
 
   // ── Memoire conversationnelle ────────────────────────────────────────────
@@ -959,6 +1039,14 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           gap: 18, padding: 24,
         }}>
+          {/* Roue reglages (haut gauche) */}
+          <button onClick={() => setShowVoiceSettings(s => !s)} title="Réglages de la voix" style={{
+            position: 'absolute', top: 18, left: 18, width: 40, height: 40, borderRadius: '50%',
+            border: '1px solid rgba(139,90,60,0.3)', background: 'rgba(255,255,255,0.7)',
+            fontSize: 17, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>⚙️</button>
+
+          {/* Quitter le vocal (haut droite) */}
           <button onClick={exitVoiceMode} style={{
             position: 'absolute', top: 18, right: 18, border: '1px solid rgba(139,90,60,0.3)',
             background: 'rgba(255,255,255,0.7)', borderRadius: 999, padding: '8px 16px',
@@ -979,27 +1067,52 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
             fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic',
             fontSize: 22, color: '#3d2618', margin: 0, textAlign: 'center',
           }}>
-            {listening ? "Je t'écoute…" : speaking ? 'Nova répond…' : 'Touche le micro et parle-moi'}
+            {paused ? 'En pause' : speaking ? 'Nova répond…' : listening ? "Je t'écoute…" : 'Un instant…'}
           </p>
 
-          <button onClick={toggleMic} style={{
+          {/* Pause / Reprendre le dialogue */}
+          <button onClick={togglePause} title={paused ? 'Reprendre' : 'Pause'} style={{
             width: 66, height: 66, borderRadius: '50%', border: 'none', cursor: 'pointer',
-            background: listening ? 'linear-gradient(135deg,#c44757,#8b2d3d)' : 'linear-gradient(135deg,#c4956a,#b07d5a)',
+            background: paused ? 'linear-gradient(135deg,#c4956a,#b07d5a)' : 'linear-gradient(135deg,#c44757,#8b2d3d)',
             color: '#fff', fontSize: 26, boxShadow: '0 8px 22px rgba(176,125,90,0.4)',
-          }}>{listening ? '⏹' : '🎙️'}</button>
+          }}>{paused ? '🎙️' : '⏸'}</button>
 
-          {voices.length > 1 && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginTop: 4 }}>
-              <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8b6f55', fontWeight: 600 }}>
-                Voix de Nova
-              </span>
-              <select value={voiceName} onChange={(e) => changeVoice(e.target.value)} style={{
-                fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#3d2618',
-                background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(139,90,60,0.3)',
-                borderRadius: 10, padding: '8px 12px', maxWidth: 280,
-              }}>
-                {voices.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
-              </select>
+          <p style={{ fontSize: 11, color: '#8b6f55', margin: 0, textAlign: 'center' }}>
+            {paused ? 'Touche le micro pour reprendre' : 'Le micro reste ouvert. Parle quand tu veux.'}
+          </p>
+
+          {/* Panneau reglages (voix / vitesse / tonalite) */}
+          {showVoiceSettings && (
+            <div style={{
+              marginTop: 6, background: 'rgba(255,255,255,0.92)', borderRadius: 18,
+              border: '1px solid rgba(139,90,60,0.2)', padding: '18px 20px',
+              display: 'flex', flexDirection: 'column', gap: 14, width: 280, maxWidth: '90vw',
+              boxShadow: '0 12px 30px rgba(139,90,60,0.18)',
+            }}>
+              {voices.length > 1 && (
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8b6f55', fontWeight: 700 }}>Voix de Nova</span>
+                  <select value={voiceName} onChange={(e) => changeVoice(e.target.value)} style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#3d2618',
+                    background: '#fff', border: '1px solid rgba(139,90,60,0.3)', borderRadius: 10, padding: '8px 10px',
+                  }}>
+                    {voices.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                  </select>
+                </label>
+              )}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8b6f55', fontWeight: 700 }}>Vitesse {rate.toFixed(2)}</span>
+                <input type="range" min={0.6} max={1.3} step={0.05} value={rate} onChange={(e) => changeRate(parseFloat(e.target.value))} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8b6f55', fontWeight: 700 }}>Tonalité {pitch.toFixed(2)}</span>
+                <input type="range" min={0.7} max={1.5} step={0.05} value={pitch} onChange={(e) => changePitch(parseFloat(e.target.value))} />
+              </label>
+              <button onClick={() => setShowVoiceSettings(false)} style={{
+                marginTop: 4, border: 'none', cursor: 'pointer', borderRadius: 12, padding: '10px 0',
+                background: 'linear-gradient(135deg,#c4956a,#b07d5a)', color: '#fff', fontWeight: 700, fontSize: 14,
+                fontFamily: "'DM Sans', sans-serif",
+              }}>Validé</button>
             </div>
           )}
         </div>
