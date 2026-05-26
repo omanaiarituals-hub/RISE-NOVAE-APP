@@ -65,8 +65,16 @@ export default function PresentationPage() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
   }
 
+  const cleanForSpeech = (t: string) => t
+    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
+    .replace(/[\uFE00-\uFE0F\u200D\u20E3]/g, '')
+    .replace(/[\u2190-\u21FF\u2300-\u27BF\u2B00-\u2BFF]/g, ' ')
+    .replace(/[\u2022\u00B7]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
   const makeUtterance = (text: string) => {
-    const u = new SpeechSynthesisUtterance(text)
+    const u = new SpeechSynthesisUtterance(cleanForSpeech(text))
     u.lang = 'fr-FR'
     if (ttsVoiceRef.current) u.voice = ttsVoiceRef.current
     u.rate = rate
@@ -132,11 +140,12 @@ export default function PresentationPage() {
   return (
     <div style={{ minHeight: '100vh', background: 'radial-gradient(120% 80% at 50% 0%, #FBEDE6 0%, #FDFAF7 55%, #F6E3D6 100%)', fontFamily: "'DM Sans', sans-serif", paddingBottom: 60 }}>
       <style>{`
-        @keyframes novaPulse {
-          0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(196,149,106,.45); }
-          50% { transform: scale(1.05); box-shadow: 0 0 0 28px rgba(196,149,106,0); }
-        }
-        .nova-orb.speaking { animation: novaPulse 1.4s ease-in-out infinite; }
+        @keyframes novaBreathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+        @keyframes novaRipple { 0%{transform:translate(-50%,-50%) scale(1);opacity:.5} 100%{transform:translate(-50%,-50%) scale(2.6);opacity:0} }
+        .nova-core.speaking { animation: novaBreathe 2.4s ease-in-out infinite; }
+        .nova-ripple { position:absolute; left:50%; top:50%; width:150px; height:150px; border-radius:50%; border:2px solid #C9A96E; transform:translate(-50%,-50%); animation: novaRipple 2.2s ease-out infinite; pointer-events:none; }
+        .nova-ripple.r2 { animation-delay:.7s; border-color:#D9A6B0; }
+        .nova-ripple.r3 { animation-delay:1.4s; }
       `}</style>
 
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 22px 0' }}>
@@ -145,16 +154,25 @@ export default function PresentationPage() {
 
       {/* Scène à filmer */}
       <div style={{ textAlign: 'center', padding: '30px 22px 10px' }}>
-        <div
-          className={`nova-orb${speaking ? ' speaking' : ''}`}
-          style={{
-            width: 150, height: 150, borderRadius: '50%', margin: '0 auto',
-            background: 'linear-gradient(135deg, #C9A96E, #F2C4CE)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontSize: 64, fontWeight: 700, fontFamily: "'Cormorant Garamond', serif",
-            boxShadow: '0 12px 40px rgba(196,149,106,.3)',
-          }}
-        >N</div>
+        <div style={{ position: 'relative', width: 340, height: 340, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {speaking && (
+            <>
+              <span className="nova-ripple r1" />
+              <span className="nova-ripple r2" />
+              <span className="nova-ripple r3" />
+            </>
+          )}
+          <div
+            className={`nova-core${speaking ? ' speaking' : ''}`}
+            style={{
+              width: 150, height: 150, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #C9A96E, #F2C4CE)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontSize: 64, fontWeight: 700, fontFamily: "'Cormorant Garamond', serif",
+              boxShadow: '0 12px 40px rgba(196,149,106,.3)', zIndex: 2,
+            }}
+          >N</div>
+        </div>
 
         <div style={{ minHeight: 130, maxWidth: 600, margin: '26px auto 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{
