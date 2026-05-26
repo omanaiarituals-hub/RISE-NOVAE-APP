@@ -118,6 +118,20 @@ export default function AgentPage() {
     return () => { try { window.speechSynthesis?.cancel() } catch {} }
   }, [])
 
+  // Si on arrive depuis le bouton micro de l'accueil (/agent?voice=1) : voix ON + ecoute directe
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('voice') === '1') {
+      setVoiceOn(true)
+      voiceOnRef.current = true
+      const t = setTimeout(() => {
+        try { recognitionRef.current?.start(); setListening(true) } catch {}
+      }, 800)
+      return () => clearTimeout(t)
+    }
+  }, [])
+
   const speak = (raw: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
     const clean = raw

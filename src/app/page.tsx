@@ -351,6 +351,17 @@ export default function HomePage() {
                   {pseudo && (<>, <span style={{ color: '#8b5a3c', fontStyle: 'italic' }}>{pseudo}</span></>)}{' '}👋
                 </h1>
               </div>
+
+              {/* Bouton micro - Parler a Nova (ouvre Nova en mode ecoute) */}
+              <Link
+                href="/agent?voice=1"
+                aria-label="Parler a Nova"
+                title="Parler a Nova"
+                style={{ textDecoration: 'none', flexShrink: 0, marginTop: 16 }}
+              >
+                <div className="mic-cta" style={micButtonStyle}>🎙️</div>
+              </Link>
+
               {/* Bouton Nova */}
               <Link href="/agent" style={{ textDecoration: 'none', flexShrink: 0, marginTop: 16 }}>
                 <div style={novaButtonStyle}>
@@ -929,6 +940,11 @@ export default function HomePage() {
 
         <style jsx>{`
           .hide-scrollbar::-webkit-scrollbar { display: none; }
+          @keyframes micPulse {
+            0%, 100% { box-shadow: 0 6px 18px rgba(176,125,90,0.45), 0 0 0 0 rgba(196,149,106,0.55); }
+            50% { box-shadow: 0 6px 18px rgba(176,125,90,0.45), 0 0 0 9px rgba(196,149,106,0); }
+          }
+          .mic-cta { animation: micPulse 2.2s ease-in-out infinite; }
         `}</style>
 
       </div>
@@ -939,6 +955,19 @@ export default function HomePage() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Styles partagés
 // ─────────────────────────────────────────────────────────────────────────────
+
+const micButtonStyle: React.CSSProperties = {
+  width: 44,
+  height: 44,
+  borderRadius: '50%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 21,
+  background: 'linear-gradient(135deg, #c4956a 0%, #b07d5a 55%, #c98b86 100%)',
+  boxShadow: '0 6px 18px rgba(176,125,90,0.45), 0 0 0 3px rgba(196,149,106,0.12)',
+  cursor: 'pointer',
+}
 
 const novaButtonStyle: React.CSSProperties = {
   display: 'flex',

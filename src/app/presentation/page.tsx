@@ -32,6 +32,7 @@ const DEFAULT_SCRIPTS: Script[] = [
   { id: '13', label: 'Astuces & économies', text: `${HOOK} Envie de souffler aussi côté budget ? Je te partage des astuces et des idées pour économiser au quotidien, et alléger ta charge, mentale comme financière. ${CTA}` },
   { id: '14', label: 'Communauté', text: `${HOOK} Tu te sens parfois seule dans tout ça ? Tu ne l'es plus. Ici, d'autres femmes avancent dans la même direction que toi : elles se comprennent, elles se soutiennent, sans jugement. ${CTA}` },
   { id: '15', label: 'L\'agent qui agit', text: `${HOOK} Et le plus fou ? Tu me parles, et j'agis. Tu me dis : ajoute ce rendez-vous, planifie mes repas, valide ma mission du jour. Et je le fais, pendant que toi, tu souffles. Je ne remplace pas un professionnel, mais pour ton quotidien, je suis là. ${CTA}` },
+  { id: '16', label: 'Une vraie appli sécurisée', text: `${HOOK} Moi, c'est Nova, et tous les jours je te présente NOVAÉ. C'est une vraie application, sécurisée et protégée. Elle n'est pas encore sur le Play Store ni l'App Store, mais tu peux déjà l'installer sur ton téléphone, ta tablette et même ton ordinateur. Peu importe où tu te trouves, tu y accèdes en toute sécurité. ${CTA}` },
 ]
 
 export default function PresentationPage() {
