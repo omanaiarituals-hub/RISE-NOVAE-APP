@@ -57,6 +57,16 @@ export default function AgentPage() {
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // ── Voix (Web Speech API : micro + synthèse vocale) ──────────────────────
+  const [voiceOn, setVoiceOn] = useState(false)
+  const voiceOnRef = useRef(false)
+  const [listening, setListening] = useState(false)
+  const [sttSupported, setSttSupported] = useState(false)
+  const [ttsSupported, setTtsSupported] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const ttsVoiceRef = useRef<any>(null)
+  const sendRef = useRef<(t?: string) => void>(() => {})
+
   useEffect(() => {
     if (user && !authLoading) {
       loadAppContext()
@@ -67,6 +77,81 @@ export default function AgentPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // ── Setup voix (une seule fois) ──────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (SR) {
+      try {
+        const rec = new SR()
+        rec.lang = 'fr-FR'
+        rec.interimResults = false
+        rec.continuous = false
+        rec.maxAlternatives = 1
+        rec.onresult = (e: any) => {
+          const transcript = e.results?.[0]?.[0]?.transcript || ''
+          setListening(false)
+          if (transcript.trim()) sendRef.current(transcript.trim())
+        }
+        rec.onerror = () => setListening(false)
+        rec.onend = () => setListening(false)
+        recognitionRef.current = rec
+        setSttSupported(true)
+      } catch { setSttSupported(false) }
+    }
+    if ('speechSynthesis' in window) {
+      setTtsSupported(true)
+      const pickVoice = () => {
+        const voices = window.speechSynthesis.getVoices()
+        ttsVoiceRef.current =
+          voices.find(v => v.lang === 'fr-FR' && /amélie|audrey|virginie|f(é|e)min|female|google/i.test(v.name)) ||
+          voices.find(v => v.lang === 'fr-FR') ||
+          voices.find(v => v.lang && v.lang.startsWith('fr')) || null
+      }
+      pickVoice()
+      window.speechSynthesis.onvoiceschanged = pickVoice
+    }
+    return () => { try { window.speechSynthesis?.cancel() } catch {} }
+  }, [])
+
+  const speak = (raw: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+    const clean = raw
+      .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/[#*_>`~]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!clean) return
+    window.speechSynthesis.cancel()
+    const u = new SpeechSynthesisUtterance(clean)
+    u.lang = 'fr-FR'
+    if (ttsVoiceRef.current) u.voice = ttsVoiceRef.current
+    u.rate = 1
+    u.pitch = 1.05
+    window.speechSynthesis.speak(u)
+  }
+
+  const toggleVoice = () => {
+    setVoiceOn(prev => {
+      const next = !prev
+      voiceOnRef.current = next
+      if (!next && typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+      return next
+    })
+  }
+
+  const toggleMic = () => {
+    const rec = recognitionRef.current
+    if (!rec) return
+    if (listening) { try { rec.stop() } catch {} ; setListening(false); return }
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+      rec.start()
+      setListening(true)
+    } catch { setListening(false) }
+  }
 
   // ── Memoire conversationnelle ────────────────────────────────────────────
   const loadConversationHistory = async () => {
@@ -537,6 +622,7 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
       }])
 
       persistMessage('assistant', cleanContent)
+      if (voiceOnRef.current) speak(cleanContent)
     } catch (error) {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
@@ -548,6 +634,9 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
       setIsLoading(false)
     }
   }
+
+  // Garde sendRef a jour pour que le micro envoie toujours avec le contexte frais
+  useEffect(() => { sendRef.current = sendMessage })
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -606,6 +695,15 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {ttsSupported && (
+            <button
+              onClick={toggleVoice}
+              className={`p-1 transition-colors ${voiceOn ? 'text-novae-gold' : 'text-novae-anthracite/30 hover:text-novae-gold'}`}
+              title={voiceOn ? 'Voix de Nova activee (clique pour couper)' : 'Activer la voix de Nova'}
+            >
+              {voiceOn ? '🔊' : '🔇'}
+            </button>
+          )}
           {!showHome && messages.length > 0 && (
             <button
               onClick={clearHistory}
@@ -684,6 +782,13 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
                 <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
                   placeholder="Ex: Ajoute une tache demain a 9h..."
                   className="flex-1 text-sm text-novae-anthracite placeholder-novae-anthracite/30 bg-transparent focus:outline-none" />
+                {sttSupported && (
+                  <button onClick={toggleMic}
+                    title={listening ? "J'ecoute..." : 'Parler a Nova'}
+                    className={`px-3 py-1.5 rounded-lg text-sm transition-all ${listening ? 'bg-red-500 text-white animate-pulse' : 'bg-novae-rose/20 text-novae-anthracite/50 hover:bg-novae-rose/40'}`}>
+                    🎙️
+                  </button>
+                )}
                 <button onClick={() => sendMessage()} disabled={!input.trim()}
                   className={`px-3 py-1.5 rounded-lg text-sm transition-all ${input.trim() ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/30'}`}>
                   →
@@ -749,6 +854,13 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
                 placeholder="Demande a NOVAE..."
                 className="flex-1 resize-none rounded-xl border border-novae-beige/40 px-4 py-3 text-sm text-novae-anthracite placeholder-novae-anthracite/30 focus:outline-none focus:ring-2 focus:ring-novae-gold/30 bg-novae-cream/50 max-h-32"
                 rows={1} style={{ minHeight: '44px' }} />
+              {sttSupported && (
+                <button onClick={toggleMic}
+                  title={listening ? "J'ecoute..." : 'Parler a Nova'}
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all flex-shrink-0 ${listening ? 'bg-red-500 text-white animate-pulse' : 'bg-novae-rose/20 text-novae-anthracite/60 hover:bg-novae-rose/40'}`}>
+                  🎙️
+                </button>
+              )}
               <button onClick={() => sendMessage()} disabled={!input.trim() || isLoading}
                 className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all flex-shrink-0 ${input.trim() && !isLoading ? 'bg-novae-gold text-white shadow-sm' : 'bg-novae-beige/30 text-novae-anthracite/30 cursor-not-allowed'}`}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
