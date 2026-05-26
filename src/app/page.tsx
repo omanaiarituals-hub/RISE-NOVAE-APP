@@ -314,33 +314,6 @@ export default function HomePage() {
             {/* Cloche notifs */}
             <NotificationBell />
 
-            {/* Pill Mon Profil */}
-            {user && (
-              <Link
-                href="/profil"
-                style={{
-                  padding: '7px 12px',
-                  borderRadius: 16,
-                  background: 'rgba(243, 220, 198, 0.15)',
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(243, 220, 198, 0.3)',
-                  color: '#f3dcc6',
-                  textDecoration: 'none',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <span style={{ fontSize: 12 }}>✦</span>
-                Mon Profil
-              </Link>
-            )}
-
             {user ? (
               <UserMenu />
             ) : (
