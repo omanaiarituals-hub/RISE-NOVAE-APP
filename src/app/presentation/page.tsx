@@ -45,6 +45,8 @@ export default function PresentationPage() {
   const [rate, setRate] = useState(0.95)
   const [pitch, setPitch] = useState(1.05)
   const [editMode, setEditMode] = useState(false)
+  const [voices, setVoices] = useState<any[]>([])
+  const [voiceName, setVoiceName] = useState('')
   const ttsVoiceRef = useRef<any>(null)
   const stopRef = useRef(false)
 
@@ -64,11 +66,19 @@ export default function PresentationPage() {
     } catch {}
     if ('speechSynthesis' in window) {
       const pick = () => {
-        const voices = window.speechSynthesis.getVoices()
-        ttsVoiceRef.current =
-          voices.find(v => v.lang === 'fr-FR' && /amélie|audrey|virginie|f(é|e)min|female|google/i.test(v.name)) ||
-          voices.find(v => v.lang === 'fr-FR') ||
-          voices.find(v => v.lang && v.lang.startsWith('fr')) || null
+        const all = window.speechSynthesis.getVoices()
+        const fr = all.filter(v => v.lang && v.lang.toLowerCase().startsWith('fr'))
+        setVoices(fr)
+        let chosen: any = null
+        try {
+          const saved = localStorage.getItem('novae-voice-name')
+          if (saved) chosen = fr.find(v => v.name === saved) || null
+        } catch {}
+        if (!chosen) {
+          chosen = fr.find(v => /amélie|audrey|virginie|f(é|e)min|female|google/i.test(v.name)) || fr[0] || null
+        }
+        ttsVoiceRef.current = chosen
+        if (chosen) setVoiceName(chosen.name)
       }
       pick()
       window.speechSynthesis.onvoiceschanged = pick
@@ -96,6 +106,13 @@ export default function PresentationPage() {
     u.rate = rate
     u.pitch = pitch
     return u
+  }
+
+  const changeVoice = (name: string) => {
+    setVoiceName(name)
+    const v = voices.find(x => x.name === name) || null
+    ttsVoiceRef.current = v
+    try { localStorage.setItem('novae-voice-name', name) } catch {}
   }
 
   const stopAll = () => {
@@ -214,7 +231,23 @@ export default function PresentationPage() {
       </div>
 
       {/* Réglages voix */}
-      <div style={{ maxWidth: 600, margin: '24px auto 0', padding: '0 22px', display: 'flex', gap: 22, flexWrap: 'wrap', justifyContent: 'center' }}>
+      <div style={{ maxWidth: 600, margin: '24px auto 0', padding: '0 22px', display: 'flex', gap: 22, flexWrap: 'wrap', justifyContent: 'center', alignItems: 'flex-end' }}>
+        {voices.length > 1 && (
+          <label style={sliderWrap}>
+            <span style={sliderLbl}>Voix</span>
+            <select
+              value={voiceName}
+              onChange={e => changeVoice(e.target.value)}
+              style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#3d2618',
+                background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(139,90,60,0.3)',
+                borderRadius: 10, padding: '7px 10px', maxWidth: 220,
+              }}
+            >
+              {voices.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+            </select>
+          </label>
+        )}
         <label style={sliderWrap}>
           <span style={sliderLbl}>Vitesse {rate.toFixed(2)}</span>
           <input type="range" min={0.6} max={1.3} step={0.05} value={rate} onChange={e => setRate(parseFloat(e.target.value))} />

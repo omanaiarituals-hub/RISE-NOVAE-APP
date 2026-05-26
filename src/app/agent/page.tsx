@@ -69,6 +69,10 @@ export default function AgentPage() {
   const recognitionRef = useRef<any>(null)
   const ttsVoiceRef = useRef<any>(null)
   const sendRef = useRef<(t?: string) => void>(() => {})
+  const [speaking, setSpeaking] = useState(false)
+  const [voiceMode, setVoiceMode] = useState(false)
+  const [voices, setVoices] = useState<any[]>([])
+  const [voiceName, setVoiceName] = useState('')
 
   useEffect(() => {
     if (user && !authLoading) {
@@ -105,15 +109,23 @@ export default function AgentPage() {
     }
     if ('speechSynthesis' in window) {
       setTtsSupported(true)
-      const pickVoice = () => {
-        const voices = window.speechSynthesis.getVoices()
-        ttsVoiceRef.current =
-          voices.find(v => v.lang === 'fr-FR' && /amélie|audrey|virginie|f(é|e)min|female|google/i.test(v.name)) ||
-          voices.find(v => v.lang === 'fr-FR') ||
-          voices.find(v => v.lang && v.lang.startsWith('fr')) || null
+      const loadVoices = () => {
+        const all = window.speechSynthesis.getVoices()
+        const fr = all.filter(v => v.lang && v.lang.toLowerCase().startsWith('fr'))
+        setVoices(fr)
+        let chosen: any = null
+        try {
+          const saved = localStorage.getItem('novae-voice-name')
+          if (saved) chosen = fr.find(v => v.name === saved) || null
+        } catch {}
+        if (!chosen) {
+          chosen = fr.find(v => /amélie|audrey|virginie|f(é|e)min|female|google/i.test(v.name)) || fr[0] || null
+        }
+        ttsVoiceRef.current = chosen
+        if (chosen) setVoiceName(chosen.name)
       }
-      pickVoice()
-      window.speechSynthesis.onvoiceschanged = pickVoice
+      loadVoices()
+      window.speechSynthesis.onvoiceschanged = loadVoices
     }
     return () => { try { window.speechSynthesis?.cancel() } catch {} }
   }, [])
@@ -125,6 +137,8 @@ export default function AgentPage() {
     if (params.get('voice') === '1') {
       setVoiceOn(true)
       voiceOnRef.current = true
+      setVoiceMode(true)
+      setShowHome(false)
       const t = setTimeout(() => {
         try { recognitionRef.current?.start(); setListening(true) } catch {}
       }, 800)
@@ -151,6 +165,9 @@ export default function AgentPage() {
     if (ttsVoiceRef.current) u.voice = ttsVoiceRef.current
     u.rate = 1
     u.pitch = 1.05
+    u.onstart = () => setSpeaking(true)
+    u.onend = () => setSpeaking(false)
+    u.onerror = () => setSpeaking(false)
     window.speechSynthesis.speak(u)
   }
 
@@ -172,6 +189,36 @@ export default function AgentPage() {
       rec.start()
       setListening(true)
     } catch { setListening(false) }
+  }
+
+  const enterVoiceMode = () => {
+    setVoiceMode(true)
+    setVoiceOn(true)
+    voiceOnRef.current = true
+    setShowHome(false)
+    const rec = recognitionRef.current
+    if (rec && !listening) {
+      try {
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+        rec.start()
+        setListening(true)
+      } catch {}
+    }
+  }
+
+  const exitVoiceMode = () => {
+    setVoiceMode(false)
+    try { recognitionRef.current?.stop() } catch {}
+    setListening(false)
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+    setSpeaking(false)
+  }
+
+  const changeVoice = (name: string) => {
+    setVoiceName(name)
+    const v = voices.find(x => x.name === name) || null
+    ttsVoiceRef.current = v
+    try { localStorage.setItem('novae-voice-name', name) } catch {}
   }
 
   // ── Memoire conversationnelle ────────────────────────────────────────────
@@ -813,9 +860,9 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
                   placeholder="Ex: Ajoute une tache demain a 9h..."
                   className="flex-1 text-sm text-novae-anthracite placeholder-novae-anthracite/30 bg-transparent focus:outline-none" />
                 {sttSupported && (
-                  <button onClick={toggleMic}
-                    title={listening ? "J'ecoute..." : 'Parler a Nova'}
-                    className={`px-3 py-1.5 rounded-lg text-sm transition-all ${listening ? 'bg-red-500 text-white animate-pulse' : 'bg-novae-rose/20 text-novae-anthracite/50 hover:bg-novae-rose/40'}`}>
+                  <button onClick={enterVoiceMode}
+                    title="Parler a Nova"
+                    className="px-3 py-1.5 rounded-lg text-sm transition-all bg-novae-rose/20 text-novae-anthracite/50 hover:bg-novae-rose/40">
                     🎙️
                   </button>
                 )}
@@ -885,9 +932,9 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
                 className="flex-1 resize-none rounded-xl border border-novae-beige/40 px-4 py-3 text-sm text-novae-anthracite placeholder-novae-anthracite/30 focus:outline-none focus:ring-2 focus:ring-novae-gold/30 bg-novae-cream/50 max-h-32"
                 rows={1} style={{ minHeight: '44px' }} />
               {sttSupported && (
-                <button onClick={toggleMic}
-                  title={listening ? "J'ecoute..." : 'Parler a Nova'}
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all flex-shrink-0 ${listening ? 'bg-red-500 text-white animate-pulse' : 'bg-novae-rose/20 text-novae-anthracite/60 hover:bg-novae-rose/40'}`}>
+                <button onClick={enterVoiceMode}
+                  title="Parler a Nova"
+                  className="w-11 h-11 rounded-xl flex items-center justify-center transition-all flex-shrink-0 bg-novae-rose/20 text-novae-anthracite/60 hover:bg-novae-rose/40">
                   🎙️
                 </button>
               )}
@@ -902,6 +949,77 @@ ADAPTE TON TON ET TES CONSEILS a ce profil a chaque reponse. Cale tes propositio
           </div>
         </>
       )}
+
+      {/* ════ MODE VOCAL : orbe centre, transcription derriere ════ */}
+      {voiceMode && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 60,
+          background: 'rgba(243, 220, 198, 0.80)',
+          backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 18, padding: 24,
+        }}>
+          <button onClick={exitVoiceMode} style={{
+            position: 'absolute', top: 18, right: 18, border: '1px solid rgba(139,90,60,0.3)',
+            background: 'rgba(255,255,255,0.7)', borderRadius: 999, padding: '8px 16px',
+            fontSize: 13, fontWeight: 600, color: '#5c4530', cursor: 'pointer',
+            fontFamily: "'DM Sans', sans-serif",
+          }}>✕ Écrire</button>
+
+          <div className={`vo-stage${(listening || speaking) ? ' vo-active' : ''}`}>
+            {Array.from({ length: 24 }).map((_, i) => (
+              <div key={i} className="vo-ray-wrap" style={{ transform: `rotate(${i * 15}deg)` }}>
+                <div className="vo-ray" style={{ animationDelay: `${i * 0.05}s` }} />
+              </div>
+            ))}
+            <div className="vo-core">N</div>
+          </div>
+
+          <p style={{
+            fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic',
+            fontSize: 22, color: '#3d2618', margin: 0, textAlign: 'center',
+          }}>
+            {listening ? "Je t'écoute…" : speaking ? 'Nova répond…' : 'Touche le micro et parle-moi'}
+          </p>
+
+          <button onClick={toggleMic} style={{
+            width: 66, height: 66, borderRadius: '50%', border: 'none', cursor: 'pointer',
+            background: listening ? 'linear-gradient(135deg,#c44757,#8b2d3d)' : 'linear-gradient(135deg,#c4956a,#b07d5a)',
+            color: '#fff', fontSize: 26, boxShadow: '0 8px 22px rgba(176,125,90,0.4)',
+          }}>{listening ? '⏹' : '🎙️'}</button>
+
+          {voices.length > 1 && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginTop: 4 }}>
+              <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8b6f55', fontWeight: 600 }}>
+                Voix de Nova
+              </span>
+              <select value={voiceName} onChange={(e) => changeVoice(e.target.value)} style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#3d2618',
+                background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(139,90,60,0.3)',
+                borderRadius: 10, padding: '8px 12px', maxWidth: 280,
+              }}>
+                {voices.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
+      <style>{`
+        .vo-stage { position: relative; width: 240px; height: 240px; display: flex; align-items: center; justify-content: center; }
+        .vo-ray-wrap { position: absolute; inset: 0; display: flex; justify-content: center; }
+        .vo-ray { width: 4px; height: 16px; margin-top: 8px; border-radius: 4px;
+          background: linear-gradient(#C9A96E, #E0A9B6); transform-origin: center top;
+          transform: scaleY(0.6); opacity: .45; }
+        .vo-stage.vo-active .vo-ray { animation: voRay 1.1s ease-in-out infinite; }
+        @keyframes voRay { 0%, 100% { transform: scaleY(0.5); opacity: .4; } 50% { transform: scaleY(1.5); opacity: 1; } }
+        .vo-core { width: 130px; height: 130px; border-radius: 50%;
+          background: radial-gradient(120% 120% at 35% 30%, #F4D7B0, #C9A96E 45%, #E0A9B6 100%);
+          display: flex; align-items: center; justify-content: center; color: #fff;
+          font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 700; font-size: 58px;
+          box-shadow: 0 12px 40px rgba(196,149,106,.4); z-index: 2; }
+      `}</style>
+
     </div>
   )
 }
