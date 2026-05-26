@@ -45,6 +45,14 @@ export default function ProfilPage() {
     if (user) loadData()
   }, [user, loading])
 
+  // Ouvre le bon onglet quand on arrive depuis une notif (?tab=bilans)
+  useEffect(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get('tab')
+      if (t === 'bilans' || t === 'programmes' || t === 'profil') setTab(t as any)
+    } catch {}
+  }, [])
+  
   const loadData = async () => {
     if (!user) return
     setIsLoading(true)

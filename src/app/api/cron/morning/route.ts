@@ -25,38 +25,51 @@ export async function GET(req: NextRequest) {
       .select('user_id')
     const uniqueUserIds = Array.from(new Set((subs || []).map(s => s.user_id)))
 
-    // ─── 1. BRIEF MATIN ─────────────────────────────────────────────────
+    // ─── 1. BRIEF MATIN AVEC RÉCAP DU JOUR ──────────────────────────────
     for (const userId of uniqueUserIds) {
-      const { count: eventCount } = await supabaseAdmin
-        .from('planner_events')
-        .select('*', { count: 'exact', head: true })
+      // Tâches du jour (on lit la table `tasks`, celle qu'affiche le Planner)
+      const { data: todayTasks } = await supabaseAdmin
+        .from('tasks')
+        .select('title, status, start_hour')
         .eq('user_id', userId)
-        .gte('start_date', `${today}T00:00:00`)
-        .lt('start_date', `${today}T23:59:59`)
+        .eq('date', today)
+        .order('start_hour', { ascending: true })
 
+      const pending = (todayTasks || []).filter(t => t.status !== 'completed')
+
+      // Jour de programme
       const { data: progress } = await supabaseAdmin
         .from('program_progress')
         .select('current_day')
         .eq('user_id', userId)
         .maybeSingle()
 
-      let body = '☀️ Bonjour'
-      if (progress?.current_day) body += ` — Jour ${progress.current_day}/90`
-      body += '. '
-      body += eventCount && eventCount > 0
-        ? `${eventCount} ${eventCount === 1 ? 'événement' : 'événements'} prévu${eventCount > 1 ? 's' : ''} aujourd'hui. `
-        : "Pas d'événement prévu aujourd'hui. "
-      body += "Prends ton rituel du matin ✦"
+      // Construction du récap (court, lisible dans une notif)
+      let body = ''
+      if (progress?.current_day) body += `Jour ${progress.current_day}/90. `
+
+      if (pending.length > 0) {
+        const titles = pending
+          .slice(0, 3)
+          .map(t => (t.title || '').trim())
+          .filter(Boolean)
+          .join(', ')
+        const extra = pending.length > 3 ? ` +${pending.length - 3}` : ''
+        body += `Au programme : ${titles}${extra}. `
+      } else {
+        body += "Aucune tâche prévue, journée libre. "
+      }
+      body += "Bon rituel du matin ✦"
 
       await notifyUser({
         userId,
         type: 'morning_brief',
-        title: '☀️ Ton matin commence',
+        title: '☀️ Ton récap du jour',
         body,
         url: '/program',
         preferenceKey: 'notif_routines',
       })
-      results.push(`Brief matin → ${userId}`)
+      results.push(`Brief matin → ${userId} (${pending.length} tâches)`)
     }
 
     // ─── 2. ANNIVERSAIRES (J-7 et J) ───────────────────────────────────

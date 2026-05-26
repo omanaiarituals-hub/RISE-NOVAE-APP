@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
           type: 'weekly_debrief',
           title: '✦ Ton bilan de la semaine est prêt',
           body: `${stats.routines_done} routines · ${stats.tasks_done} tâches · Jour ${stats.program_day}/90`,
-          url: '/agent',
+          url: '/profil?tab=bilans',
           preferenceKey: 'notif_bilan',
         })
 
