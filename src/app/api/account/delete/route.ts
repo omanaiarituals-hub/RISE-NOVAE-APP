@@ -53,7 +53,21 @@ export async function POST() {
       .eq('id', userId)
       .maybeSingle()
 
-    const stripeCustomerId = userRow?.stripe_customer_id
+    let stripeCustomerId: string | undefined = userRow?.stripe_customer_id ?? undefined
+
+    // 3b. FALLBACK : si le customer_id n'est pas stocké, on le retrouve par email
+    //     (le checkout ne stocke pas stripe_customer_id => sinon l'abo ne serait jamais annulé)
+    if (!stripeCustomerId && userEmail) {
+      try {
+        const cs = await stripe.customers.list({ email: userEmail, limit: 1 })
+        stripeCustomerId = cs.data[0]?.id
+        if (stripeCustomerId) {
+          console.log('[delete-account] customer retrouvé par email:', stripeCustomerId)
+        }
+      } catch (err) {
+        console.error('[delete-account] lookup customer par email échoué:', err)
+      }
+    }
 
     // 4. Annuler l'abonnement Stripe (BLOQUANT)
     if (stripeCustomerId) {

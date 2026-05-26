@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
+import CancelSubscription from '@/components/CancelSubscription'
 
 const C = {
   cream: '#f3dcc6',
@@ -278,6 +279,9 @@ export default function SettingsPage() {
             {savedFlash ? '✓ Préférences enregistrées' : saving ? 'Enregistrement…' : 'Enregistrer'}
           </button>
 
+          {/* MON ABONNEMENT */}
+          <CancelSubscription />
+          
           {/* DANGER ZONE */}
           <div style={{
             background: 'rgba(255, 240, 240, 0.6)',
