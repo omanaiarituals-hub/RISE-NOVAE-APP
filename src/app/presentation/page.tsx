@@ -12,11 +12,26 @@ const STORAGE_KEY = 'novae-presentation-scripts'
 
 interface Script { id: string; label: string; text: string }
 
+const HOOK = "Approche. Tu connais une appli qui fait ça pour toi ? Moi, c'est Nova, ta future assistante."
+const CTA = "Clique sur le lien en bio, et je serai à tes côtés."
+const DISCLAIMER = "Et je te le dis franchement : je ne suis ni médecin ni psy, je ne remplace personne. Si tu en as besoin, je peux t'orienter vers un professionnel."
+
 const DEFAULT_SCRIPTS: Script[] = [
-  { id: '1', label: 'Présentation', text: "Salut toi. Moi, c'est Nova, ta nouvelle assistante. Pas une appli de plus. Une présence à tes côtés, pour porter ce que tu gardes dans ta tête." },
-  { id: '2', label: 'Ce que je fais', text: "Tu me parles, et j'agis. Je planifie ta semaine, j'ajoute tes rendez-vous, je prépare tes repas et ta liste de courses, et je te rappelle ce qui compte, pour que tu n'aies plus à y penser." },
-  { id: '3', label: 'Ton programme', text: "Chaque matin, je te donne le récap de ta journée. Et je t'accompagne, jour après jour, dans ton programme de 90 jours, pour te retrouver, à ton rythme." },
-  { id: '4', label: 'Invitation', text: "Tu n'as plus à tout porter seule. Essaie-moi pendant quatorze jours. Et respire, enfin." },
+  { id: '1', label: 'Intro / Présentation', text: `${HOOK} Je suis là pour t'enlever du poids, pas pour t'en ajouter. Mon seul but : t'aider à poser ta charge mentale, et à enfin te retrouver. ${CTA}` },
+  { id: '2', label: 'Celle qui court partout', text: `${HOOK} Tu cours du matin au soir, et le soir tu as l'impression d'avoir couru dans le vent ? Avec moi, on remet de l'ordre : l'essentiel d'abord, le reste ensuite. Et tout ce que tu gardes dans ta tête, je le porte avec toi. ${CTA}` },
+  { id: '3', label: 'Celle qui veut tout gérer', text: `${HOOK} Tu crois que tu dois tout gérer, seule, parfaitement ? Je connais ça par cœur. Avec moi, tu délègues enfin : j'anticipe, je planifie, je te rappelle les choses, pour que tu n'aies plus à tout tenir dans ta tête. ${DISCLAIMER} ${CTA}` },
+  { id: '4', label: 'Programme 90 jours', text: `${HOOK} Tu veux changer pour de vrai, mais tu ne sais pas par où commencer ? Je t'accompagne sur un programme de 90 jours : une mission douce par jour, à ton rythme, sans pression. On reconstruit tes fondations, pas à pas. ${DISCLAIMER} ${CTA}` },
+  { id: '5', label: 'Recettes & courses', text: `${HOOK} Le casse-tête des repas, c'est fini. Dis-moi ce que tu veux manger cette semaine : je planifie tes menus, je vérifie les allergies de ta famille, et je te prépare ta liste de courses toute seule. ${CTA}` },
+  { id: '6', label: 'Planner / agenda', text: `${HOOK} Tu jongles entre le travail, les enfants, les rendez-vous ? Donne-moi ta semaine, je l'organise : j'ajoute tes rendez-vous, je bloque ton temps, et je repère les conflits avant qu'ils n'arrivent. ${CTA}` },
+  { id: '7', label: 'To-do / tâches', text: `${HOOK} Cette longue liste de choses à faire qui tourne dans ta tête ? Donne-la-moi. Tu me dictes, je la note, je la planifie au bon moment, et toi, tu arrêtes enfin d'y penser. ${CTA}` },
+  { id: '8', label: 'Routines', text: `${HOOK} Tu rêves d'une routine du matin et du soir qui tienne vraiment ? Je t'en crée une, simple, faite pour toi, et je te le rappelle avec douceur, sans jamais te culpabiliser si tu sautes un jour. ${CTA}` },
+  { id: '9', label: 'Tracker d\'habitudes', text: `${HOOK} Tu veux suivre tes petites habitudes sans te juger ? Je les suis pour toi, je te montre tes progrès en douceur, et je célèbre chaque pas, même le plus petit. ${CTA}` },
+  { id: '10', label: 'Défis & badges', text: `${HOOK} Et si avancer devenait un peu plus léger ? Je te propose des petits défis, et tu débloques des badges au fil de tes victoires. Pas pour la performance, juste pour le plaisir de te voir avancer. ${CTA}` },
+  { id: '11', label: 'Famille & proches', text: `${HOOK} Tu portes aussi la charge des autres : anniversaires, allergies, rendez-vous des enfants. Je garde tout ça en tête à ta place, et je te préviens à l'avance, pour que tu n'oublies plus jamais ce qui compte pour les tiens. ${CTA}` },
+  { id: '12', label: 'Notes & journaux', text: `${HOOK} Tu as besoin de vider ton sac, de poser ce que tu ressens ? Tu as un espace rien qu'à toi : tes notes, tes journaux, tes pensées. Personne ne peut les lire, pas même moi. ${DISCLAIMER} ${CTA}` },
+  { id: '13', label: 'Astuces & économies', text: `${HOOK} Envie de souffler aussi côté budget ? Je te partage des astuces et des idées pour économiser au quotidien, et alléger ta charge, mentale comme financière. ${CTA}` },
+  { id: '14', label: 'Communauté', text: `${HOOK} Tu te sens parfois seule dans tout ça ? Tu ne l'es plus. Ici, d'autres femmes avancent dans la même direction que toi : elles se comprennent, elles se soutiennent, sans jugement. ${CTA}` },
+  { id: '15', label: 'L\'agent qui agit', text: `${HOOK} Et le plus fou ? Tu me parles, et j'agis. Tu me dis : ajoute ce rendez-vous, planifie mes repas, valide ma mission du jour. Et je le fais, pendant que toi, tu souffles. Je ne remplace pas un professionnel, mais pour ton quotidien, je suis là. ${CTA}` },
 ]
 
 export default function PresentationPage() {
@@ -125,6 +140,10 @@ export default function PresentationPage() {
   }
   const removeScript = (id: string) => {
     persist(scripts.filter(s => s.id !== id))
+  }
+  const resetScripts = () => {
+    if (typeof window !== 'undefined') { try { localStorage.removeItem(STORAGE_KEY) } catch {} }
+    setScripts(DEFAULT_SCRIPTS)
   }
 
   if (authLoading || !user || user.id !== OWNER_ID) {
@@ -243,7 +262,10 @@ export default function PresentationPage() {
         </div>
 
         {editMode && (
-          <button onClick={addScript} style={{ ...btnGhost, width: '100%', marginTop: 12 }}>+ Ajouter un texte</button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+            <button onClick={addScript} style={{ ...btnGhost, flex: 1 }}>+ Ajouter un texte</button>
+            <button onClick={resetScripts} style={{ ...btnGhost, flex: 1 }}>↺ Réinitialiser</button>
+          </div>
         )}
 
         <p style={{ fontSize: 11, color: '#8b6f55', opacity: 0.7, textAlign: 'center', marginTop: 22, lineHeight: 1.5 }}>
