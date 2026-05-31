@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import { addContactToList, removeContactFromList } from '@/lib/brevo/send'
+import { getStripe } from '@/lib/stripe'
 
 // Webhook Stripe : runtime Node (crypto pour vérifier la signature), jamais mis en cache.
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20' as any,
-})
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,6 +31,7 @@ async function moveToMembres(email: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const stripe = getStripe()
   const body = await req.text()
   const sig = req.headers.get('stripe-signature')
 

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
+import Navigation from "@/components/Navigation";
 import { DemoBanner } from '@/components/DemoBanner'
 
 // ─── TYPES ─────────────────────────────────────────────────
@@ -19,7 +20,7 @@ interface CalEvent {
   id: string;
   title: string;
   date: string;
-  startMinutes: number; // minutes depuis minuit (ex: 9h30 = 570)
+  startMinutes: number;
   endMinutes: number;
   cat: CategoryKey;
   done: boolean;
@@ -38,10 +39,10 @@ interface FormData {
   recurrenceDays: string[];
 }
 
-// ─── PALETTE ───────────────────────────────────────────────
+// ─── PALETTE : univers Planner = bleu ciel, fond beige ─────
 const C = {
-  cream: "#FAF7F2", roseLight: "#F2E0D8", rose: "#E8C4B8",
-  roseDark: "#D4A090", noir: "#1A1A1A", gris: "#6B6B6B",
+  cream: "#F8F1E5", roseLight: "#E3EEF5", rose: "#C2D7E8",
+  roseDark: "#5E8AAE", noir: "#3D2618", gris: "#6B6B6B",
   grisClair: "#E8E4DF", blanc: "#FFFFFF",
 };
 
@@ -61,10 +62,10 @@ const DB_TO_CAT: Record<string, CategoryKey> = {
   "pro": "pro", "self": "moi", "family": "famille", "rdv_famille": "rdvfamille", "social": "amis",
 };
 
-const PRIORITY_COLORS: Record<Priority, string> = { high: "#D4956A", medium: "#D4A090", low: "#6B6B6B" };
+const PRIORITY_COLORS: Record<Priority, string> = { high: "#D4956A", medium: "#5E8AAE", low: "#6B6B6B" };
 
 // ─── RÉCURRENCE ────────────────────────────────────────────
-const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat']; // index = Date.getDay()
+const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
 const RECUR_DAYS = [
   { k: 'mon', l: 'L' }, { k: 'tue', l: 'M' }, { k: 'wed', l: 'M' },
   { k: 'thu', l: 'J' }, { k: 'fri', l: 'V' }, { k: 'sat', l: 'S' }, { k: 'sun', l: 'D' },
@@ -72,7 +73,7 @@ const RECUR_DAYS = [
 const RECUR_DAY_NAMES: Record<string, string> = { mon: 'Lun', tue: 'Mar', wed: 'Mer', thu: 'Jeu', fri: 'Ven', sat: 'Sam', sun: 'Dim' };
 
 // ─── CRÉNEAUX 15 MIN ───────────────────────────────────────
-const SLOT_HEIGHT = 15; // px par 15 minutes
+const SLOT_HEIGHT = 15;
 
 function minutesToLabel(m: number): string {
   const h = Math.floor(m / 60);
@@ -80,7 +81,6 @@ function minutesToLabel(m: number): string {
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
-// Générer options par tranche de 15 min
 const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => ({
   value: i * 15,
   label: minutesToLabel(i * 15),
@@ -89,7 +89,7 @@ const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => ({
 const DAYS_SHORT = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
 const DAYS_FULL  = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
 const MONTHS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
-const HOUR_HEIGHT = SLOT_HEIGHT * 4; // 60px par heure
+const HOUR_HEIGHT = SLOT_HEIGHT * 4;
 
 // ─── UTILS ─────────────────────────────────────────────────
 function fmtDate(d: Date): string {
@@ -106,9 +106,9 @@ function getDaysInMonth(y: number, m: number): number { return new Date(y, m + 1
 function masterId(id: string): string { return id.startsWith('recur::') ? id.split('::')[1] : id; }
 
 // ─── STYLE HELPERS ─────────────────────────────────────────
-const inputStyle = (): React.CSSProperties => ({ width: "100%", border: "1px solid #E8E4DF", borderRadius: 8, padding: "8px 10px", fontSize: 13, fontFamily: "'DM Sans',sans-serif", background: "#FAF7F2", outline: "none", boxSizing: "border-box", color: "#1A1A1A" });
+const inputStyle = (): React.CSSProperties => ({ width: "100%", border: "1px solid #E8E4DF", borderRadius: 8, padding: "8px 10px", fontSize: 13, fontFamily: "'DM Sans',sans-serif", background: "#FBF6EE", outline: "none", boxSizing: "border-box", color: "#3D2618" });
 const labelStyle = (): React.CSSProperties => ({ display: "block", fontSize: 11, color: "#6B6B6B", letterSpacing: 0.5, marginBottom: 4, textTransform: "uppercase" as const });
-const btnStyle = (bg?: string): React.CSSProperties => ({ padding: "7px 14px", borderRadius: 8, border: "none", background: bg || "#D4A090", color: "#FFFFFF", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" as const });
+const btnStyle = (bg?: string): React.CSSProperties => ({ padding: "7px 14px", borderRadius: 8, border: "none", background: bg || "#5E8AAE", color: "#FFFFFF", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" as const });
 const navBtn = (): React.CSSProperties => ({ width: 30, height: 30, borderRadius: "50%", border: "1px solid #E8E4DF", background: "#FFFFFF", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 16, color: "#6B6B6B", display: "flex", alignItems: "center", justifyContent: "center" });
 
 // ─── MODAL ─────────────────────────────────────────────────
@@ -121,7 +121,7 @@ function Modal({ title, form, setForm, onConfirm, onCancel, onDelete, confirmLab
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 24, width: "100%", maxWidth: 380, boxShadow: "0 8px 40px rgba(0,0,0,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
-        <h3 style={{ margin: "0 0 18px", fontFamily: "'Cormorant Garamond',serif", fontSize: 20, color: "#1A1A1A" }}>{title}</h3>
+        <h3 style={{ margin: "0 0 18px", fontFamily: "'Cormorant Garamond',serif", fontSize: 20, color: "#3D2618" }}>{title}</h3>
         <label style={labelStyle()}>Titre</label>
         <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Nom de l'événement…" style={{ ...inputStyle(), marginBottom: 12 }} />
         <label style={labelStyle()}>{form.recurrenceDays.length > 0 ? "Date de début" : "Date"}</label>
@@ -163,7 +163,7 @@ function Modal({ title, form, setForm, onConfirm, onCancel, onDelete, confirmLab
         </p>
         <div style={{ display: "flex", gap: 10, marginBottom: onDelete ? 10 : 0 }}>
           <button onClick={onCancel} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "1px solid #E8E4DF", background: "#FFFFFF", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", color: "#6B6B6B" }}>Annuler</button>
-          <button onClick={onConfirm} style={{ flex: 2, padding: "10px 0", borderRadius: 8, border: "none", background: "#D4A090", color: "#FFFFFF", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontWeight: 600 }}>{confirmLabel}</button>
+          <button onClick={onConfirm} style={{ flex: 2, padding: "10px 0", borderRadius: 8, border: "none", background: "#5E8AAE", color: "#FFFFFF", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontWeight: 600 }}>{confirmLabel}</button>
         </div>
         {onDelete && (
           <button onClick={onDelete} style={{ width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid rgba(220,50,50,0.2)", background: "rgba(220,50,50,0.06)", color: "#c0392b", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600 }}>
@@ -249,13 +249,12 @@ function DayView({ currentDate, events, onNewEvent, onToggle, onReplan, onEdit }
   );
 }
 
-// ─── WEEK VIEW (time-blocking) ─────────────────────────────
+// ─── WEEK VIEW ─────────────────────────────────────────────
 function WeekView({ weekDates, events, onDayClick }: { weekDates: Date[]; events: CalEvent[]; onDayClick: (d: Date) => void; }) {
   const START_H = 6, END_H = 23;
   const HOURS = Array.from({ length: END_H - START_H + 1 }, (_, i) => i + START_H);
   const totalH = (END_H - START_H + 1) * HOUR_HEIGHT;
 
-  // Découpe les événements qui se chevauchent en colonnes côte à côte
   const layout = (dayEvents: CalEvent[]) => {
     const sorted = [...dayEvents].sort((a, b) => a.startMinutes - b.startMinutes);
     const cols: CalEvent[][] = [];
@@ -273,7 +272,6 @@ function WeekView({ weekDates, events, onDayClick }: { weekDates: Date[]; events
   return (
     <div style={{ flex: 1, overflow: "auto" }}>
       <div style={{ minWidth: 620 }}>
-        {/* Header jours */}
         <div style={{ display: "grid", gridTemplateColumns: "44px repeat(7,1fr)", position: "sticky", top: 0, background: C.blanc, zIndex: 5 }}>
           <div style={{ borderBottom: `1px solid ${C.grisClair}`, borderRight: `1px solid ${C.grisClair}` }} />
           {weekDates.map((d, i) => (
@@ -283,7 +281,6 @@ function WeekView({ weekDates, events, onDayClick }: { weekDates: Date[]; events
             </div>
           ))}
         </div>
-        {/* Corps : gouttière heures + 7 colonnes */}
         <div style={{ display: "grid", gridTemplateColumns: "44px repeat(7,1fr)" }}>
           <div style={{ position: "relative", height: totalH, borderRight: `1px solid ${C.grisClair}` }}>
             {HOURS.map((h, idx) => (
@@ -294,7 +291,7 @@ function WeekView({ weekDates, events, onDayClick }: { weekDates: Date[]; events
             const ds = fmtDate(d);
             const blocks = layout(events.filter(e => e.date === ds));
             return (
-              <div key={di} style={{ position: "relative", height: totalH, borderRight: `1px solid ${C.grisClair}`, background: isToday(d) ? "#FDF8F5" : "transparent" }}>
+              <div key={di} style={{ position: "relative", height: totalH, borderRight: `1px solid ${C.grisClair}`, background: isToday(d) ? "#FBF6EE" : "transparent" }}>
                 {HOURS.map((h, idx) => (
                   <div key={h} style={{ position: "absolute", top: idx * HOUR_HEIGHT, left: 0, right: 0, borderTop: `1px solid ${C.grisClair}` }} />
                 ))}
@@ -331,15 +328,15 @@ function MonthView({ currentDate, events, onDayClick }: { currentDate: Date; eve
   while (cells.length % 7 !== 0) cells.push(null);
   return (
     <div style={{ flex: 1, padding: "8px 12px", overflowY: "auto" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 1, marginBottom: 4 }}>
-        {DAYS_SHORT.map(d => <div key={d} style={{ textAlign: "center", fontSize: 11, color: C.gris, padding: "4px 0" }}>{d}</div>)}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6, marginBottom: 6 }}>
+        {DAYS_SHORT.map(d => <div key={d} style={{ textAlign: "center", fontSize: 11, color: C.gris, fontWeight: 600, padding: "4px 0" }}>{d}</div>)}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6 }}>
         {cells.map((d, i) => {
           if (!d) return <div key={i} />;
           const ds = fmtDate(d); const dayEvs = events.filter(e => e.date === ds); const tod = isToday(d);
           return (
-            <div key={i} onClick={() => onDayClick(d)} style={{ minHeight: 70, border: `1px solid ${tod ? C.roseDark : C.grisClair}`, borderRadius: 8, padding: 4, cursor: "pointer", background: tod ? C.roseLight : C.blanc }}>
+            <div key={i} onClick={() => onDayClick(d)} style={{ minHeight: 72, border: `1px solid ${tod ? C.roseDark : C.grisClair}`, borderRadius: 8, padding: 4, cursor: "pointer", background: tod ? C.roseLight : C.blanc }}>
               <div style={{ fontSize: 13, fontWeight: tod ? 700 : 400, color: tod ? C.roseDark : C.noir, fontFamily: "'Cormorant Garamond',serif", marginBottom: 3 }}>{d.getDate()}</div>
               {dayEvs.slice(0,3).map(ev => { const cat = CATEGORIES[ev.cat]; return <div key={ev.id} style={{ background: cat.bg, borderRadius: 3, padding: "1px 4px", fontSize: 10, color: cat.text, marginBottom: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat.emoji} {ev.title}</div>; })}
               {dayEvs.length > 3 && <div style={{ fontSize: 10, color: C.gris }}>+{dayEvs.length-3}</div>}
@@ -392,6 +389,9 @@ function TodoPanel({ todos, newTask, setNewTask, newPriority, setNewPriority, on
             </div>
           </div>
         ))}
+        {pending.length === 0 && (
+          <p style={{ textAlign: "center", color: C.gris, fontSize: 12, padding: "16px 0", opacity: 0.7 }}>Aucune tâche en attente ✨</p>
+        )}
         {done.length > 0 && (
           <>
             <div style={{ fontSize: 11, color: C.gris, letterSpacing: 1, textTransform: "uppercase", margin: "12px 0 6px" }}>Terminées ({done.length})</div>
@@ -404,11 +404,12 @@ function TodoPanel({ todos, newTask, setNewTask, newPriority, setNewPriority, on
             ))}
           </>
         )}
-      </div>
-      <div style={{ padding: "12px 14px", borderTop: `1px solid ${C.grisClair}` }}>
-        <div style={{ fontSize: 10, color: C.gris, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Catégories</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-          {(Object.keys(CATEGORIES) as CategoryKey[]).map(k => { const cat = CATEGORIES[k]; return <span key={k} style={{ fontSize: 10, background: cat.bg, border: `1px solid ${cat.border}`, borderRadius: 10, padding: "2px 8px", color: cat.text }}>{cat.emoji} {cat.label}</span>; })}
+        {/* Catégories : déplacées dans la zone qui défile pour libérer la liste de tâches */}
+        <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.grisClair}` }}>
+          <div style={{ fontSize: 10, color: C.gris, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Catégories</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {(Object.keys(CATEGORIES) as CategoryKey[]).map(k => { const cat = CATEGORIES[k]; return <span key={k} style={{ fontSize: 10, background: cat.bg, border: `1px solid ${cat.border}`, borderRadius: 10, padding: "2px 8px", color: cat.text }}>{cat.emoji} {cat.label}</span>; })}
+          </div>
         </div>
       </div>
     </div>
@@ -470,7 +471,6 @@ export default function PlannerNovae() {
       .eq("user_id", user.id)
       .order("date", { ascending: true });
 
-    // Fenêtre d'expansion (récurrence) : 30j avant → 90j après
     const baseNow = new Date();
     const windowDates: Date[] = [];
     for (let i = -30; i <= 90; i++) { const d = new Date(baseNow); d.setDate(baseNow.getDate() + i); windowDates.push(d); }
@@ -548,7 +548,6 @@ export default function PlannerNovae() {
       }
       setRoutineEvents(rEvents);
 
-      // Conflits (occurrences d'aujourd'hui uniquement) routine vs tâche ponctuelle
       if (eventsData && rEvents.length > 0) {
         const newConflicts: {routine: string, event: string, hour: number}[] = [];
         rEvents.filter((re) => re.date === todayStr).forEach((re) => {
@@ -758,7 +757,8 @@ export default function PlannerNovae() {
   return (
      <>
     <DemoBanner />
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: C.cream, fontFamily: "'DM Sans',sans-serif", overflow: "hidden" }}>
+    <Navigation />
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 120px)", background: C.cream, fontFamily: "'DM Sans',sans-serif", overflow: "hidden" }}>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: `1px solid ${C.grisClair}`, background: C.blanc, flexShrink: 0 }}>
         <a href="/" style={{ fontSize: 12, color: C.gris, textDecoration: "none", display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 20, border: `1px solid ${C.grisClair}`, background: C.cream }}>← Accueil</a>

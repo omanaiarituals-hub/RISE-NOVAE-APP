@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-status-bar-style': 'black-translucent',
-    'theme-color': '#1C1A18',
+    'theme-color': '#F8F1E5',
   }
 }
 
@@ -39,19 +39,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr">
-      <body className={inter.className} style={{ margin: 0, background: '#1C1A18' }}>
+      <body className={inter.className} style={{ margin: 0, background: '#F8F1E5' }}>
         <NovaeProvider>
           <SetupGuide />
-
-          {/* Header global — caché sur la page d'accueil uniquement (logique dans GlobalHeader) */}
           <GlobalHeader />
-
           <main>
             {children}
           </main>
         </NovaeProvider>
         <PWAInstallPrompt />
-
         <PushManager />
         <script dangerouslySetInnerHTML={{__html: `
   if ('serviceWorker' in navigator) {
@@ -60,7 +56,6 @@ export default function RootLayout({
     })
   }
 `}} />
-
       </body>
     </html>
   )

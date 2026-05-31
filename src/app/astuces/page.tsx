@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Navigation from '@/components/Navigation'
 
 // ── DATA ──────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -324,7 +325,7 @@ export default function AstucesPage() {
   const cat = CATEGORIES.find(c => c.id === activeCategory)!
 
   return (
-    <div style={{ minHeight: '100vh', background: '#FAF7F2', fontFamily: "'DM Sans', sans-serif", paddingBottom: 80 }}>
+    <div style={{ minHeight: '100vh', background: '#F8F1E5', fontFamily: "'DM Sans', sans-serif", paddingBottom: 100 }}>
 
 <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B6560', textDecoration: 'none', padding: '12px 20px', fontFamily: "'DM Sans', sans-serif" }}>
   ← Accueil
@@ -336,7 +337,7 @@ export default function AstucesPage() {
         padding: '20px 20px 0',
         borderBottom: '1px solid rgba(196,149,106,0.1)',
       }}>
-        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
           <div style={{ marginBottom: 16 }}>
             <div style={{
               fontSize: 10, fontWeight: 700, letterSpacing: '0.2em',
@@ -393,7 +394,7 @@ export default function AstucesPage() {
       </div>
 
       {/* CONTENU CATÉGORIE */}
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px' }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '20px 16px' }}>
 
         {/* Bandeau catégorie */}
         <div style={{
@@ -439,10 +440,12 @@ export default function AstucesPage() {
           </span>
         </div>
 
-        {/* Liste des astuces */}
-        {cat.astuces.map((astuce, i) => (
-          <AstuceCard key={i} astuce={astuce} color={cat.color} />
-        ))}
+        {/* Liste des astuces — colonnes auto sur ordi */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12, alignItems: 'start' }}>
+          {cat.astuces.map((astuce, i) => (
+            <AstuceCard key={i} astuce={astuce} color={cat.color} />
+          ))}
+        </div>
 
         {/* Footer motivation */}
         <div style={{
@@ -471,6 +474,7 @@ export default function AstucesPage() {
         * { box-sizing: border-box; }
         body { margin: 0; }
       `}</style>
+      <Navigation />
     </div>
   )
 }

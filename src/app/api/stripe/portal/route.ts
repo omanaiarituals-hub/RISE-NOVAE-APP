@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20' as any,
-})
+import { getStripe } from '@/lib/stripe'
 
 // Ouvre le portail client Stripe : l'utilisatrice peut annuler, mettre en pause,
 // changer de carte, voir ses factures. Tout est heberge par Stripe (securise, PCI).
-// On ne stocke pas le stripe_customer_id => on retrouve le client par son email.
+// On retrouve le client par son email.
 export async function POST(req: NextRequest) {
   try {
+    const stripe = getStripe()
     let email: string | null = null
 
     // 1) Methode securisee : on identifie l'utilisatrice via son token Supabase

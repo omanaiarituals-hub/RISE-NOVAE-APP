@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { DemoBanner } from '@/components/DemoBanner'
+import Navigation from '@/components/Navigation'
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 type MealType = 'entree' | 'plat' | 'dessert' | 'accompagnement' | 'boisson'
@@ -44,6 +45,8 @@ interface MealSlot {
   day_of_week: string
   meal_type: PlanSlot
   recipe?: Recipe
+  meal_scope?: string[]
+  headcount?: number
 }
 
 interface ShoppingItem {
@@ -68,10 +71,10 @@ interface AllergyAlert {
   slot: string
 }
 
-// ─── PALETTE ──────────────────────────────────────────────────────────────────
+// ─── PALETTE : univers Repas = abricot, fond beige ─────────────────────────────
 const C = {
-  cream: '#FAF7F2', rose: '#C4956A', roseLight: 'rgba(196,149,106,0.1)',
-  violet: '#7B6FA0', noir: '#2C2C2C', gris: '#6B6B6B', grisClair: '#E8E4DF', blanc: '#FFFFFF',
+  cream: '#F8F1E5', rose: '#C97A66', roseLight: 'rgba(242,194,182,0.30)',
+  violet: '#7B6FA0', noir: '#3D2618', gris: '#6B6B6B', grisClair: '#E8E4DF', blanc: '#FFFFFF',
 }
 
 const MEAL_TYPE_COLORS: Record<MealType, { bg: string; border: string; text: string; label: string }> = {
@@ -145,6 +148,25 @@ function parseQty(q: string): { value: number; unit: string } | null {
   const m = q.trim().match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/)
   if (!m) return null
   return { value: parseFloat(m[1].replace(',', '.')), unit: m[2].trim().toLowerCase() }
+}
+
+// ─── PÉRIMÈTRE REPAS : qui mange (catégories famille) ───────────────────────
+const SCOPE_OPTIONS: { key: string; label: string; emoji: string }[] = [
+  { key: 'foyer',   label: 'Foyer',   emoji: '🏡' },
+  { key: 'famille', label: 'Famille', emoji: '👨‍👩‍👧‍👦' },
+  { key: 'amis',    label: 'Amis',    emoji: '🤝' },
+  { key: 'autres',  label: 'Autres',  emoji: '⭐' },
+]
+
+// Multiplie une quantité textuelle par un facteur (pour ajuster aux convives)
+function scaleQty(q: string, factor: number): string {
+  if (!q || !isFinite(factor) || factor === 1) return q
+  const m = q.trim().match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/)
+  if (!m) return q
+  const val = parseFloat(m[1].replace(',', '.')) * factor
+  const unit = m[2].trim()
+  const rounded = val % 1 === 0 ? val : Math.round(val * 10) / 10
+  return unit ? `${rounded}${unit}` : String(rounded)
 }
 
 function mergeQuantities(quantities: string[]): string {
@@ -240,12 +262,16 @@ function RecipeCard({ recipe, onDragStart, onSelect, isSelected, onEdit, onDelet
 
 // ─── MODAL DÉTAIL ─────────────────────────────────────────────────────────────
 function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
-  recipe: Recipe; onClose: () => void; onAddToPlan: (day: string, slot: PlanSlot) => void
+  recipe: Recipe; onClose: () => void; onAddToPlan: (day: string, slot: PlanSlot, scope: string[], headcount: number) => void
   allergyWarnings?: AllergyAlert[]
 }) {
   const mc = MEAL_TYPE_COLORS[recipe.meal_type] || MEAL_TYPE_COLORS.plat
   const [showAddPlan, setShowAddPlan] = useState(false)
+  const [scope, setScope] = useState<string[]>(['foyer'])
+  const [headcount, setHeadcount] = useState(recipe.servings || 2)
   const warnings = allergyWarnings?.filter(a => a.recipeTitle === recipe.title) || []
+  const toggleScope = (k: string) =>
+    setScope(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k])
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div style={{ background: C.blanc, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 600, padding: '24px 20px 40px', maxHeight: '92vh', overflowY: 'auto' }}>
@@ -302,6 +328,33 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
           <button onClick={() => setShowAddPlan(true)} style={{ width: '100%', padding: '13px 0', borderRadius: 14, border: 'none', background: C.rose, color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>+ Ajouter au planning</button>
         ) : (
           <div style={{ background: C.cream, borderRadius: 14, padding: 16 }}>
+            {/* Qui mange ? */}
+            <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 600, color: C.gris, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Qui mange ?</p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+              {SCOPE_OPTIONS.map(opt => {
+                const on = scope.includes(opt.key)
+                return (
+                  <button key={opt.key} onClick={() => toggleScope(opt.key)}
+                    style={{ padding: '6px 11px', borderRadius: 20, border: `1.5px solid ${on ? C.rose : C.grisClair}`, background: on ? 'rgba(201,122,102,0.12)' : 'white', fontSize: 12, fontWeight: on ? 700 : 500, color: on ? C.rose : C.gris, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <span>{opt.emoji}</span>{opt.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Combien de personnes ? */}
+            <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 600, color: C.gris, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Combien de personnes ?</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <button onClick={() => setHeadcount(h => Math.max(1, h - 1))}
+                style={{ width: 34, height: 34, borderRadius: 10, border: `1.5px solid ${C.grisClair}`, background: 'white', fontSize: 18, fontWeight: 700, color: C.rose, cursor: 'pointer', lineHeight: 1 }}>−</button>
+              <span style={{ fontSize: 16, fontWeight: 700, color: C.noir, minWidth: 28, textAlign: 'center' }}>{headcount}</span>
+              <button onClick={() => setHeadcount(h => h + 1)}
+                style={{ width: 34, height: 34, borderRadius: 10, border: `1.5px solid ${C.grisClair}`, background: 'white', fontSize: 18, fontWeight: 700, color: C.rose, cursor: 'pointer', lineHeight: 1 }}>+</button>
+              <span style={{ fontSize: 11, color: C.gris, opacity: 0.7 }}>
+                recette prévue pour {recipe.servings} · les quantités s'ajustent
+              </span>
+            </div>
+
             <p style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 600, color: C.gris, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Choisir le créneau</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {DAYS.map(day => (
@@ -309,7 +362,7 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
                   <p style={{ fontSize: 11, fontWeight: 600, color: C.noir, margin: '0 0 4px' }}>{day}</p>
                   <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
                     {PLAN_SLOTS.map(slot => (
-                      <button key={slot.key} onClick={() => { onAddToPlan(day, slot.key); setShowAddPlan(false); onClose() }}
+                      <button key={slot.key} onClick={() => { onAddToPlan(day, slot.key, scope.length ? scope : ['foyer'], headcount); setShowAddPlan(false); onClose() }}
                         style={{ padding: '4px 8px', borderRadius: 6, border: `1px solid ${C.grisClair}`, background: 'white', fontSize: 9, cursor: 'pointer', color: C.gris }}>
                         {slot.label}
                       </button>
@@ -514,7 +567,7 @@ function RecipeModal({ initial, prefill, onSave, onClose, userId }: {
         <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Difficulté</p>
         <div style={{ display: 'flex', gap: 5, marginBottom: 14 }}>
           {(['facile', 'moyen', 'difficile'] as Difficulty[]).map(d => (
-            <button key={d} onClick={() => setDifficulty(d)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: `2px solid ${difficulty === d ? C.rose : C.grisClair}`, background: difficulty === d ? 'rgba(196,149,106,0.1)' : 'white', fontSize: 12, fontWeight: difficulty === d ? 700 : 400, color: difficulty === d ? C.rose : C.gris, cursor: 'pointer', textTransform: 'capitalize' }}>{d}</button>
+            <button key={d} onClick={() => setDifficulty(d)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: `2px solid ${difficulty === d ? C.rose : C.grisClair}`, background: difficulty === d ? 'rgba(201,122,102,0.12)' : 'white', fontSize: 12, fontWeight: difficulty === d ? 700 : 400, color: difficulty === d ? C.rose : C.gris, cursor: 'pointer', textTransform: 'capitalize' }}>{d}</button>
           ))}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
@@ -663,20 +716,24 @@ export default function RecipesPage() {
       .filter(m => m.data?.allergies && m.data.allergies.length > 0)
       .map(m => ({
         name: m.data?.firstName || m.data?.name || 'Membre',
+        category: (m.data?.category as string) || 'foyer',
         allergies: Array.isArray(m.data.allergies) ? m.data.allergies : [m.data.allergies]
       }))
     slots.forEach(slot => {
       const recipe = slot.recipe
       if (!recipe) return
+      const slotScope = (slot.meal_scope && slot.meal_scope.length > 0) ? slot.meal_scope : ['foyer']
       const ingredients = recipe.ingredients.map(i => i.name.toLowerCase())
-      members.forEach(member => {
-        member.allergies.forEach((allergen: string) => {
-          const allergenLower = allergen.toLowerCase().trim()
-          if (ingredients.some((ing: string) => ing.includes(allergenLower))) {
-            alerts.push({ personName: member.name, allergen, recipeTitle: recipe.title, day: slot.day_of_week, slot: PLAN_SLOTS.find(s => s.key === slot.meal_type)?.label || slot.meal_type })
-          }
+      members
+        .filter(member => slotScope.includes(member.category))
+        .forEach(member => {
+          member.allergies.forEach((allergen: string) => {
+            const allergenLower = allergen.toLowerCase().trim()
+            if (ingredients.some((ing: string) => ing.includes(allergenLower))) {
+              alerts.push({ personName: member.name, allergen, recipeTitle: recipe.title, day: slot.day_of_week, slot: PLAN_SLOTS.find(s => s.key === slot.meal_type)?.label || slot.meal_type })
+            }
+          })
         })
-      })
     })
     return alerts
   }
@@ -820,11 +877,14 @@ export default function RecipesPage() {
     slots.forEach(slot => {
       const recipe = slot.recipe || recipes.find(r => r.id === slot.recipe_id)
       if (!recipe) return
+      const servings = recipe.servings || 1
+      const hc = slot.headcount || servings
+      const factor = servings > 0 ? hc / servings : 1
       recipe.ingredients.forEach(ing => {
         const key = ing.name.toLowerCase().trim()
         if (!map.has(key)) map.set(key, { quantities: [], recipeId: recipe.id, titles: [] })
         const e = map.get(key)!
-        e.quantities.push(ing.quantity)
+        e.quantities.push(scaleQty(ing.quantity, factor))
         if (!e.titles.includes(recipe.title)) e.titles.push(recipe.title)
       })
     })
@@ -860,11 +920,13 @@ export default function RecipesPage() {
     })
   }
 
-  const addToPlan = async (recipeId: string, day: string, slot: PlanSlot) => {
+  const addToPlan = async (recipeId: string, day: string, slot: PlanSlot, scope: string[] = ['foyer'], headcount?: number) => {
     if (!user) return
     const recipe = recipes.find(r => r.id === recipeId)
+    const hc = headcount ?? recipe?.servings ?? null
     const { data } = await supabase.from('meal_plan').upsert({
       user_id: user.id, recipe_id: recipeId, day_of_week: day, meal_type: slot,
+      meal_scope: scope, headcount: hc,
       updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
     }, { onConflict: 'user_id,day_of_week,meal_type' }).select().single()
     if (data) {
@@ -929,6 +991,7 @@ export default function RecipesPage() {
     return (
       <>
         <DemoBanner />
+        <Navigation />
         <div style={{ minHeight: '100vh', background: C.cream, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ color: C.gris }}>Chargement...</p>
         </div>
@@ -942,13 +1005,14 @@ export default function RecipesPage() {
   return (
     <>
       <DemoBanner />
+      <Navigation />
       <div style={{ minHeight: '100vh', background: C.cream, fontFamily: "'DM Sans',sans-serif" }}>
 
         {/* Header */}
         <div style={{ background: C.blanc, borderBottom: `1px solid ${C.grisClair}`, padding: '12px 20px', position: 'sticky', top: 0, zIndex: 10 }}>
           <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <Link href="/" style={{ fontSize: 12, color: C.gris, textDecoration: 'none', padding: '4px 10px', borderRadius: 20, border: `1px solid ${C.grisClair}`, background: C.cream }}>← Accueil</Link>
-            <h1 style={{ margin: 0, flex: 1, fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 700, color: C.noir }}>Recettes & Courses</h1>
+            <h1 style={{ margin: 0, flex: 1, fontFamily: "'Cormorant Garamond',serif", fontSize: 24, fontWeight: 700, color: C.noir }}>Repas & Courses</h1>
             {allergyAlerts.length > 0 && (
               <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: 'rgba(220,60,60,0.1)', color: '#C04040', border: '1px solid rgba(220,60,60,0.2)', fontWeight: 600, cursor: 'pointer' }}
                 onClick={() => setShowAllergyBanner(true)}>
@@ -985,7 +1049,7 @@ export default function RecipesPage() {
           ))}
         </div>
 
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '16px 20px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '360px 1fr', gap: 20 }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '16px 20px 110px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '360px 1fr', gap: 20 }}>
 
           {/* ── BIBLIOTHÈQUE ── */}
           <div style={{ display: showLibrary ? 'block' : 'none' }}>
@@ -1005,7 +1069,7 @@ export default function RecipesPage() {
               <div style={{ marginBottom: 8 }}>
                 <p style={{ fontSize: 10, color: '#aaa', margin: '0 0 5px', textTransform: 'uppercase' }}>Type</p>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  <button onClick={() => setFilterMealType('all')} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterMealType === 'all' ? C.rose : C.grisClair}`, background: filterMealType === 'all' ? 'rgba(196,149,106,0.1)' : 'white', fontSize: 10, fontWeight: filterMealType === 'all' ? 700 : 400, color: filterMealType === 'all' ? C.rose : C.gris, cursor: 'pointer' }}>Tous</button>
+                  <button onClick={() => setFilterMealType('all')} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterMealType === 'all' ? C.rose : C.grisClair}`, background: filterMealType === 'all' ? C.roseLight : 'white', fontSize: 10, fontWeight: filterMealType === 'all' ? 700 : 400, color: filterMealType === 'all' ? C.rose : C.gris, cursor: 'pointer' }}>Tous</button>
                   {(Object.keys(MEAL_TYPE_COLORS) as MealType[]).map(t => (
                     <button key={t} onClick={() => setFilterMealType(t)} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterMealType === t ? MEAL_TYPE_COLORS[t].border : C.grisClair}`, background: filterMealType === t ? MEAL_TYPE_COLORS[t].bg : 'white', fontSize: 10, fontWeight: filterMealType === t ? 700 : 400, color: filterMealType === t ? MEAL_TYPE_COLORS[t].text : C.gris, cursor: 'pointer' }}>{MEAL_TYPE_COLORS[t].label}</button>
                   ))}
@@ -1014,7 +1078,7 @@ export default function RecipesPage() {
               <div>
                 <p style={{ fontSize: 10, color: '#aaa', margin: '0 0 5px', textTransform: 'uppercase' }}>Catégorie</p>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  <button onClick={() => setFilterCategory('all')} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterCategory === 'all' ? C.rose : C.grisClair}`, background: filterCategory === 'all' ? 'rgba(196,149,106,0.1)' : 'white', fontSize: 10, fontWeight: filterCategory === 'all' ? 700 : 400, color: filterCategory === 'all' ? C.rose : C.gris, cursor: 'pointer' }}>Toutes</button>
+                  <button onClick={() => setFilterCategory('all')} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterCategory === 'all' ? C.rose : C.grisClair}`, background: filterCategory === 'all' ? C.roseLight : 'white', fontSize: 10, fontWeight: filterCategory === 'all' ? 700 : 400, color: filterCategory === 'all' ? C.rose : C.gris, cursor: 'pointer' }}>Toutes</button>
                   {(Object.keys(CATEGORY_COLORS) as Category[]).map(c => (
                     <button key={c} onClick={() => setFilterCategory(c)} style={{ padding: '4px 8px', borderRadius: 8, border: `1.5px solid ${filterCategory === c ? '#aaa' : C.grisClair}`, background: filterCategory === c ? CATEGORY_COLORS[c].bg : 'white', fontSize: 10, fontWeight: filterCategory === c ? 700 : 400, color: filterCategory === c ? CATEGORY_COLORS[c].text : C.gris, cursor: 'pointer' }}>{CATEGORY_COLORS[c].label}</button>
                   ))}
@@ -1143,7 +1207,7 @@ export default function RecipesPage() {
         {selectedRecipe && (
           <RecipeDetail recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)}
             allergyWarnings={allergyAlerts}
-            onAddToPlan={(day, slot) => { addToPlan(selectedRecipe.id, day, slot); setSelectedRecipe(null) }} />
+            onAddToPlan={(day, slot, scope, headcount) => { addToPlan(selectedRecipe.id, day, slot, scope, headcount); setSelectedRecipe(null) }} />
         )}
         {showModal && user && (
           <RecipeModal

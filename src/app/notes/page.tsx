@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import Link from 'next/link'
 import { DemoBanner } from '@/components/DemoBanner'
+import Navigation from '@/components/Navigation'
 
 interface Note {
   id: string
@@ -123,148 +124,152 @@ export default function NotesPage() {
   )
 
   return (
-    <div className="min-h-screen bg-novae-cream flex flex-col md:flex-row">
+    <>
+      <DemoBanner />
+      <div className="min-h-screen bg-novae-cream flex flex-col md:flex-row pb-24 md:pb-0">
 
-      {/* SIDEBAR — liste des notes */}
-      <div className={`${activeNote ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 md:min-h-screen bg-white border-r border-novae-beige/30`}>
+        {/* SIDEBAR — liste des notes */}
+        <div className={`${activeNote ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 md:min-h-screen bg-white border-r border-novae-beige/30`}>
 
-        {/* Header */}
-        <div className="px-4 py-4 border-b border-novae-beige/20">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <Link href="/" className="text-novae-anthracite/40 hover:text-novae-anthracite transition-colors text-sm">←</Link>
-              <h1 className="font-serif text-xl text-novae-anthracite">Notes</h1>
-              <span className="text-xs text-novae-anthracite/40">{notes.length}</span>
-            </div>
-            <button
-              onClick={createNote}
-              className="w-8 h-8 bg-novae-anthracite text-white rounded-lg flex items-center justify-center hover:bg-novae-gold transition-colors text-lg font-light"
-            >
-              +
-            </button>
-          </div>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="🔍 Rechercher..."
-            className="w-full px-3 py-2 bg-novae-cream border border-novae-beige/40 rounded-xl text-sm text-novae-anthracite placeholder-novae-anthracite/30 focus:outline-none focus:ring-1 focus:ring-novae-gold/30"
-          />
-        </div>
-
-        {/* Liste */}
-        <div className="flex-1 overflow-y-auto">
-          {notes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 px-6 text-center">
-              <div className="text-4xl mb-3">📝</div>
-              <p className="text-novae-anthracite/50 text-sm mb-4">Aucune note pour l'instant</p>
-              <button onClick={createNote} className="px-4 py-2 bg-novae-anthracite text-white rounded-xl text-sm hover:bg-novae-gold transition-colors">
-                Créer ma première note
-              </button>
-            </div>
-          ) : (
-            <>
-              {pinned.length > 0 && (
-                <div>
-                  <p className="px-4 pt-3 pb-1 text-xs font-medium text-novae-anthracite/40 uppercase tracking-wide">📌 Épinglées</p>
-                  {pinned.map(note => <NoteItem key={note.id} note={note} active={activeNote?.id === note.id} onClick={() => setActiveNote(note)} />)}
-                </div>
-              )}
-              {unpinned.length > 0 && (
-                <div>
-                  {pinned.length > 0 && <p className="px-4 pt-3 pb-1 text-xs font-medium text-novae-anthracite/40 uppercase tracking-wide">Toutes les notes</p>}
-                  {unpinned.map(note => <NoteItem key={note.id} note={note} active={activeNote?.id === note.id} onClick={() => setActiveNote(note)} />)}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* ÉDITEUR */}
-      {activeNote ? (
-        <div className="flex-1 flex flex-col" style={{ background: activeNote.color }}>
-          {/* Toolbar */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-novae-beige/20 bg-white/60 backdrop-blur-sm">
-            <button
-              onClick={() => setActiveNote(null)}
-              className="md:hidden text-novae-anthracite/50 hover:text-novae-anthracite transition-colors text-sm flex items-center gap-1"
-            >
-              ← Notes
-            </button>
-
-            <div className="flex gap-1 ml-auto items-center">
-              {/* Couleurs */}
-              {NOTE_COLORS.map(c => (
-                <button
-                  key={c.value}
-                  onClick={() => updateNote(activeNote, 'color', c.value)}
-                  className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
-                  style={{
-                    background: c.value,
-                    borderColor: activeNote.color === c.value ? '#C8956C' : 'transparent'
-                  }}
-                  title={c.label}
-                />
-              ))}
-
-              {/* Épingler */}
+          {/* Header */}
+          <div className="px-4 py-4 border-b border-novae-beige/20">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <Link href="/" className="text-novae-anthracite/40 hover:text-novae-anthracite transition-colors text-sm">←</Link>
+                <h1 className="font-serif text-xl text-novae-anthracite">Notes</h1>
+                <span className="text-xs text-novae-anthracite/40">{notes.length}</span>
+              </div>
               <button
-                onClick={() => updateNote(activeNote, 'pinned', !activeNote.pinned)}
-                className={`ml-2 px-2 py-1 rounded-lg text-xs transition-colors ${activeNote.pinned ? 'bg-novae-gold/20 text-novae-gold' : 'text-novae-anthracite/40 hover:text-novae-anthracite'}`}
-                title="Épingler"
+                onClick={createNote}
+                className="w-8 h-8 bg-novae-anthracite text-white rounded-lg flex items-center justify-center hover:bg-novae-gold transition-colors text-lg font-light"
               >
-                📌
+                +
               </button>
-
-              {/* Supprimer */}
-              <button
-                onClick={() => deleteNote(activeNote.id)}
-                className="ml-1 px-2 py-1 rounded-lg text-xs text-red-400 hover:bg-red-50 transition-colors"
-                title="Supprimer"
-              >
-                🗑
-              </button>
-
-              {/* Statut sauvegarde */}
-              <span className="ml-2 text-xs text-novae-anthracite/30">
-                {saving ? 'Sauvegarde...' : '✓ Sauvegardé'}
-              </span>
             </div>
-          </div>
-
-          {/* Contenu */}
-          <div className="flex-1 px-6 py-6 overflow-y-auto">
             <input
-              value={activeNote.title || ''}
-              onChange={e => updateNote(activeNote, 'title', e.target.value)}
-              placeholder="Titre..."
-              className="w-full bg-transparent font-serif text-2xl text-novae-anthracite placeholder-novae-anthracite/20 focus:outline-none mb-4"
-              autoFocus={isCreating}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="🔍 Rechercher..."
+              className="w-full px-3 py-2 bg-novae-cream border border-novae-beige/40 rounded-xl text-sm text-novae-anthracite placeholder-novae-anthracite/30 focus:outline-none focus:ring-1 focus:ring-novae-gold/30"
             />
-            <div className="text-xs text-novae-anthracite/30 mb-4">
-              {formatDate(activeNote.updated_at)}
+          </div>
+
+          {/* Liste */}
+          <div className="flex-1 overflow-y-auto pb-24">
+            {notes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 px-6 text-center">
+                <div className="text-4xl mb-3">📝</div>
+                <p className="text-novae-anthracite/50 text-sm mb-4">Aucune note pour l'instant</p>
+                <button onClick={createNote} className="px-4 py-2 bg-novae-anthracite text-white rounded-xl text-sm hover:bg-novae-gold transition-colors">
+                  Créer ma première note
+                </button>
+              </div>
+            ) : (
+              <>
+                {pinned.length > 0 && (
+                  <div>
+                    <p className="px-4 pt-3 pb-1 text-xs font-medium text-novae-anthracite/40 uppercase tracking-wide">📌 Épinglées</p>
+                    {pinned.map(note => <NoteItem key={note.id} note={note} active={activeNote?.id === note.id} onClick={() => setActiveNote(note)} />)}
+                  </div>
+                )}
+                {unpinned.length > 0 && (
+                  <div>
+                    {pinned.length > 0 && <p className="px-4 pt-3 pb-1 text-xs font-medium text-novae-anthracite/40 uppercase tracking-wide">Toutes les notes</p>}
+                    {unpinned.map(note => <NoteItem key={note.id} note={note} active={activeNote?.id === note.id} onClick={() => setActiveNote(note)} />)}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ÉDITEUR */}
+        {activeNote ? (
+          <div className="flex-1 flex flex-col" style={{ background: activeNote.color }}>
+            {/* Toolbar */}
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-novae-beige/20 bg-white/60 backdrop-blur-sm">
+              <button
+                onClick={() => setActiveNote(null)}
+                className="md:hidden text-novae-anthracite/50 hover:text-novae-anthracite transition-colors text-sm flex items-center gap-1"
+              >
+                ← Notes
+              </button>
+
+              <div className="flex gap-1 ml-auto items-center">
+                {/* Couleurs */}
+                {NOTE_COLORS.map(c => (
+                  <button
+                    key={c.value}
+                    onClick={() => updateNote(activeNote, 'color', c.value)}
+                    className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
+                    style={{
+                      background: c.value,
+                      borderColor: activeNote.color === c.value ? '#C8956C' : 'transparent'
+                    }}
+                    title={c.label}
+                  />
+                ))}
+
+                {/* Épingler */}
+                <button
+                  onClick={() => updateNote(activeNote, 'pinned', !activeNote.pinned)}
+                  className={`ml-2 px-2 py-1 rounded-lg text-xs transition-colors ${activeNote.pinned ? 'bg-novae-gold/20 text-novae-gold' : 'text-novae-anthracite/40 hover:text-novae-anthracite'}`}
+                  title="Épingler"
+                >
+                  📌
+                </button>
+
+                {/* Supprimer */}
+                <button
+                  onClick={() => deleteNote(activeNote.id)}
+                  className="ml-1 px-2 py-1 rounded-lg text-xs text-red-400 hover:bg-red-50 transition-colors"
+                  title="Supprimer"
+                >
+                  🗑
+                </button>
+
+                {/* Statut sauvegarde */}
+                <span className="ml-2 text-xs text-novae-anthracite/30">
+                  {saving ? 'Sauvegarde...' : '✓ Sauvegardé'}
+                </span>
+              </div>
             </div>
-            <textarea
-              value={activeNote.content || ''}
-              onChange={e => updateNote(activeNote, 'content', e.target.value)}
-              placeholder="Commence à écrire..."
-              className="w-full bg-transparent text-sm text-novae-anthracite placeholder-novae-anthracite/30 focus:outline-none resize-none leading-relaxed"
-              style={{ minHeight: '60vh' }}
-            />
+
+            {/* Contenu */}
+            <div className="flex-1 px-6 py-6 overflow-y-auto pb-24">
+              <input
+                value={activeNote.title || ''}
+                onChange={e => updateNote(activeNote, 'title', e.target.value)}
+                placeholder="Titre..."
+                className="w-full bg-transparent font-serif text-2xl text-novae-anthracite placeholder-novae-anthracite/20 focus:outline-none mb-4"
+                autoFocus={isCreating}
+              />
+              <div className="text-xs text-novae-anthracite/30 mb-4">
+                {formatDate(activeNote.updated_at)}
+              </div>
+              <textarea
+                value={activeNote.content || ''}
+                onChange={e => updateNote(activeNote, 'content', e.target.value)}
+                placeholder="Commence à écrire..."
+                className="w-full bg-transparent text-sm text-novae-anthracite placeholder-novae-anthracite/30 focus:outline-none resize-none leading-relaxed"
+                style={{ minHeight: '60vh' }}
+              />
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="hidden md:flex flex-1 items-center justify-center bg-novae-cream/50">
-          <div className="text-center">
-            <div className="text-5xl mb-4">📝</div>
-            <p className="text-novae-anthracite/40 text-sm">Sélectionne une note ou crée-en une nouvelle</p>
-            <button onClick={createNote} className="mt-4 px-4 py-2 bg-novae-anthracite text-white rounded-xl text-sm hover:bg-novae-gold transition-colors">
-              + Nouvelle note
-            </button>
+        ) : (
+          <div className="hidden md:flex flex-1 items-center justify-center bg-novae-cream/50">
+            <div className="text-center">
+              <div className="text-5xl mb-4">📝</div>
+              <p className="text-novae-anthracite/40 text-sm">Sélectionne une note ou crée-en une nouvelle</p>
+              <button onClick={createNote} className="mt-4 px-4 py-2 bg-novae-anthracite text-white rounded-xl text-sm hover:bg-novae-gold transition-colors">
+                + Nouvelle note
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+      <Navigation />
+    </>
   )
 }
 
@@ -285,8 +290,6 @@ function NoteItem({ note, active, onClick }: { note: Note; active: boolean; onCl
   }
 
   return (
-    <>
-    <DemoBanner />
     <button
       onClick={onClick}
       className={`w-full text-left px-4 py-3 border-b border-novae-beige/20 transition-colors ${active ? 'bg-novae-gold/10' : 'hover:bg-novae-cream/50'}`}
@@ -304,6 +307,5 @@ function NoteItem({ note, active, onClick }: { note: Note; active: boolean; onCl
         </div>
       </div>
     </button>
-    </>
   )
 }

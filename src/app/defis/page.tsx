@@ -2,14 +2,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { DemoBanner } from '@/components/DemoBanner';
+import Navigation from '@/components/Navigation';
 
 type DefiCategory = "personnel" | "programme" | "communaute" | "confort";
 type DefiStatus = "disponible" | "en_cours" | "termine" | "abandonne";
 
-interface DayCheck {
-  day: number;
-  done: boolean;
-}
+interface DayCheck { day: number; done: boolean; }
 
 interface Defi {
   id: string;
@@ -25,14 +23,15 @@ interface Defi {
   days: DayCheck[];
 }
 
+// Univers Défis = corail, fond beige NOVAÉ
 const C = {
-  cream: "#FAF7F2",
-  roseLight: "#F2E0D8",
-  rose: "#E8C4B8",
-  roseDark: "#D4A090",
-  noir: "#1A1A1A",
-  gris: "#6B6B6B",
-  grisClair: "#E8E4DF",
+  cream: "#F8F1E5",
+  roseLight: "#F7E0D6",
+  rose: "#F4B49E",
+  roseDark: "#D17048",
+  noir: "#3D2618",
+  gris: "#6B5B4E",
+  grisClair: "#E9E1D5",
   blanc: "#FFFFFF",
 };
 
@@ -75,10 +74,10 @@ function makeDays(duration: number): DayCheck[] {
   return Array.from({ length: duration }, (_, i) => ({ day: i + 1, done: false }));
 }
 function inputStyle(): React.CSSProperties {
-  return { width: "100%", border: "1px solid #E8E4DF", borderRadius: 8, padding: "8px 10px", fontSize: 13, fontFamily: "'DM Sans',sans-serif", background: "#FAF7F2", outline: "none", boxSizing: "border-box", color: "#1A1A1A" };
+  return { width: "100%", border: "1px solid #E9E1D5", borderRadius: 8, padding: "8px 10px", fontSize: 13, fontFamily: "'DM Sans',sans-serif", background: "#FBF6EE", outline: "none", boxSizing: "border-box", color: "#3D2618" };
 }
 function labelStyle(): React.CSSProperties {
-  return { display: "block", fontSize: 11, color: "#6B6B6B", letterSpacing: 0.5, marginBottom: 4, textTransform: "uppercase" };
+  return { display: "block", fontSize: 11, color: "#6B5B4E", letterSpacing: 0.5, marginBottom: 4, textTransform: "uppercase" };
 }
 
 // ─── DAY CHECKS ────────────────────────────────────────────
@@ -127,7 +126,7 @@ function DefiCard({ defi, onStart, onToggleDay, onComplete, onAbandon, onShare }
   const remaining    = defi.startDate ? daysLeft(defi.startDate, defi.duration) : defi.duration;
 
   return (
-    <div style={{ background: isTermine ? "#F5FBF5" : (isAbandonne ? "#F8F8F8" : C.blanc), border: `1.5px solid ${isTermine ? "#90C8A8" : (isEnCours ? cat.border : C.grisClair)}`, borderRadius: 14, padding: "16px 18px", marginBottom: 12, opacity: isAbandonne ? 0.6 : 1, boxShadow: isEnCours ? `0 2px 12px ${cat.border}44` : "none" }}>
+    <div style={{ background: isTermine ? "#F5FBF5" : (isAbandonne ? "#F8F8F8" : C.blanc), border: `1.5px solid ${isTermine ? "#90C8A8" : (isEnCours ? cat.border : C.grisClair)}`, borderRadius: 14, padding: "16px 18px", marginBottom: 0, opacity: isAbandonne ? 0.6 : 1, boxShadow: isEnCours ? `0 2px 12px ${cat.border}44` : "none" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
         <div style={{ width: 38, height: 38, borderRadius: 10, background: cat.bg, border: `1px solid ${cat.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
           {isTermine ? defi.badge || "🏆" : cat.emoji}
@@ -140,7 +139,7 @@ function DefiCard({ defi, onStart, onToggleDay, onComplete, onAbandon, onShare }
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             <span style={{ fontSize: 10, background: cat.bg, border: `1px solid ${cat.border}`, borderRadius: 10, padding: "1px 8px", color: cat.text }}>{cat.emoji} {cat.label}</span>
             <span style={{ fontSize: 10, color: C.gris }}>{defi.duration}j · {defi.points} pts</span>
-            {isEnCours && <span style={{ fontSize: 10, color: remaining <= 3 ? "#D4956A" : C.gris, fontWeight: remaining <= 3 ? 700 : 400 }}>⏱ {remaining}j restants</span>}
+            {isEnCours && <span style={{ fontSize: 10, color: remaining <= 3 ? C.roseDark : C.gris, fontWeight: remaining <= 3 ? 700 : 400 }}>⏱ {remaining}j restants</span>}
           </div>
         </div>
         {isTermine && <div style={{ background: "#CCE8D8", border: "1px solid #90C8A8", borderRadius: 20, padding: "3px 10px", fontSize: 11, color: "#2A6A48", fontWeight: 600, whiteSpace: "nowrap" }}>✓ Accompli</div>}
@@ -267,9 +266,9 @@ export default function DefisPage() {
   return (
     <>
       <DemoBanner />
-      <div style={{ minHeight: "100vh", background: C.cream, fontFamily: "'DM Sans',sans-serif" }}>
+      <div style={{ minHeight: "100vh", background: C.cream, fontFamily: "'DM Sans',sans-serif", paddingBottom: 96 }}>
         <div style={{ background: C.blanc, borderBottom: `1px solid ${C.grisClair}`, padding: "0 24px" }}>
-          <div style={{ maxWidth: 800, margin: "0 auto" }}>
+          <div style={{ maxWidth: 1100, margin: "0 auto" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 0 10px" }}>
               <Link href="/" style={{ fontSize: 12, color: C.gris, textDecoration: "none", padding: "4px 10px", borderRadius: 20, border: `1px solid ${C.grisClair}`, background: C.cream }}>← Accueil</Link>
               <div style={{ flex: 1 }}>
@@ -306,7 +305,7 @@ export default function DefisPage() {
           </div>
         </div>
 
-        <div style={{ maxWidth: 800, margin: "0 auto", padding: "20px 24px" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 24px" }}>
           {(activeTab === "confort" || activeTab === "communaute" || activeTab === "personnel" || activeTab === "programme") && (
             <div style={{ background: CATEGORIES[activeTab as DefiCategory].bg, border: `1px solid ${CATEGORIES[activeTab as DefiCategory].border}`, borderRadius: 12, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 24 }}>{CATEGORIES[activeTab as DefiCategory].emoji}</span>
@@ -323,13 +322,16 @@ export default function DefisPage() {
               <div style={{ fontSize: 13 }}>Commence un défi ou crée le tien !</div>
             </div>
           ) : (
-            filtered.map(defi => <DefiCard key={defi.id} defi={defi} onStart={startDefi} onToggleDay={toggleDay} onComplete={completeDefi} onAbandon={abandonDefi} onShare={setShareDefi} />)
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 14, alignItems: "start" }}>
+              {filtered.map(defi => <DefiCard key={defi.id} defi={defi} onStart={startDefi} onToggleDay={toggleDay} onComplete={completeDefi} onAbandon={abandonDefi} onShare={setShareDefi} />)}
+            </div>
           )}
         </div>
 
         {showCreate && <CreateModal onConfirm={createDefi} onCancel={() => setShowCreate(false)} />}
         {shareDefi  && <ShareModal defi={shareDefi} onClose={() => setShareDefi(null)} />}
       </div>
+      <Navigation />
     </>
   );
 }

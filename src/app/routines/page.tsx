@@ -19,8 +19,8 @@ interface Routine {
   streak_count: number
   reminder_enabled: boolean
   reminder_minutes: number
-  preferred_time: string | null      // ex: "07:30"
-  duration_minutes: number | null    // ex: 30
+  preferred_time: string | null
+  duration_minutes: number | null
   user_id?: string
 }
 
@@ -50,10 +50,15 @@ const MOODS = [
 ]
 const EMOJIS = ['✨','🎯','💆','📖','🏃','🧘','💧','🍵','📝','🌸','🌞','💫','🎵','🌙','☀️','🏆','💊','🥗']
 const DURATIONS = [15, 20, 30, 45, 60, 90, 120]
+
+// Univers Routines = safran (matin) · le soir garde sa teinte lavande
 const C = {
-  morning: { primary: '#C4956A', bg: 'rgba(196,149,106,0.08)', light: 'rgba(196,149,106,0.18)' },
+  morning: { primary: '#C79A3A', bg: 'rgba(245,216,155,0.22)', light: 'rgba(245,216,155,0.5)' },
   evening: { primary: '#7B6FA0', bg: 'rgba(123,111,160,0.08)', light: 'rgba(123,111,160,0.18)' },
 }
+const BEIGE = '#F8F1E5'
+const ENCRE = '#3D2618'
+const ENCRE_DOUCE = '#6B5B4E'
 
 function fmtDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -133,7 +138,7 @@ function RoutineModal({ initial, defaultCategory, onSave, onDelete, onClose }: {
       <div style={{ background: 'white', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 600, padding: '20px 20px 40px', maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ width: 40, height: 4, background: '#E8E4DF', borderRadius: 4, margin: '0 auto 20px' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <h3 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: '#2C2C2C' }}>
+          <h3 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: ENCRE }}>
             {initial ? 'Modifier le rituel' : 'Nouveau rituel'}
           </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999' }}><X size={20} /></button>
@@ -142,15 +147,15 @@ function RoutineModal({ initial, defaultCategory, onSave, onDelete, onClose }: {
         {/* Emoji + Titre */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
           <button onClick={() => setShowEmoji(!showEmoji)}
-            style={{ width: 52, height: 52, borderRadius: 14, border: `2px solid ${showEmoji ? colors.primary : '#E8E4DF'}`, background: '#FAF7F2', fontSize: 24, cursor: 'pointer', flexShrink: 0 }}>
+            style={{ width: 52, height: 52, borderRadius: 14, border: `2px solid ${showEmoji ? colors.primary : '#E8E4DF'}`, background: BEIGE, fontSize: 24, cursor: 'pointer', flexShrink: 0 }}>
             {emoji}
           </button>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Nom du rituel..." autoFocus
-            style={{ flex: 1, border: '1.5px solid #E8E4DF', borderRadius: 12, padding: '0 14px', fontSize: 15, outline: 'none', color: '#2C2C2C', background: '#FAF7F2', fontFamily: "'DM Sans',sans-serif" }} />
+            style={{ flex: 1, border: '1.5px solid #E8E4DF', borderRadius: 12, padding: '0 14px', fontSize: 15, outline: 'none', color: ENCRE, background: BEIGE, fontFamily: "'DM Sans',sans-serif" }} />
         </div>
 
         {showEmoji && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, padding: 10, background: '#FAF7F2', borderRadius: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, padding: 10, background: BEIGE, borderRadius: 12 }}>
             {EMOJIS.map(e => (
               <button key={e} onClick={() => { setEmoji(e); setShowEmoji(false) }}
                 style={{ fontSize: 22, width: 38, height: 38, borderRadius: 10, border: 'none', background: emoji === e ? colors.bg : 'transparent', cursor: 'pointer' }}>
@@ -198,7 +203,7 @@ function RoutineModal({ initial, defaultCategory, onSave, onDelete, onClose }: {
                 type="time"
                 value={preferredTime}
                 onChange={e => setPreferredTime(e.target.value)}
-                style={{ width: '100%', border: `1.5px solid ${preferredTime ? colors.primary : '#E8E4DF'}`, borderRadius: 10, padding: '9px 10px 9px 30px', fontSize: 14, outline: 'none', color: '#2C2C2C', background: preferredTime ? colors.bg : '#FAF7F2', boxSizing: 'border-box' as const }}
+                style={{ width: '100%', border: `1.5px solid ${preferredTime ? colors.primary : '#E8E4DF'}`, borderRadius: 10, padding: '9px 10px 9px 30px', fontSize: 14, outline: 'none', color: ENCRE, background: preferredTime ? colors.bg : BEIGE, boxSizing: 'border-box' as const }}
               />
             </div>
             {preferredTime && (
@@ -256,14 +261,12 @@ export default function RoutinesPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'morning' | 'evening'>('morning')
   const [showModal, setShowModal] = useState(false)
+  const [modalCategory, setModalCategory] = useState<'morning' | 'evening'>('morning')
   const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null)
-  const [showReflection, setShowReflection] = useState(false)
-  const [savedFeedback, setSavedFeedback] = useState(false)
+  const [reflectionOpen, setReflectionOpen] = useState<{ morning: boolean; evening: boolean }>({ morning: false, evening: false })
+  const [savedFeedback, setSavedFeedback] = useState<'morning' | 'evening' | null>(null)
   const [conflicts, setConflicts] = useState<ConflictAlert[]>([])
   const [reflection, setReflection] = useState<LocalReflection>({ morningIntention: '', eveningGratitude: '', eveningHighlight: '', morningMood: null })
-
-  const isMorning = activeTab === 'morning'
-  const colors = C[activeTab]
 
   useEffect(() => {
     setActiveTab(new Date().getHours() >= 17 ? 'evening' : 'morning')
@@ -287,7 +290,6 @@ export default function RoutinesPage() {
       })) as Routine[]
       setRoutines(processed)
 
-      // Vérifier les conflits avec les tâches du jour
       const { data: tasks } = await supabase
         .from('tasks')
         .select('title, start_hour, duration_hours')
@@ -305,7 +307,6 @@ export default function RoutinesPage() {
           tasks.forEach((task: any) => {
             const tStart = task.start_hour
             const tEnd = tStart + (task.duration_hours || 1)
-            // Chevauchement : routine commence pendant une tâche OU tâche commence pendant la routine
             const overlaps = rHour < tEnd && rEnd > tStart
             if (overlaps) {
               newConflicts.push({ routineTitle: routine.title, conflictTitle: task.title, hour: rHour })
@@ -365,54 +366,215 @@ export default function RoutinesPage() {
     setEditingRoutine(null)
   }
 
-  const saveReflection = async () => {
+  const saveReflection = async (category: 'morning' | 'evening') => {
+    const isM = category === 'morning'
     const today = fmtDate(new Date())
     localStorage.setItem(`novae-reflection-${today}`, JSON.stringify(reflection))
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const entry = isMorning
+    const entry = isM
       ? { type: 'intention', text: reflection.morningIntention, mood: reflection.morningMood, date: today }
       : { type: 'gratitude', text: reflection.eveningGratitude, highlight: reflection.eveningHighlight, date: today }
     const { data: prog } = await supabase.from('program_progress').select('mission_responses').eq('user_id', user.id).single()
     const existing = prog?.mission_responses || []
     const filtered = existing.filter((r: any) => !(r.date === today && r.type === entry.type))
     await supabase.from('program_progress').update({ mission_responses: [...filtered, entry], updated_at: new Date().toISOString() }).eq('user_id', user.id)
-    setSavedFeedback(true)
-    setTimeout(() => { setSavedFeedback(false); setShowReflection(false) }, 1500)
+    setSavedFeedback(category)
+    setTimeout(() => { setSavedFeedback(null); setReflectionOpen(s => ({ ...s, [category]: false })) }, 1500)
   }
 
-  const todayRoutines = routines.filter(r => r.category === activeTab && isScheduledToday(r))
-  const otherRoutines = routines.filter(r => r.category === activeTab && !isScheduledToday(r))
-  const progress = todayRoutines.length > 0 ? Math.round((todayRoutines.filter(r => r.completed).length / todayRoutines.length) * 100) : 0
+  const nowEvening = new Date().getHours() >= 17
+
+  // ─── Rendu d'une colonne (Matin ou Soir) ──────────────────────────────────
+  const renderColumn = (category: 'morning' | 'evening') => {
+    const colors = C[category]
+    const isM = category === 'morning'
+    const todayR = routines.filter(r => r.category === category && isScheduledToday(r))
+    const otherR = routines.filter(r => r.category === category && !isScheduledToday(r))
+    const prog = todayR.length > 0 ? Math.round((todayR.filter(r => r.completed).length / todayR.length) * 100) : 0
+    const open = reflectionOpen[category]
+    const visClass = `${activeTab === category ? 'block' : 'hidden'} md:block`
+
+    return (
+      <section className={visClass}>
+        {/* Titre colonne */}
+        <div className="flex items-center gap-2 mb-4">
+          <span style={{ fontSize: 24 }}>{isM ? '☀️' : '🌙'}</span>
+          <h2 className="font-serif" style={{ fontSize: 22, color: ENCRE, margin: 0 }}>{isM ? 'Matin' : 'Soir'}</h2>
+          {todayR.length > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: colors.primary, color: 'white', fontSize: 11 }}>
+              {todayR.filter(r => r.completed).length}/{todayR.length}
+            </span>
+          )}
+        </div>
+
+        {/* Progress */}
+        {todayR.length > 0 && (
+          <div className="mb-4">
+            <div className="flex justify-between text-xs mb-1.5" style={{ color: ENCRE_DOUCE }}>
+              <span>{todayR.filter(r => r.completed).length}/{todayR.length} rituels aujourd'hui</span>
+              <span>{prog}%{prog === 100 ? ' 🎉' : ''}</span>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: colors.light }}>
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${prog}%`, background: `linear-gradient(90deg, ${colors.primary}, ${isM ? '#E8C97A' : '#A99CC4'})` }} />
+            </div>
+          </div>
+        )}
+
+        {/* Liste */}
+        <div className="mb-4 rounded-2xl overflow-hidden" style={{ background: 'white', boxShadow: '0 2px 14px rgba(61,38,24,0.05)' }}>
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 size={22} className="animate-spin" style={{ color: colors.primary }} /></div>
+          ) : todayR.length === 0 ? (
+            <div className="text-center py-10">
+              <div style={{ fontSize: 36 }} className="mb-2">{isM ? '🌄' : '🌃'}</div>
+              <p className="text-sm" style={{ color: ENCRE_DOUCE }}>Aucun rituel prévu aujourd'hui</p>
+              <p className="text-xs mt-1" style={{ color: ENCRE_DOUCE, opacity: 0.6 }}>Crée tes premiers rituels ↓</p>
+            </div>
+          ) : (
+            todayR.map((routine, i) => {
+              const hasConflict = conflicts.some(c => c.routineTitle === routine.title)
+              return (
+                <div key={routine.id} className="flex items-center gap-3 px-4 py-3.5 transition-all"
+                  style={{ borderBottom: i < todayR.length - 1 ? '1px solid rgba(61,38,24,0.06)' : 'none', background: hasConflict ? 'rgba(212,149,106,0.06)' : routine.completed ? colors.bg : 'transparent' }}>
+                  <button onClick={() => toggleRoutine(routine)}
+                    className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200"
+                    style={{ borderColor: routine.completed ? colors.primary : 'rgba(61,38,24,0.2)', background: routine.completed ? colors.primary : 'transparent' }}>
+                    {routine.completed && <Check size={12} color="white" strokeWidth={3} />}
+                  </button>
+                  <span style={{ fontSize: 20, flexShrink: 0 }}>{routine.description || '✨'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p className="text-sm font-medium" style={{ color: ENCRE, opacity: routine.completed ? 0.4 : 1, textDecoration: routine.completed ? 'line-through' : 'none', margin: 0 }}>
+                      {routine.title}
+                      {hasConflict && <span style={{ marginLeft: 6, fontSize: 12 }}>⚠️</span>}
+                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs" style={{ color: ENCRE_DOUCE, opacity: 0.7, margin: 0 }}>{getFrequencyLabel(routine)}</p>
+                      {routine.preferred_time && (
+                        <span className="text-xs flex items-center gap-1" style={{ color: colors.primary }}>
+                          <Clock size={10} /> {getTimeLabel(routine)}
+                          <span style={{ fontSize: 9, background: colors.bg, padding: '1px 5px', borderRadius: 6, color: colors.primary }}>📅 Planner</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {routine.streak_count > 1 && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#FBF0CC', color: '#7A6010', border: '1px solid #E8D080' }}>🔥{routine.streak_count}</span>
+                  )}
+                  <button onClick={() => setEditingRoutine(routine)} className="flex-shrink-0 p-1.5 rounded-lg opacity-30 hover:opacity-70 transition-opacity" style={{ color: ENCRE }}>
+                    <Edit2 size={14} />
+                  </button>
+                </div>
+              )
+            })
+          )}
+
+          {otherR.length > 0 && (
+            <div style={{ borderTop: '1px solid rgba(61,38,24,0.06)', padding: '10px 16px' }}>
+              <p className="text-xs mb-2" style={{ color: ENCRE_DOUCE, opacity: 0.6 }}>Pas prévus aujourd'hui</p>
+              {otherR.map(routine => (
+                <div key={routine.id} className="flex items-center gap-3 py-1.5 opacity-50">
+                  <span style={{ fontSize: 16 }}>{routine.description || '✨'}</span>
+                  <span className="text-xs flex-1" style={{ color: ENCRE }}>{routine.title}</span>
+                  <span className="text-xs" style={{ color: ENCRE_DOUCE }}>{getFrequencyLabel(routine)}</span>
+                  <button onClick={() => setEditingRoutine(routine)} className="p-1 opacity-50"><Edit2 size={12} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 mb-4">
+          <button onClick={() => { setModalCategory(category); setShowModal(true) }}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold"
+            style={{ background: colors.primary, color: 'white' }}>
+            <Plus size={18} /> Nouveau rituel
+          </button>
+          <button onClick={() => setReflectionOpen(s => ({ ...s, [category]: !s[category] }))}
+            className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-sm font-semibold"
+            style={{ background: open ? colors.bg : 'white', color: colors.primary, border: `1.5px solid ${colors.light}` }}>
+            {isM ? <Sparkles size={16} /> : <Star size={16} />}
+            {isM ? 'Intention' : 'Gratitude'}
+          </button>
+        </div>
+
+        {/* Réflexion */}
+        {open && (
+          <div className="mb-4 p-5 rounded-2xl" style={{ background: 'white', boxShadow: '0 2px 14px rgba(61,38,24,0.05)' }}>
+            {isM ? (
+              <>
+                <div className="mb-4">
+                  <p className="text-xs font-semibold mb-2" style={{ color: ENCRE_DOUCE, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Mon énergie ce matin</p>
+                  <div className="flex flex-wrap gap-2">
+                    {MOODS.map(m => (
+                      <button key={m.emoji} onClick={() => setReflection(s => ({ ...s, morningMood: m.emoji }))}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all"
+                        style={{ background: reflection.morningMood === m.emoji ? colors.primary : colors.bg, color: reflection.morningMood === m.emoji ? 'white' : ENCRE, border: `1.5px solid ${reflection.morningMood === m.emoji ? colors.primary : 'transparent'}` }}>
+                        {m.emoji} {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mb-2"><Sparkles size={14} style={{ color: colors.primary }} /><p className="text-sm font-semibold" style={{ color: ENCRE, margin: 0 }}>Mon intention du jour</p></div>
+                {reflection.morningIntention && (
+                  <div className="mb-2 px-3 py-2 rounded-xl text-sm italic" style={{ background: colors.bg, color: ENCRE }}>"{reflection.morningIntention}"</div>
+                )}
+                <textarea value={reflection.morningIntention} onChange={e => setReflection(s => ({ ...s, morningIntention: e.target.value }))} placeholder="Je veux aujourd'hui ressentir, accomplir, être..." rows={3} className="w-full text-sm px-4 py-3 rounded-xl border-0 outline-none resize-none" style={{ background: colors.bg, color: ENCRE }} />
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-2"><Star size={14} style={{ color: colors.primary }} /><p className="text-sm font-semibold" style={{ color: ENCRE, margin: 0 }}>Ma gratitude du soir</p></div>
+                <textarea value={reflection.eveningGratitude} onChange={e => setReflection(s => ({ ...s, eveningGratitude: e.target.value }))} placeholder="Aujourd'hui je suis reconnaissante pour..." rows={3} className="w-full text-sm px-4 py-3 rounded-xl border-0 outline-none resize-none mb-3" style={{ background: colors.bg, color: ENCRE }} />
+                <div className="flex items-center gap-2 mb-2"><Flame size={14} style={{ color: colors.primary }} /><p className="text-sm font-semibold" style={{ color: ENCRE, margin: 0 }}>Le moment fort du jour</p></div>
+                <textarea value={reflection.eveningHighlight} onChange={e => setReflection(s => ({ ...s, eveningHighlight: e.target.value }))} placeholder="Ce qui m'a rendue fière ou heureuse aujourd'hui..." rows={2} className="w-full text-sm px-4 py-3 rounded-xl border-0 outline-none resize-none" style={{ background: colors.bg, color: ENCRE }} />
+              </>
+            )}
+            <button onClick={() => saveReflection(category)} className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold transition-all" style={{ background: savedFeedback === category ? '#7BAF8E' : colors.primary, color: 'white' }}>
+              {savedFeedback === category ? '✓ Enregistré !' : isM ? 'Valider mon intention' : 'Valider ma soirée'}
+            </button>
+          </div>
+        )}
+
+        {/* Quote */}
+        <div className="p-4 rounded-2xl text-center" style={{ background: `linear-gradient(135deg, ${colors.bg}, rgba(255,255,255,0))` }}>
+          <Wind size={14} className="mx-auto mb-1.5" style={{ color: colors.primary, opacity: 0.5 }} />
+          <p className="text-sm font-serif italic" style={{ color: ENCRE_DOUCE }}>
+            {isM ? '"Chaque matin, tu renaîs. Ce que tu fais aujourd\'hui est ce qui compte."' : '"La nuit est un repos mérité. Demain, une nouvelle page t\'attend."'}
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   return (
-    <div className="min-h-screen" style={{ background: '#FAF7F2' }}>
+    <div className="min-h-screen" style={{ background: BEIGE }}>
       <Navigation />
-      <div className="md:ml-64 pb-24 md:pb-8">
-        <main className="px-4 md:px-8 pt-6 max-w-2xl mx-auto">
+      <div className="pb-28">
+        <main className="px-4 md:px-8 pt-6 max-w-xl md:max-w-5xl mx-auto">
 
           {/* Header */}
           <header className="mb-6">
-            <button onClick={() => router.push('/')} className="flex items-center gap-2 mb-4 text-sm px-3 py-1.5 rounded-full" style={{ color: '#2C2C2C', opacity: 0.4, background: 'rgba(44,44,44,0.05)' }}>
+            <button onClick={() => router.push('/')} className="flex items-center gap-2 mb-4 text-sm px-3 py-1.5 rounded-full" style={{ color: ENCRE, opacity: 0.5, background: 'rgba(61,38,24,0.05)' }}>
               <ArrowLeft size={13} /> Accueil
             </button>
             <div className="flex items-start justify-between">
               <div>
-                <p style={{ fontSize: 11, fontWeight: 600, color: colors.primary, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: '#C79A3A', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>
                   {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
                 </p>
-                <h1 className="font-serif" style={{ fontSize: 36, color: '#2C2C2C', lineHeight: 1.1, margin: 0 }}>Routines</h1>
+                <h1 className="font-serif" style={{ fontSize: 36, color: ENCRE, lineHeight: 1.1, margin: 0 }}>Routines</h1>
               </div>
-              <span style={{ fontSize: 40 }}>{isMorning ? '☀️' : '🌙'}</span>
+              <span style={{ fontSize: 40 }}>{nowEvening ? '🌙' : '☀️'}</span>
             </div>
           </header>
 
-          {/* Alertes conflits */}
+          {/* Alertes conflits (commun aux deux moments) */}
           {conflicts.length > 0 && (
             <div className="mb-5 p-4 rounded-2xl" style={{ background: 'rgba(212,149,106,0.1)', border: '1.5px solid rgba(212,149,106,0.3)' }}>
               <p className="text-sm font-semibold mb-2" style={{ color: '#C4956A', margin: '0 0 8px' }}>⚠️ Conflits détectés aujourd'hui</p>
               {conflicts.map((c, i) => (
-                <div key={i} className="text-xs" style={{ color: '#2C2C2C', opacity: 0.7, marginBottom: 4 }}>
+                <div key={i} className="text-xs" style={{ color: ENCRE, opacity: 0.7, marginBottom: 4 }}>
                   <strong>{c.routineTitle}</strong> à {String(c.hour).padStart(2,'0')}h chevauche <strong>{c.conflictTitle}</strong>
                 </div>
               ))}
@@ -420,8 +582,8 @@ export default function RoutinesPage() {
             </div>
           )}
 
-          {/* Tabs */}
-          <div className="flex gap-2 mb-5 p-1 rounded-2xl" style={{ background: 'rgba(196,149,106,0.08)' }}>
+          {/* Onglets Matin / Soir — mobile uniquement */}
+          <div className="flex gap-2 mb-5 p-1 rounded-2xl md:hidden" style={{ background: 'rgba(245,216,155,0.2)' }}>
             {(['morning', 'evening'] as const).map(tab => {
               const isActive = activeTab === tab
               const c = C[tab]
@@ -430,7 +592,7 @@ export default function RoutinesPage() {
               return (
                 <button key={tab} onClick={() => setActiveTab(tab)}
                   className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-200"
-                  style={{ background: isActive ? 'white' : 'transparent', color: isActive ? c.primary : '#2C2C2C', opacity: isActive ? 1 : 0.5, boxShadow: isActive ? '0 2px 10px rgba(44,44,44,0.08)' : 'none' }}>
+                  style={{ background: isActive ? 'white' : 'transparent', color: isActive ? c.primary : ENCRE, opacity: isActive ? 1 : 0.5, boxShadow: isActive ? '0 2px 10px rgba(61,38,24,0.08)' : 'none' }}>
                   {tab === 'morning' ? <Sun size={14} /> : <Moon size={14} />}
                   {tab === 'morning' ? 'Matin' : 'Soir'}
                   {todayCount.length > 0 && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: c.primary, color: 'white', fontSize: 10 }}>{doneCount}/{todayCount.length}</span>}
@@ -439,148 +601,16 @@ export default function RoutinesPage() {
             })}
           </div>
 
-          {/* Progress */}
-          {todayRoutines.length > 0 && (
-            <div className="mb-5">
-              <div className="flex justify-between text-xs mb-1.5" style={{ color: '#2C2C2C', opacity: 0.4 }}>
-                <span>{todayRoutines.filter(r => r.completed).length}/{todayRoutines.length} rituels aujourd'hui</span>
-                <span>{progress}%{progress === 100 ? ' 🎉' : ''}</span>
-              </div>
-              <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(196,149,106,0.1)' }}>
-                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${colors.primary}, ${isMorning ? '#E8B98A' : '#A99CC4'})` }} />
-              </div>
-            </div>
-          )}
-
-          {/* Liste rituels du jour */}
-          <div className="mb-4 rounded-2xl overflow-hidden" style={{ background: 'white', boxShadow: '0 2px 14px rgba(44,44,44,0.05)' }}>
-            {loading ? (
-              <div className="flex justify-center py-10"><Loader2 size={22} className="animate-spin" style={{ color: colors.primary }} /></div>
-            ) : todayRoutines.length === 0 ? (
-              <div className="text-center py-10">
-                <div style={{ fontSize: 36 }} className="mb-2">{isMorning ? '🌄' : '🌃'}</div>
-                <p className="text-sm" style={{ color: '#2C2C2C', opacity: 0.4 }}>Aucun rituel prévu aujourd'hui</p>
-                <p className="text-xs mt-1" style={{ color: '#2C2C2C', opacity: 0.25 }}>Crée tes premiers rituels ↓</p>
-              </div>
-            ) : (
-              todayRoutines.map((routine, i) => {
-                const hasConflict = conflicts.some(c => c.routineTitle === routine.title)
-                return (
-                  <div key={routine.id} className="flex items-center gap-3 px-4 py-3.5 transition-all"
-                    style={{ borderBottom: i < todayRoutines.length - 1 ? '1px solid rgba(44,44,44,0.05)' : 'none', background: hasConflict ? 'rgba(212,149,106,0.06)' : routine.completed ? colors.bg : 'transparent' }}>
-                    <button onClick={() => toggleRoutine(routine)}
-                      className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200"
-                      style={{ borderColor: routine.completed ? colors.primary : 'rgba(44,44,44,0.2)', background: routine.completed ? colors.primary : 'transparent' }}>
-                      {routine.completed && <Check size={12} color="white" strokeWidth={3} />}
-                    </button>
-                    <span style={{ fontSize: 20, flexShrink: 0 }}>{routine.description || '✨'}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p className="text-sm font-medium" style={{ color: '#2C2C2C', opacity: routine.completed ? 0.4 : 1, textDecoration: routine.completed ? 'line-through' : 'none', margin: 0 }}>
-                        {routine.title}
-                        {hasConflict && <span style={{ marginLeft: 6, fontSize: 12 }}>⚠️</span>}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs" style={{ color: '#2C2C2C', opacity: 0.3, margin: 0 }}>{getFrequencyLabel(routine)}</p>
-                        {routine.preferred_time && (
-                          <span className="text-xs flex items-center gap-1" style={{ color: colors.primary, opacity: 0.8 }}>
-                            <Clock size={10} /> {getTimeLabel(routine)}
-                            <span style={{ fontSize: 9, background: colors.bg, padding: '1px 5px', borderRadius: 6, color: colors.primary }}>📅 Planner</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {routine.streak_count > 1 && (
-                      <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#FBF0CC', color: '#7A6010', border: '1px solid #E8D080' }}>🔥{routine.streak_count}</span>
-                    )}
-                    <button onClick={() => setEditingRoutine(routine)} className="flex-shrink-0 p-1.5 rounded-lg opacity-20 hover:opacity-60 transition-opacity" style={{ color: '#2C2C2C' }}>
-                      <Edit2 size={14} />
-                    </button>
-                  </div>
-                )
-              })
-            )}
-
-            {otherRoutines.length > 0 && (
-              <div style={{ borderTop: '1px solid rgba(44,44,44,0.05)', padding: '10px 16px' }}>
-                <p className="text-xs mb-2" style={{ color: '#2C2C2C', opacity: 0.25 }}>Pas prévus aujourd'hui</p>
-                {otherRoutines.map(routine => (
-                  <div key={routine.id} className="flex items-center gap-3 py-1.5 opacity-35">
-                    <span style={{ fontSize: 16 }}>{routine.description || '✨'}</span>
-                    <span className="text-xs flex-1" style={{ color: '#2C2C2C' }}>{routine.title}</span>
-                    <span className="text-xs" style={{ color: '#2C2C2C', opacity: 0.5 }}>{getFrequencyLabel(routine)}</span>
-                    <button onClick={() => setEditingRoutine(routine)} className="p-1 opacity-50"><Edit2 size={12} /></button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3 mb-5">
-            <button onClick={() => setShowModal(true)}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold"
-              style={{ background: colors.primary, color: 'white' }}>
-              <Plus size={18} /> Nouveau rituel
-            </button>
-            <button onClick={() => setShowReflection(!showReflection)}
-              className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-sm font-semibold"
-              style={{ background: showReflection ? colors.bg : 'white', color: colors.primary, border: `1.5px solid ${colors.light}` }}>
-              {isMorning ? <Sparkles size={16} /> : <Star size={16} />}
-              {isMorning ? 'Intention' : 'Gratitude'}
-            </button>
-          </div>
-
-          {/* Réflexion */}
-          {showReflection && (
-            <div className="mb-5 p-5 rounded-2xl" style={{ background: 'white', boxShadow: '0 2px 14px rgba(44,44,44,0.05)' }}>
-              {isMorning && (
-                <div className="mb-4">
-                  <p className="text-xs font-semibold mb-2" style={{ color: '#2C2C2C', opacity: 0.3, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Mon énergie ce matin</p>
-                  <div className="flex flex-wrap gap-2">
-                    {MOODS.map(m => (
-                      <button key={m.emoji} onClick={() => setReflection(s => ({ ...s, morningMood: m.emoji }))}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all"
-                        style={{ background: reflection.morningMood === m.emoji ? colors.primary : colors.bg, color: reflection.morningMood === m.emoji ? 'white' : '#2C2C2C', border: `1.5px solid ${reflection.morningMood === m.emoji ? colors.primary : 'transparent'}` }}>
-                        {m.emoji} {m.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {isMorning ? (
-                <>
-                  <div className="flex items-center gap-2 mb-2"><Sparkles size={14} style={{ color: colors.primary }} /><p className="text-sm font-semibold" style={{ color: '#2C2C2C', margin: 0 }}>Mon intention du jour</p></div>
-                  {reflection.morningIntention && (
-                    <div className="mb-2 px-3 py-2 rounded-xl text-sm italic" style={{ background: colors.bg, color: '#2C2C2C', opacity: 0.8 }}>"{reflection.morningIntention}"</div>
-                  )}
-                  <textarea value={reflection.morningIntention} onChange={e => setReflection(s => ({ ...s, morningIntention: e.target.value }))} placeholder="Je veux aujourd'hui ressentir, accomplir, être..." rows={3} className="w-full text-sm px-4 py-3 rounded-xl border-0 outline-none resize-none" style={{ background: colors.bg, color: '#2C2C2C' }} />
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2 mb-2"><Star size={14} style={{ color: colors.primary }} /><p className="text-sm font-semibold" style={{ color: '#2C2C2C', margin: 0 }}>Ma gratitude du soir</p></div>
-                  <textarea value={reflection.eveningGratitude} onChange={e => setReflection(s => ({ ...s, eveningGratitude: e.target.value }))} placeholder="Aujourd'hui je suis reconnaissante pour..." rows={3} className="w-full text-sm px-4 py-3 rounded-xl border-0 outline-none resize-none mb-3" style={{ background: colors.bg, color: '#2C2C2C' }} />
-                  <div className="flex items-center gap-2 mb-2"><Flame size={14} style={{ color: colors.primary }} /><p className="text-sm font-semibold" style={{ color: '#2C2C2C', margin: 0 }}>Le moment fort du jour</p></div>
-                  <textarea value={reflection.eveningHighlight} onChange={e => setReflection(s => ({ ...s, eveningHighlight: e.target.value }))} placeholder="Ce qui m'a rendue fière ou heureuse aujourd'hui..." rows={2} className="w-full text-sm px-4 py-3 rounded-xl border-0 outline-none resize-none" style={{ background: colors.bg, color: '#2C2C2C' }} />
-                </>
-              )}
-              <button onClick={saveReflection} className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold transition-all" style={{ background: savedFeedback ? '#7BAF8E' : colors.primary, color: 'white' }}>
-                {savedFeedback ? '✓ Enregistré !' : isMorning ? 'Valider mon intention' : 'Valider ma soirée'}
-              </button>
-            </div>
-          )}
-
-          {/* Quote */}
-          <div className="p-4 rounded-2xl text-center" style={{ background: `linear-gradient(135deg, ${colors.bg}, rgba(255,255,255,0))` }}>
-            <Wind size={14} className="mx-auto mb-1.5" style={{ color: colors.primary, opacity: 0.35 }} />
-            <p className="text-sm font-serif italic" style={{ color: '#2C2C2C', opacity: 0.5 }}>
-              {isMorning ? '"Chaque matin, tu renaîs. Ce que tu fais aujourd\'hui est ce qui compte."' : '"La nuit est un repos mérité. Demain, une nouvelle page t\'attend."'}
-            </p>
+          {/* Colonnes : empilées/tab sur mobile, côte à côte sur ordinateur */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {renderColumn('morning')}
+            {renderColumn('evening')}
           </div>
 
         </main>
       </div>
 
-      {showModal && <RoutineModal defaultCategory={activeTab} onSave={createRoutine} onClose={() => setShowModal(false)} />}
+      {showModal && <RoutineModal defaultCategory={modalCategory} onSave={createRoutine} onClose={() => setShowModal(false)} />}
       {editingRoutine && (
         <RoutineModal initial={editingRoutine} onSave={updateRoutine} onDelete={(id) => { deleteRoutine(id); setEditingRoutine(null) }} onClose={() => setEditingRoutine(null)} />
       )}

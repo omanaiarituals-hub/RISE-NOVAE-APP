@@ -1,57 +1,101 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Navigation from '@/components/Navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
-import { ArrowLeft, Plus, X, ChevronDown, ChevronUp, Edit2, Gift } from 'lucide-react'
+import { ArrowLeft, Plus, X, ChevronDown, ChevronUp, Edit2, Gift, Camera, Smile } from 'lucide-react'
 import { DemoBanner } from '@/components/DemoBanner'
 
-type MemberCategory = 'famille' | 'amis' | 'collegues' | 'autres'
-type MemberRelation = 'conjoint' | 'enfant' | 'parent' | 'frere_soeur' | 'neveu_niece' | 'ami' | 'collegue' | 'autre'
+type MemberCategory = 'foyer' | 'famille' | 'amis' | 'autres'
+type MemberRelation = 'conjoint' | 'enfant' | 'parent' | 'frere_soeur' | 'neveu_niece' | 'cousin' | 'grand_parent' | 'ami' | 'collegue' | 'autre'
 
 interface FamilyMember {
   id: string
-  // stocké dans le champ `data` JSONB
   firstName: string
   lastName: string
   relation: MemberRelation
   category: MemberCategory
   birthDate: string
-  photo: string
+  photo: string       // avatar emoji (fallback)
+  photoUrl: string    // photo importée (data URL) — prioritaire si présente
   clothingSize: string
   shoeSize: string
-  allergies: string      // ex: "muscade, gluten"
+  allergies: string
   healthNotes: string
   phone: string
   giftIdeas: string
   notes: string
-  // champs Supabase directs
   supabaseId?: string
   relation_to_user?: string
 }
 
+// ─── Couleurs : univers Famille = vert menthe, fond beige ───────────────────
 const C = {
-  cream: '#FAF7F2', rose: '#C4956A', roseLight: 'rgba(196,149,106,0.1)',
-  violet: '#7B6FA0', violetLight: 'rgba(123,111,160,0.1)',
-  noir: '#2C2C2C', gris: '#6B6B6B', grisClair: '#E8E4DF', blanc: '#FFFFFF',
+  beige: '#F8F1E5',
+  cream: '#FBF6EE',
+  rose: '#5E9A82',
+  roseLight: 'rgba(185,215,203,0.28)',
+  deep: '#4A7D67',
+  noir: '#3D2618', gris: '#6B6B6B', grisClair: '#E8E4DF', blanc: '#FFFFFF',
 }
 
 const RELATIONS: Record<MemberRelation, string> = {
   conjoint: '💑 Conjoint(e)', enfant: '👶 Enfant', parent: '👨‍👩‍👧 Parent',
-  frere_soeur: '👫 Frère/Sœur', neveu_niece: '🧒 Neveu/Nièce',
-  ami: '🤝 Ami(e)', collegue: '💼 Collègue', autre: '⭐ Autre',
+  frere_soeur: '👫 Frère/Sœur', neveu_niece: '🧒 Neveu/Nièce', cousin: '🧑 Cousin(e)',
+  grand_parent: '👴 Grand-parent', ami: '🤝 Ami(e)', collegue: '💼 Collègue', autre: '⭐ Autre',
 }
 
+// Périmètre des repas pour l'IA (détection allergies/goûts) :
+//  • défaut, aucune précision        → ['foyer']
+//  • "repas amis"                    → ['amis']
+//  • "repas collègues" / "autres"    → ['autres']
+//  • "repas de famille"              → ['foyer','famille']
+//  • "gros repas" / "invités"        → toutes les catégories
 const CATEGORIES: Record<MemberCategory, { label: string; emoji: string; color: string; bg: string }> = {
-  famille:   { label: 'Famille',   emoji: '🏠', color: C.rose,   bg: C.roseLight },
-  amis:      { label: 'Amis',      emoji: '🤝', color: C.violet, bg: C.violetLight },
-  collegues: { label: 'Collègues', emoji: '💼', color: '#A0BEDC', bg: 'rgba(160,190,220,0.1)' },
-  autres:    { label: 'Autres',    emoji: '⭐', color: '#E8D080', bg: 'rgba(232,208,128,0.1)' },
+  foyer:   { label: 'Foyer',   emoji: '🏡', color: '#5E9A82', bg: 'rgba(185,215,203,0.28)' },
+  famille: { label: 'Famille', emoji: '👨‍👩‍👧‍👦', color: '#C77E52', bg: 'rgba(243,205,182,0.32)' },
+  amis:    { label: 'Amis',    emoji: '🤝', color: '#8A6FB0', bg: 'rgba(212,196,226,0.32)' },
+  autres:  { label: 'Autres',  emoji: '⭐', color: '#C9A96E', bg: 'rgba(232,208,128,0.22)' },
 }
+
+const CATEGORY_KEYS: MemberCategory[] = ['foyer', 'famille', 'amis', 'autres']
 
 const AVATARS = ['👩','👨','👧','👦','👶','🧑','👩‍🦱','👨‍🦱','👩‍🦰','👨‍🦰','🧒','👴','👵','🧔','👩‍🦳','👨‍🦳']
+
+// Redimensionne une image importée en data URL (max 256px, JPEG) pour rester léger
+function resizeImage(file: File, max = 256): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height))
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { reject(new Error('canvas context')); return }
+        ctx.drawImage(img, 0, 0, w, h)
+        resolve(canvas.toDataURL('image/jpeg', 0.8))
+      }
+      img.onerror = reject
+      img.src = reader.result as string
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+// Affiche soit la photo importée, soit l'emoji
+function Avatar({ photo, photoUrl, px, radius = 999 }: { photo: string; photoUrl?: string; px: number; radius?: number }) {
+  if (photoUrl) {
+    return <img src={photoUrl} alt="" style={{ width: px, height: px, borderRadius: radius, objectFit: 'cover', display: 'block' }} />
+  }
+  return <span style={{ fontSize: Math.round(px * 0.66), lineHeight: 1 }}>{photo}</span>
+}
 
 function calculateAge(birthDate: string): number {
   const birth = new Date(birthDate)
@@ -74,18 +118,25 @@ function formatBirthday(birthDate: string): string {
   return new Date(birthDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
 }
 
-// Convertit une ligne Supabase en FamilyMember
 function fromSupabase(row: any): FamilyMember {
   const d = row.data || {}
+  const relation: MemberRelation = d.relation || 'autre'
+  // Migration douce des anciennes catégories → nouveau modèle (au chargement, sans toucher la BDD)
+  let category: MemberCategory = d.category || 'famille'
+  if ((category as string) === 'collegues') category = 'autres'
+  if (category === 'famille' && (relation === 'conjoint' || relation === 'enfant')) category = 'foyer'
+  if (!CATEGORY_KEYS.includes(category)) category = 'autres'
+
   return {
     id: row.id,
     supabaseId: row.id,
     firstName: d.firstName || d.name || '',
     lastName: d.lastName || '',
-    relation: d.relation || 'autre',
-    category: d.category || 'famille',
+    relation,
+    category,
     birthDate: d.birthDate || d.birthday || '',
     photo: d.photo || '👤',
+    photoUrl: d.photoUrl || '',
     clothingSize: d.clothingSize || '',
     shoeSize: d.shoeSize || '',
     allergies: Array.isArray(d.allergies) ? d.allergies.join(', ') : (d.allergies || d.healthNotes || ''),
@@ -97,7 +148,6 @@ function fromSupabase(row: any): FamilyMember {
   }
 }
 
-// Convertit un FamilyMember en objet Supabase
 function toSupabase(m: FamilyMember, userId: string) {
   const allergiesList = m.allergies
     ? m.allergies.split(',').map(a => a.trim()).filter(Boolean)
@@ -116,6 +166,7 @@ function toSupabase(m: FamilyMember, userId: string) {
       birthDate: m.birthDate,
       birthday: m.birthDate,
       photo: m.photo,
+      photoUrl: m.photoUrl,
       clothingSize: m.clothingSize,
       shoeSize: m.shoeSize,
       allergies: allergiesList,
@@ -129,15 +180,16 @@ function toSupabase(m: FamilyMember, userId: string) {
 }
 
 // ─── MODAL MEMBRE ─────────────────────────────────────────────────────────────
-function MemberModal({ initial, onSave, onClose }: {
-  initial?: FamilyMember; onSave: (m: FamilyMember) => void; onClose: () => void
+function MemberModal({ initial, defaultCategory, onSave, onClose }: {
+  initial?: FamilyMember; defaultCategory?: MemberCategory; onSave: (m: FamilyMember) => void; onClose: () => void
 }) {
   const [firstName, setFirstName] = useState(initial?.firstName || '')
   const [lastName, setLastName] = useState(initial?.lastName || '')
   const [relation, setRelation] = useState<MemberRelation>(initial?.relation || 'enfant')
-  const [category, setCategory] = useState<MemberCategory>(initial?.category || 'famille')
+  const [category, setCategory] = useState<MemberCategory>(initial?.category || defaultCategory || 'foyer')
   const [birthDate, setBirthDate] = useState(initial?.birthDate || '')
   const [photo, setPhoto] = useState(initial?.photo || '👩')
+  const [photoUrl, setPhotoUrl] = useState(initial?.photoUrl || '')
   const [clothingSize, setClothingSize] = useState(initial?.clothingSize || '')
   const [shoeSize, setShoeSize] = useState(initial?.shoeSize || '')
   const [allergies, setAllergies] = useState(initial?.allergies || '')
@@ -147,6 +199,21 @@ function MemberModal({ initial, onSave, onClose }: {
   const [notes, setNotes] = useState(initial?.notes || '')
   const [showAvatars, setShowAvatars] = useState(false)
   const [tab, setTab] = useState<'info' | 'details'>('info')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const dataUrl = await resizeImage(file)
+      setPhotoUrl(dataUrl)
+      setShowAvatars(false)
+    } catch {
+      alert("Impossible de charger cette image, réessaie avec une autre.")
+    } finally {
+      e.target.value = ''
+    }
+  }
 
   const handleSave = () => {
     if (!firstName.trim() || !birthDate) return
@@ -154,7 +221,7 @@ function MemberModal({ initial, onSave, onClose }: {
       id: initial?.id || Math.random().toString(36).slice(2),
       supabaseId: initial?.supabaseId,
       firstName: firstName.trim(), lastName: lastName.trim(),
-      relation, category, birthDate, photo,
+      relation, category, birthDate, photo, photoUrl,
       clothingSize, shoeSize, allergies, healthNotes, phone, giftIdeas, notes,
     })
     onClose()
@@ -172,11 +239,11 @@ function MemberModal({ initial, onSave, onClose }: {
             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.gris, fontSize: 20 }}>×</button>
           </div>
 
-          <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
-            <button onClick={() => setShowAvatars(!showAvatars)}
-              style={{ width: 60, height: 60, borderRadius: 18, border: `2px solid ${showAvatars ? C.rose : C.grisClair}`, background: C.cream, fontSize: 32, cursor: 'pointer', flexShrink: 0 }}>
-              {photo}
-            </button>
+          {/* Avatar / photo */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 10, alignItems: 'center' }}>
+            <div style={{ width: 60, height: 60, borderRadius: 18, border: `2px solid ${C.grisClair}`, background: C.cream, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Avatar photo={photo} photoUrl={photoUrl} px={photoUrl ? 60 : 38} radius={photoUrl ? 0 : 999} />
+            </div>
             <div style={{ flex: 1, display: 'flex', gap: 8 }}>
               <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Prénom *" autoFocus
                 style={{ flex: 1, border: `1.5px solid ${C.grisClair}`, borderRadius: 12, padding: '10px 14px', fontSize: 14, outline: 'none', color: C.noir, background: C.cream }} />
@@ -184,20 +251,43 @@ function MemberModal({ initial, onSave, onClose }: {
                 style={{ flex: 1, border: `1.5px solid ${C.grisClair}`, borderRadius: 12, padding: '10px 14px', fontSize: 14, outline: 'none', color: C.noir, background: C.cream }} />
             </div>
           </div>
+
+          {/* Choix avatar / photo */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+            <button onClick={() => setShowAvatars(!showAvatars)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: `1.5px solid ${showAvatars ? C.rose : C.grisClair}`, background: showAvatars ? C.roseLight : 'white', color: showAvatars ? C.rose : C.gris, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <Smile size={14} /> Avatar
+            </button>
+            <button onClick={() => fileInputRef.current?.click()}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 10, border: `1.5px solid ${photoUrl ? C.rose : C.grisClair}`, background: photoUrl ? C.roseLight : 'white', color: photoUrl ? C.rose : C.gris, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <Camera size={14} /> Importer une photo
+            </button>
+            {photoUrl && (
+              <button onClick={() => setPhotoUrl('')}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '7px 12px', borderRadius: 10, border: 'none', background: 'rgba(220,80,80,0.07)', color: '#DC5050', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <X size={13} /> Retirer la photo
+              </button>
+            )}
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={onPickPhoto} style={{ display: 'none' }} />
+          </div>
+
           {showAvatars && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, padding: 10, background: C.cream, borderRadius: 12 }}>
-              {AVATARS.map(a => <button key={a} onClick={() => { setPhoto(a); setShowAvatars(false) }} style={{ fontSize: 24, width: 40, height: 40, borderRadius: 10, border: 'none', background: photo === a ? C.roseLight : 'transparent', cursor: 'pointer' }}>{a}</button>)}
+              {AVATARS.map(a => <button key={a} onClick={() => { setPhoto(a); setPhotoUrl(''); setShowAvatars(false) }} style={{ fontSize: 24, width: 40, height: 40, borderRadius: 10, border: 'none', background: (photo === a && !photoUrl) ? C.roseLight : 'transparent', cursor: 'pointer' }}>{a}</button>)}
             </div>
           )}
 
           <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Catégorie</p>
           <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-            {(Object.entries(CATEGORIES) as [MemberCategory, any][]).map(([k, v]) => (
-              <button key={k} onClick={() => setCategory(k)}
-                style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `2px solid ${category === k ? v.color : C.grisClair}`, background: category === k ? v.bg : 'white', fontSize: 11, fontWeight: category === k ? 700 : 400, color: category === k ? v.color : C.gris, cursor: 'pointer' }}>
-                {v.emoji}<br />{v.label}
-              </button>
-            ))}
+            {CATEGORY_KEYS.map(k => {
+              const v = CATEGORIES[k]
+              return (
+                <button key={k} onClick={() => setCategory(k)}
+                  style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `2px solid ${category === k ? v.color : C.grisClair}`, background: category === k ? v.bg : 'white', fontSize: 11, fontWeight: category === k ? 700 : 400, color: category === k ? v.color : C.gris, cursor: 'pointer' }}>
+                  {v.emoji}<br />{v.label}
+                </button>
+              )
+            })}
           </div>
 
           <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Relation</p>
@@ -261,7 +351,7 @@ function MemberModal({ initial, onSave, onClose }: {
           )}
 
           <button onClick={handleSave} disabled={!firstName.trim() || !birthDate}
-            style={{ width: '100%', padding: '14px 0', borderRadius: 14, border: 'none', background: firstName.trim() && birthDate ? C.rose : C.grisClair, color: firstName.trim() && birthDate ? 'white' : '#aaa', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+            style={{ width: '100%', padding: '14px 0', borderRadius: 14, border: 'none', background: firstName.trim() && birthDate ? C.deep : C.grisClair, color: firstName.trim() && birthDate ? 'white' : '#aaa', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
             {initial ? '✓ Enregistrer' : '+ Ajouter ce proche'}
           </button>
         </div>
@@ -276,8 +366,9 @@ export default function FamilyPage() {
   const { user } = useSupabaseAuth()
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [showModal, setShowModal] = useState(false)
+  const [addCategory, setAddCategory] = useState<MemberCategory | null>(null)
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null)
-  const [expandedCategories, setExpandedCategories] = useState<MemberCategory[]>(['famille', 'amis'])
+  const [expandedCategories, setExpandedCategories] = useState<MemberCategory[]>(['foyer', 'famille', 'amis', 'autres'])
   const [expandedMember, setExpandedMember] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -302,11 +393,9 @@ export default function FamilyPage() {
     if (!user) return
     const payload = toSupabase(m, user.id)
     if (m.supabaseId) {
-      // Mise à jour
       await supabase.from('family_data').update(payload).eq('id', m.supabaseId)
       setMembers(prev => prev.map(p => p.supabaseId === m.supabaseId ? { ...m } : p))
     } else {
-      // Création
       const { data } = await supabase.from('family_data').insert({
         ...payload,
         created_at: new Date().toISOString(),
@@ -327,6 +416,11 @@ export default function FamilyPage() {
     )
   }
 
+  const openAdd = (cat: MemberCategory | null) => {
+    setAddCategory(cat)
+    setShowModal(true)
+  }
+
   const birthdayAlerts = members
     .filter(m => m.birthDate)
     .map(m => ({ member: m, daysUntil: daysUntilBirthday(m.birthDate) }))
@@ -340,13 +434,13 @@ export default function FamilyPage() {
   return (
     <>
     <DemoBanner />
-    <div style={{ minHeight: '100vh', background: C.cream, fontFamily: "'DM Sans',sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: C.beige, fontFamily: "'DM Sans',sans-serif" }}>
       <Navigation />
-      <div className="md:ml-64 pb-24 md:pb-8">
-        <main style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px' }}>
+      <div className="pb-28">
+        <main className="mx-auto w-full max-w-[720px] md:max-w-[1120px] lg:max-w-[1400px] px-4 md:px-8 pt-6">
 
           <header style={{ marginBottom: 24 }}>
-            <button onClick={() => router.push('/')} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, fontSize: 12, color: C.gris, background: 'rgba(44,44,44,0.05)', border: 'none', borderRadius: 20, padding: '4px 12px', cursor: 'pointer' }}>
+            <button onClick={() => router.push('/')} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, fontSize: 12, color: C.gris, background: 'rgba(61,38,24,0.05)', border: 'none', borderRadius: 20, padding: '4px 12px', cursor: 'pointer' }}>
               <ArrowLeft size={13} /> Accueil
             </button>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -360,27 +454,26 @@ export default function FamilyPage() {
             </div>
           </header>
 
-          {/* Alertes anniversaires */}
           {todayAlerts.map(({ member }) => (
-            <div key={member.supabaseId} style={{ background: 'linear-gradient(135deg, rgba(196,149,106,0.15), rgba(232,208,128,0.1))', border: `2px solid ${C.rose}`, borderRadius: 16, padding: '14px 16px', marginBottom: 12, display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div key={member.supabaseId} style={{ background: 'linear-gradient(135deg, rgba(185,215,203,0.32), rgba(94,154,130,0.10))', border: `2px solid ${C.rose}`, borderRadius: 16, padding: '14px 16px', marginBottom: 12, display: 'flex', gap: 12, alignItems: 'center' }}>
               <span style={{ fontSize: 32 }}>🎂</span>
               <div style={{ flex: 1 }}>
                 <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.noir }}>C'est l'anniversaire de {member.firstName} aujourd'hui !</p>
                 <p style={{ margin: '2px 0 0', fontSize: 12, color: C.gris }}>{calculateAge(member.birthDate)} ans · {RELATIONS[member.relation]}</p>
               </div>
-              <span style={{ fontSize: 24 }}>{member.photo}</span>
+              <Avatar photo={member.photo} photoUrl={member.photoUrl} px={30} />
             </div>
           ))}
 
           {weekAlerts.length > 0 && (
-            <div style={{ background: 'rgba(196,149,106,0.07)', border: `1.5px solid rgba(196,149,106,0.25)`, borderRadius: 16, padding: '14px 16px', marginBottom: 16 }}>
+            <div style={{ background: 'rgba(185,215,203,0.16)', border: `1.5px solid rgba(94,154,130,0.28)`, borderRadius: 16, padding: '14px 16px', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <Gift size={16} style={{ color: C.rose }} />
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.rose }}>🎁 Pense aux cadeaux cette semaine !</p>
               </div>
               {weekAlerts.map(({ member, daysUntil }) => (
                 <div key={member.supabaseId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: `1px solid ${C.grisClair}` }}>
-                  <span style={{ fontSize: 20 }}>{member.photo}</span>
+                  <Avatar photo={member.photo} photoUrl={member.photoUrl} px={24} />
                   <div style={{ flex: 1 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: C.noir }}>{member.firstName}</span>
                     <span style={{ fontSize: 12, color: C.gris }}> · {formatBirthday(member.birthDate)}</span>
@@ -397,7 +490,7 @@ export default function FamilyPage() {
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
                 {soonAlerts.slice(0, 6).map(({ member, daysUntil }) => (
                   <div key={member.supabaseId} style={{ flexShrink: 0, textAlign: 'center', padding: '8px 12px', background: C.cream, borderRadius: 12, minWidth: 72 }}>
-                    <span style={{ fontSize: 22 }}>{member.photo}</span>
+                    <div style={{ display: 'flex', justifyContent: 'center' }}><Avatar photo={member.photo} photoUrl={member.photoUrl} px={28} /></div>
                     <p style={{ margin: '4px 0 1px', fontSize: 10, fontWeight: 600, color: C.noir }}>{member.firstName}</p>
                     <p style={{ margin: 0, fontSize: 9, color: C.gris }}>dans {daysUntil}j</p>
                   </div>
@@ -406,37 +499,58 @@ export default function FamilyPage() {
             </div>
           )}
 
-          <button onClick={() => setShowModal(true)}
-            style={{ width: '100%', padding: '13px 0', borderRadius: 14, border: 'none', background: C.rose, color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
+          <button onClick={() => openAdd(null)}
+            style={{ width: '100%', maxWidth: 420, padding: '13px 0', borderRadius: 14, border: 'none', background: C.deep, color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
             <Plus size={18} /> Ajouter un proche
           </button>
 
           {loading && <p style={{ textAlign: 'center', color: C.gris, fontSize: 13 }}>Chargement...</p>}
 
-          {(Object.entries(CATEGORIES) as [MemberCategory, any][]).map(([cat, info]) => {
+          {/* Trame 4 colonnes : 1 col mobile · 2 cols tablette · 4 cols ordi */}
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 md:items-start">
+          {CATEGORY_KEYS.map(cat => {
+            const info = CATEGORIES[cat]
             const catMembers = members.filter(m => m.category === cat)
-            if (catMembers.length === 0) return null
             const isOpen = expandedCategories.includes(cat)
+            const isEmpty = catMembers.length === 0
 
             return (
-              <div key={cat} style={{ marginBottom: 12 }}>
-                <button onClick={() => toggleCategory(cat)}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: C.blanc, borderRadius: isOpen ? '16px 16px 0 0' : 16, border: `1.5px solid ${isOpen ? info.color : C.grisClair}`, cursor: 'pointer' }}>
+              <div key={cat}>
+                <button
+                  onClick={() => { if (!isEmpty) toggleCategory(cat) }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: C.blanc, borderRadius: (isOpen && !isEmpty) ? '16px 16px 0 0' : 16, border: `1.5px solid ${(isOpen && !isEmpty) ? info.color : C.grisClair}`, cursor: isEmpty ? 'default' : 'pointer' }}>
                   <span style={{ width: 36, height: 36, borderRadius: 10, background: info.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{info.emoji}</span>
                   <div style={{ flex: 1, textAlign: 'left' }}>
                     <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.noir, fontFamily: "'Cormorant Garamond',serif" }}>{info.label}</p>
                     <p style={{ margin: 0, fontSize: 11, color: C.gris }}>{catMembers.length} proche{catMembers.length > 1 ? 's' : ''}</p>
                   </div>
-                  <div style={{ display: 'flex', marginRight: 6 }}>
-                    {catMembers.slice(0, 3).map((m, i) => (
-                      <span key={m.id} style={{ fontSize: 20, marginLeft: i > 0 ? -6 : 0 }}>{m.photo}</span>
-                    ))}
-                  </div>
-                  {isOpen ? <ChevronUp size={18} style={{ color: info.color, flexShrink: 0 }} /> : <ChevronDown size={18} style={{ color: C.gris, flexShrink: 0 }} />}
+                  {!isEmpty && (
+                    <>
+                      <div style={{ display: 'flex', marginRight: 6 }}>
+                        {catMembers.slice(0, 3).map((m, i) => (
+                          <span key={m.id} style={{ marginLeft: i > 0 ? -6 : 0, display: 'inline-flex' }}>
+                            <Avatar photo={m.photo} photoUrl={m.photoUrl} px={24} />
+                          </span>
+                        ))}
+                      </div>
+                      {isOpen ? <ChevronUp size={18} style={{ color: info.color, flexShrink: 0 }} /> : <ChevronDown size={18} style={{ color: C.gris, flexShrink: 0 }} />}
+                    </>
+                  )}
                 </button>
 
-                {isOpen && (
+                {isEmpty && (
+                  <div style={{ marginTop: 6, padding: '20px 14px', textAlign: 'center', background: C.blanc, borderRadius: 14, border: `1.5px dashed ${C.grisClair}` }}>
+                    <p style={{ margin: '0 0 12px', fontSize: 12, color: C.gris }}>Personne ici pour l'instant</p>
+                    <button onClick={() => openAdd(cat)}
+                      style={{ padding: '7px 14px', borderRadius: 10, border: 'none', background: C.roseLight, color: C.rose, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <Plus size={14} /> Ajouter
+                    </button>
+                  </div>
+                )}
+
+                {!isEmpty && isOpen && (
                   <div style={{ background: C.blanc, border: `1.5px solid ${info.color}`, borderTop: 'none', borderRadius: '0 0 16px 16px', overflow: 'hidden' }}>
+                    <div style={{ maxHeight: 380, overflowY: 'auto' }}>
                     {catMembers.map((member, i) => {
                       const days = daysUntilBirthday(member.birthDate)
                       const isExpanded = expandedMember === member.id
@@ -444,10 +558,10 @@ export default function FamilyPage() {
 
                       return (
                         <div key={member.id} style={{ borderTop: i > 0 ? `1px solid ${C.grisClair}` : 'none' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: hasBirthdayAlert ? 'rgba(196,149,106,0.04)' : 'transparent' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: hasBirthdayAlert ? 'rgba(185,215,203,0.20)' : 'transparent' }}>
                             <button onClick={() => setExpandedMember(isExpanded ? null : member.id)}
-                              style={{ width: 44, height: 44, borderRadius: 14, background: info.bg, border: `2px solid ${hasBirthdayAlert ? C.rose : 'transparent'}`, fontSize: 26, cursor: 'pointer', flexShrink: 0 }}>
-                              {member.photo}
+                              style={{ width: 44, height: 44, borderRadius: 14, background: member.photoUrl ? 'transparent' : info.bg, border: `2px solid ${hasBirthdayAlert ? C.rose : 'transparent'}`, cursor: 'pointer', flexShrink: 0, overflow: 'hidden', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Avatar photo={member.photo} photoUrl={member.photoUrl} px={member.photoUrl ? 40 : 26} radius={member.photoUrl ? 11 : 999} />
                             </button>
                             <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => setExpandedMember(isExpanded ? null : member.id)}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -473,7 +587,7 @@ export default function FamilyPage() {
                           </div>
 
                           {isExpanded && (
-                            <div style={{ padding: '0 16px 14px', background: 'rgba(250,247,242,0.5)' }}>
+                            <div style={{ padding: '0 16px 14px', background: 'rgba(248,241,229,0.6)' }}>
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 10 }}>
                                 {member.phone && (
                                   <div style={{ padding: '8px 10px', background: C.blanc, borderRadius: 10, border: `1px solid ${C.grisClair}` }}>
@@ -523,26 +637,17 @@ export default function FamilyPage() {
                         </div>
                       )
                     })}
+                    </div>
                   </div>
                 )}
               </div>
             )
           })}
-
-          {!loading && members.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '48px 20px', background: C.blanc, borderRadius: 20, border: `1.5px dashed ${C.grisClair}` }}>
-              <p style={{ fontSize: 48, marginBottom: 12 }}>🏠</p>
-              <p style={{ fontSize: 16, fontFamily: "'Cormorant Garamond',serif", color: C.noir, marginBottom: 6 }}>Ajoute tes proches</p>
-              <p style={{ fontSize: 13, color: C.gris, marginBottom: 20 }}>Famille, amis, neveux... et ne rate plus jamais un anniversaire !</p>
-              <button onClick={() => setShowModal(true)} style={{ padding: '10px 20px', borderRadius: 12, border: 'none', background: C.rose, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                + Ajouter un proche
-              </button>
-            </div>
-          )}
+          </div>
         </main>
       </div>
 
-      {showModal && <MemberModal onSave={saveMember} onClose={() => setShowModal(false)} />}
+      {showModal && <MemberModal defaultCategory={addCategory ?? undefined} onSave={saveMember} onClose={() => { setShowModal(false); setAddCategory(null) }} />}
       {editingMember && <MemberModal initial={editingMember} onSave={saveMember} onClose={() => setEditingMember(null)} />}
     </div>
     </>

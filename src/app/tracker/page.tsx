@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from '@/lib/supabase/client';
+import Navigation from "@/components/Navigation";
 
 // ─── TYPES ─────────────────────────────────────────────────
 type PeriodView = "week" | "month";
@@ -23,7 +24,7 @@ interface HabitDisplay {
   emoji: string;
   color: string;
   streak: number;
-  completedDays: string[]; // dates YYYY-MM-DD où complété
+  completedDays: string[];
   category: "morning" | "evening";
 }
 
@@ -42,20 +43,20 @@ interface RoutineCompletion {
   evening_at?: string;
 }
 
-// ─── PALETTE ───────────────────────────────────────────────
+// ─── PALETTE : univers Tracker = sauge, fond beige ─────────
 const C = {
-  cream: "#FAF7F2",
-  roseLight: "#F2E0D8",
-  rose: "#E8C4B8",
-  roseDark: "#C4956A",
+  cream: "#F8F1E5",
+  roseLight: "#E7EDDD",
+  rose: "#C5D3B4",
+  roseDark: "#7E9460",
   violet: "#7B6FA0",
-  noir: "#1A1A1A",
+  noir: "#3D2618",
   gris: "#6B6B6B",
   grisClair: "#E8E4DF",
   blanc: "#FFFFFF",
 };
 
-const HABIT_COLORS = ["#C4956A", "#7B6FA0", "#A0BEDC", "#E8D080", "#90C8A8", "#E0A0B8"];
+const HABIT_COLORS = ["#7E9460", "#7B6FA0", "#A0BEDC", "#E8D080", "#C4956A", "#E0A0B8"];
 
 // ─── UTILS ─────────────────────────────────────────────────
 function fmtDate(d: Date): string {
@@ -114,7 +115,6 @@ function HabitRow({ habit, days }: { habit: HabitDisplay; days: string[] }) {
   const doneCount = days.filter(d => habit.completedDays.includes(d)).length;
   const pct = Math.round((doneCount / days.length) * 100);
   const today = fmtDate(new Date());
-  const isTodayDone = habit.completedDays.includes(today);
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -124,10 +124,9 @@ function HabitRow({ habit, days }: { habit: HabitDisplay; days: string[] }) {
           {habit.name}
         </span>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {/* Badge routine matin/soir */}
           <span style={{
             fontSize: 10, padding: "1px 6px", borderRadius: 8,
-            background: habit.category === "morning" ? "rgba(196,149,106,0.12)" : "rgba(123,111,160,0.12)",
+            background: habit.category === "morning" ? "rgba(126,148,96,0.14)" : "rgba(123,111,160,0.12)",
             color: habit.category === "morning" ? C.roseDark : C.violet,
           }}>
             {habit.category === "morning" ? "☀️" : "🌙"}
@@ -174,10 +173,10 @@ function RoutineBanner({ completion }: { completion: RoutineCompletion }) {
   if (none) return null;
   return (
     <div style={{
-      background: both ? "linear-gradient(135deg, rgba(196,149,106,0.12), rgba(123,111,160,0.08))" : "rgba(196,149,106,0.08)",
+      background: both ? "linear-gradient(135deg, rgba(126,148,96,0.14), rgba(123,111,160,0.08))" : "rgba(126,148,96,0.10)",
       borderRadius: 12, padding: "10px 14px", marginBottom: 16,
       display: "flex", alignItems: "center", gap: 10,
-      border: `1px solid ${both ? "rgba(196,149,106,0.2)" : "rgba(196,149,106,0.15)"}`,
+      border: `1px solid ${both ? "rgba(126,148,96,0.22)" : "rgba(126,148,96,0.16)"}`,
     }}>
       <span style={{ fontSize: 20 }}>{both ? "🌟" : completion.morning ? "☀️" : "🌙"}</span>
       <div>
@@ -245,7 +244,7 @@ function Progress90j({ data }: { data: any }) {
 
 // ─── MAIN ──────────────────────────────────────────────────
 export default function TrackerPage() {
-  
+
   const [periodView, setPeriodView] = useState<PeriodView>("week");
   const [habits, setHabits] = useState<HabitDisplay[]>([]);
   const [timeData, setTimeData] = useState<TimeSlice[]>([]);
@@ -265,7 +264,6 @@ export default function TrackerPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
 
-      // 1. Charger les routines depuis Supabase
       const { data: routinesData } = await supabase
         .from("routines")
         .select("*")
@@ -277,11 +275,9 @@ export default function TrackerPage() {
         const yesterday = fmtDate(new Date(Date.now() - 86400000));
 
         const habitsDisplay: HabitDisplay[] = routinesData.map((r: HabitFromDB, i: number) => {
-          // Reconstituer l'historique depuis streak_count et last_completed_at
           const completedDays: string[] = [];
           if (r.last_completed_at) {
             const lastDate = fmtDate(new Date(r.last_completed_at));
-            // Si complété aujourd'hui, on remonte le streak
             if (lastDate === today && r.streak_count > 0) {
               for (let j = 0; j < Math.min(r.streak_count, 30); j++) {
                 const d = new Date();
@@ -309,7 +305,6 @@ export default function TrackerPage() {
         setHabits(habitsDisplay);
       }
 
-      // 2. Progression 90j depuis Supabase
       const { data: progData } = await supabase
         .from("program_progress")
         .select("current_day, completed_missions, streak_days")
@@ -317,7 +312,6 @@ export default function TrackerPage() {
         .single();
       if (progData) setProgramData(progData);
 
-      // 3. Répartition du temps depuis tasks (Planner)
       const daysBack = periodView === "week" ? 7 : 30;
       const startDateObj = new Date();
       startDateObj.setDate(startDateObj.getDate() - daysBack);
@@ -329,7 +323,6 @@ export default function TrackerPage() {
         .eq("user_id", user.id)
         .gte("date", startDateStr);
 
-      // Map catégories tasks → affichage
       const CAT_MAP: Record<string, { label: string; emoji: string; color: string }> = {
         pro:    { label: "Professionnel",   emoji: "💼", color: "#A0BEDC" },
         self:   { label: "Personnel / Moi", emoji: "🌸", color: "#D4A090" },
@@ -360,7 +353,6 @@ export default function TrackerPage() {
         loadMockTime();
       }
 
-      // 4. Lire le statut de complétion des routines (depuis localStorage)
       const todayKey = `novae-routine-completed-${fmtDate(new Date())}`;
       const stored = localStorage.getItem(todayKey);
       if (stored) {
@@ -387,10 +379,12 @@ export default function TrackerPage() {
   const totalHours = timeData.reduce((s, c) => s + c.hours, 0);
 
   return (
+    <>
+    <Navigation />
     <div style={{ minHeight: "100vh", background: C.cream, fontFamily: "'DM Sans',sans-serif" }}>
       {/* Header */}
       <div style={{ background: C.blanc, borderBottom: `1px solid ${C.grisClair}`, padding: "0 24px" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 0 10px" }}>
             <Link href="/" style={{ fontSize: 12, color: C.gris, textDecoration: "none", display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 20, border: `1px solid ${C.grisClair}`, background: C.cream }}>
               ← Accueil
@@ -411,12 +405,12 @@ export default function TrackerPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "20px 24px" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 24px 110px" }}>
 
         {/* Banner complétion routines */}
         <RoutineBanner completion={routineCompletion} />
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20, marginBottom: 20 }}>
           {/* Roue du temps */}
           <div style={{ background: C.blanc, borderRadius: 14, padding: "18px 20px", border: `1px solid ${C.grisClair}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
@@ -481,5 +475,6 @@ export default function TrackerPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

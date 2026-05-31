@@ -2,13 +2,9 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
-import Stripe from 'stripe'
+import { getStripe } from '@/lib/stripe'
 
 export const runtime = 'nodejs'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20' as any,
-})
 
 const ACTIVE_STATUSES = ['active', 'trialing', 'past_due', 'unpaid']
 
@@ -30,6 +26,7 @@ async function getUser() {
 
 // Retrouve le customer Stripe : d'abord via users.stripe_customer_id, sinon par email
 async function resolveCustomerId(userId: string, email: string | null | undefined): Promise<string | null> {
+  const stripe = getStripe()
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -47,6 +44,7 @@ async function resolveCustomerId(userId: string, email: string | null | undefine
 // GET : statut de l'abonnement (pour afficher le bon bouton)
 export async function GET() {
   try {
+    const stripe = getStripe()
     const user = await getUser()
     if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
@@ -71,6 +69,7 @@ export async function GET() {
 // POST : résilie à la fin de la période (la personne garde l'accès jusque-là)
 export async function POST() {
   try {
+    const stripe = getStripe()
     const user = await getUser()
     if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { DemoBanner } from '@/components/DemoBanner'
+import Navigation from '@/components/Navigation'
 
 interface Post {
   id: string
@@ -92,14 +93,12 @@ export default function CommunityPage() {
   const [newComment, setNewComment] = useState<Record<string, string>>({})
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Non-lu (réponses pas encore vues) + orientation depuis une notif
   const [seenMap, setSeenMap] = useState<Record<string, string>>({})
   const [seenReady, setSeenReady] = useState(false)
   const [highlightedPost, setHighlightedPost] = useState<string | null>(null)
   const postRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const didAutoScroll = useRef(false)
 
-  // Édition / suppression
   const [editingPost, setEditingPost] = useState<string | null>(null)
   const [editPostContent, setEditPostContent] = useState('')
   const [postMenuOpen, setPostMenuOpen] = useState<string | null>(null)
@@ -107,7 +106,6 @@ export default function CommunityPage() {
   const [editCommentContent, setEditCommentContent] = useState('')
   const [commentMenuOpen, setCommentMenuOpen] = useState<string | null>(null)
 
-  // Charger l'état "déjà vu" depuis le navigateur
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SEEN_KEY)
@@ -125,7 +123,6 @@ export default function CommunityPage() {
     if (user && !authLoading) loadAll()
   }, [user, authLoading])
 
-  // Fermer les menus au clic extérieur
   useEffect(() => {
     if (!postMenuOpen && !commentMenuOpen) return
     const handleClick = () => {
@@ -136,7 +133,6 @@ export default function CommunityPage() {
     return () => document.removeEventListener('click', handleClick)
   }, [postMenuOpen, commentMenuOpen])
 
-  // Marquer un post comme vu (persistant)
   const markPostSeen = (postId: string) => {
     setSeenMap(prev => {
       const next = { ...prev, [postId]: new Date().toISOString() }
@@ -145,12 +141,10 @@ export default function CommunityPage() {
     })
   }
 
-  // Un post a-t-il des réponses non lues (d'une AUTRE personne) ?
   const isUnread = (post: Post) =>
     !!post.last_other_comment_at &&
     (!seenMap[post.id] || post.last_other_comment_at > seenMap[post.id])
 
-  // Orientation auto : depuis une notif (?post=...) ou vers la 1re réponse non lue
   useEffect(() => {
     if (loading || !seenReady || posts.length === 0 || didAutoScroll.current) return
     let target: string | null = null
@@ -172,7 +166,6 @@ export default function CommunityPage() {
       if (!comments[targetId]) loadComments(targetId)
       setHighlightedPost(targetId)
       setTimeout(() => setHighlightedPost(null), 3500)
-      // On laisse l'anneau visible un instant avant de marquer comme lu
       setTimeout(() => markPostSeen(targetId), 1400)
     }, 400)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -210,9 +203,6 @@ export default function CommunityPage() {
 
     const postIds = postsData.map(p => p.id)
 
-    // ── VRAIS compteurs de réponses (on ne fait plus confiance à comments_count) ──
-    // On compte les lignes réelles de community_comments, et on repère la dernière
-    // réponse d'une AUTRE personne (sert au "non-lu").
     const countMap: Record<string, number> = {}
     const lastOtherMap: Record<string, string> = {}
     if (postIds.length) {
@@ -295,7 +285,6 @@ export default function CommunityPage() {
       ...prev,
       [postId]: data.map(c => ({ ...c, pseudo: pseudoMap[c.user_id] || c.user_id.slice(0, 8) }))
     }))
-    // Auto-réparation : le compteur affiché = le vrai nombre de réponses
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: data.length } : p))
   }
 
@@ -314,7 +303,6 @@ export default function CommunityPage() {
     } finally { setPosting(false) }
   }
 
-  // ── Édition / suppression POST ───────────────────────────────────────────
   const startEditPost = (post: Post) => {
     setEditingPost(post.id)
     setEditPostContent(post.content)
@@ -356,7 +344,6 @@ export default function CommunityPage() {
     setPostMenuOpen(null)
   }
 
-  // ── Édition / suppression COMMENT ────────────────────────────────────────
   const startEditComment = (comment: Comment) => {
     setEditingComment(comment.id)
     setEditCommentContent(comment.content)
@@ -442,14 +429,12 @@ export default function CommunityPage() {
       return
     }
 
-    // Calcul du nouveau compteur sans dépendre de la RPC
     const post = posts.find(p => p.id === postId)
     const newCount = (post?.comments_count || 0) + 1
     await supabase.from('community_posts').update({ comments_count: newCount }).eq('id', postId)
 
     setComments(prev => ({ ...prev, [postId]: [...(prev[postId] || []), { ...data, pseudo }] }))
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: newCount } : p))
-    // Je viens de répondre : ce post est forcément "vu" pour moi
     markPostSeen(postId)
 
     const targetPost = posts.find(p => p.id === postId)
@@ -468,7 +453,7 @@ export default function CommunityPage() {
       } catch (err) { console.error('Reply notif error:', err) }
     }
   }
-  
+
   const handleJoinChallenge = async (challengeId: string) => {
     if (!user) return
     await supabase.from('challenge_participations').insert({ challenge_id: challengeId, user_id: user.id, completed: false })
@@ -498,7 +483,7 @@ export default function CommunityPage() {
     else {
       setExpandedPost(postId)
       if (!comments[postId]) loadComments(postId)
-      markPostSeen(postId) // ouvrir = lire → le badge "nouveau" disparaît
+      markPostSeen(postId)
     }
   }
 
@@ -518,7 +503,7 @@ export default function CommunityPage() {
     return (
       <>
         <DemoBanner />
-        <div className="flex flex-col h-screen bg-novae-cream items-center justify-center">
+        <div className="flex flex-col h-screen items-center justify-center" style={{ background: '#F8F1E5' }}>
           <div className="text-novae-anthracite/40 text-sm">Chargement de la communauté...</div>
         </div>
       </>
@@ -529,7 +514,7 @@ export default function CommunityPage() {
     return (
       <>
         <DemoBanner />
-        <div className="flex flex-col h-screen bg-novae-cream items-center justify-center px-6">
+        <div className="flex flex-col h-screen items-center justify-center px-6" style={{ background: '#F8F1E5' }}>
           <div className="text-4xl mb-4">👭</div>
           <h2 className="font-serif text-2xl text-novae-anthracite mb-2 text-center">Rejoins la communauté</h2>
           <p className="text-novae-anthracite/50 text-sm text-center mb-6">Connecte-toi pour accéder à l'espace communautaire NOVAÉ.</p>
@@ -546,7 +531,7 @@ export default function CommunityPage() {
         @keyframes novaePulse { 0%,100%{opacity:1} 50%{opacity:.3} }
         .novae-unread-dot{ display:inline-block;width:6px;height:6px;border-radius:50%;background:#fff;animation:novaePulse 1.5s ease-in-out infinite; }
       `}</style>
-      <div className="flex flex-col min-h-screen bg-novae-cream">
+      <div className="flex flex-col min-h-screen pb-28" style={{ background: '#F8F1E5' }}>
 
         {/* Header */}
         <div className="bg-white border-b border-novae-beige/30 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
@@ -568,8 +553,8 @@ export default function CommunityPage() {
           )}
         </div>
 
-        {/* Tabs */}
-        <div className="bg-white border-b border-novae-beige/20 px-4 flex gap-1 sticky top-14 z-10">
+        {/* Tabs — mobile uniquement (sur ordi, tout est en colonnes) */}
+        <div className="bg-white border-b border-novae-beige/20 px-4 flex gap-1 sticky top-14 z-10 lg:hidden">
           {TABS.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id ? 'border-novae-gold text-novae-gold' : 'border-transparent text-novae-anthracite/50 hover:text-novae-anthracite'}`}>
@@ -578,446 +563,439 @@ export default function CommunityPage() {
           ))}
         </div>
 
-        {/* Content */}
-        <div className="flex-1 max-w-lg mx-auto w-full px-4 py-4">
+        {/* Content — 1 colonne sur mobile (onglets), 3 colonnes sur ordi */}
+        <div className="flex-1 w-full mx-auto px-4 py-4 max-w-lg lg:max-w-[1280px] lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
 
           {/* ═══ FEED ═══ */}
-          {activeTab === 'feed' && (
-            <div className="space-y-4">
+          <div className={`space-y-4 ${activeTab === 'feed' ? 'block' : 'hidden'} lg:block`}>
 
-              {/* Composer */}
-              <div className="bg-white rounded-2xl border border-novae-beige/20 p-4 shadow-sm">
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-novae-gold to-novae-rose flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                    {pseudo?.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1">
-                    <textarea ref={textareaRef} value={newPost} onChange={e => setNewPost(e.target.value)}
-                      placeholder="Partage une victoire, une pensée, une question... ✦"
-                      className="w-full text-sm text-novae-anthracite placeholder-novae-anthracite/30 bg-transparent focus:outline-none resize-none"
-                      rows={3} maxLength={500} />
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-novae-anthracite/20">{newPost.length}/500</span>
-                      <button onClick={handlePost} disabled={!newPost.trim() || posting}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${newPost.trim() && !posting ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/30 cursor-not-allowed'}`}>
-                        {posting ? '...' : 'Publier'}
-                      </button>
-                    </div>
+            <div className="hidden lg:flex items-center gap-2 mb-1 text-xs font-semibold uppercase tracking-widest text-novae-anthracite/40">
+              <span>📣</span> Fil
+            </div>
+
+            {/* Composer */}
+            <div className="bg-white rounded-2xl border border-novae-beige/20 p-4 shadow-sm">
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-novae-gold to-novae-rose flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                  {pseudo?.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <textarea ref={textareaRef} value={newPost} onChange={e => setNewPost(e.target.value)}
+                    placeholder="Partage une victoire, une pensée, une question... ✦"
+                    className="w-full text-sm text-novae-anthracite placeholder-novae-anthracite/30 bg-transparent focus:outline-none resize-none"
+                    rows={3} maxLength={500} />
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-novae-anthracite/20">{newPost.length}/500</span>
+                    <button onClick={handlePost} disabled={!newPost.trim() || posting}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${newPost.trim() && !posting ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/30 cursor-not-allowed'}`}>
+                      {posting ? '...' : 'Publier'}
+                    </button>
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Posts */}
-              {posts.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-3">🌱</div>
-                  <p className="text-novae-anthracite/40 text-sm">Sois la première à partager quelque chose !</p>
-                </div>
-              ) : (
-                posts.map(post => {
-                  const unread = isUnread(post)
-                  return (
-                  <div
-                    key={post.id}
-                    ref={(el) => { postRefs.current[post.id] = el }}
-                    className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm overflow-hidden"
-                    style={{
-                      position: 'relative',
-                      boxShadow:
-                        highlightedPost === post.id
-                          ? '0 0 0 2px rgba(196,149,106,0.75), 0 10px 28px rgba(196,149,106,0.28)'
-                          : unread
-                            ? '0 0 0 1.5px rgba(196,149,106,0.5)'
-                            : undefined,
-                      transition: 'box-shadow .4s ease',
-                    }}
-                  >
+            {/* Posts */}
+            {posts.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-4xl mb-3">🌱</div>
+                <p className="text-novae-anthracite/40 text-sm">Sois la première à partager quelque chose !</p>
+              </div>
+            ) : (
+              posts.map(post => {
+                const unread = isUnread(post)
+                return (
+                <div
+                  key={post.id}
+                  ref={(el) => { postRefs.current[post.id] = el }}
+                  className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm overflow-hidden"
+                  style={{
+                    position: 'relative',
+                    boxShadow:
+                      highlightedPost === post.id
+                        ? '0 0 0 2px rgba(196,149,106,0.75), 0 10px 28px rgba(196,149,106,0.28)'
+                        : unread
+                          ? '0 0 0 1.5px rgba(196,149,106,0.5)'
+                          : undefined,
+                    transition: 'box-shadow .4s ease',
+                  }}
+                >
 
-                    {/* Bulle réponses haut droite (vive si non lu, sobre si déjà vu) */}
-                    {post.comments_count > 0 && (
-                      <button
-                        onClick={() => toggleComments(post.id)}
-                        style={{
-                          position: 'absolute',
-                          top: 12,
-                          right: 12,
-                          zIndex: 5,
-                          background: unread ? 'linear-gradient(135deg, #C4956A, #7B6FA0)' : 'rgba(196,149,106,0.12)',
-                          color: unread ? 'white' : '#8b6f55',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          padding: '4px 10px',
-                          borderRadius: 999,
-                          boxShadow: unread ? '0 2px 8px rgba(196,149,106,0.4)' : 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 5,
-                          border: unread ? 'none' : '1px solid rgba(196,149,106,0.25)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {unread && <span className="novae-unread-dot" />}
-                        💬 {post.comments_count} {post.comments_count === 1 ? 'réponse' : 'réponses'}
-                      </button>
-                    )}
+                  {post.comments_count > 0 && (
+                    <button
+                      onClick={() => toggleComments(post.id)}
+                      style={{
+                        position: 'absolute',
+                        top: 12,
+                        right: 12,
+                        zIndex: 5,
+                        background: unread ? 'linear-gradient(135deg, #C4956A, #7B6FA0)' : 'rgba(196,149,106,0.12)',
+                        color: unread ? 'white' : '#8b6f55',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '4px 10px',
+                        borderRadius: 999,
+                        boxShadow: unread ? '0 2px 8px rgba(196,149,106,0.4)' : 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        border: unread ? 'none' : '1px solid rgba(196,149,106,0.25)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {unread && <span className="novae-unread-dot" />}
+                      💬 {post.comments_count} {post.comments_count === 1 ? 'réponse' : 'réponses'}
+                    </button>
+                  )}
 
-                    <div className="p-4">
-                      {/* Header post */}
-                      <div className="flex items-center gap-2 mb-3" style={{ paddingRight: post.comments_count > 0 ? 120 : 0 }}>
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-novae-gold/60 to-novae-rose/60 flex items-center justify-center text-white text-xs font-bold">
-                          {post.pseudo?.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-sm font-medium text-novae-anthracite">{post.pseudo}</span>
-                        {post.user_id === user.id && (
-                          <span className="text-xs text-novae-gold bg-novae-gold/10 px-1.5 py-0.5 rounded">Toi</span>
-                        )}
-                        <span className="ml-auto text-xs text-novae-anthracite/30">{formatDate(post.created_at)}</span>
-
-                        {/* Menu ⋮ posts perso */}
-                        {post.user_id === user.id && (
-                          <div style={{ position: 'relative' }}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setCommentMenuOpen(null)
-                                setPostMenuOpen(postMenuOpen === post.id ? null : post.id)
-                              }}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, fontSize: 18, color: '#999', lineHeight: 1 }}
-                              aria-label="Options"
-                            >
-                              ⋮
-                            </button>
-                            {postMenuOpen === post.id && (
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                style={{
-                                  position: 'absolute', top: 28, right: 0, zIndex: 50,
-                                  background: 'white', borderRadius: 10,
-                                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                                  border: '1px solid #eee', minWidth: 140, overflow: 'hidden',
-                                }}
-                              >
-                                <button onClick={() => startEditPost(post)} style={menuItemStyle}>
-                                  ✏️ Modifier
-                                </button>
-                                <button onClick={() => deletePost(post.id)} style={{ ...menuItemStyle, color: '#c44757' }}>
-                                  🗑️ Supprimer
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 mb-3" style={{ paddingRight: post.comments_count > 0 ? 120 : 0 }}>
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-novae-gold/60 to-novae-rose/60 flex items-center justify-center text-white text-xs font-bold">
+                        {post.pseudo?.charAt(0).toUpperCase()}
                       </div>
+                      <span className="text-sm font-medium text-novae-anthracite">{post.pseudo}</span>
+                      {post.user_id === user.id && (
+                        <span className="text-xs text-novae-gold bg-novae-gold/10 px-1.5 py-0.5 rounded">Toi</span>
+                      )}
+                      <span className="ml-auto text-xs text-novae-anthracite/30">{formatDate(post.created_at)}</span>
 
-                      {/* Contenu ou édition */}
-                      {editingPost === post.id ? (
-                        <div>
-                          <textarea
-                            value={editPostContent}
-                            onChange={(e) => setEditPostContent(e.target.value)}
-                            className="w-full text-sm text-novae-anthracite bg-novae-cream/50 border border-novae-beige/40 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-novae-gold/30 resize-none"
-                            rows={3}
-                            maxLength={500}
-                            autoFocus
-                          />
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              onClick={() => savePost(post.id)}
-                              disabled={!editPostContent.trim()}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-medium ${editPostContent.trim() ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/40'}`}
+                      {post.user_id === user.id && (
+                        <div style={{ position: 'relative' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setCommentMenuOpen(null)
+                              setPostMenuOpen(postMenuOpen === post.id ? null : post.id)
+                            }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, fontSize: 18, color: '#999', lineHeight: 1 }}
+                            aria-label="Options"
+                          >
+                            ⋮
+                          </button>
+                          {postMenuOpen === post.id && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                position: 'absolute', top: 28, right: 0, zIndex: 50,
+                                background: 'white', borderRadius: 10,
+                                boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                                border: '1px solid #eee', minWidth: 140, overflow: 'hidden',
+                              }}
                             >
-                              Enregistrer
-                            </button>
-                            <button
-                              onClick={cancelEditPost}
-                              className="px-3 py-1.5 bg-novae-beige/30 text-novae-anthracite/60 rounded-lg text-xs"
-                            >
-                              Annuler
-                            </button>
-                          </div>
+                              <button onClick={() => startEditPost(post)} style={menuItemStyle}>
+                                ✏️ Modifier
+                              </button>
+                              <button onClick={() => deletePost(post.id)} style={{ ...menuItemStyle, color: '#c44757' }}>
+                                🗑️ Supprimer
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <p className="text-sm text-novae-anthracite leading-relaxed whitespace-pre-wrap">{post.content}</p>
                       )}
                     </div>
 
-                    {/* Like + commenter */}
-                    <div className="px-4 pb-3 flex items-center gap-4 border-t border-novae-beige/10 pt-2">
-                      <button
-                        onClick={() => handleLike(post)}
-                        className={`flex items-center gap-1.5 text-xs transition-colors ${post.liked_by_me ? 'text-novae-gold' : 'text-novae-anthracite/40 hover:text-novae-gold'}`}
-                      >
-                        <span>{post.liked_by_me ? '💛' : '🤍'}</span>
-                        <span>{post.likes_count > 0 ? post.likes_count : ''}</span>
-                      </button>
-
-                      <button
-                        onClick={() => toggleComments(post.id)}
-                        className="flex items-center gap-1.5 text-xs transition-colors hover:text-novae-anthracite"
-                        style={{ color: expandedPost === post.id ? '#C4956A' : undefined }}
-                      >
-                        <span>💬</span>
-                        <span className="text-novae-anthracite/40">
-                          {post.comments_count > 0 ? `${post.comments_count} ${post.comments_count === 1 ? 'réponse' : 'réponses'}` : 'Commenter'}
-                        </span>
-                      </button>
-                    </div>
-
-                    {/* Section commentaires */}
-                    {expandedPost === post.id && (
-                      <div className="border-t border-novae-beige/10 bg-novae-cream/50">
-                        <div className="px-4 py-3 space-y-3 max-h-64 overflow-y-auto">
-                          {(comments[post.id] || []).map(comment => (
-                            <div key={comment.id} className="flex gap-2">
-                              <div className="w-6 h-6 rounded-full bg-novae-gold/20 flex items-center justify-center text-novae-gold text-xs font-bold flex-shrink-0">
-                                {comment.pseudo?.charAt(0).toUpperCase()}
-                              </div>
-                              <div className="flex-1" style={{ position: 'relative' }}>
-                                {editingComment === comment.id ? (
-                                  <div>
-                                    <input
-                                      value={editCommentContent}
-                                      onChange={e => setEditCommentContent(e.target.value)}
-                                      onKeyDown={e => {
-                                        if (e.key === 'Enter') saveComment(comment.id, post.id)
-                                        if (e.key === 'Escape') cancelEditComment()
-                                      }}
-                                      className="w-full text-xs bg-white border border-novae-beige/30 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-novae-gold/30 text-novae-anthracite"
-                                      maxLength={200}
-                                      autoFocus
-                                    />
-                                    <div className="flex gap-2 mt-1">
-                                      <button onClick={() => saveComment(comment.id, post.id)} className="text-xs text-novae-gold font-medium">
-                                        ✓ Enregistrer
-                                      </button>
-                                      <button onClick={cancelEditComment} className="text-xs text-novae-anthracite/40">
-                                        Annuler
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <span className="text-xs font-medium text-novae-anthracite">{comment.pseudo} </span>
-                                    <span className="text-xs text-novae-anthracite/70">{comment.content}</span>
-                                    {comment.user_id === user.id && (
-                                      <span style={{ display: 'inline-block', position: 'relative', marginLeft: 4 }}>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            setPostMenuOpen(null)
-                                            setCommentMenuOpen(commentMenuOpen === comment.id ? null : comment.id)
-                                          }}
-                                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#bbb', padding: '0 2px', lineHeight: 1 }}
-                                          aria-label="Options commentaire"
-                                        >
-                                          ⋮
-                                        </button>
-                                        {commentMenuOpen === comment.id && (
-                                          <div
-                                            onClick={(e) => e.stopPropagation()}
-                                            style={{
-                                              position: 'absolute', top: 18, right: 0, zIndex: 30,
-                                              background: 'white', borderRadius: 8,
-                                              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                                              border: '1px solid #eee', minWidth: 130, overflow: 'hidden',
-                                            }}
-                                          >
-                                            <button onClick={() => startEditComment(comment)} style={{ ...menuItemStyle, padding: '8px 12px', fontSize: 12 }}>
-                                              ✏️ Modifier
-                                            </button>
-                                            <button onClick={() => deleteComment(comment.id, post.id)} style={{ ...menuItemStyle, padding: '8px 12px', fontSize: 12, color: '#c44757' }}>
-                                              🗑️ Supprimer
-                                            </button>
-                                          </div>
-                                        )}
-                                      </span>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                          {(comments[post.id] || []).length === 0 && (
-                            <p className="text-xs text-novae-anthracite/30 text-center py-2">Sois la première à commenter</p>
-                          )}
-                        </div>
-                        <div className="px-4 pb-3 flex gap-2">
-                          <input
-                            value={newComment[post.id] || ''}
-                            onChange={e => setNewComment(prev => ({ ...prev, [post.id]: e.target.value }))}
-                            onKeyDown={e => { if (e.key === 'Enter') handleComment(post.id) }}
-                            placeholder="Ton commentaire..."
-                            className="flex-1 text-xs bg-white border border-novae-beige/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-novae-gold/30 text-novae-anthracite placeholder-novae-anthracite/30"
-                            maxLength={200}
-                          />
+                    {editingPost === post.id ? (
+                      <div>
+                        <textarea
+                          value={editPostContent}
+                          onChange={(e) => setEditPostContent(e.target.value)}
+                          className="w-full text-sm text-novae-anthracite bg-novae-cream/50 border border-novae-beige/40 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-novae-gold/30 resize-none"
+                          rows={3}
+                          maxLength={500}
+                          autoFocus
+                        />
+                        <div className="flex gap-2 mt-2">
                           <button
-                            onClick={() => handleComment(post.id)}
-                            disabled={!newComment[post.id]?.trim()}
-                            className={`px-3 py-2 rounded-lg text-xs transition-all ${newComment[post.id]?.trim() ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/30'}`}
+                            onClick={() => savePost(post.id)}
+                            disabled={!editPostContent.trim()}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium ${editPostContent.trim() ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/40'}`}
                           >
-                            →
+                            Enregistrer
+                          </button>
+                          <button
+                            onClick={cancelEditPost}
+                            className="px-3 py-1.5 bg-novae-beige/30 text-novae-anthracite/60 rounded-lg text-xs"
+                          >
+                            Annuler
                           </button>
                         </div>
                       </div>
+                    ) : (
+                      <p className="text-sm text-novae-anthracite leading-relaxed whitespace-pre-wrap">{post.content}</p>
                     )}
                   </div>
-                  )
-                })
-              )}
-            </div>
-          )}
+
+                  <div className="px-4 pb-3 flex items-center gap-4 border-t border-novae-beige/10 pt-2">
+                    <button
+                      onClick={() => handleLike(post)}
+                      className={`flex items-center gap-1.5 text-xs transition-colors ${post.liked_by_me ? 'text-novae-gold' : 'text-novae-anthracite/40 hover:text-novae-gold'}`}
+                    >
+                      <span>{post.liked_by_me ? '💛' : '🤍'}</span>
+                      <span>{post.likes_count > 0 ? post.likes_count : ''}</span>
+                    </button>
+
+                    <button
+                      onClick={() => toggleComments(post.id)}
+                      className="flex items-center gap-1.5 text-xs transition-colors hover:text-novae-anthracite"
+                      style={{ color: expandedPost === post.id ? '#C4956A' : undefined }}
+                    >
+                      <span>💬</span>
+                      <span className="text-novae-anthracite/40">
+                        {post.comments_count > 0 ? `${post.comments_count} ${post.comments_count === 1 ? 'réponse' : 'réponses'}` : 'Commenter'}
+                      </span>
+                    </button>
+                  </div>
+
+                  {expandedPost === post.id && (
+                    <div className="border-t border-novae-beige/10 bg-novae-cream/50">
+                      <div className="px-4 py-3 space-y-3 max-h-64 overflow-y-auto">
+                        {(comments[post.id] || []).map(comment => (
+                          <div key={comment.id} className="flex gap-2">
+                            <div className="w-6 h-6 rounded-full bg-novae-gold/20 flex items-center justify-center text-novae-gold text-xs font-bold flex-shrink-0">
+                              {comment.pseudo?.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1" style={{ position: 'relative' }}>
+                              {editingComment === comment.id ? (
+                                <div>
+                                  <input
+                                    value={editCommentContent}
+                                    onChange={e => setEditCommentContent(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') saveComment(comment.id, post.id)
+                                      if (e.key === 'Escape') cancelEditComment()
+                                    }}
+                                    className="w-full text-xs bg-white border border-novae-beige/30 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-novae-gold/30 text-novae-anthracite"
+                                    maxLength={200}
+                                    autoFocus
+                                  />
+                                  <div className="flex gap-2 mt-1">
+                                    <button onClick={() => saveComment(comment.id, post.id)} className="text-xs text-novae-gold font-medium">
+                                      ✓ Enregistrer
+                                    </button>
+                                    <button onClick={cancelEditComment} className="text-xs text-novae-anthracite/40">
+                                      Annuler
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="text-xs font-medium text-novae-anthracite">{comment.pseudo} </span>
+                                  <span className="text-xs text-novae-anthracite/70">{comment.content}</span>
+                                  {comment.user_id === user.id && (
+                                    <span style={{ display: 'inline-block', position: 'relative', marginLeft: 4 }}>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setPostMenuOpen(null)
+                                          setCommentMenuOpen(commentMenuOpen === comment.id ? null : comment.id)
+                                        }}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#bbb', padding: '0 2px', lineHeight: 1 }}
+                                        aria-label="Options commentaire"
+                                      >
+                                        ⋮
+                                      </button>
+                                      {commentMenuOpen === comment.id && (
+                                        <div
+                                          onClick={(e) => e.stopPropagation()}
+                                          style={{
+                                            position: 'absolute', top: 18, right: 0, zIndex: 30,
+                                            background: 'white', borderRadius: 8,
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                            border: '1px solid #eee', minWidth: 130, overflow: 'hidden',
+                                          }}
+                                        >
+                                          <button onClick={() => startEditComment(comment)} style={{ ...menuItemStyle, padding: '8px 12px', fontSize: 12 }}>
+                                            ✏️ Modifier
+                                          </button>
+                                          <button onClick={() => deleteComment(comment.id, post.id)} style={{ ...menuItemStyle, padding: '8px 12px', fontSize: 12, color: '#c44757' }}>
+                                            🗑️ Supprimer
+                                          </button>
+                                        </div>
+                                      )}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        {(comments[post.id] || []).length === 0 && (
+                          <p className="text-xs text-novae-anthracite/30 text-center py-2">Sois la première à commenter</p>
+                        )}
+                      </div>
+                      <div className="px-4 pb-3 flex gap-2">
+                        <input
+                          value={newComment[post.id] || ''}
+                          onChange={e => setNewComment(prev => ({ ...prev, [post.id]: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') handleComment(post.id) }}
+                          placeholder="Ton commentaire..."
+                          className="flex-1 text-xs bg-white border border-novae-beige/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-novae-gold/30 text-novae-anthracite placeholder-novae-anthracite/30"
+                          maxLength={200}
+                        />
+                        <button
+                          onClick={() => handleComment(post.id)}
+                          disabled={!newComment[post.id]?.trim()}
+                          className={`px-3 py-2 rounded-lg text-xs transition-all ${newComment[post.id]?.trim() ? 'bg-novae-gold text-white' : 'bg-novae-beige/30 text-novae-anthracite/30'}`}
+                        >
+                          →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                )
+              })
+            )}
+          </div>
 
           {/* ═══ CHALLENGES ═══ */}
-          {activeTab === 'challenges' && (
-            <div className="space-y-4">
-              <div className="bg-novae-gold/10 border border-novae-gold/20 rounded-2xl p-4 text-center">
-                <div className="text-2xl mb-1">🎯</div>
-                <p className="text-sm font-medium text-novae-anthracite">Défis de la semaine</p>
-                <p className="text-xs text-novae-anthracite/50 mt-1">Lancés par NOVAÉ · Nouveaux défis chaque lundi</p>
+          <div className={`space-y-4 ${activeTab === 'challenges' ? 'block' : 'hidden'} lg:block`}>
+            <div className="bg-novae-gold/10 border border-novae-gold/20 rounded-2xl p-4 text-center">
+              <div className="text-2xl mb-1">🎯</div>
+              <p className="text-sm font-medium text-novae-anthracite">Défis de la semaine</p>
+              <p className="text-xs text-novae-anthracite/50 mt-1">Lancés par NOVAÉ · Nouveaux défis chaque lundi</p>
+            </div>
+            {challenges.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-4xl mb-3">⏳</div>
+                <p className="text-novae-anthracite/40 text-sm">Aucun défi actif pour le moment.</p>
               </div>
-              {challenges.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-3">⏳</div>
-                  <p className="text-novae-anthracite/40 text-sm">Aucun défi actif pour le moment.</p>
-                </div>
-              ) : (
-                challenges.map(challenge => (
-                  <div key={challenge.id} className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-novae-gold/10 flex items-center justify-center text-2xl flex-shrink-0">{challenge.emoji}</div>
-                      <div className="flex-1">
-                        <h3 className="font-medium text-novae-anthracite text-sm">{challenge.title}</h3>
-                        {challenge.description && (
-                          <p className="text-xs text-novae-anthracite/50 mt-1 leading-relaxed">{challenge.description}</p>
-                        )}
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="text-xs text-novae-anthracite/40">📅 {formatChallengeDate(challenge.starts_at)} → {formatChallengeDate(challenge.ends_at)}</span>
-                        </div>
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="text-xs text-novae-anthracite/50">👥 {challenge.participants_count} participantes</span>
-                          <span className="text-xs text-green-600">✅ {challenge.completed_count} ont réussi</span>
-                        </div>
-                        {(challenge.participants_count || 0) > 0 && (
-                          <div className="mt-3">
-                            <div className="h-1.5 bg-novae-beige/30 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-novae-gold rounded-full transition-all"
-                                style={{ width: `${Math.round(((challenge.completed_count || 0) / (challenge.participants_count || 1)) * 100)}%` }}
-                              />
-                            </div>
-                            <p className="text-xs text-novae-anthracite/30 mt-1">
-                              {Math.round(((challenge.completed_count || 0) / (challenge.participants_count || 1)) * 100)}% de réussite
-                            </p>
-                          </div>
-                        )}
+            ) : (
+              challenges.map(challenge => (
+                <div key={challenge.id} className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-novae-gold/10 flex items-center justify-center text-2xl flex-shrink-0">{challenge.emoji}</div>
+                    <div className="flex-1">
+                      <h3 className="font-medium text-novae-anthracite text-sm">{challenge.title}</h3>
+                      {challenge.description && (
+                        <p className="text-xs text-novae-anthracite/50 mt-1 leading-relaxed">{challenge.description}</p>
+                      )}
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className="text-xs text-novae-anthracite/40">📅 {formatChallengeDate(challenge.starts_at)} → {formatChallengeDate(challenge.ends_at)}</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className="text-xs text-novae-anthracite/50">👥 {challenge.participants_count} participantes</span>
+                        <span className="text-xs text-green-600">✅ {challenge.completed_count} ont réussi</span>
+                      </div>
+                      {(challenge.participants_count || 0) > 0 && (
                         <div className="mt-3">
-                          {!challenge.my_participation ? (
-                            <button
-                              onClick={() => handleJoinChallenge(challenge.id)}
-                              className="w-full py-2 bg-novae-anthracite text-white rounded-xl text-xs font-medium hover:bg-novae-gold transition-colors"
-                            >
-                              Rejoindre ce défi ✦
-                            </button>
-                          ) : challenge.my_participation.completed ? (
-                            <div className="w-full py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-medium text-green-600 text-center">
-                              ✅ Défi relevé, bravo !
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleCompleteChallenge(challenge.id)}
-                              className="w-full py-2 bg-novae-gold/10 border border-novae-gold/30 text-novae-gold rounded-xl text-xs font-medium hover:bg-novae-gold hover:text-white transition-colors"
-                            >
-                              Marquer comme complété 🎯
-                            </button>
-                          )}
+                          <div className="h-1.5 bg-novae-beige/30 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-novae-gold rounded-full transition-all"
+                              style={{ width: `${Math.round(((challenge.completed_count || 0) / (challenge.participants_count || 1)) * 100)}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-novae-anthracite/30 mt-1">
+                            {Math.round(((challenge.completed_count || 0) / (challenge.participants_count || 1)) * 100)}% de réussite
+                          </p>
                         </div>
+                      )}
+                      <div className="mt-3">
+                        {!challenge.my_participation ? (
+                          <button
+                            onClick={() => handleJoinChallenge(challenge.id)}
+                            className="w-full py-2 bg-novae-anthracite text-white rounded-xl text-xs font-medium hover:bg-novae-gold transition-colors"
+                          >
+                            Rejoindre ce défi ✦
+                          </button>
+                        ) : challenge.my_participation.completed ? (
+                          <div className="w-full py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-medium text-green-600 text-center">
+                            ✅ Défi relevé, bravo !
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleCompleteChallenge(challenge.id)}
+                            className="w-full py-2 bg-novae-gold/10 border border-novae-gold/30 text-novae-gold rounded-xl text-xs font-medium hover:bg-novae-gold hover:text-white transition-colors"
+                          >
+                            Marquer comme complété 🎯
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          )}
+                </div>
+              ))
+            )}
+          </div>
 
           {/* ═══ RANKING ═══ */}
-          {activeTab === 'ranking' && (
-            <div className="space-y-4">
+          <div className={`space-y-4 ${activeTab === 'ranking' ? 'block' : 'hidden'} lg:block`}>
 
-              <div className="bg-novae-anthracite rounded-2xl p-4 text-center">
-                <p className="text-novae-gold text-xs font-medium uppercase tracking-widest mb-1">Classement du mois</p>
-                <h2 className="font-serif text-2xl text-white">{new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</h2>
-                <p className="text-white/40 text-xs mt-1">Défis complétés ce mois-ci</p>
-              </div>
+            <div className="bg-novae-anthracite rounded-2xl p-4 text-center">
+              <p className="text-novae-gold text-xs font-medium uppercase tracking-widest mb-1">Classement du mois</p>
+              <h2 className="font-serif text-2xl text-white">{new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</h2>
+              <p className="text-white/40 text-xs mt-1">Défis complétés ce mois-ci</p>
+            </div>
 
-              {myBadges.length > 0 && (
-                <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm p-4">
-                  <h3 className="text-xs font-medium text-novae-anthracite/50 uppercase tracking-wide mb-3">Mes badges</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {myBadges.map(badge => (
-                      <div key={badge.id} className="flex items-center gap-1.5 bg-novae-gold/10 border border-novae-gold/20 rounded-full px-3 py-1.5">
-                        <span className="text-sm">{BADGE_DEFINITIONS[badge.badge_type]?.emoji || '🏅'}</span>
-                        <span className="text-xs text-novae-gold font-medium">{badge.badge_label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {ranking.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-3">🏆</div>
-                  <p className="text-novae-anthracite/40 text-sm">Aucun défi complété ce mois-ci.</p>
-                </div>
-              ) : (
-                <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm overflow-hidden">
-                  {ranking.map((entry, index) => (
-                    <div
-                      key={entry.user_id}
-                      className={`flex items-center gap-3 px-4 py-3 ${index < ranking.length - 1 ? 'border-b border-novae-beige/10' : ''} ${entry.isMe ? 'bg-novae-gold/5' : ''}`}
-                    >
-                      <span className="text-lg w-8 text-center flex-shrink-0">{getRankEmoji(entry.rank)}</span>
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-novae-gold/60 to-novae-rose/60 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                        {entry.pseudo?.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1">
-                        <span className="text-sm font-medium text-novae-anthracite">
-                          {entry.pseudo}
-                          {entry.isMe && <span className="ml-2 text-xs text-novae-gold">← toi</span>}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-sm font-bold text-novae-gold">{entry.count}</span>
-                        <span className="text-xs text-novae-anthracite/30 ml-1">défi{entry.count > 1 ? 's' : ''}</span>
-                      </div>
+            {myBadges.length > 0 && (
+              <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm p-4">
+                <h3 className="text-xs font-medium text-novae-anthracite/50 uppercase tracking-wide mb-3">Mes badges</h3>
+                <div className="flex flex-wrap gap-2">
+                  {myBadges.map(badge => (
+                    <div key={badge.id} className="flex items-center gap-1.5 bg-novae-gold/10 border border-novae-gold/20 rounded-full px-3 py-1.5">
+                      <span className="text-sm">{BADGE_DEFINITIONS[badge.badge_type]?.emoji || '🏅'}</span>
+                      <span className="text-xs text-novae-gold font-medium">{badge.badge_label}</span>
                     </div>
                   ))}
                 </div>
-              )}
-
-              <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm p-4">
-                <h3 className="text-xs font-medium text-novae-anthracite/50 uppercase tracking-wide mb-3">Badges à débloquer</h3>
-                <div className="space-y-2">
-                  {Object.entries(BADGE_DEFINITIONS).map(([type, def]) => {
-                    const earned = myBadges.find(b => b.badge_type === type)
-                    return (
-                      <div key={type} className={`flex items-center gap-3 p-2 rounded-xl ${earned ? 'bg-novae-gold/5' : 'opacity-40'}`}>
-                        <span className="text-xl">{def.emoji}</span>
-                        <div>
-                          <p className="text-xs font-medium text-novae-anthracite">{def.label}</p>
-                          <p className="text-xs text-novae-anthracite/40">{def.desc}</p>
-                        </div>
-                        {earned && <span className="ml-auto text-xs text-novae-gold">✓ Obtenu</span>}
-                      </div>
-                    )
-                  })}
-                </div>
               </div>
+            )}
 
+            {ranking.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-4xl mb-3">🏆</div>
+                <p className="text-novae-anthracite/40 text-sm">Aucun défi complété ce mois-ci.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm overflow-hidden">
+                {ranking.map((entry, index) => (
+                  <div
+                    key={entry.user_id}
+                    className={`flex items-center gap-3 px-4 py-3 ${index < ranking.length - 1 ? 'border-b border-novae-beige/10' : ''} ${entry.isMe ? 'bg-novae-gold/5' : ''}`}
+                  >
+                    <span className="text-lg w-8 text-center flex-shrink-0">{getRankEmoji(entry.rank)}</span>
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-novae-gold/60 to-novae-rose/60 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                      {entry.pseudo?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-novae-anthracite">
+                        {entry.pseudo}
+                        {entry.isMe && <span className="ml-2 text-xs text-novae-gold">← toi</span>}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-novae-gold">{entry.count}</span>
+                      <span className="text-xs text-novae-anthracite/30 ml-1">défi{entry.count > 1 ? 's' : ''}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="bg-white rounded-2xl border border-novae-beige/20 shadow-sm p-4">
+              <h3 className="text-xs font-medium text-novae-anthracite/50 uppercase tracking-wide mb-3">Badges à débloquer</h3>
+              <div className="space-y-2">
+                {Object.entries(BADGE_DEFINITIONS).map(([type, def]) => {
+                  const earned = myBadges.find(b => b.badge_type === type)
+                  return (
+                    <div key={type} className={`flex items-center gap-3 p-2 rounded-xl ${earned ? 'bg-novae-gold/5' : 'opacity-40'}`}>
+                      <span className="text-xl">{def.emoji}</span>
+                      <div>
+                        <p className="text-xs font-medium text-novae-anthracite">{def.label}</p>
+                        <p className="text-xs text-novae-anthracite/40">{def.desc}</p>
+                      </div>
+                      {earned && <span className="ml-auto text-xs text-novae-gold">✓ Obtenu</span>}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          )}
+
+          </div>
 
         </div>
       </div>
+      <Navigation />
     </>
   )
 }
