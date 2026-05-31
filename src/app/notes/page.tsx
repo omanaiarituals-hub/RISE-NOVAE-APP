@@ -308,4 +308,4 @@ function NoteItem({ note, active, onClick }: { note: Note; active: boolean; onCl
       </div>
     </button>
   )
-}
+} 

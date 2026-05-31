@@ -198,8 +198,8 @@ export default function ProgramPage() {
               <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 500, color: '#3D2618', margin: '0 0 4px', letterSpacing: '0.01em' }}>
                 90 jours pour devenir toi
               </h1>
-              <p style={{ fontSize: 12.5, color: '#6B5B4E', margin: '0 0 14px', lineHeight: 1.5 }}>
-                Chaque tuile, une mission. Chaque mission, un pas.
+              <p style={{ fontSize: 13.5, color: '#6B5B4E', margin: '0 0 14px', lineHeight: 1.55, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}>
+                Tu n'as pas besoin de tout changer d'un coup. Juste un pas aujourd'hui — et la suite vient d'elle-même.
               </p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1, height: 4, background: 'rgba(61,38,24,0.1)', borderRadius: 2, overflow: 'hidden' }}>
