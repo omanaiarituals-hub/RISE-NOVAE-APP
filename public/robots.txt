@@ -1,0 +1,9 @@
+# NOVAÉ — robots.txt
+User-agent: *
+Allow: /
+
+# Pages techniques à ne pas indexer
+Disallow: /api/
+Disallow: /subscribe/success
+
+Sitemap: https://novae-by-omanaia.com/sitemap.xml

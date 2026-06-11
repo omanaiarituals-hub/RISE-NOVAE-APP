@@ -1,18 +1,36 @@
 {
-  "name": "RISE NOVAÉ",
+  "name": "NOVAÉ",
   "short_name": "NOVAÉ",
-  "description": "Ton compagnon de transformation personnelle",
+  "description": "L'assistante qui porte ta charge mentale avec toi",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FAF7F2",
-  "theme_color": "#1C1A18",
+  "background_color": "#F8F1E5",
+  "theme_color": "#F8F1E5",
   "orientation": "portrait",
   "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "/novae-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ],
   "categories": ["health", "lifestyle", "productivity"]
