@@ -41,9 +41,8 @@ interface AppContext {
 
 const OWNER_ID = 'cce02eb0-53a1-49c0-82bc-1851a92f1e3c'
 
-// Univers IA = lavande
-const LAV = '#8A6FB0'        // accent / actions
-const LAV_SOFT = '#D4C4E2'   // clair
+const LAV = '#8A6FB0'
+const LAV_SOFT = '#D4C4E2'
 
 export default function AgentPage() {
   const { user, loading: authLoading } = useSupabaseAuth()
@@ -54,15 +53,13 @@ export default function AgentPage() {
   const [contextLoading, setContextLoading] = useState(false)
   const [showHome, setShowHome] = useState(true)
   const [historyLoaded, setHistoryLoaded] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [novaBadge, setNovaBadge] = useState(false) // badge message Nova en attente
 
-  // Répertoire de conversations
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const activeThreadIdRef = useRef<string | null>(null)
   useEffect(() => { activeThreadIdRef.current = activeThreadId }, [activeThreadId])
 
-  // ── Voix (Web Speech API) ──
   const [voiceOn, setVoiceOn] = useState(false)
   const voiceOnRef = useRef(false)
   const [listening, setListening] = useState(false)
@@ -84,6 +81,7 @@ export default function AgentPage() {
   const speakingRef = useRef(false)
   const rateRef = useRef(1)
   const pitchRef = useRef(1.05)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { voiceModeRef.current = voiceMode }, [voiceMode])
   useEffect(() => { pausedRef.current = paused }, [paused])
@@ -108,18 +106,115 @@ export default function AgentPage() {
     }
   }
 
+  // ── Vérifier si Nova a un message en attente ──
+  const checkNovaPendingMessages = async () => {
+    if (!user) return
+    console.log('User ID:', user?.id)
+    try {
+      const { data } = await supabase
+        .from('nova_pending_messages')
+        .select ('id')
+        .eq('user_id', user.id)
+        .eq('is_read', false)
+        .limit(1)
+      setNovaBadge((data || []).length > 0)
+    } catch (err) {
+      console.error('[agent] nova pending check error:', err)
+    }
+  }
+
+  // ── Ouvrir le thread Nova depuis une notif ──
+  const openNovaThread = async (threadId: string) => {
+    if (!user) return
+    setActiveThreadId(threadId)
+    activeThreadIdRef.current = threadId
+    setShowHome(false)
+
+    try {
+      // Charger le message Nova en attente
+      const { data: novaMsgs } = await supabase
+        .from('nova_pending_messages')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('thread_id', threadId)
+        .eq('is_read', false)
+        .limit(1)
+
+      if (novaMsgs && novaMsgs.length > 0) {
+        const novaMsg = novaMsgs[0]
+
+        // Marquer comme lu
+        await supabase
+          .from('nova_pending_messages')
+          .update({ is_read: true })
+          .eq('id', novaMsg.id)
+
+        setNovaBadge(false)
+
+        // Créer le thread en base si pas encore fait
+        const { data: existingThread } = await supabase
+          .from('agent_threads')
+          .select('id')
+          .eq('id', threadId)
+          .maybeSingle()
+
+        if (!existingThread) {
+          await supabase.from('agent_threads').insert({
+            id: threadId,
+            user_id: user.id,
+            title: 'Nova 💜',
+            updated_at: new Date().toISOString()
+          })
+        }
+
+        // Persister le message Nova en base conversations si pas encore fait
+        const { data: existingConv } = await supabase
+          .from('agent_conversations')
+          .select('id')
+          .eq('thread_id', threadId)
+          .limit(1)
+
+        if (!existingConv || existingConv.length === 0) {
+          await supabase.from('agent_conversations').insert({
+            user_id: user.id,
+            role: 'assistant',
+            content: novaMsg.message,
+            thread_id: threadId
+          })
+        }
+
+        // Afficher le message Nova
+        setMessages([{
+          id: novaMsg.id,
+          role: 'assistant',
+          content: novaMsg.message,
+          timestamp: new Date(novaMsg.created_at)
+        }])
+
+        loadThreads()
+      } else {
+        // Thread déjà lu, charger les messages normalement
+        await openThread(threadId)
+      }
+    } catch (err) {
+      console.error('[agent] openNovaThread error:', err)
+    }
+  }
+
   const newConversation = () => {
     const id = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
       ? (crypto as any).randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-    setActiveThreadId(id); activeThreadIdRef.current = id
+    setActiveThreadId(id)
+    activeThreadIdRef.current = id
     setMessages([])
     setShowHome(false)
   }
 
   const openThread = async (threadId: string) => {
     if (!user) return
-    setActiveThreadId(threadId); activeThreadIdRef.current = threadId
+    setActiveThreadId(threadId)
+    activeThreadIdRef.current = threadId
     setShowHome(false)
     try {
       const { data } = await supabase
@@ -144,7 +239,10 @@ export default function AgentPage() {
       await supabase.from('agent_threads').delete().eq('id', threadId).eq('user_id', user.id)
       setThreads(prev => prev.filter(t => t.id !== threadId))
       if (activeThreadIdRef.current === threadId) {
-        setMessages([]); setActiveThreadId(null); activeThreadIdRef.current = null; setShowHome(true)
+        setMessages([])
+        setActiveThreadId(null)
+        activeThreadIdRef.current = null
+        setShowHome(true)
       }
     } catch (err) {
       console.error('[agent] delete thread error:', err)
@@ -161,10 +259,25 @@ export default function AgentPage() {
     return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
   }
 
+  // ── Init ──
   useEffect(() => {
     if (user && !authLoading) {
       loadAppContext()
       loadThreads()
+      checkNovaPendingMessages()
+    }
+  }, [user, authLoading])
+
+  // ── Détecter ?nova_thread= dans l'URL ──
+  useEffect(() => {
+    if (!user || authLoading) return
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const novaThread = params.get('nova_thread')
+    if (novaThread) {
+      openNovaThread(novaThread)
+      // Nettoyer l'URL
+      window.history.replaceState({}, '', '/agent')
     }
   }, [user, authLoading])
 
@@ -232,7 +345,6 @@ export default function AgentPage() {
     return () => { try { window.speechSynthesis?.cancel() } catch {} }
   }, [])
 
-  // Arrivée depuis le micro de l'accueil (/agent?voice=1)
   useEffect(() => {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
@@ -342,7 +454,7 @@ export default function AgentPage() {
   const changeRate = (val: number) => { setRate(val); rateRef.current = val; try { localStorage.setItem('novae-voice-rate', String(val)) } catch {} }
   const changePitch = (val: number) => { setPitch(val); pitchRef.current = val; try { localStorage.setItem('novae-voice-pitch', String(val)) } catch {} }
 
-  // ── Persistance (liée au thread actif) ──
+  // ── Persistance ──
   const persistMessage = async (role: 'user' | 'assistant', content: string) => {
     if (!user) return
     let threadId = activeThreadIdRef.current
@@ -413,7 +525,7 @@ export default function AgentPage() {
     }
   }
 
-  // ── Suggestions proactives (calculées sur les vraies données) ──
+  // ── Suggestions proactives ──
   const proactiveSuggestions: { icon: string; label: string; prompt: string }[] = (() => {
     const ctx = appContext
     if (!ctx) return []
@@ -790,7 +902,13 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
           </button>
         )}
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ background: `linear-gradient(135deg, ${LAV_SOFT}, ${LAV})` }}>N</div>
+          <div className="relative">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ background: `linear-gradient(135deg, ${LAV_SOFT}, ${LAV})` }}>N</div>
+            {/* Badge message Nova en attente */}
+            {novaBadge && (
+              <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-400 border-2 border-white animate-pulse" />
+            )}
+          </div>
           <div>
             <div className="font-semibold text-novae-anthracite text-sm">NOVA</div>
             <div className="text-xs text-novae-anthracite/50 flex items-center gap-1">
@@ -812,18 +930,41 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
         </div>
       </div>
 
-      {/* Accueil : 2 colonnes sur ordi ; sur mobile le répertoire passe avant les tuiles */}
+      {/* Accueil */}
       {showHome && (
         <div className="flex-1 overflow-y-auto px-4 py-6">
           <div className="max-w-5xl mx-auto">
-            
+
+            {/* Bannière Nova si message en attente */}
+            {novaBadge && (
+              <button
+                onClick={async () => {
+                  const { data } = await supabase
+                    .from('nova_pending_messages')
+                    .select('thread_id')
+                    .eq('user_id', user?.id)
+                    .eq('is_read', false)
+                    .limit(1)
+                  if (data?.[0]?.thread_id) openNovaThread(data[0].thread_id)
+                }}
+                className="w-full mb-4 px-4 py-3 rounded-xl text-left flex items-center gap-3 transition-all hover:opacity-90"
+                style={{ background: `linear-gradient(135deg, ${LAV_SOFT}, ${LAV}33)`, border: `1px solid ${LAV}4D` }}
+              >
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: `linear-gradient(135deg, ${LAV_SOFT}, ${LAV})` }}>N</div>
+                <div>
+                  <p className="text-sm font-semibold text-novae-anthracite">Nova t'a laissé un message 💜</p>
+                  <p className="text-xs text-novae-anthracite/50">Appuie pour lire</p>
+                </div>
+                <div className="ml-auto w-2 h-2 rounded-full bg-rose-400 animate-pulse flex-shrink-0" />
+              </button>
+            )}
+
             <button onClick={newConversation} className="w-full py-3 mb-6 text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-all flex items-center justify-center gap-2" style={{ background: LAV }}>
               <span className="text-lg leading-none">+</span> Nouvelle conversation
             </button>
 
             <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
-
-              {/* COLONNE 1 (mobile : en premier) — répertoire + saisie */}
+              {/* COLONNE 1 — répertoire + saisie */}
               <div className="mb-6 lg:mb-0">
                 <p className="text-xs text-novae-anthracite/40 mb-2 font-medium uppercase tracking-wide">Tes conversations</p>
                 {threads.length === 0 ? (
@@ -859,7 +1000,7 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
                 </div>
               </div>
 
-              {/* COLONNE 2 (mobile : ensuite) — suggestions proactives */}
+              {/* COLONNE 2 — suggestions proactives */}
               <div>
                 {proactiveSuggestions.length > 0 && (
                   <>
@@ -883,7 +1024,7 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
         </div>
       )}
 
-      {/* Chat (recentré pour l'ordi) */}
+      {/* Chat */}
       {!showHome && (
         <>
           <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -931,7 +1072,7 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
           <div className="px-4 pb-4 pt-2 bg-white/80 backdrop-blur-sm border-t border-novae-beige/20">
             <div className="max-w-3xl mx-auto flex items-end gap-2">
               <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
-                placeholder="Demande à NOVA..."
+                placeholder="Réponds à Nova..."
                 className="flex-1 resize-none rounded-xl border border-novae-beige/40 px-4 py-3 text-sm text-novae-anthracite placeholder-novae-anthracite/30 focus:outline-none focus:ring-2 bg-novae-cream/50 max-h-32"
                 style={{ ['--tw-ring-color' as any]: `${LAV}4D` }}
                 rows={1} />
@@ -950,7 +1091,7 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
         </>
       )}
 
-      {/* Mode vocal (lavande) */}
+      {/* Mode vocal */}
       {voiceMode && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(212,196,226,0.82)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 24 }}>
           <button onClick={() => setShowVoiceSettings(s => !s)} title="Réglages de la voix" style={{ position: 'absolute', top: 18, left: 18, width: 40, height: 40, borderRadius: '50%', border: '1px solid rgba(138,111,176,0.35)', background: 'rgba(255,255,255,0.7)', fontSize: 17, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⚙️</button>

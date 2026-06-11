@@ -58,6 +58,7 @@ export default function HomePage() {
   const [todayPlannerCount, setTodayPlannerCount] = useState(0)
   const [activeChallengesCount, setActiveChallengesCount] = useState(0)
   const [newCommunityPosts, setNewCommunityPosts] = useState<number | null>(null)
+  const [novaPending, setNovaPending] = useState<{ thread_id: string } | null>(null)
 
   const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason: null })
   const hour = new Date().getHours()
@@ -81,8 +82,28 @@ export default function HomePage() {
   }, [])
 
   useEffect(() => {
-    if (user) loadData()
+    if (user) {
+      loadData()
+      checkNovaPending()
+    }
   }, [user])
+
+  const checkNovaPending = async () => {
+    if (!user) return
+    try {
+      const { data } = await supabase
+        .from('nova_pending_messages')
+        .select('thread_id')
+        .eq('user_id', user.id)
+        .eq('is_read', false)
+        .limit(1)
+      if (data && data.length > 0) {
+        setNovaPending({ thread_id: data[0].thread_id })
+      }
+    } catch (err) {
+      console.error('[HomePage] nova pending error:', err)
+    }
+  }
 
   const loadData = async () => {
     if (!user) return
@@ -92,18 +113,13 @@ export default function HomePage() {
         supabase.from('todo_list').select('id, status').eq('user_id', user.id),
       ])
 
-      if (prog.error) console.error('[HomePage] program_progress error:', prog.error)
-      if (todosRes.error) console.error('[HomePage] todo_list error:', todosRes.error)
-
       if (prog.data) {
         const d = prog.data.current_day || 1
         setCurrentDay(d)
         setProgramProgress(Math.round((d / 90) * 100))
         setStreak(prog.data.streak || 0)
       } else {
-        setCurrentDay(0)
-        setProgramProgress(0)
-        setStreak(0)
+        setCurrentDay(0); setProgramProgress(0); setStreak(0)
       }
 
       const pendingTodos = (todosRes.data || []).filter((t: any) => t.status !== 'completed' && t.status !== 'done')
@@ -127,59 +143,42 @@ export default function HomePage() {
       const cachedTime = sessionStorage.getItem(cacheTimeKey)
       const now = Date.now()
       if (cached && cachedTime && (now - parseInt(cachedTime)) < 60000) {
-        setNewCommunityPosts(parseInt(cached))
-        return
+        setNewCommunityPosts(parseInt(cached)); return
       }
       const lastVisit = localStorage.getItem('novae-community-last-visit')
       const since = lastVisit ? new Date(lastVisit).toISOString() : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
       const { count, error } = await supabase
-        .from('community_posts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', since)
-        .neq('user_id', user.id)
-      if (error) { console.error('[HomePage] community count error:', error); setNewCommunityPosts(0); return }
+        .from('community_posts').select('*', { count: 'exact', head: true })
+        .gte('created_at', since).neq('user_id', user.id)
+      if (error) { setNewCommunityPosts(0); return }
       const value = count || 0
       setNewCommunityPosts(value)
       sessionStorage.setItem(cacheKey, String(value))
       sessionStorage.setItem(cacheTimeKey, String(now))
-    } catch (err) {
-      console.error('[HomePage] community fetch error:', err)
-      setNewCommunityPosts(0)
-    }
+    } catch { setNewCommunityPosts(0) }
   }
 
   const loadTodayPlanner = async () => {
     if (!user) return
     try {
       const today = fmtDate(new Date())
-      const { count, error } = await supabase
-        .from('planner_events')
-        .select('*', { count: 'exact', head: true })
+      const { count } = await supabase
+        .from('planner_events').select('*', { count: 'exact', head: true })
         .eq('user_id', user.id)
         .gte('start_date', `${today}T00:00:00`)
         .lt('start_date', `${today}T23:59:59`)
-      if (error) console.error('[HomePage] planner count error:', error)
       setTodayPlannerCount(count || 0)
-    } catch (err) {
-      console.error('[HomePage] planner fetch error:', err)
-      setTodayPlannerCount(0)
-    }
+    } catch { setTodayPlannerCount(0) }
   }
 
   const loadActiveChallenges = async () => {
     if (!user) return
     try {
-      const { count, error } = await supabase
-        .from('challenge_participations')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('completed', false)
-      if (error) console.error('[HomePage] challenges count error:', error)
+      const { count } = await supabase
+        .from('challenge_participations').select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id).eq('completed', false)
       setActiveChallengesCount(count || 0)
-    } catch (err) {
-      console.error('[HomePage] challenges fetch error:', err)
-      setActiveChallengesCount(0)
-    }
+    } catch { setActiveChallengesCount(0) }
   }
 
   const restartTour = () => {
@@ -194,19 +193,11 @@ export default function HomePage() {
     <>
       <OnboardingTour forceShow={showTour} onClose={() => setShowTour(false)} />
 
-      <div
-        style={{
-          position: 'fixed', inset: 0, zIndex: 0,
-          background:
-            'radial-gradient(ellipse at 20% 0%, #F8E6DB 0%, transparent 55%),' +
-            'radial-gradient(ellipse at 80% 100%, #EBD7E0 0%, transparent 60%),' +
-            'linear-gradient(180deg, #FBF4EC 0%, #F8F1E5 55%, #F3E9DF 100%)',
-        }}
-      />
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: 'radial-gradient(ellipse at 20% 0%, #F8E6DB 0%, transparent 55%),radial-gradient(ellipse at 80% 100%, #EBD7E0 0%, transparent 60%),linear-gradient(180deg, #FBF4EC 0%, #F8F1E5 55%, #F3E9DF 100%)' }} />
 
       <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", position: 'relative', zIndex: 2, paddingBottom: 24 }}>
 
-        {/* ════════ HEADER BANDEAU (sticky) ════════ */}
+        {/* HEADER */}
         <div style={{ position: 'sticky', top: 0, zIndex: 30, background: 'linear-gradient(180deg, rgba(240,201,208,0.95) 0%, rgba(233,186,196,0.9) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(225,170,180,0.45)', boxShadow: '0 4px 18px rgba(160,110,120,0.12)', padding: '12px 20px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
             <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500, color: '#5B3821', letterSpacing: '1.2px' }}>Novaé</span>
@@ -220,10 +211,10 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ════════ CONTENU ════════ */}
+        {/* CONTENU */}
         <main className="home-main">
 
-          {/* Bonjour — pleine largeur */}
+          {/* Bonjour */}
           <div style={{ marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -246,11 +237,42 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* ── BANNIÈRE NOVA PROACTIVE ── */}
+          {novaPending && (
+            <Link
+              href={`/agent?nova_thread=${novaPending.thread_id}`}
+              style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}
+            >
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(212,196,226,0.55), rgba(138,111,176,0.18))',
+                backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(138,111,176,0.35)',
+                borderRadius: 16, padding: '12px 16px',
+                display: 'flex', alignItems: 'center', gap: 12
+              }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                  background: 'linear-gradient(135deg, #D4C4E2, #8A6FB0)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontFamily: "'Cormorant Garamond', serif",
+                  fontStyle: 'italic', fontWeight: 700, fontSize: 20
+                }}>N</div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 9.5, fontWeight: 700, color: '#5b4b7a', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.18em' }}>Nova t'a laissé un message</p>
+                  <p style={{ fontSize: 13.5, color: '#3d2618', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}>Appuie pour lire 💜</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e07a8a', boxShadow: '0 0 0 3px rgba(224,122,138,0.25)' }} className="nova-pulse" />
+                  <span style={{ color: '#8A6FB0', fontSize: 16 }}>→</span>
+                </div>
+              </div>
+            </Link>
+          )}
+
           <div className="home-grid">
 
-            {/* ───────── COLONNE GAUCHE ───────── */}
+            {/* COLONNE GAUCHE */}
             <div>
-
               <div style={{ marginBottom: 12 }}>
                 <StreakFlame />
               </div>
@@ -268,7 +290,7 @@ export default function HomePage() {
                 </Link>
               )}
 
-              {/* Carte Programme 90j (compacte) */}
+              {/* Carte Programme 90j */}
               <Link href="/program" style={{ textDecoration: 'none', display: 'block', marginBottom: 12 }}>
                 <div style={{ padding: '16px 18px', background: 'linear-gradient(135deg, rgba(255,255,255,0.55), rgba(255,255,255,0.25))', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', border: '1px solid rgba(255,255,255,0.5)', borderRadius: 18, boxShadow: '0 8px 24px rgba(139,90,60,0.1)', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: -40, right: -40, width: 110, height: 110, background: 'radial-gradient(circle, rgba(212,165,116,0.4), transparent)', borderRadius: '50%', pointerEvents: 'none' }} />
@@ -303,7 +325,7 @@ export default function HomePage() {
                 </div>
               </Link>
 
-              {/* 4 raccourcis rapides */}
+              {/* 4 raccourcis */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                 <Link href="/planner" style={{ textDecoration: 'none' }}>
                   <div style={quickTileStyle}><div style={{ fontSize: 18, marginBottom: 1 }}>📋</div><div style={quickNumStyle}>{todayTasks.length}</div><div style={quickLabelStyle}>ToDo</div></div>
@@ -323,12 +345,10 @@ export default function HomePage() {
                   <div style={quickTileStyle}><div style={{ fontSize: 18, marginBottom: 1 }}>⚡</div><div style={quickNumStyle}>{activeChallengesCount}</div><div style={quickLabelStyle}>Défis</div></div>
                 </Link>
               </div>
-
             </div>
 
-            {/* ───────── COLONNE DROITE ───────── */}
+            {/* COLONNE DROITE */}
             <div>
-
               <div style={{ padding: '2px 4px 8px', fontSize: 9, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2.5px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ height: 1, flex: 1, background: 'linear-gradient(90deg, transparent, rgba(139,90,60,0.3), transparent)' }} />
                 Tous les modules
@@ -354,7 +374,6 @@ export default function HomePage() {
                 <button onClick={restartTour} style={{ padding: '6px 13px', background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', border: '1px solid rgba(212,165,116,0.35)', borderRadius: 999, fontSize: 11, color: '#5c4530', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>🎓 Tuto</button>
                 <Link href="/settings" style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(212,165,116,0.35)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, textDecoration: 'none' }}>⚙️</Link>
               </div>
-
             </div>
 
           </div>
@@ -372,6 +391,11 @@ export default function HomePage() {
             50% { box-shadow: 0 6px 18px rgba(176,125,90,0.45), 0 0 0 9px rgba(196,149,106,0); }
           }
           .mic-cta { animation: micPulse 2.2s ease-in-out infinite; }
+          @keyframes novaPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(224,122,138,0.55); }
+            50% { box-shadow: 0 0 0 5px rgba(224,122,138,0); }
+          }
+          .nova-pulse { animation: novaPulse 1.8s ease-in-out infinite; }
         `}</style>
 
       </div>
