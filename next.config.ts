@@ -1,93 +1,85 @@
 /** @type {import('next').NextConfig} */
-
-// ============================================================
-// NOVAÉ — next.config.ts
-// Mise à jour 12/06/2026 (audit) :
-// 1. Headers de sécurité (C2) : X-Frame-Options, CSP, etc.
-// 2. Landing servie en REWRITE et non plus en redirect 307 (I3)
-//    → supprime un aller-retour réseau complet sur le domaine racine
-// ============================================================
-
-const securityHeaders = [
-  {
-    // Empêche l'app d'être affichée dans une iframe (clickjacking)
-    key: 'X-Frame-Options',
-    value: 'DENY',
-  },
-  {
-    // Empêche le navigateur de "deviner" les types de fichiers
-    key: 'X-Content-Type-Options',
-    value: 'nosniff',
-  },
-  {
-    // Limite les infos envoyées aux sites externes lors d'un clic
-    key: 'Referrer-Policy',
-    value: 'strict-origin-when-cross-origin',
-  },
-  {
-    // Désactive les API sensibles non utilisées par NOVAÉ
-    key: 'Permissions-Policy',
-    value: 'camera=(self), microphone=(self), geolocation=(), payment=()',
-  },
-  {
-    // Content Security Policy adaptée à la stack NOVAÉ :
-    // Supabase (data + auth), Stripe (checkout/portal), Google Fonts.
-    // Si un service est ajouté plus tard (ex: analytics), l'ajouter ici.
-    key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https://*.supabase.co",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com",
-      "frame-src https://js.stripe.com https://checkout.stripe.com",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self' https://checkout.stripe.com",
-    ].join('; '),
-  },
-]
-
 const nextConfig = {
-  images: {
-    domains: ['localhost'],
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**.supabase.co',
-      },
-    ],
-  },
-
+  // ─── HEADERS SÉCURITÉ ───────────────────────────────────────────────────────
   async headers() {
     return [
       {
-        // Applique les headers de sécurité à toutes les routes
-        source: '/:path*',
-        headers: securityHeaders,
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(self), geolocation=()',
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              "font-src 'self' https://fonts.gstatic.com",
+              "img-src 'self' data: blob: https://*.supabase.co https://images.unsplash.com",
+              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.stripe.com https://api.brevo.com wss://*.supabase.co",
+              "frame-src https://js.stripe.com",
+              "worker-src 'self' blob:",
+            ].join('; '),
+          },
+        ],
       },
     ]
   },
 
-  async rewrites() {
-    return {
-      beforeFiles: [
-        // Landing servie directement sur la racine du domaine vitrine
-        // (rewrite = même URL, pas de redirection, pas de 307)
-        {
-          source: '/',
-          destination: '/landing.html',
-          has: [{ type: 'host', value: 'novae-by-omanaia.com' }],
-        },
-        {
-          source: '/',
-          destination: '/landing.html',
-          has: [{ type: 'host', value: 'www.novae-by-omanaia.com' }],
-        },
-      ],
-    }
+  // ─── REDIRECTS ───────────────────────────────────────────────────────────────
+  // Supprime le redirect 307 lent vers /landing.html
+  // La landing doit être directement dans app/page.tsx ou app/landing/page.tsx
+  async redirects() {
+    return [
+      // Si tu avais un ancien redirect vers /landing.html, on le supprime
+      // en redirigeant directement vers la racine
+      {
+        source: '/landing.html',
+        destination: '/',
+        permanent: true, // 308 → mis en cache par le navigateur, plus rapide
+      },
+      {
+        source: '/landing',
+        destination: '/',
+        permanent: true,
+      },
+    ]
   },
+
+  // ─── IMAGES ──────────────────────────────────────────────────────────────────
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+    ],
+  },
+
+  // ─── DIVERS ──────────────────────────────────────────────────────────────────
+  poweredByHeader: false, // supprime le header "X-Powered-By: Next.js"
 }
 
-export default nextConfig
+module.exports = nextConfig
