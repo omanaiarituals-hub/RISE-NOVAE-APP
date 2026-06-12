@@ -807,7 +807,7 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
 
     try {
       const ctx = appContext
-      const conversationHistory = messages.slice(-10).map(m => ({ role: m.role, content: m.content }))
+      const conversationHistory = messages.slice(-6).map(m => ({ role: m.role, content: m.content }))
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
         setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: "Session expirée. Reconnecte-toi pour continuer.", timestamp: new Date() }])
@@ -818,7 +818,8 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
       const response = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ message: text, clientContext: ctx ? buildSystemPrompt(ctx) : undefined, history: conversationHistory })
+        body: JSON.stringify({message: text, history: conversationHistory 
+        })
       })
 
       if (response.status === 403) {
