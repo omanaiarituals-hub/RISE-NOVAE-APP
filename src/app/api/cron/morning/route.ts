@@ -30,16 +30,22 @@ async function generateNovaMessage(
   triggerType: string,
   context: Record<string, unknown>
 ): Promise<string> {
+  // Le rêve, s'il existe, devient le levier émotionnel de la relance
+  const reve = typeof context.reve === 'string' && context.reve.trim() ? context.reve.trim() : ''
+  const reveHint = reve
+    ? ` Son rêve, qu'elle t'a confié : "${reve}". Tu PEUX t'y référer avec délicatesse pour la remotiver, comme un phare — jamais comme un reproche.`
+    : ''
+
   const contextPrompts: Record<string, string> = {
-    absence_2j: `L'utilisatrice s'appelle ${prenom} et ne s'est pas connectée depuis 2 jours. Message de prise de nouvelles doux et naturel.`,
-    absence_5j: `L'utilisatrice s'appelle ${prenom} et ne s'est pas connectée depuis 5 jours. Elle a peut-être décroché. Message chaleureux, sans pression, qui invite à parler.`,
-    absence_10j: `L'utilisatrice s'appelle ${prenom} et ne s'est pas connectée depuis 10 jours. Message profond et bienveillant, on lui dit qu'on est là quand elle veut.`,
+    absence_2j: `L'utilisatrice s'appelle ${prenom} et ne s'est pas connectée depuis 2 jours. Message de prise de nouvelles doux et naturel.${reveHint}`,
+    absence_5j: `L'utilisatrice s'appelle ${prenom} et ne s'est pas connectée depuis 5 jours. Elle a peut-être décroché. Message chaleureux, sans pression, qui invite à parler.${reveHint}`,
+    absence_10j: `L'utilisatrice s'appelle ${prenom} et ne s'est pas connectée depuis 10 jours. Message profond et bienveillant, on lui dit qu'on est là quand elle veut.${reveHint}`,
     taches_en_attente: `L'utilisatrice s'appelle ${prenom} et a ${context.nb_taches} tâches non planifiées. Message qui propose de les organiser ensemble, léger et sympa.`,
   }
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 150,
       system: NOVA_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: contextPrompts[triggerType] }]
@@ -169,9 +175,9 @@ export async function GET(req: NextRequest) {
     const str10 = date10.toISOString().split('T')[0]
 
     const { data: inactives } = await supabaseAdmin
-      .from('user_progress')
-      .select('user_id, last_active_date, current_streak')
-      .lt('last_active_date', str2)
+      .from('program_progress')
+      .select('user_id, last_access_date, current_day')
+      .lt('last_access_date', str2)
 
     for (const u of inactives || []) {
       // Vérifier qu'on n'a pas déjà envoyé un message Nova aujourd'hui
@@ -184,22 +190,29 @@ export async function GET(req: NextRequest) {
 
       if (existing?.length) continue
 
-      // Récupérer le prénom
+      // Récupérer le prénom + le rêve (profil NOVAÉ en priorité)
+      const { data: profile } = await supabaseAdmin
+        .from('ai_personality_profile')
+        .select('pseudo, reve')
+        .eq('user_id', u.user_id)
+        .maybeSingle()
+
       const { data: userData } = await supabaseAdmin
         .from('users')
         .select('full_name')
         .eq('id', u.user_id)
         .maybeSingle()
 
-      const prenom = userData?.full_name?.split(' ')[0] || 'toi'
-      const last = u.last_active_date
+      const prenom = profile?.pseudo || userData?.full_name?.split(' ')[0] || 'toi'
+      const reve = profile?.reve || ''
+      const last = u.last_access_date ? u.last_access_date.split('T')[0] : '2000-01-01'
 
       let triggerType = 'absence_2j'
       if (last <= str10) triggerType = 'absence_10j'
       else if (last <= str5) triggerType = 'absence_5j'
 
-      // Générer le message avec Claude
-      const message = await generateNovaMessage(prenom, triggerType, {})
+      // Générer le message avec Claude — en passant le rêve
+      const message = await generateNovaMessage(prenom, triggerType, { reve })
       const threadId = `nova-${u.user_id}-${Date.now()}`
 
       // Stocker dans nova_pending_messages
@@ -226,9 +239,9 @@ export async function GET(req: NextRequest) {
 
     // ─── 4. TÂCHES EN ATTENTE (3+) ──────────────────────────────────────
     const { data: todoUsers } = await supabaseAdmin
-      .from('todo_list')
+      .from('tasks')
       .select('user_id')
-      .eq('completed', false)
+      .eq('status', 'pending')
 
     const tachesCounts: Record<string, number> = {}
     for (const t of todoUsers || []) {
@@ -248,13 +261,19 @@ export async function GET(req: NextRequest) {
 
       if (existing?.length) continue
 
+      const { data: profileT } = await supabaseAdmin
+        .from('ai_personality_profile')
+        .select('pseudo')
+        .eq('user_id', userId)
+        .maybeSingle()
+
       const { data: userData } = await supabaseAdmin
         .from('users')
         .select('full_name')
         .eq('id', userId)
         .maybeSingle()
 
-      const prenom = userData?.full_name?.split(' ')[0] || 'toi'
+      const prenom = profileT?.pseudo || userData?.full_name?.split(' ')[0] || 'toi'
       const message = await generateNovaMessage(prenom, 'taches_en_attente', { nb_taches: count })
       const threadId = `nova-${userId}-${Date.now()}`
 

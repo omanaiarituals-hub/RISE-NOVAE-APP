@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
+import OnboardingProfilage, { type ProfilageData } from '@/components/OnboardingProfilage'
 
 interface OnboardingAnswers {
   objectif: string
@@ -16,6 +17,14 @@ interface OnboardingAnswers {
   domaine_prioritaire: string
   signal_succes: string
   ton_souhaite: string
+  // Champs profilage
+  tranche_age?: string
+  secteur_activite?: string
+  localisation?: string
+  a_enfants?: string
+  enfants_tranches?: string
+  centres_interet?: string
+  reve?: string
 }
 
 const QUESTIONS = [
@@ -123,7 +132,7 @@ const QUESTIONS = [
     type: 'choix_unique',
     options: [
       "💚 Oui, j'ai un cercle très soutenant",
-      '🟡 Mitigé — certains oui, d\'autres moins',
+      "🟡 Mitigé — certains oui, d'autres moins",
       '🔴 Non, je dois avancer seule',
       '🌱 Je préfère garder ma transformation pour moi',
     ],
@@ -162,7 +171,7 @@ const QUESTIONS = [
     numero: 10,
     emoji: '💬',
     question: 'Quel ton tu veux que NOVAÉ adopte avec toi ?',
-    sous_titre: 'Ton agent IA parle ta langue pour t\'accompagner au mieux.',
+    sous_titre: "Ton agent IA parle ta langue pour t'accompagner au mieux.",
     type: 'choix_unique',
     options: [
       "🤝 Bienveillant et doux — j'ai besoin de douceur",
@@ -178,7 +187,8 @@ const QUESTIONS = [
 export default function OnboardingPage() {
   const { user, loading: authLoading } = useSupabaseAuth()
   const router = useRouter()
-  const [step, setStep] = useState(0) // 0 = intro, 1-10 = questions, 11 = analyse, 12 = debrief
+  // 0=intro, 1-10=questions, 11=profilage, 12=analyse, 13=debrief
+  const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Partial<OnboardingAnswers>>({})
   const [pseudo, setPseudo] = useState('')
   const [currentAnswer, setCurrentAnswer] = useState<string | string[]>('')
@@ -201,7 +211,7 @@ export default function OnboardingPage() {
   }
 
   const currentQ = QUESTIONS[step - 1]
-  const progress = step === 0 ? 0 : (step / 10) * 100
+  const progress = step === 0 ? 0 : Math.min((step / 11) * 100, 100)
 
   const handleAnswer = (value: string) => {
     if (currentQ?.type === 'choix_multiple') {
@@ -227,14 +237,22 @@ export default function OnboardingPage() {
     setCurrentAnswer('')
 
     if (step === 10) {
-      generateDebrief(newAnswers as OnboardingAnswers)
+      // Après la 10e question → page profilage
+      setStep(11)
     } else {
       setStep(step + 1)
     }
   }
 
+  // Appelé quand le profilage est complété
+  const handleProfilageComplete = (profilageData: ProfilageData) => {
+    const finalAnswers = { ...answers, ...profilageData } as OnboardingAnswers
+    setAnswers(finalAnswers)
+    generateDebrief(finalAnswers)
+  }
+
   const generateDebrief = async (finalAnswers: OnboardingAnswers) => {
-    setStep(11)
+    setStep(12) // → écran analyse
     setIsLoading(true)
 
     try {
@@ -252,6 +270,9 @@ PROFIL DE L'UTILISATRICE :
 - Domaine prioritaire : ${finalAnswers.domaine_prioritaire}
 - Vision du succès dans 90j : ${finalAnswers.signal_succes}
 - Ton souhaité : ${finalAnswers.ton_souhaite}
+- Son rêve : ${finalAnswers.reve || 'non renseigné'}
+- Ce qui la passionne : ${finalAnswers.centres_interet || 'non renseigné'}
+- Tranche d'âge : ${finalAnswers.tranche_age || 'non renseignée'}
 
 Génère un debrief en 4 parties :
 
@@ -261,16 +282,12 @@ Génère un debrief en 4 parties :
 
 3. **TON DÉFI PRINCIPAL** (2 phrases) : Nomme le défi central avec bienveillance, sans jugement. Propose une stratégie concrète.
 
-4. **TON PROGRAMME PERSONNALISÉ** (3-4 phrases) : Explique comment NOVAÉ va adapter son accompagnement spécifiquement à elle sur 90 jours. Termine par une phrase d'invitation puissante à commencer.
+4. **TON PROGRAMME PERSONNALISÉ** (3-4 phrases) : Explique comment NOVAÉ va adapter son accompagnement spécifiquement à elle sur 90 jours.${finalAnswers.reve ? ` Fais une référence subtile à son rêve ("${finalAnswers.reve}") comme horizon motivant.` : ''} Termine par une phrase d'invitation puissante à commencer.
 
 Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseudo "${pseudo}" au moins une fois. Sois inspirante, précise, basée sur la psychologie réelle. Maximum 300 mots.`
 
-      // Auth Supabase pour l'API chat
       const { data: { session: chatSession } } = await supabase.auth.getSession()
-      if (!chatSession?.access_token) {
-        console.error('[onboarding] no session for chat')
-        throw new Error('Session manquante')
-      }
+      if (!chatSession?.access_token) throw new Error('Session manquante')
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -280,14 +297,12 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
         },
         body: JSON.stringify({
           message: prompt,
-          systemPrompt:
-            "Tu es une experte en psychologie positive, neurosciences et coaching de vie. Tu génères des analyses personnalisées précises, chaleureuses et scientifiquement fondées. Réponds toujours en français, en tutoyant.",
+          systemPrompt: "Tu es une experte en psychologie positive, neurosciences et coaching de vie. Tu génères des analyses personnalisées précises, chaleureuses et scientifiquement fondées. Réponds toujours en français, en tutoyant.",
         }),
       })
       const data = await response.json()
       const debriefText = data.response || ''
 
-      // UN SEUL upsert avec tout : finalAnswers d'abord, puis pseudo en dernier pour qu'il ne soit pas écrasé
       await supabase.from('ai_personality_profile').upsert({
         user_id: user?.id,
         ...finalAnswers,
@@ -296,19 +311,16 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
         updated_at: new Date().toISOString(),
       })
 
-      // Trigger J0 Brevo (fire-and-forget)
       fetch('/api/brevo/welcome', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pseudo: pseudo.trim() }),
       }).catch(err => console.error('[brevo] welcome error:', err))
 
-      
       setDebrief(debriefText)
-      setStep(12)
+      setStep(13)
     } catch (error) {
       console.error('Erreur debrief:', error)
-      // Fallback : sauvegarde quand même les réponses
       await supabase.from('ai_personality_profile').upsert({
         user_id: user?.id,
         ...finalAnswers,
@@ -316,7 +328,7 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
         updated_at: new Date().toISOString(),
       })
       setDebrief("Ton profil a été sauvegardé. NOVAÉ est prête à t'accompagner dans ta transformation.")
-      setStep(12)
+      setStep(13)
     } finally {
       setIsLoading(false)
     }
@@ -336,7 +348,6 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
       </div>
     )
 
-  // Déjà fait
   if (alreadyDone)
     return (
       <div className="min-h-screen bg-novae-cream flex items-center justify-center p-6">
@@ -408,9 +419,7 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
                 'Générer un debrief psychologique personnalisé',
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm text-novae-anthracite/70">
-                  <div className="w-4 h-4 rounded-full bg-novae-gold/20 flex items-center justify-center text-novae-gold text-xs">
-                    ✓
-                  </div>
+                  <div className="w-4 h-4 rounded-full bg-novae-gold/20 flex items-center justify-center text-novae-gold text-xs">✓</div>
                   {item}
                 </div>
               ))}
@@ -435,8 +444,16 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
       </div>
     )
 
-  // ANALYSE EN COURS
+  // PROFILAGE — page unique après les 10 questions
   if (step === 11)
+    return (
+      <div className="min-h-screen bg-novae-cream py-8 px-4 overflow-y-auto">
+        <OnboardingProfilage onComplete={handleProfilageComplete} />
+      </div>
+    )
+
+  // ANALYSE EN COURS
+  if (step === 12)
     return (
       <div className="min-h-screen bg-novae-cream flex items-center justify-center p-6">
         <div className="text-center">
@@ -445,16 +462,10 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
           </div>
           <h2 className="font-serif text-3xl text-novae-anthracite mb-4">Analyse en cours...</h2>
           <p className="text-novae-anthracite/50 text-sm mb-2">NOVAÉ analyse ton profil psychologique</p>
-          <p className="text-novae-anthracite/40 text-xs">
-            Identification des patterns · Neurosciences · Personnalisation
-          </p>
+          <p className="text-novae-anthracite/40 text-xs">Identification des patterns · Neurosciences · Personnalisation</p>
           <div className="flex justify-center gap-2 mt-8">
             {[0, 1, 2].map(i => (
-              <div
-                key={i}
-                className="w-2 h-2 bg-novae-gold rounded-full animate-bounce"
-                style={{ animationDelay: `${i * 150}ms` }}
-              />
+              <div key={i} className="w-2 h-2 bg-novae-gold rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
             ))}
           </div>
         </div>
@@ -462,18 +473,14 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
     )
 
   // DEBRIEF
-  if (step === 12)
+  if (step === 13)
     return (
       <div className="min-h-screen bg-novae-cream p-6 pb-12">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-novae-gold to-novae-rose flex items-center justify-center text-white text-2xl font-serif mx-auto mb-4">
-              N
-            </div>
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-novae-gold to-novae-rose flex items-center justify-center text-white text-2xl font-serif mx-auto mb-4">N</div>
             <h1 className="font-serif text-3xl text-novae-anthracite mb-2">Ton profil NOVAÉ</h1>
-            <p className="text-novae-anthracite/50 text-sm">
-              Analyse personnalisée · Psychologie & Neurosciences
-            </p>
+            <p className="text-novae-anthracite/50 text-sm">Analyse personnalisée · Psychologie & Neurosciences</p>
           </div>
 
           <div className="bg-white rounded-2xl p-8 mb-6 border border-novae-beige/20 shadow-sm">
@@ -486,13 +493,10 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
           <div className="bg-novae-gold/10 border border-novae-gold/20 rounded-2xl p-5 mb-6">
             <div className="flex items-center gap-3 mb-2">
               <span className="text-xl">🎯</span>
-              <div className="font-medium text-novae-anthracite text-sm">
-                Ton programme commence maintenant
-              </div>
+              <div className="font-medium text-novae-anthracite text-sm">Ton programme commence maintenant</div>
             </div>
             <p className="text-novae-anthracite/60 text-xs leading-relaxed">
-              Ton profil est sauvegardé. Ton agent NOVAÉ l'utilisera à chaque conversation pour t'accompagner de
-              manière personnalisée.
+              Ton profil est sauvegardé. Ton agent NOVAÉ l'utilisera à chaque conversation pour t'accompagner de manière personnalisée.
             </p>
           </div>
 
@@ -506,12 +510,11 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
       </div>
     )
 
-  // QUESTIONS
+  // QUESTIONS 1 à 10
   const isAnswered = Array.isArray(currentAnswer) ? currentAnswer.length > 0 : currentAnswer.length > 0
 
   return (
     <div className="min-h-screen bg-novae-cream flex flex-col">
-      {/* Header progress */}
       <div className="px-6 pt-6 pb-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs text-novae-anthracite/40 font-medium">{step} / 10</span>
@@ -525,16 +528,12 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
         </div>
       </div>
 
-      {/* Question */}
       <div className="flex-1 px-6 py-4 overflow-y-auto">
         <div className="max-w-lg mx-auto">
           <div className="text-4xl mb-4">{currentQ?.emoji}</div>
-          <h2 className="font-serif text-2xl text-novae-anthracite mb-2 leading-tight">
-            {currentQ?.question}
-          </h2>
+          <h2 className="font-serif text-2xl text-novae-anthracite mb-2 leading-tight">{currentQ?.question}</h2>
           <p className="text-novae-anthracite/50 text-sm mb-8 leading-relaxed">{currentQ?.sous_titre}</p>
 
-          {/* Textarea */}
           {currentQ?.type === 'textarea' && (
             <textarea
               value={currentAnswer as string}
@@ -546,7 +545,6 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
             />
           )}
 
-          {/* Choix unique */}
           {currentQ?.type === 'choix_unique' && (
             <div className="space-y-3">
               {currentQ.options?.map((option, i) => (
@@ -565,7 +563,6 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
             </div>
           )}
 
-          {/* Choix multiple */}
           {currentQ?.type === 'choix_multiple' && (
             <div className="space-y-3">
               <p className="text-xs text-novae-anthracite/40 mb-4">Sélectionne jusqu'à 3 réponses</p>
@@ -582,11 +579,7 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                          selected ? 'border-novae-gold bg-novae-gold' : 'border-novae-beige'
-                        }`}
-                      >
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${selected ? 'border-novae-gold bg-novae-gold' : 'border-novae-beige'}`}>
                         {selected && <span className="text-white text-xs">✓</span>}
                       </div>
                       {option}
@@ -599,15 +592,11 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
         </div>
       </div>
 
-      {/* Navigation */}
       <div className="px-6 pb-8 pt-4 bg-novae-cream">
         <div className="max-w-lg mx-auto flex gap-3">
           {step > 1 && (
             <button
-              onClick={() => {
-                setStep(step - 1)
-                setCurrentAnswer('')
-              }}
+              onClick={() => { setStep(step - 1); setCurrentAnswer('') }}
               className="px-6 py-4 rounded-2xl border border-novae-beige/40 text-novae-anthracite/60 text-sm hover:bg-white transition-colors"
             >
               ←
@@ -622,7 +611,7 @@ Ton : ${finalAnswers.ton_souhaite}. Tutoie-la. Adresse-toi à elle par son pseud
                 : 'bg-novae-beige/30 text-novae-anthracite/30 cursor-not-allowed'
             }`}
           >
-            {step === 10 ? '✨ Générer mon profil' : 'Continuer →'}
+            {step === 10 ? 'Continuer →' : 'Continuer →'}
           </button>
         </div>
       </div>
