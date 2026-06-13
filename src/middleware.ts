@@ -2,6 +2,16 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // ─── LANDING : apex → landing.html ──────────────────────────────────────────
+  const host = request.headers.get('host') || ''
+  const isApex = host === 'novae-by-omanaia.com' || host === 'www.novae-by-omanaia.com'
+  const isRoot = request.nextUrl.pathname === '/'
+
+  if (isApex && isRoot) {
+    return NextResponse.rewrite(new URL('/landing.html', request.url))
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   let response = NextResponse.next({
     request,
   })
