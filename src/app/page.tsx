@@ -13,6 +13,8 @@ import NotificationBell from '@/components/NotificationBell'
 import { detectStruggleMode, type StruggleState } from '@/lib/struggle/detect'
 import StreakFlame from '@/components/StreakFlame';
 import AdminTile from '@/components/AdminTile'
+import { logEvent } from '@/lib/events'
+
 
 const MODULES_GRID = [
   { href: '/program',   emoji: '🎯', title: 'Programme 90j', tone: 'ic-programme' },
@@ -87,6 +89,11 @@ export default function HomePage() {
       checkNovaPending()
     }
   }, [user])
+
+  useEffect(() => {
+  if (!user) return
+  logEvent(supabase, user.id, 'module_programme')
+}, [user])
 
   const checkNovaPending = async () => {
     if (!user) return
