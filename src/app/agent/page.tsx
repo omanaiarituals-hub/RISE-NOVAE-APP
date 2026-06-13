@@ -7,6 +7,8 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import missionsData from '@/data/missions.json'
 import { detectStruggleMode, type StruggleState } from '@/lib/struggle/detect'
 import Navigation from '@/components/Navigation'
+import { logEvent } from '@/lib/events'
+
 
 interface Message {
   id: string
@@ -88,6 +90,11 @@ export default function AgentPage() {
   useEffect(() => { speakingRef.current = speaking }, [speaking])
   useEffect(() => { rateRef.current = rate }, [rate])
   useEffect(() => { pitchRef.current = pitch }, [pitch])
+  useEffect(() => {
+  if (!user) return
+  logEvent(supabase, user.id, 'module_programme')   
+
+}, [user])
 
   // ── Répertoire ──
   const loadThreads = async () => {

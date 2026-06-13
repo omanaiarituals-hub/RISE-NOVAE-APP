@@ -195,6 +195,7 @@ export default function OnboardingPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [debrief, setDebrief] = useState('')
   const [alreadyDone, setAlreadyDone] = useState(false)
+  const [consentCommercial, setConsentCommercial] = useState(false)
 
   useEffect(() => {
     if (user) checkIfAlreadyDone()
@@ -254,6 +255,13 @@ export default function OnboardingPage() {
   const generateDebrief = async (finalAnswers: OnboardingAnswers) => {
     setStep(12) // → écran analyse
     setIsLoading(true)
+    
+if (user) {
+  await supabase.from('users').update({
+    consent_commercial: consentCommercial,
+    consent_commercial_at: new Date().toISOString()
+  }).eq('id', user.id)
+}
 
     try {
       const prompt = `Tu es une experte en psychologie positive et neurosciences. Analyse ce profil et génère un debrief personnalisé, chaleureux et inspirant en français.

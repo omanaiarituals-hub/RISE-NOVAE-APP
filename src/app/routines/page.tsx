@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import Navigation from '@/components/Navigation'
 import { Plus, Check, Sparkles, Flame, Star, Wind, ArrowLeft, Loader2, Edit2, Sun, Moon, X, Clock } from 'lucide-react'
+import { logEvent } from '@/lib/events'
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 interface Routine {
@@ -275,6 +276,12 @@ export default function RoutinesPage() {
     const saved = localStorage.getItem(`novae-reflection-${today}`)
     if (saved) { try { setReflection(JSON.parse(saved)) } catch {} }
   }, [])
+
+  useEffect(() => {
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) logEvent(supabase, user.id, 'module_routines')
+  })
+}, [])
 
   const loadRoutines = async () => {
     setLoading(true)

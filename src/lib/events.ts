@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
 export type EventType =
+  // ── Existants ──────────────────────────────────────
   | 'streak_check_in'
   | 'streak_milestone'
   | 'streak_reset'
@@ -9,9 +10,21 @@ export type EventType =
   | 'badge_shared'
   | 'returned_after_absence'
   | 'phase_completed'
-  | 'community_post'           // à déclencher depuis ton code communauté existant
-  | 'community_comment'        // à déclencher depuis ton code communauté existant
-  | 'community_like_given';    // à déclencher depuis ton code communauté existant
+  | 'community_post'
+  | 'community_comment'
+  | 'community_like_given'
+  // ── Modules (usage partenariats) ────────────────────
+  | 'module_programme'
+  | 'module_planner'
+  | 'module_tracker'
+  | 'module_routines'
+  | 'module_agent'
+  | 'module_recettes'
+  | 'module_famille'
+  | 'module_notes'
+  | 'module_astuces'
+  | 'module_communaute'
+  | 'module_defis';
 
 export async function logEvent(
   supabase: SupabaseClient,
@@ -25,7 +38,6 @@ export async function logEvent(
     payload,
   });
   if (error) {
-    // Non bloquant : on log mais on n'échoue pas la requête principale
     console.error('[logEvent] error', error, { userId, eventType });
   }
 }

@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { DemoBanner } from '@/components/DemoBanner'
 import Navigation from '@/components/Navigation'
+import { logEvent } from '@/lib/events'
+
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 type MealType = 'entree' | 'plat' | 'dessert' | 'accompagnement' | 'boisson'
@@ -709,6 +711,11 @@ export default function RecipesPage() {
   }, [])
 
   useEffect(() => { if (user && !authLoading) loadData() }, [user, authLoading])
+
+    useEffect(() => {
+  if (!user) return
+  logEvent(supabase, user.id, 'module_programme')
+}, [user])
 
   const computeAllergyAlerts = (slots: MealSlot[], familyData: any[]) => {
     const alerts: AllergyAlert[] = []

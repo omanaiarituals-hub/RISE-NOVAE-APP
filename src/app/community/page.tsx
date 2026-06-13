@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { DemoBanner } from '@/components/DemoBanner'
 import Navigation from '@/components/Navigation'
+import { logEvent } from '@/lib/events'
+
 
 interface Post {
   id: string
@@ -132,6 +134,11 @@ export default function CommunityPage() {
     document.addEventListener('click', handleClick)
     return () => document.removeEventListener('click', handleClick)
   }, [postMenuOpen, commentMenuOpen])
+
+  useEffect(() => {
+  if (!user) return
+  logEvent(supabase, user.id, 'module_programme')
+}, [user])
 
   const markPostSeen = (postId: string) => {
     setSeenMap(prev => {

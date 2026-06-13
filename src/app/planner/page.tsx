@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
 import Navigation from "@/components/Navigation";
 import { DemoBanner } from '@/components/DemoBanner'
+import { logEvent } from '@/lib/events'
+
 
 // ─── TYPES ─────────────────────────────────────────────────
 type Priority = "high" | "medium" | "low";
@@ -569,6 +571,12 @@ export default function PlannerNovae() {
 
     if (!silent) setLoading(false);
   }
+
+  useEffect(() => {
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) logEvent(supabase, user.id, 'module_planner')
+  })
+}, [])
 
   useEffect(() => {
     const iv = setInterval(() => {

@@ -6,6 +6,7 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import Link from 'next/link'
 import { DemoBanner } from '@/components/DemoBanner'
 import Navigation from '@/components/Navigation'
+import { logEvent } from '@/lib/events'
 
 interface Note {
   id: string
@@ -39,6 +40,11 @@ export default function NotesPage() {
   useEffect(() => {
     if (user) loadNotes()
   }, [user])
+
+  useEffect(() => {
+  if (!user) return
+  logEvent(supabase, user.id, 'module_programme')
+}, [user])
 
   const loadNotes = async () => {
     if (!user) return

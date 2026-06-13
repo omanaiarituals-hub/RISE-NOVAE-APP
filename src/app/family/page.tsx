@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { ArrowLeft, Plus, X, ChevronDown, ChevronUp, Edit2, Gift, Camera, Smile } from 'lucide-react'
 import { DemoBanner } from '@/components/DemoBanner'
+import { logEvent } from '@/lib/events'
+
 
 type MemberCategory = 'foyer' | 'famille' | 'amis' | 'autres'
 type MemberRelation = 'conjoint' | 'enfant' | 'parent' | 'frere_soeur' | 'neveu_niece' | 'cousin' | 'grand_parent' | 'ami' | 'collegue' | 'autre'
@@ -375,6 +377,11 @@ export default function FamilyPage() {
   useEffect(() => {
     if (user) loadMembers()
   }, [user])
+
+  useEffect(() => {
+  if (!user) return
+  logEvent(supabase, user.id, 'module_programme')
+}, [user])
 
   const loadMembers = async () => {
     if (!user) return

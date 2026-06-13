@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { DemoBanner } from '@/components/DemoBanner';
 import Navigation from '@/components/Navigation';
+import { supabase } from '@/lib/supabase/client'
+import { logEvent } from '@/lib/events'
 
 type DefiCategory = "personnel" | "programme" | "communaute" | "confort";
 type DefiStatus = "disponible" | "en_cours" | "termine" | "abandonne";
@@ -223,6 +225,12 @@ export default function DefisPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [shareDefi, setShareDefi] = useState<Defi | null>(null);
   const [totalPoints, setTotalPoints] = useState(0);
+
+  useEffect(() => {
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) logEvent(supabase, user.id, 'module_defis')
+  })
+}, [])
 
   const enCours  = defis.filter(d => d.status === "en_cours").length;
   const termines = defis.filter(d => d.status === "termine").length;

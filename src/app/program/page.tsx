@@ -10,6 +10,7 @@ import missionsData from '@/data/missions.json'
 import { supabase } from '@/lib/supabase/client'
 import { DemoBanner } from '@/components/DemoBanner'
 import Navigation from '@/components/Navigation'
+import { logEvent } from '@/lib/events'
 
 // ── Identité par phase : une famille pastel dominante ───────────
 const PHASES = [
@@ -46,6 +47,11 @@ export default function ProgramPage() {
   useEffect(() => {
     refreshProgress()
   }, [])
+
+  useEffect(() => {
+  if (!user) return
+  logEvent(supabase, user.id, 'module_programme')
+}, [user])
 
   const loadProgress = async () => {
     if (!user) return

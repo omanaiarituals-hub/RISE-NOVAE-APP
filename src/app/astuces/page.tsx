@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Navigation from '@/components/Navigation'
+import { supabase } from '@/lib/supabase/client'
+import { logEvent } from '@/lib/events'
 
 // ── DATA ──────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -323,6 +325,12 @@ function AstuceCard({ astuce, color }: { astuce: any; color: string }) {
 export default function AstucesPage() {
   const [activeCategory, setActiveCategory] = useState('menage')
   const cat = CATEGORIES.find(c => c.id === activeCategory)!
+
+  useEffect(() => {
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) logEvent(supabase, user.id, 'module_astuces')
+  })
+}, [])
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8F1E5', fontFamily: "'DM Sans', sans-serif", paddingBottom: 100 }}>
