@@ -1,0 +1,10 @@
+[33mcommit e31783748bf82570531b4f6f651ebc161b2bc6b0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m)[m
+Author: Nesserine Sediri <contact@omanaia.com>
+Date:   Sat Jun 13 20:06:55 2026 +0200
+
+    fix: audience tab + tracker + quiz expediteur
+
+ novae-audit-20260612.zip | Bin [31m922340[m -> [32m0[m bytes
+ novae-v2-20260613.zip    | Bin [31m0[m -> [32m1829046[m bytes
+ src/app/page.tsx         |   7 [32m+++++++[m
+ 3 files changed, 7 insertions(+)
