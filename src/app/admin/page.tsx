@@ -104,8 +104,7 @@ const DEFAULT_MANUAL_KPIS: ManualKpis = {
 }
 
 type KpiKey = 'all' | 'onboarded' | 'active_24h' | 'active_7d' | 'on_program' | 'struggling' | 'community' | 'never_active'
-type Tab = 'stats' | 'challenges' | 'posts' | 'review' | 'landing'
-
+type Tab = 'stats' | 'challenges' | 'posts' | 'review' | 'landing' | 'audience'
 // ─── Roadmap status — extrait du dossier V2 Pro ───
 const ROADMAP_VALIDATED: Record<string, string[]> = {
   'Modules app (P.1 du dossier)': [
@@ -208,6 +207,52 @@ const [roadmapData, setRoadmapData] = useState<{
 }>(DEFAULT_ROADMAP)
 const [adding, setAdding] = useState<{column: 'validated' | 'pending', category: string} | null>(null)
 const [newItemText, setNewItemText] = useState('')
+
+  // ─── Audience / Démographie ───────────────────────────────────────────────
+  const [audienceData, setAudienceData] = useState<{
+    demographie: { tranche_age: string; count: number }[]
+    localisation: { localisation: string; count: number }[]
+    a_enfants: { a_enfants: string; count: number }[]
+    secteur: { secteur_activite: string; count: number }[]
+    consenties: number
+    total: number
+    modules: { event_type: string; count: number }[]
+  } | null>(null)
+
+  const loadAudienceData = async () => {
+    const [profRes, eventsRes, consentRes] = await Promise.all([
+      supabase.from('ai_personality_profile').select('tranche_age, localisation, a_enfants, secteur_activite'),
+      supabase.from('user_events').select('event_type').like('event_type', 'module_%'),
+      supabase.from('users').select('consent_commercial'),
+    ])
+    const profiles = profRes.data || []
+    const events = eventsRes.data || []
+    const consents = consentRes.data || []
+
+    // Agrégation démographique
+    const count = (arr: any[], key: string) => {
+      const map: Record<string, number> = {}
+      arr.forEach(r => { const v = r[key] || 'Non renseigné'; map[v] = (map[v] || 0) + 1 })
+      return Object.entries(map).map(([k, v]) => ({ [key]: k, count: v })).sort((a, b) => b.count - a.count)
+    }
+
+    // Agrégation modules
+    const modMap: Record<string, number> = {}
+    events.forEach(e => { modMap[e.event_type] = (modMap[e.event_type] || 0) + 1 })
+    const modules = Object.entries(modMap)
+      .map(([event_type, count]) => ({ event_type, count }))
+      .sort((a, b) => b.count - a.count)
+
+    setAudienceData({
+      demographie: count(profiles, 'tranche_age') as any,
+      localisation: count(profiles, 'localisation') as any,
+      a_enfants: count(profiles, 'a_enfants') as any,
+      secteur: count(profiles, 'secteur_activite') as any,
+      consenties: consents.filter(c => c.consent_commercial).length,
+      total: consents.length,
+      modules,
+    })
+  }
 
   // Saisies manuelles revue dominicale (Stripe + Marketing)
   const [manualKpis, setManualKpis] = useState<ManualKpis>(DEFAULT_MANUAL_KPIS)
@@ -324,7 +369,7 @@ const resetRoadmap = () => {
 
   const loadAll = async () => {
     setLoading(true)
-await Promise.all([loadUsers(), loadChallenges(), loadPosts(), loadStreaks(), loadBrevoStats(), loadLandingStats(), loadAuthUserCount()])  
+await Promise.all([loadUsers(), loadChallenges(), loadPosts(), loadStreaks(), loadBrevoStats(), loadLandingStats(), loadAuthUserCount(), loadAudienceData()])  
   setLoading(false)
   }
 
@@ -735,6 +780,7 @@ const loadAuthUserCount = async () => {
               { id: 'posts', label: '💬 Posts' },
               { id: 'review', label: '✦ Revue dimanche' },
               { id: 'landing',    label: '📈 Landing' },
+              { id: 'audience',   label: '👥 Audience' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -881,6 +927,143 @@ const loadAuthUserCount = async () => {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* ─── AUDIENCE ─── */}
+          {activeTab === 'audience' && (
+            <div>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: '0 0 6px', fontWeight: 500 }}>
+                Audience & Démographie
+              </h2>
+              <p style={{ fontSize: 13, color: C.brownLight, margin: '0 0 24px' }}>
+                Données anonymisées — {audienceData?.total ?? '…'} profils •{' '}
+                <strong style={{ color: C.green }}>{audienceData?.consenties ?? '…'} consenties</strong> aux partenariats
+              </p>
+
+              {!audienceData ? (
+                <p style={{ color: C.brownLight, fontSize: 13 }}>Chargement…</p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+
+                  {/* Tranche d'âge */}
+                  <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(61,38,24,0.07)' }}>
+                    <h3 style={{ ...sectionTitle, marginBottom: 14 }}>🎂 Tranche d'âge</h3>
+                    {audienceData.demographie.map((r: any) => {
+                      const pct = Math.round((r.count / audienceData.total) * 100)
+                      return (
+                        <div key={r.tranche_age} style={{ marginBottom: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                            <span style={{ color: C.brown, fontWeight: 500 }}>{r.tranche_age}</span>
+                            <span style={{ color: C.brownLight }}>{r.count} ({pct}%)</span>
+                          </div>
+                          <div style={{ height: 6, borderRadius: 3, background: 'rgba(196,149,106,0.15)' }}>
+                            <div style={{ height: '100%', borderRadius: 3, width: `${pct}%`, background: 'linear-gradient(90deg, #c4956a, #d4a574)' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Localisation */}
+                  <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(61,38,24,0.07)' }}>
+                    <h3 style={{ ...sectionTitle, marginBottom: 14 }}>📍 Localisation</h3>
+                    {audienceData.localisation.slice(0, 8).map((r: any) => {
+                      const pct = Math.round((r.count / audienceData.total) * 100)
+                      return (
+                        <div key={r.localisation} style={{ marginBottom: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                            <span style={{ color: C.brown, fontWeight: 500 }}>{r.localisation}</span>
+                            <span style={{ color: C.brownLight }}>{r.count} ({pct}%)</span>
+                          </div>
+                          <div style={{ height: 6, borderRadius: 3, background: 'rgba(196,149,106,0.15)' }}>
+                            <div style={{ height: '100%', borderRadius: 3, width: `${pct}%`, background: 'linear-gradient(90deg, #7ba869, #a8c896)' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Enfants */}
+                  <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(61,38,24,0.07)' }}>
+                    <h3 style={{ ...sectionTitle, marginBottom: 14 }}>👧 Situation familiale</h3>
+                    {audienceData.a_enfants.map((r: any) => {
+                      const pct = Math.round((r.count / audienceData.total) * 100)
+                      return (
+                        <div key={r.a_enfants} style={{ marginBottom: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                            <span style={{ color: C.brown, fontWeight: 500 }}>{r.a_enfants === 'oui' ? 'Avec enfants' : r.a_enfants === 'non' ? 'Sans enfants' : r.a_enfants}</span>
+                            <span style={{ color: C.brownLight }}>{r.count} ({pct}%)</span>
+                          </div>
+                          <div style={{ height: 6, borderRadius: 3, background: 'rgba(196,149,106,0.15)' }}>
+                            <div style={{ height: '100%', borderRadius: 3, width: `${pct}%`, background: 'linear-gradient(90deg, #7B6FA0, #a89ec8)' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Secteur */}
+                  <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(61,38,24,0.07)' }}>
+                    <h3 style={{ ...sectionTitle, marginBottom: 14 }}>💼 Secteur d'activité</h3>
+                    {audienceData.secteur.slice(0, 8).map((r: any) => {
+                      const pct = Math.round((r.count / audienceData.total) * 100)
+                      return (
+                        <div key={r.secteur_activite} style={{ marginBottom: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                            <span style={{ color: C.brown, fontWeight: 500 }}>{r.secteur_activite}</span>
+                            <span style={{ color: C.brownLight }}>{r.count} ({pct}%)</span>
+                          </div>
+                          <div style={{ height: 6, borderRadius: 3, background: 'rgba(196,149,106,0.15)' }}>
+                            <div style={{ height: '100%', borderRadius: 3, width: `${pct}%`, background: 'linear-gradient(90deg, #c44a4a, #d47070)' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Modules les plus utilisés */}
+                  <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(61,38,24,0.07)', gridColumn: 'span 2' }}>
+                    <h3 style={{ ...sectionTitle, marginBottom: 4 }}>📱 Modules les plus utilisés</h3>
+                    <p style={{ fontSize: 11, color: C.brownLight, margin: '0 0 14px' }}>Basé sur les événements enregistrés — utile pour cibler les partenariats</p>
+                    {audienceData.modules.length === 0 ? (
+                      <p style={{ fontSize: 12, color: C.brownLight }}>Aucun événement module enregistré pour l'instant — les données s'accumulent au fil des connexions.</p>
+                    ) : (
+                      audienceData.modules.map((r, i) => {
+                        const max = audienceData.modules[0]?.count || 1
+                        const pct = Math.round((r.count / max) * 100)
+                        const label = r.event_type.replace('module_', '').charAt(0).toUpperCase() + r.event_type.replace('module_', '').slice(1)
+                        const partnerMap: Record<string, string> = {
+                          recettes: '🍽️ Alimentation / meal kits',
+                          programme: '🧠 Coaching / bien-être / psy',
+                          routines: '✨ Beauté / compléments / wellness',
+                          planner: '📒 Productivité / papeterie',
+                          famille: '👨‍👩‍👧 Parentalité / services famille',
+                          agent: '🤖 Tech / coaching digital',
+                          tracker: '📊 Santé / suivi perso',
+                          defis: '🎯 Sport / développement perso',
+                          notes: '📝 Productivité / journaling',
+                          astuces: '💡 Lifestyle / conseils pratiques',
+                          communaute: '💬 Communauté / réseaux',
+                        }
+                        const moduleKey = r.event_type.replace('module_', '')
+                        return (
+                          <div key={r.event_type} style={{ marginBottom: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                              <span style={{ color: C.brown, fontWeight: 600 }}>{label}</span>
+                              <span style={{ color: C.brownLight }}>{r.count} sessions • {partnerMap[moduleKey] || ''}</span>
+                            </div>
+                            <div style={{ height: 8, borderRadius: 4, background: 'rgba(196,149,106,0.15)' }}>
+                              <div style={{ height: '100%', borderRadius: 4, width: `${pct}%`, background: i === 0 ? 'linear-gradient(90deg, #c4956a, #d4a574)' : 'linear-gradient(90deg, #a8836a, #c4a58a)' }} />
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+
+                </div>
+              )}
             </div>
           )}
 
