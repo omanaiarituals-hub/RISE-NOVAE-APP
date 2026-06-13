@@ -1,6 +1,7 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from 'next'
+
   // ─── HEADERS SÉCURITÉ ───────────────────────────────────────────────────────
+ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
@@ -38,7 +39,7 @@ const nextConfig = {
       },
     ]
   },
-  
+
   // ─── IMAGES ──────────────────────────────────────────────────────────────────
   images: {
     remotePatterns: [
@@ -50,4 +51,4 @@ const nextConfig = {
   poweredByHeader: false,
 }
 
-module.exports = nextConfig
+export default nextConfig
