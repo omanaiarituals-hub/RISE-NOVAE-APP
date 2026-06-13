@@ -366,15 +366,14 @@ export default function TrackerPage() {
     setLoading(false);
   };
 
-  const loadMockTime = () => {
-    setTimeData([
-      { category: "pro", label: "Professionnel", emoji: "💼", color: "#A0BEDC", hours: 32 },
-      { category: "moi", label: "Personnel / Moi", emoji: "🌸", color: "#D4A090", hours: 8 },
-      { category: "famille", label: "Famille", emoji: "💛", color: "#E8D080", hours: 12 },
-      { category: "couple", label: "Couple", emoji: "💕", color: "#E0A0B8", hours: 4 },
-      { category: "amis", label: "Amis", emoji: "🌿", color: "#90C8A8", hours: 3 },
-    ]);
-  };
+const loadMockTime = () => {
+  setTimeData([
+    { category: "pro",    label: "Professionnel",   emoji: "💼", color: "#A0BEDC", hours: 32 },
+    { category: "self",   label: "Personnel / Moi", emoji: "🌸", color: "#D4A090", hours: 8  },
+    { category: "family", label: "Famille",         emoji: "💛", color: "#E8D080", hours: 12 },
+    { category: "social", label: "Social",          emoji: "🌿", color: "#90C8A8", hours: 4  },
+  ]);
+};
 
   const totalHours = timeData.reduce((s, c) => s + c.hours, 0);
 
