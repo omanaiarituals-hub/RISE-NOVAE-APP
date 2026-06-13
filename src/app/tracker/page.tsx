@@ -256,7 +256,7 @@ export default function TrackerPage() {
 
   const days = periodView === "week" ? getLast7Days() : getLast30Days();
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll(); }, [periodView]);
 
   const loadAll = async () => {
     setLoading(true);

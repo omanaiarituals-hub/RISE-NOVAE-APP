@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   try {
     const { email, totalScore, answers } = await req.json()
 
-    if (!email || !totalScore === undefined || !answers) {
+    if (!email || totalScore === undefined || !answers) {
       return NextResponse.json({ error: 'Données manquantes' }, { status: 400 })
     }
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     // Générer le diagnostic via Claude
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 800,
       system: NOVA_DIAGNOSTIC_PROMPT,
       messages: [{

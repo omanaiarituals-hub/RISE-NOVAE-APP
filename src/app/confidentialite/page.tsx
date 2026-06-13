@@ -66,6 +66,12 @@ export default function ConfidentialitePage() {
           <P><strong>Supabase Inc.</strong> (base de données et authentification) — serveurs en Union Européenne — conforme RGPD.</P>
           <P><strong>Vercel Inc.</strong> (hébergement de l'application) — conforme RGPD avec clauses contractuelles types.</P>
           <P><strong>Anthropic PBC</strong> (intelligence artificielle — module Agent NOVAÉ) — les messages envoyés à l'agent sont traités conformément à la politique de confidentialité d'Anthropic. Aucun message n'est stocké sans votre consentement explicite.</P>
+          <li><strong>Brevo</strong> (France) — emails transactionnels et
+  newsletter. Données : email, prénom, engagement. Hébergé en UE.</li>
+ 
+  <li><strong>Stripe</strong> (Irlande) — paiements sécurisés.
+  Données : email, carte bancaire (jamais stockée par nos soins),
+  abonnement.</li>
           <P>Aucune donnée n'est transférée à des fins commerciales à des tiers.</P>
 
           <H2>6 — Vos droits</H2>

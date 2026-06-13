@@ -585,6 +585,16 @@ footer .links{display:flex;gap:18px}
         <p class="quiz-email-sub">Entre ton email pour recevoir ton diagnostic personnalisé. Nova va te dire exactement ce qui se passe et ce qui peut changer.</p>
         <input type="email" class="test-input" id="testEmail" placeholder="ton@email.com" autocomplete="email">
         <p class="test-rgpd">🔒 Ton email sert uniquement à t'envoyer ton diagnostic. Pas de spam, désabonnement en un clic. Conformément au <a href="https://app.novae-by-omanaia.com/confidentialite" target="_blank">RGPD</a>, tes données ne sont jamais revendues ni partagées avec des tiers.</p>
+        <!-- ════════════════════════════════════════════════════════════ -->
+<!-- CHECKBOX CONSENTEMENT RGPD pour le quiz                        -->
+<!-- À insérer dans landing.html dans le bloc #quizStep2,           -->
+<!-- juste AVANT le bouton "Recevoir mon diagnostic"               -->
+<!-- ════════════════════════════════════════════════════════════ -->
+
+<label style="display:flex;align-items:flex-start;gap:8px;font-size:11px;color:rgba(255,255,255,.6);line-height:1.5;text-align:left;margin:8px 0 14px;cursor:pointer;">
+  <input type="checkbox" id="testConsent" style="margin-top:2px;flex-shrink:0;width:16px;height:16px;accent-color:#C4956A;cursor:pointer;">
+  <span>J'accepte que Nova analyse mes réponses pour générer mon diagnostic et que mon email soit utilisé pour me l'envoyer. <a href="https://app.novae-by-omanaia.com/confidentialite" target="_blank" style="color:rgba(255,255,255,.8);text-decoration:underline;">En savoir plus</a></span>
+</label>
         <button class="test-submit" onclick="submitTest()" type="button">Recevoir mon diagnostic de Nova →</button>
       </div>
     </div>
@@ -817,8 +827,15 @@ function refuseCookies(){localStorage.setItem('novae_cookie_consent','refused');
 if(!localStorage.getItem('novae_cookie_consent')){document.getElementById('cookieBanner').style.display='flex';}
 
 // QUIZ CHARGE MENTALE
+// ════════════════════════════════════════════════════════════════════
+// QUIZ CHARGE MENTALE — VERSION HYBRIDE (choix multiple + réponse libre)
+// Remplace tout le bloc entre "const questions = [" et "// Init quiz..."
+// (lignes ~820 à ~951 de landing.html)
+// ════════════════════════════════════════════════════════════════════
+
 const questions = [
   {
+    type: 'choice',
     q: "Le soir, tu t'endors avec combien de « je dois pas oublier » en tête ?",
     opts: [
       { label: "Aucun, je décompresse facilement", score: 0 },
@@ -828,15 +845,12 @@ const questions = [
     ]
   },
   {
-    q: "La dernière fois que tu as fait quelque chose juste pour toi, c'était quand ?",
-    opts: [
-      { label: "Cette semaine", score: 0 },
-      { label: "Il y a quelques semaines", score: 1 },
-      { label: "Il y a plusieurs mois", score: 2 },
-      { label: "Je ne m'en souviens même plus", score: 3 }
-    ]
+    type: 'free',
+    q: "Décris en quelques mots ce qui pèse le plus dans ta tête en ce moment.",
+    placeholder: "Écris librement, Nova lira vraiment ta réponse…"
   },
   {
+    type: 'choice',
     q: "Quand quelqu'un te demande « ça va ? », ta vraie réponse c'est quoi ?",
     opts: [
       { label: "Vraiment bien, je suis en forme", score: 0 },
@@ -846,15 +860,7 @@ const questions = [
     ]
   },
   {
-    q: "Tu as combien de projets commencés que tu n'as pas terminés ?",
-    opts: [
-      { label: "Aucun, je vais au bout de ce que je commence", score: 0 },
-      { label: "1 ou 2, c'est normal", score: 1 },
-      { label: "Plusieurs, je culpabilise un peu", score: 2 },
-      { label: "Plein. J'ai arrêté de compter.", score: 3 }
-    ]
-  },
-  {
+    type: 'choice',
     q: "Le matin au réveil, ta première pensée c'est plutôt...",
     opts: [
       { label: "Une nouvelle journée, je suis prête", score: 0 },
@@ -862,12 +868,18 @@ const questions = [
       { label: "La liste de tout ce que j'ai à faire", score: 2 },
       { label: "J'aurais voulu dormir encore pour ne pas y penser", score: 3 }
     ]
+  },
+  {
+    type: 'free',
+    q: "Si tu pouvais déléguer UNE seule chose demain matin, ce serait quoi ?",
+    placeholder: "Une tâche, une charge, une pensée… dis-le à Nova."
   }
 ];
 
 let currentQ = 0;
-let answers = [];
-let scores = [];
+let answers = [];      // index choisi (choice) OU texte (free)
+let scores = [];       // score par question (0 pour les questions libres)
+let freeTexts = [];    // textes des réponses libres
 
 function renderQuestion() {
   const q = questions[currentQ];
@@ -876,18 +888,42 @@ function renderQuestion() {
 
   const opts = document.getElementById('quizOptions');
   opts.innerHTML = '';
-  q.opts.forEach((opt, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'quiz-option' + (answers[currentQ] === i ? ' selected' : '');
-    btn.textContent = opt.label;
-    btn.onclick = () => selectOption(i);
-    opts.appendChild(btn);
-  });
+
+  if (q.type === 'free') {
+    // Réponse libre : un textarea
+    const ta = document.createElement('textarea');
+    ta.className = 'quiz-free-input';
+    ta.placeholder = q.placeholder || 'Ta réponse…';
+    ta.value = freeTexts[currentQ] || '';
+    ta.rows = 4;
+    ta.style.cssText = 'width:100%;border-radius:14px;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;padding:14px 16px;font-size:15px;font-family:inherit;line-height:1.5;resize:vertical;outline:none;';
+    ta.oninput = () => {
+      freeTexts[currentQ] = ta.value;
+      answers[currentQ] = ta.value.trim() ? ta.value.trim() : undefined;
+      document.getElementById('quizNext').disabled = !ta.value.trim();
+    };
+    opts.appendChild(ta);
+  } else {
+    // Choix multiple
+    q.opts.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'quiz-option' + (answers[currentQ] === i ? ' selected' : '');
+      btn.textContent = opt.label;
+      btn.onclick = () => selectOption(i);
+      opts.appendChild(btn);
+    });
+  }
 
   document.getElementById('quizPrev').style.display = currentQ > 0 ? 'block' : 'none';
   const nextBtn = document.getElementById('quizNext');
   nextBtn.textContent = currentQ === questions.length - 1 ? 'Voir mon résultat →' : 'Suivant →';
-  nextBtn.disabled = answers[currentQ] === undefined;
+
+  // Activer/désactiver le bouton suivant selon le type
+  if (q.type === 'free') {
+    nextBtn.disabled = !(freeTexts[currentQ] && freeTexts[currentQ].trim());
+  } else {
+    nextBtn.disabled = answers[currentQ] === undefined;
+  }
 }
 
 function selectOption(idx) {
@@ -900,7 +936,12 @@ function selectOption(idx) {
 }
 
 function quizNext() {
-  if (answers[currentQ] === undefined) return;
+  const q = questions[currentQ];
+  if (q.type === 'free') {
+    if (!freeTexts[currentQ] || !freeTexts[currentQ].trim()) return;
+  } else {
+    if (answers[currentQ] === undefined) return;
+  }
   if (currentQ < questions.length - 1) {
     currentQ++;
     renderQuestion();
@@ -924,9 +965,18 @@ function submitTest() {
     input.focus();
     return;
   }
+  // Consentement RGPD obligatoire
+  const consent = document.getElementById('testConsent');
+  if (consent && !consent.checked) {
+    consent.parentElement.style.color = 'rgba(255,150,150,.9)';
+    return;
+  }
 
-  const totalScore = scores.reduce((a, b) => a + b, 0);
+  const totalScore = scores.reduce((a, b) => a + (b || 0), 0);
   const answersText = questions.map((q, i) => {
+    if (q.type === 'free') {
+      return `Q${i+1} (libre): ${q.q} => ${freeTexts[i] || 'Non répondu'}`;
+    }
     const chosen = answers[i] !== undefined ? q.opts[answers[i]].label : 'Non répondu';
     return `Q${i+1}: ${q.q} => ${chosen}`;
   }).join('\n');
@@ -934,7 +984,7 @@ function submitTest() {
   fetch('https://app.novae-by-omanaia.com/api/test-charge-mentale', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, totalScore, answers: answersText })
+    body: JSON.stringify({ email, totalScore, answers: answersText, consent: true })
   }).catch(() => {});
 
   if (typeof track === 'function') track('test_submit', 'charge_mentale_score_' + totalScore);
