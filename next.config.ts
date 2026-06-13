@@ -29,6 +29,16 @@ const nextConfig = {
     ]
   },
 
+  async rewrites() {
+    return [
+      {
+        source: '/',
+        has: [{ type: 'host', value: 'novae-by-omanaia.com' }],
+        destination: '/landing.html',
+      },
+    ]
+  },
+  
   // ─── IMAGES ──────────────────────────────────────────────────────────────────
   images: {
     remotePatterns: [
