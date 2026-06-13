@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
         'api-key': process.env.BREVO_API_KEY!
       },
       body: JSON.stringify({
-        sender: { name: 'Nova de NOVAÉ', email: 'nova@novae-by-omanaia.com' },
+sender: { name: 'Nova de NOVAÉ', email: 'contact@novae-by-omanaia.com' },
         to: [{ email }],
         subject: `💜 Ton diagnostic NOVAÉ : ${diagnostic.profil}`,
         htmlContent: buildEmailHtml(diagnostic, email)
