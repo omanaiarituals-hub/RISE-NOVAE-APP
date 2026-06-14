@@ -79,7 +79,7 @@ const TOOLS = [
   {
     name: 'ajouter_evenement_planner',
     description:
-      "Ajoute un événement daté sur le calendrier/agenda (Planner) à une heure précise. C'est ce qu'on utilise pour 'récupérer les filles à 18h', 'créneau de travail', 'faire les courses', un RDV, etc. À appeler UNIQUEMENT après confirmation de l'utilisatrice.",
+      "Ajoute un événement daté sur le calendrier/agenda (Planner) à une heure précise. C'est ce qu'on utilise pour 'récupérer les filles à 18h', 'créneau de travail', 'faire les courses', un RDV, etc. À appeler UNIQUEMENT après confirmation de l'utilisatrice. IMPORTANT : si l'outil renvoie conflit_bloquant=true, l'événement n'a PAS été créé. Ne dis jamais qu'il est créé : propose une autre heure/jour, et ne rappelle l'outil avec forcer=true que si l'utilisatrice dit explicitement de le créer malgré le conflit.",
     input_schema: {
       type: 'object',
       properties: {
@@ -95,6 +95,7 @@ const TOOLS = [
         },
         lieu: { type: 'string', description: 'Lieu (optionnel).' },
         description: { type: 'string', description: 'Description (optionnel).' },
+        forcer: { type: 'boolean', description: "Mettre true UNIQUEMENT si l'utilisatrice a explicitement accepté de créer l'événement malgré un conflit d'horaire signalé. Par défaut false." },
       },
       required: ['titre', 'date'],
     },
@@ -337,6 +338,19 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           return startMinutes < e && endMinutes > s
         })
 
+        // S'il y a un conflit et que l'utilisatrice n'a PAS explicitement forcé,
+        // on NE CRÉE RIEN. On renvoie le conflit pour que Nova propose une autre heure.
+        if (conflits.length > 0 && !input.forcer) {
+          return {
+            ok: false,
+            conflit_bloquant: true,
+            evenement_non_cree: true,
+            message:
+              "Conflit d'horaire : l'événement n'a PAS été créé. Propose une autre heure/jour à l'utilisatrice, ou demande-lui si elle veut quand même le créer malgré le chevauchement (dans ce cas, rappelle l'outil avec forcer=true).",
+            evenements_en_conflit: conflits.map((c: any) => c.title),
+          }
+        }
+
         const { data, error } = await db
           .from('planner_events')
           .insert({
@@ -365,7 +379,7 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           duree_h: durationHours,
           conflit:
             conflits.length > 0
-              ? { message: "Chevauchement d'horaire détecté", evenements: conflits.map((c: any) => c.title) }
+              ? { message: 'Créé malgré un chevauchement (forcé par l\'utilisatrice)', evenements: conflits.map((c: any) => c.title) }
               : null,
         }
       }
@@ -499,6 +513,7 @@ Anti-perfectionniste : tu déculpabilises, tu ne survends pas, pas de faux entho
 - Si tu n'es pas sûre de ce qu'elle veut, tu DEMANDES. Tu ne devines jamais une écriture.
 - Pour planifier un événement : appelle d'abord 'lire_ma_journee' pour repérer un éventuel conflit d'horaire, et préviens-la si tu en vois un.
 - Après exécution, tu confirmes UNIQUEMENT sur la base du vrai résultat de l'outil.
+- CONFLIT D'HORAIRE : si l'outil d'ajout d'événement renvoie conflit_bloquant=true, c'est que l'événement N'A PAS été créé. Tu ne dis JAMAIS qu'il est créé. Tu annonces le conflit, tu proposes une autre heure ou un autre jour, et tu attends sa décision. Tu ne crées l'événement malgré le conflit (forcer=true) QUE si elle te le demande explicitement.
 - Si tu n'as PAS d'outil pour une action demandée, dis-le honnêtement (« je ne peux pas encore faire ça directement dans l'app, mais voilà comment faire toi-même… »). Tu n'annonces JAMAIS un succès (« ajouté ✅ », « c'est fait ») pour une action que tu n'as pas réellement exécutée via un outil.
 - Quand on te demande de créer PLUSIEURS éléments (routines, tâches, repas…) : tu crées CHAQUE élément exactement UNE fois, avec un seul titre clair. Dès qu'un outil te renvoie ok:true, l'élément EST créé — tu ne le recrées jamais et tu ne reformules pas son titre pour le recréer. Quand tout ce qui était demandé est créé, tu réponds en texte et tu n'appelles plus AUCUN outil.
 
