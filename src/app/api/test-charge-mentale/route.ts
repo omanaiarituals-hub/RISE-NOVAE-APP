@@ -75,7 +75,18 @@ sender: { name: 'Nova de NOVAÉ', email: 'contact@novae-by-omanaia.com' },
     })
 
     if (!brevoRes.ok) {
-      console.error('Brevo error:', await brevoRes.text())
+      const brevoErr = await brevoRes.text()
+      console.error('[test-charge-mentale] Brevo error:', brevoRes.status, brevoErr)
+      // On remonte l'erreur au lieu de la masquer : sinon l'utilisatrice croit
+      // recevoir un mail qui n'arrivera jamais.
+      return NextResponse.json(
+        {
+          error: "Le diagnostic a été généré mais l'email n'a pas pu être envoyé.",
+          brevo_status: brevoRes.status,
+          brevo_detail: brevoErr,
+        },
+        { status: 502 }
+      )
     }
 
     // Ajouter à la liste Brevo (liste 9 = free/trial)
