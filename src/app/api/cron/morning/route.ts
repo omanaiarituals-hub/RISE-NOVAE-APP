@@ -37,9 +37,9 @@ async function generateNovaMessage(
     : ''
 
   const contextPrompts: Record<string, string> = {
-    absence_2j: `L'utilisatrice s'appelle ${prenom} et ne s'est pas connectée depuis 2 jours. Message de prise de nouvelles doux et naturel.${reveHint}`,
-    absence_5j: `L'utilisatrice s'appelle ${prenom} et ne s'est pas connectée depuis 5 jours. Elle a peut-être décroché. Message chaleureux, sans pression, qui invite à parler.${reveHint}`,
-    absence_10j: `L'utilisatrice s'appelle ${prenom} et ne s'est pas connectée depuis 10 jours. Message profond et bienveillant, on lui dit qu'on est là quand elle veut.${reveHint}`,
+    absence_2j: `L'utilisatrice s'appelle ${prenom} et n'a pas avancé sur son programme 90 jours depuis 2 jours (elle utilise peut-être le reste de l'app, ne dis donc PAS qu'elle a disparu). Message doux qui propose de reprendre le programme ensemble.${reveHint}`,
+    absence_5j: `L'utilisatrice s'appelle ${prenom} et n'a pas avancé sur son programme 90 jours depuis 5 jours (elle utilise peut-être le reste de l'app, ne dis donc PAS qu'elle a disparu ni qu'elle te manque). Message chaleureux, sans pression, qui invite à reprendre le programme.${reveHint}`,
+    absence_10j: `L'utilisatrice s'appelle ${prenom} et n'a pas avancé sur son programme 90 jours depuis 10 jours (elle utilise peut-être le reste de l'app, ne dis donc PAS qu'elle a disparu). Message bienveillant qui rappelle que le programme l'attend et qu'on peut reprendre à son rythme.${reveHint}`,
     taches_en_attente: `L'utilisatrice s'appelle ${prenom} et a ${context.nb_taches} tâches non planifiées. Message qui propose de les organiser ensemble, léger et sympa.`,
   }
 
@@ -55,9 +55,9 @@ async function generateNovaMessage(
     console.error('Claude generation failed:', e)
     // Fallback si Claude échoue
     const fallbacks: Record<string, string> = {
-      absence_2j: `Hé ${prenom} 💜 ça fait 2 jours... tkt, t'es pas obligée de tout gérer tout le temps. On fait le point si tu veux ?`,
-      absence_5j: `${prenom} tu m'as manqué 💜 Pas de pression, je suis là quand tu veux reprendre. T'es là ?`,
-      absence_10j: `${prenom} 💜 Peu importe ce qui se passe, je suis là. Quand tu veux, on repart ensemble.`,
+      absence_2j: `Hé ${prenom} 💜 ça fait 2 jours qu'on n'a pas avancé sur ton programme. On reprend quand tu veux, même 5 min ?`,
+      absence_5j: `${prenom} 💜 ton programme t'attend depuis 5 jours. Pas de pression, on repart où tu veux. Tu me dis ?`,
+      absence_10j: `${prenom} 💜 ça fait 10 jours qu'on n'a pas touché à ton programme. Peu importe le rythme, je suis là pour reprendre ensemble quand tu le sens.`,
       taches_en_attente: `Hé ${prenom} ! Tes tâches t'attendent mais pas de stress. On les regarde ensemble ? Même 10 min ça suffit 💜`,
     }
     return fallbacks[triggerType] || `Hé ${prenom} 💜 On fait le point ?`
@@ -84,11 +84,12 @@ export async function GET(req: NextRequest) {
     // ─── 1. BRIEF MATIN ─────────────────────────────────────────────────
     for (const userId of uniqueUserIds) {
       const { data: todayTasks } = await supabaseAdmin
-        .from('tasks')
-        .select('title, status, start_hour')
+        .from('planner_events')
+        .select('title, status, start_minutes')
         .eq('user_id', userId)
-        .eq('date', today)
-        .order('start_hour', { ascending: true })
+        .gte('start_date', `${today}T00:00:00`)
+        .lte('start_date', `${today}T23:59:59`)
+        .order('start_minutes', { ascending: true })
 
       const pending = (todayTasks || []).filter(t => t.status !== 'completed')
 
@@ -238,8 +239,9 @@ export async function GET(req: NextRequest) {
     }
 
     // ─── 4. TÂCHES EN ATTENTE (3+) ──────────────────────────────────────
+    // On compte la vraie To-Do (table todo_list), pas l'ancienne table tasks.
     const { data: todoUsers } = await supabaseAdmin
-      .from('tasks')
+      .from('todo_list')
       .select('user_id')
       .eq('status', 'pending')
 

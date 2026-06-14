@@ -31,6 +31,12 @@ const TOOLS = [
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
+    name: 'lire_mes_taches',
+    description:
+      "Liste TOUTES les tâches en attente de la to-do (\"À faire\") de l'utilisatrice, avec leur titre, priorité et échéance éventuelle. À utiliser dès que l'utilisatrice demande quelles sont ses tâches, lesquelles sont en attente, ou veut qu'on les organise ensemble.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
     name: 'valider_mission_du_jour',
     description:
       "Valide ENTIÈREMENT la mission du jour du programme 90j : coche toutes les tâches du jour, enregistre la réflexion, et fait avancer au jour suivant (uniquement si c'est le jour courant). À appeler UNIQUEMENT après confirmation explicite de l'utilisatrice.",
@@ -161,17 +167,18 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           .maybeSingle()
         const today = todayISODate()
         const { data: tasks } = await db
-          .from('tasks')
-          .select('title, status, date, priority')
+          .from('todo_list')
+          .select('title, status, due_date, priority')
           .eq('user_id', userId)
           .eq('status', 'pending')
           .limit(20)
         const { data: events } = await db
-          .from('tasks')
-          .select('title, date, start_hour, duration_hours, category, status')
+          .from('planner_events')
+          .select('title, start_minutes, end_minutes, category, status')
           .eq('user_id', userId)
-          .eq('date', today)
-          .order('start_hour', { ascending: true })
+          .gte('start_date', `${today}T00:00:00`)
+          .lte('start_date', `${today}T23:59:59`)
+          .order('start_minutes', { ascending: true })
         return {
           ok: true,
           jour_programme: prog?.current_day ?? null,
@@ -179,6 +186,21 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           missions_completees: prog?.completed_missions ?? 0,
           taches_a_faire: tasks ?? [],
           evenements_aujourdhui: events ?? [],
+        }
+      }
+
+      case 'lire_mes_taches': {
+        const { data: taches } = await db
+          .from('todo_list')
+          .select('title, status, due_date, priority, category')
+          .eq('user_id', userId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true })
+          .limit(50)
+        return {
+          ok: true,
+          nb_taches: (taches ?? []).length,
+          taches: taches ?? [],
         }
       }
 
@@ -253,16 +275,19 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
 
       case 'ajouter_tache': {
         if (!input?.titre) return { ok: false, message: 'Titre manquant.' }
+        const prioriteMap: Record<string, string> = { basse: 'low', moyenne: 'medium', haute: 'high' }
+        const priority = prioriteMap[input.priorite] ?? 'medium'
+        const category = ['pro', 'self', 'family', 'social'].includes(input.categorie) ? input.categorie : 'self'
         const { data, error } = await db
-          .from('tasks')
+          .from('todo_list')
           .insert({
             user_id: userId,
             title: input.titre,
             description: input.description ?? null,
-            category: ['pro', 'self', 'family', 'social'].includes(input.categorie) ? input.categorie : 'self',
+            category,
             status: 'pending',
-            date: input.date ?? null,
-            priority: input.priorite ?? null,
+            due_date: input.date ?? null,
+            priority,
           })
           .select('id')
           .single()
@@ -278,7 +303,6 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           return { h: isNaN(h) ? 9 : h, m: isNaN(m) ? 0 : m }
         }
         const startHM = parseHM(input.heure_debut ?? '09:00')
-        const startHour = allDay ? 0 : startHM.h
         let durationHours = 1
         if (allDay) {
           durationHours = 24
@@ -291,32 +315,44 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           ? input.categorie
           : 'self'
 
+        // Conflits : on lit le vrai planner (planner_events) du même jour
+        const startMinutes = allDay ? 0 : (startHM.h * 60 + startHM.m)
+        const endMinutes = allDay
+          ? (23 * 60 + 59)
+          : Math.min(startMinutes + Math.round(durationHours * 60), 23 * 60 + 59)
+        const pad2 = (n: number) => String(n).padStart(2, '0')
+        const hm = (mins: number) => `${pad2(Math.floor(mins / 60))}:${pad2(mins % 60)}`
+        const startDt = `${input.date}T${hm(startMinutes)}:00`
+        const endDt = `${input.date}T${hm(endMinutes)}:00`
+
         const { data: sameDay } = await db
-          .from('tasks')
-          .select('title, start_hour, duration_hours')
+          .from('planner_events')
+          .select('title, start_minutes, end_minutes')
           .eq('user_id', userId)
-          .eq('date', input.date)
-        const newStart = startHour
-        const newEnd = startHour + durationHours
+          .gte('start_date', `${input.date}T00:00:00`)
+          .lte('start_date', `${input.date}T23:59:59`)
         const conflits = (sameDay ?? []).filter((t: any) => {
-          const s = t.start_hour ?? 9
-          const e = s + (t.duration_hours ?? 1)
-          return newStart < e && newEnd > s
+          const s = t.start_minutes ?? 540
+          const e = t.end_minutes ?? (s + 60)
+          return startMinutes < e && endMinutes > s
         })
 
         const { data, error } = await db
-          .from('tasks')
+          .from('planner_events')
           .insert({
             user_id: userId,
             title: input.titre,
             description: [input.description, input.lieu ? `Lieu : ${input.lieu}` : '']
               .filter(Boolean)
               .join(' · ') || null,
-            date: input.date,
-            start_hour: startHour,
-            duration_hours: durationHours,
+            start_date: startDt,
+            end_date: endDt,
+            start_minutes: startMinutes,
+            end_minutes: endMinutes,
             category: categorie,
-            status: 'pending',
+            recurrence_days: [],
+            reminder_minutes_before: [15],
+            reminder_sent: false,
           })
           .select('id')
           .single()
@@ -325,7 +361,7 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           ok: true,
           evenement_id: data.id,
           jour: input.date,
-          heure: `${String(startHour).padStart(2, '0')}:00`,
+          heure: hm(startMinutes),
           duree_h: durationHours,
           conflit:
             conflits.length > 0
