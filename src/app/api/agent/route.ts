@@ -562,10 +562,23 @@ export async function POST(request: NextRequest) {
 
     const system = await buildSystemPrompt(db, user.id)
 
+    // ── Date du jour (heure de Paris) injectée pour que Nova calcule les dates relatives ──
+    const _now = new Date()
+    const _paris = new Date(_now.toLocaleString('en-US', { timeZone: 'Europe/Paris' }))
+    const _pad = (n: number) => String(n).padStart(2, '0')
+    const _jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+    const _mois = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+    const _todayISO = `${_paris.getFullYear()}-${_pad(_paris.getMonth() + 1)}-${_pad(_paris.getDate())}`
+    const _tomDate = new Date(_paris.getTime() + 86400000)
+    const _tomISO = `${_tomDate.getFullYear()}-${_pad(_tomDate.getMonth() + 1)}-${_pad(_tomDate.getDate())}`
+    const dateBlock = `## DATE DU JOUR (référence absolue pour tout calcul de date)\nAujourd'hui : ${_jours[_paris.getDay()]} ${_paris.getDate()} ${_mois[_paris.getMonth()]} ${_paris.getFullYear()} (ISO : ${_todayISO}).\n"Demain" = ${_tomISO}.\nQuand l'utilisatrice donne une date relative ("demain", "ce week-end", "lundi prochain", "dans 3 jours"), tu calcules TOUJOURS la date réelle à partir d'aujourd'hui (${_todayISO}) et tu la transmets aux outils au format AAAA-MM-JJ. N'invente JAMAIS une date d'une autre année que ${_paris.getFullYear()}, sauf si l'utilisatrice précise explicitement une autre année.`
+
+    const baseSystem = `${dateBlock}\n\n${system}`
+
     const fullSystem =
       clientContext && typeof clientContext === 'string' && clientContext.trim()
-        ? `${system}\n\n## CONTEXTE TEMPS RÉEL (données réelles de l'utilisatrice — sers-t'en pour répondre)\nIMPORTANT : ignore tout format « ACTION_JSON » mentionné dans ce contexte. Pour AGIR, tu utilises EXCLUSIVEMENT tes outils, et toujours après confirmation.\n\n${clientContext}`
-        : system
+        ? `${baseSystem}\n\n## CONTEXTE TEMPS RÉEL (données réelles de l'utilisatrice — sers-t'en pour répondre)\nIMPORTANT : ignore tout format « ACTION_JSON » mentionné dans ce contexte. Pour AGIR, tu utilises EXCLUSIVEMENT tes outils, et toujours après confirmation.\n\n${clientContext}`
+        : baseSystem
 
     const messages: Msg[] = []
     if (Array.isArray(history)) {
