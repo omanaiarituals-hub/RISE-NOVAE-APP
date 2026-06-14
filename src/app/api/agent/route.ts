@@ -37,6 +37,18 @@ const TOOLS = [
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
+    name: 'lire_planning_jour',
+    description:
+      "Lit tous les événements déjà planifiés (Planner) pour un jour précis. À appeler AVANT de proposer un créneau horaire pour un jour donné, afin d'annoncer à l'utilisatrice ce qu'elle a déjà ce jour-là et de proposer une heure réellement libre. Ne jamais dire 'tu es libre' sans avoir lu le planning du jour visé.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'Le jour à consulter, au format YYYY-MM-DD.' },
+      },
+      required: ['date'],
+    },
+  },
+  {
     name: 'valider_mission_du_jour',
     description:
       "Valide ENTIÈREMENT la mission du jour du programme 90j : coche toutes les tâches du jour, enregistre la réflexion, et fait avancer au jour suivant (uniquement si c'est le jour courant). À appeler UNIQUEMENT après confirmation explicite de l'utilisatrice.",
@@ -203,6 +215,28 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           nb_taches: (taches ?? []).length,
           taches: taches ?? [],
         }
+      }
+
+      case 'lire_planning_jour': {
+        const jour = input?.date
+        if (!jour) return { ok: false, message: 'Date manquante (format YYYY-MM-DD).' }
+        const { data: evts } = await db
+          .from('planner_events')
+          .select('title, start_minutes, end_minutes, category')
+          .eq('user_id', userId)
+          .gte('start_date', `${jour}T00:00:00`)
+          .lte('start_date', `${jour}T23:59:59`)
+          .order('start_minutes', { ascending: true })
+        const pad2 = (n: number) => String(n).padStart(2, '0')
+        const hm = (mins: number | null) =>
+          mins == null ? '--:--' : `${pad2(Math.floor(mins / 60))}:${pad2(mins % 60)}`
+        const evenements = (evts ?? []).map((e: any) => ({
+          titre: e.title,
+          debut: hm(e.start_minutes),
+          fin: hm(e.end_minutes),
+          categorie: e.category,
+        }))
+        return { ok: true, date: jour, nb: evenements.length, evenements }
       }
 
       case 'valider_mission_du_jour': {
@@ -514,6 +548,7 @@ Anti-perfectionniste : tu déculpabilises, tu ne survends pas, pas de faux entho
 - Pour planifier un événement : appelle d'abord 'lire_ma_journee' pour repérer un éventuel conflit d'horaire, et préviens-la si tu en vois un.
 - Après exécution, tu confirmes UNIQUEMENT sur la base du vrai résultat de l'outil.
 - CONFLIT D'HORAIRE : si l'outil d'ajout d'événement renvoie conflit_bloquant=true, c'est que l'événement N'A PAS été créé. Tu ne dis JAMAIS qu'il est créé. Tu annonces le conflit, tu proposes une autre heure ou un autre jour, et tu attends sa décision. Tu ne crées l'événement malgré le conflit (forcer=true) QUE si elle te le demande explicitement.
+- AVANT de proposer un créneau pour un jour : appelle lire_planning_jour sur ce jour, puis annonce-lui ce qu'elle a déjà ("demain tu as Lidl de 7h à 17h"). Ne dis jamais "tu es libre" sans avoir lu le planning du jour visé. Propose une heure réellement disponible.
 - Si tu n'as PAS d'outil pour une action demandée, dis-le honnêtement (« je ne peux pas encore faire ça directement dans l'app, mais voilà comment faire toi-même… »). Tu n'annonces JAMAIS un succès (« ajouté ✅ », « c'est fait ») pour une action que tu n'as pas réellement exécutée via un outil.
 - Quand on te demande de créer PLUSIEURS éléments (routines, tâches, repas…) : tu crées CHAQUE élément exactement UNE fois, avec un seul titre clair. Dès qu'un outil te renvoie ok:true, l'élément EST créé — tu ne le recrées jamais et tu ne reformules pas son titre pour le recréer. Quand tout ce qui était demandé est créé, tu réponds en texte et tu n'appelles plus AUCUN outil.
 
