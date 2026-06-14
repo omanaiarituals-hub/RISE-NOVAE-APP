@@ -42,6 +42,7 @@ async function generateNovaMessage(
     absence_5j: `L'utilisatrice s'appelle ${prenom} et n'a pas avancé sur son programme 90 jours depuis 5 jours (elle utilise peut-être le reste de l'app, ne dis donc PAS qu'elle a disparu ni qu'elle te manque). Message chaleureux, sans pression, qui invite à reprendre le programme.${reveHint}`,
     absence_10j: `L'utilisatrice s'appelle ${prenom} et n'a pas avancé sur son programme 90 jours depuis 10 jours (elle utilise peut-être le reste de l'app, ne dis donc PAS qu'elle a disparu). Message bienveillant qui rappelle que le programme l'attend et qu'on peut reprendre à son rythme.${reveHint}`,
     taches_en_attente: `L'utilisatrice s'appelle ${prenom} et a ${context.nb_taches} tâches non planifiées. Message qui propose de les organiser ensemble, léger et sympa.`,
+    notes_a_trier: `L'utilisatrice s'appelle ${prenom} et a ${context.nb_notes} notes non triées dans son carnet de notes. Message qui propose de les relire ensemble, transformer celles qui doivent devenir une tâche ou un défi, et ranger le reste. Léger, sans pression, pas de liste à puces.${reveHint}`,
   }
 
   try {
@@ -60,6 +61,7 @@ async function generateNovaMessage(
       absence_5j: `${prenom} 💜 ton programme t'attend depuis 5 jours. Pas de pression, on repart où tu veux. Tu me dis ?`,
       absence_10j: `${prenom} 💜 ça fait 10 jours qu'on n'a pas touché à ton programme. Peu importe le rythme, je suis là pour reprendre ensemble quand tu le sens.`,
       taches_en_attente: `Hé ${prenom} ! Tes tâches t'attendent mais pas de stress. On les regarde ensemble ? Même 10 min ça suffit 💜`,
+      notes_a_trier: `${prenom} 💜 tu as ${context.nb_notes} notes qui traînent dans ton carnet. On les trie ensemble quand tu veux, ça prend 5 min et ça libère la tête.`,
     }
     return fallbacks[triggerType] || `Hé ${prenom} 💜 On fait le point ?`
   }
@@ -298,6 +300,70 @@ export async function GET(req: NextRequest) {
       })
 
       results.push(`Nova tâches (${count}) → ${userId}`)
+    }
+
+    // ─── 5. NOTES NON TRIÉES (5+) ───────────────────────────────────────
+    // Seuil volontairement plus haut que les tâches (5 vs 3) car une note
+    // n'est pas urgente par nature. Et on ne relance qu'une fois par semaine
+    // max (vs chaque jour pour les tâches) pour ne pas être pesante.
+    const { data: noteUsers } = await supabaseAdmin
+      .from('notes')
+      .select('user_id')
+
+    const notesCounts: Record<string, number> = {}
+    for (const n of noteUsers || []) {
+      notesCounts[n.user_id] = (notesCounts[n.user_id] || 0) + 1
+    }
+
+    for (const [userId, count] of Object.entries(notesCounts)) {
+      if (count < 5) continue
+
+      // Pas déjà notifiée cette semaine pour ce trigger précis
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      const { data: existingNotes } = await supabaseAdmin
+        .from('nova_pending_messages')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('trigger_type', 'notes_a_trier')
+        .gte('created_at', sevenDaysAgo)
+        .limit(1)
+
+      if (existingNotes?.length) continue
+
+      const { data: profileN } = await supabaseAdmin
+        .from('ai_personality_profile')
+        .select('pseudo')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      const { data: userDataN } = await supabaseAdmin
+        .from('users')
+        .select('full_name')
+        .eq('id', userId)
+        .maybeSingle()
+
+      const prenomN = profileN?.pseudo || userDataN?.full_name?.split(' ')[0] || 'toi'
+      const messageN = await generateNovaMessage(prenomN, 'notes_a_trier', { nb_notes: count })
+      const threadIdN = randomUUID()
+
+      await supabaseAdmin.from('nova_pending_messages').insert({
+        user_id: userId,
+        message: messageN,
+        trigger_type: 'notes_a_trier',
+        thread_id: threadIdN,
+        is_read: false
+      })
+
+      await notifyUser({
+        userId,
+        type: 'notes_a_trier',
+        title: 'Nova 💜',
+        body: messageN.substring(0, 100),
+        url: `/agent?nova_thread=${threadIdN}`,
+        preferenceKey: 'notif_inactivite',
+      })
+
+      results.push(`Nova notes (${count}) → ${userId}`)
     }
 
     return NextResponse.json({ success: true, executed: results, count: results.length })

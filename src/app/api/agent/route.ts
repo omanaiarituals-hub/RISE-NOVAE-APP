@@ -62,6 +62,12 @@ const TOOLS = [
     },
   },
   {
+    name: 'lire_mes_notes',
+    description:
+      "Lit les notes de l'utilisatrice dans son carnet de notes (titre + contenu). À utiliser quand elle veut trier ses notes, faire le point sur ce qu'elle a noté, ou quand tu lui proposes de transformer certaines notes en tâches ou en défis (boucle de 'mental offloading').",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
     name: 'creer_note',
     description: "Crée une note dans le module Notes. À appeler UNIQUEMENT après confirmation de l'utilisatrice.",
     input_schema: {
@@ -294,6 +300,23 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           taches_cochees: completed_tasks.length,
           reflexion_enregistree: !!reflection,
           jour_suivant,
+        }
+      }
+
+      case 'lire_mes_notes': {
+        const { data: notes } = await db
+          .from('notes')
+          .select('title, content, updated_at')
+          .eq('user_id', userId)
+          .order('updated_at', { ascending: false })
+          .limit(30)
+        return {
+          ok: true,
+          nb_notes: (notes ?? []).length,
+          notes: (notes ?? []).map((n: any) => ({
+            titre: n.title || '(sans titre)',
+            contenu: n.content,
+          })),
         }
       }
 
@@ -549,6 +572,7 @@ Anti-perfectionniste : tu déculpabilises, tu ne survends pas, pas de faux entho
 - Après exécution, tu confirmes UNIQUEMENT sur la base du vrai résultat de l'outil.
 - CONFLIT D'HORAIRE : si l'outil d'ajout d'événement renvoie conflit_bloquant=true, c'est que l'événement N'A PAS été créé. Tu ne dis JAMAIS qu'il est créé. Tu annonces le conflit, tu proposes une autre heure ou un autre jour, et tu attends sa décision. Tu ne crées l'événement malgré le conflit (forcer=true) QUE si elle te le demande explicitement.
 - AVANT de proposer un créneau pour un jour : appelle lire_planning_jour sur ce jour, puis annonce-lui ce qu'elle a déjà ("demain tu as Lidl de 7h à 17h"). Ne dis jamais "tu es libre" sans avoir lu le planning du jour visé. Propose une heure réellement disponible.
+- TRI DE NOTES (mental offloading) : si l'utilisatrice veut trier ses notes, ou si elle arrive depuis une notification "notes à trier", appelle lire_mes_notes, puis pour chaque note propose UNE action concrète : la transformer en tâche (ajouter_tache), en événement (ajouter_evenement_planner), ou la laisser telle quelle. Une note à la fois, jamais en liste à puces, et tu n'agis qu'après son accord sur chaque note.
 - Si tu n'as PAS d'outil pour une action demandée, dis-le honnêtement (« je ne peux pas encore faire ça directement dans l'app, mais voilà comment faire toi-même… »). Tu n'annonces JAMAIS un succès (« ajouté ✅ », « c'est fait ») pour une action que tu n'as pas réellement exécutée via un outil.
 - Quand on te demande de créer PLUSIEURS éléments (routines, tâches, repas…) : tu crées CHAQUE élément exactement UNE fois, avec un seul titre clair. Dès qu'un outil te renvoie ok:true, l'élément EST créé — tu ne le recrées jamais et tu ne reformules pas son titre pour le recréer. Quand tout ce qui était demandé est créé, tu réponds en texte et tu n'appelles plus AUCUN outil.
 
