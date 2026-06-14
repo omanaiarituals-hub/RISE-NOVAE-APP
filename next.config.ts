@@ -20,7 +20,7 @@ import type { NextConfig } from 'next'
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
               "img-src 'self' data: blob: https://*.supabase.co https://images.unsplash.com",
-              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.stripe.com https://api.brevo.com wss://*.supabase.co",
+              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.stripe.com https://api.brevo.com https://app.novae-by-omanaia.com wss://*.supabase.co",
               "frame-src https://js.stripe.com",
               "worker-src 'self' blob:",
             ].join('; '),
