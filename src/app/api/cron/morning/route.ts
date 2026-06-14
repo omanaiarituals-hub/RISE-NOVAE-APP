@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { notifyUser } from '@/lib/push/notify'
 import Anthropic from '@anthropic-ai/sdk'
+import { randomUUID } from 'crypto'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -214,7 +215,7 @@ export async function GET(req: NextRequest) {
 
       // Générer le message avec Claude — en passant le rêve
       const message = await generateNovaMessage(prenom, triggerType, { reve })
-      const threadId = `nova-${u.user_id}-${Date.now()}`
+      const threadId = randomUUID()
 
       // Stocker dans nova_pending_messages
       await supabaseAdmin.from('nova_pending_messages').insert({
@@ -277,7 +278,7 @@ export async function GET(req: NextRequest) {
 
       const prenom = profileT?.pseudo || userData?.full_name?.split(' ')[0] || 'toi'
       const message = await generateNovaMessage(prenom, 'taches_en_attente', { nb_taches: count })
-      const threadId = `nova-${userId}-${Date.now()}`
+      const threadId = randomUUID()
 
       await supabaseAdmin.from('nova_pending_messages').insert({
         user_id: userId,
