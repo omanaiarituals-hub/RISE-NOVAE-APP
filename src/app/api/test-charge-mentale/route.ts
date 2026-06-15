@@ -4,6 +4,20 @@ import Anthropic from '@anthropic-ai/sdk'
 
 const anthropic = new Anthropic()
 
+// La landing (novae-by-omanaia.com) appelle cette API sur app.novae-by-omanaia.com
+// => requête cross-origin : il faut autoriser explicitement le domaine sinon
+// le navigateur bloque la requête en preflight (rien n'arrive jamais au serveur,
+// et donc aucun log côté Vercel).
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': 'https://novae-by-omanaia.com',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+}
+
 const NOVA_DIAGNOSTIC_PROMPT = `Tu es Nova, la coach IA de NOVAÉ. Tu analyses les réponses d'une femme à un test de charge mentale et tu génères un diagnostic personnalisé, profond et bienveillant.
 
 Ton diagnostic doit :
@@ -30,13 +44,13 @@ export async function POST(req: NextRequest) {
     const { email, totalScore, answers } = await req.json()
 
     if (!email || totalScore === undefined || !answers) {
-      return NextResponse.json({ error: 'Données manquantes' }, { status: 400 })
+      return NextResponse.json({ error: 'Données manquantes' }, { status: 400, headers: CORS_HEADERS })
     }
 
     // Valider email basique
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRe.test(email)) {
-      return NextResponse.json({ error: 'Email invalide' }, { status: 400 })
+      return NextResponse.json({ error: 'Email invalide' }, { status: 400, headers: CORS_HEADERS })
     }
 
     // Générer le diagnostic via Claude
@@ -56,7 +70,7 @@ export async function POST(req: NextRequest) {
       const clean = rawText.replace(/```json|```/g, '').trim()
       diagnostic = JSON.parse(clean)
     } catch {
-      return NextResponse.json({ error: 'Erreur génération diagnostic' }, { status: 500 })
+      return NextResponse.json({ error: 'Erreur génération diagnostic' }, { status: 500, headers: CORS_HEADERS })
     }
 
     // Envoyer l'email via Brevo
@@ -85,7 +99,7 @@ sender: { name: 'Nova de NOVAÉ', email: 'contact@novae-by-omanaia.com' },
           brevo_status: brevoRes.status,
           brevo_detail: brevoErr,
         },
-        { status: 502 }
+        { status: 502, headers: CORS_HEADERS }
       )
     }
 
@@ -109,11 +123,11 @@ sender: { name: 'Nova de NOVAÉ', email: 'contact@novae-by-omanaia.com' },
       })
     })
 
-    return NextResponse.json({ success: true, profil: diagnostic.profil })
+    return NextResponse.json({ success: true, profil: diagnostic.profil }, { headers: CORS_HEADERS })
 
   } catch (error) {
     console.error('[test-charge-mentale] error:', error)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500, headers: CORS_HEADERS })
   }
 }
 
