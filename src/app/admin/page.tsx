@@ -81,7 +81,9 @@ interface LandingMetrics {
     sessionsClickedAnyMain: number
     sessionsClickedHero: number
     sessionsClickedFinal: number
-    sessionsClickedDemo: number
+    sessionsClickedQuiz: number
+    sessionsClickedBlog: number
+    sessionsClickedContact: number
     totalSessions: number
   }
   traffic: {
@@ -95,6 +97,13 @@ interface LandingMetrics {
     reachedHalf: number
     reachedThreeQuarters: number
     reachedFull: number
+  }
+  quiz: {
+    total: number
+    last24h: number
+    last7d: number
+    profilBreakdown: { profil: string; count: number }[]
+    leads: { email: string; score: number | null; profil: string | null; scoreLabel: string | null; date: string }[]
   }
 }
 
@@ -117,7 +126,8 @@ const ROADMAP_VALIDATED: Record<string, string[]> = {
     'Famille & Proches',
     'Agent IA NOVAÉ (Claude API + bilan hebdo cron)',
     'Paramètres',
-    'Démo /demo',
+    'Blog SEO (3 articles)',
+    'Quiz charge mentale + diagnostic IA',
     'Onboarding 10Q (UI flow complet)',
   ],
   'Infra & lancement': [
@@ -1610,11 +1620,11 @@ const loadAuthUserCount = async () => {
           <KpiTile
             selected={false}
             onClick={() => {}}
-            emoji="🎬"
-            label="Clic démo"
-            value={landingStats.cta.sessionsClickedDemo}
+            emoji="🧠"
+            label="Leads quiz charge mentale"
+            value={landingStats.quiz.total}
             accent={C.purple}
-            sub="sessions ayant ouvert /demo"
+            sub={`${landingStats.quiz.last24h} sur 24h · ${landingStats.quiz.last7d} sur 7j`}
           />
         </div>
  
@@ -1632,11 +1642,12 @@ const loadAuthUserCount = async () => {
                 const labelMap: Record<string, string> = {
                   'nav_cta':       'Nav top — Avant-première gratuite',
                   'hero_primary':  'Hero — Teste le changement',
-                  'hero_demo':     'Hero — Découvre la démo',
+                  'hero_test':     'Hero — Fais le quiz charge mentale',
+                  'hero_blog':     'Hero — Lire un article du blog',
                   'mirror_cta':    'Mirror — Teste le changement',
                   'community_cta': 'Communauté — Rejoins-les',
                   'final_primary': 'Final — Teste le changement',
-                  'final_demo':    'Final — Découvre la démo',
+                  'footer_contact': 'Footer — Contact',
                 }
                 return (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1678,7 +1689,104 @@ const loadAuthUserCount = async () => {
               max={landingStats.cta.totalSessions}
               color={C.purple}
             />
+            <FunnelStep
+              label="Ont fait le quiz"
+              value={landingStats.cta.sessionsClickedQuiz}
+              max={landingStats.cta.totalSessions}
+              color={C.brown}
+            />
+            <FunnelStep
+              label="Ont lu un article du blog"
+              value={landingStats.cta.sessionsClickedBlog}
+              max={landingStats.cta.totalSessions}
+              color={C.brownLight}
+            />
           </div>
+        </div>
+
+        {/* ─── LEADS QUIZ CHARGE MENTALE ─── */}
+        <div style={glassCard}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <h3 style={sectionTitle}>Leads du quiz "charge mentale"</h3>
+              <p style={sectionDesc}>Emails collectés via le quiz de la landing, avec leur score et profil.</p>
+            </div>
+            {landingStats.quiz.leads.length > 0 && (
+              <button
+                onClick={() => {
+                  const header = 'email,score,profil,score_label,date\n'
+                  const lines = landingStats.quiz.leads.map(l =>
+                    [l.email, l.score ?? '', l.profil ?? '', l.scoreLabel ?? '', l.date].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')
+                  )
+                  const csv = header + lines.join('\n')
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `novae-leads-quiz-${new Date().toISOString().slice(0, 10)}.csv`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                style={{
+                  background: 'rgba(196,149,106,0.15)',
+                  border: '1px solid rgba(196,149,106,0.35)',
+                  borderRadius: 8, padding: '6px 12px',
+                  color: C.copperDark, fontSize: 12,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                ⬇ Exporter en CSV
+              </button>
+            )}
+          </div>
+
+          {landingStats.quiz.profilBreakdown.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }}>
+              {landingStats.quiz.profilBreakdown.map((p, i) => (
+                <span key={i} style={{
+                  fontSize: 12, padding: '4px 10px', borderRadius: 999,
+                  background: 'rgba(155,90,101,0.1)', color: C.copperDark,
+                  border: '1px solid rgba(155,90,101,0.2)',
+                }}>
+                  {p.profil} · {p.count}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {landingStats.quiz.leads.length === 0 ? (
+            <p style={{ fontSize: 13, color: C.brownLight, padding: '14px 0' }}>Aucun lead encore enregistré sur cette période.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', color: C.brownLight, borderBottom: '1px solid rgba(212,165,116,0.25)' }}>
+                    <th style={{ padding: '6px 8px' }}>Email</th>
+                    <th style={{ padding: '6px 8px' }}>Score</th>
+                    <th style={{ padding: '6px 8px' }}>Profil</th>
+                    <th style={{ padding: '6px 8px' }}>Niveau</th>
+                    <th style={{ padding: '6px 8px' }}>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {landingStats.quiz.leads.slice(0, 50).map((l, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(212,165,116,0.12)' }}>
+                      <td style={{ padding: '6px 8px', color: C.brown }}>{l.email}</td>
+                      <td style={{ padding: '6px 8px' }}>{l.score ?? '–'}</td>
+                      <td style={{ padding: '6px 8px' }}>{l.profil ?? '–'}</td>
+                      <td style={{ padding: '6px 8px' }}>{l.scoreLabel ?? '–'}</td>
+                      <td style={{ padding: '6px 8px', color: C.brownLight }}>{formatDateTime(l.date)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {landingStats.quiz.leads.length > 50 && (
+                <p style={{ fontSize: 11, color: C.brownLight, marginTop: 8, fontStyle: 'italic' }}>
+                  Affichage des 50 plus récents ({landingStats.quiz.leads.length} au total sur la période). Exporte en CSV pour voir tous les leads.
+                </p>
+              )}
+            </div>
+          )}
         </div>
  
         {/* ─── SCROLL DEPTH ─── */}

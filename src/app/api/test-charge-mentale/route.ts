@@ -1,8 +1,14 @@
 // src/app/api/test-charge-mentale/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@supabase/supabase-js'
 
 const anthropic = new Anthropic()
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 // La landing (novae-by-omanaia.com) appelle cette API sur app.novae-by-omanaia.com
 // => requête cross-origin : il faut autoriser explicitement le domaine sinon
@@ -122,6 +128,20 @@ sender: { name: 'Nova de NOVAÉ', email: 'contact@novae-by-omanaia.com' },
         }
       })
     })
+
+    // Enregistrer le lead dans notre base (pour le voir dans l'admin,
+    // indépendamment de Brevo). Non bloquant : si ça échoue, on log mais
+    // on ne fait pas échouer la requête pour l'utilisatrice.
+    const { error: leadError } = await supabaseAdmin.from('quiz_leads').insert({
+      email,
+      total_score: totalScore,
+      profil: diagnostic.profil,
+      score_label: diagnostic.score_label,
+      answers,
+    })
+    if (leadError) {
+      console.error('[test-charge-mentale] Erreur enregistrement lead:', leadError.message)
+    }
 
     return NextResponse.json({ success: true, profil: diagnostic.profil }, { headers: CORS_HEADERS })
 

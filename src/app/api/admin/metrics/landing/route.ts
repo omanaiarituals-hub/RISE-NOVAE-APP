@@ -64,6 +64,19 @@ export async function GET(request: NextRequest) {
 
     const rows = events || []
 
+    // Leads du quiz "charge mentale" (table à part, écrite par /api/test-charge-mentale)
+    const { data: quizLeadsRows, error: quizError } = await supabase
+      .from('quiz_leads')
+      .select('email, total_score, profil, score_label, created_at')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(200)
+
+    if (quizError) {
+      console.error('[admin/metrics/landing] Erreur quiz_leads:', quizError.message)
+    }
+    const quizLeads = quizLeadsRows || []
+
     // ─── 4) Agrégations ───
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
@@ -71,6 +84,15 @@ export async function GET(request: NextRequest) {
     const pageViews = rows.filter(r => r.event_type === 'page_view')
     const ctaClicks = rows.filter(r => r.event_type === 'cta_click')
     const scrollEvents = rows.filter(r => r.event_type === 'scroll_depth')
+
+    // Leads quiz : volumétrie + liste détaillée (la plus récente d'abord)
+    const quizLeads24h = quizLeads.filter(l => new Date(l.created_at).getTime() > oneDayAgo).length
+    const quizLeads7d  = quizLeads.filter(l => new Date(l.created_at).getTime() > sevenDaysAgo).length
+    const quizProfilCount: Record<string, number> = {}
+    quizLeads.forEach(l => {
+      const p = l.profil || 'Non déterminé'
+      quizProfilCount[p] = (quizProfilCount[p] || 0) + 1
+    })
 
     // Page views par période
     const pageViews24h = pageViews.filter(r => new Date(r.created_at).getTime() > oneDayAgo).length
@@ -143,7 +165,9 @@ export async function GET(request: NextRequest) {
     })
     const sessionsClickedHero  = Object.values(sessionEvents).filter(s => s.has('hero_primary')).length
     const sessionsClickedFinal = Object.values(sessionEvents).filter(s => s.has('final_primary')).length
-    const sessionsClickedDemo  = Object.values(sessionEvents).filter(s => s.has('hero_demo') || s.has('final_demo')).length
+    const sessionsClickedQuiz  = Object.values(sessionEvents).filter(s => s.has('hero_test')).length
+    const sessionsClickedBlog  = Object.values(sessionEvents).filter(s => s.has('hero_blog')).length
+    const sessionsClickedContact = Object.values(sessionEvents).filter(s => s.has('footer_contact')).length
     const sessionsClickedAnyMain = Object.values(sessionEvents).filter(s =>
       s.has('hero_primary') || s.has('final_primary') || s.has('mirror_cta') || s.has('community_cta') || s.has('nav_cta')
     ).length
@@ -184,7 +208,9 @@ export async function GET(request: NextRequest) {
         sessionsClickedAnyMain,
         sessionsClickedHero,
         sessionsClickedFinal,
-        sessionsClickedDemo,
+        sessionsClickedQuiz,
+        sessionsClickedBlog,
+        sessionsClickedContact,
         totalSessions: visitorSessions.size,
       },
       traffic: {
@@ -198,6 +224,21 @@ export async function GET(request: NextRequest) {
         reachedHalf:    depthBuckets[50],
         reachedThreeQuarters: depthBuckets[75],
         reachedFull:    depthBuckets[100],
+      },
+      quiz: {
+        total: quizLeads.length,
+        last24h: quizLeads24h,
+        last7d: quizLeads7d,
+        profilBreakdown: Object.entries(quizProfilCount)
+          .map(([profil, count]) => ({ profil, count }))
+          .sort((a, b) => b.count - a.count),
+        leads: quizLeads.map(l => ({
+          email: l.email,
+          score: l.total_score,
+          profil: l.profil,
+          scoreLabel: l.score_label,
+          date: l.created_at,
+        })),
       },
     })
   } catch (err: any) {

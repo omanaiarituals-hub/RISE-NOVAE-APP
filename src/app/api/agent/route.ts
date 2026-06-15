@@ -68,6 +68,30 @@ const TOOLS = [
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
+    name: 'lire_mes_defis',
+    description:
+      "Lit les défis de l'utilisatrice (module Défis) : titre, catégorie, statut (disponible / en cours / terminé), progression et points. À utiliser quand elle demande où elle en est sur ses défis, ou pour lui suggérer d'en lancer un.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'lire_ma_famille',
+    description:
+      "Lit les membres du foyer de l'utilisatrice (module Famille) : prénom, relation, allergies, notes de santé. À utiliser pour personnaliser une réponse qui concerne sa famille (ex : planifier un repas en tenant compte des allergies, se souvenir d'un anniversaire).",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'lire_mes_routines',
+    description:
+      "Lit les routines existantes de l'utilisatrice (module Routines) : titre, catégorie (matin/soir), fréquence, si elles sont faites aujourd'hui, et leur streak. À utiliser AVANT de proposer de créer une nouvelle routine (pour éviter les doublons) ou quand elle demande où elle en est sur ses habitudes.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'lire_mes_repas',
+    description:
+      "Lit le planning de repas de la semaine (module Repas) et la liste de courses de l'utilisatrice. À utiliser quand elle demande ce qu'elle a prévu de manger, ou pour vérifier ce qui est déjà planifié avant de proposer un nouveau repas.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
     name: 'creer_note',
     description: "Crée une note dans le module Notes. À appeler UNIQUEMENT après confirmation de l'utilisatrice.",
     input_schema: {
@@ -300,6 +324,97 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           taches_cochees: completed_tasks.length,
           reflexion_enregistree: !!reflection,
           jour_suivant,
+        }
+      }
+
+      case 'lire_mes_defis': {
+        const { data: defis } = await db
+          .from('user_defis')
+          .select('title, category, status, points, days')
+          .eq('user_id', userId)
+        return {
+          ok: true,
+          nb_defis: (defis ?? []).length,
+          defis: (defis ?? []).map((d: any) => {
+            const days = Array.isArray(d.days) ? d.days : []
+            const total = days.length
+            const faits = days.filter((x: any) => x === true || x?.done === true).length
+            return {
+              titre: d.title,
+              categorie: d.category,
+              statut: d.status,
+              points: d.points ?? 0,
+              progression: total > 0 ? `${faits}/${total}` : null,
+            }
+          }),
+        }
+      }
+
+      case 'lire_ma_famille': {
+        const { data: membres } = await db
+          .from('family_data')
+          .select('data, relation_to_user')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+        return {
+          ok: true,
+          nb_membres: (membres ?? []).length,
+          membres: (membres ?? []).map((m: any) => {
+            const d = m.data || {}
+            return {
+              prenom: d.firstName || d.name || '(sans nom)',
+              relation: d.relation || m.relation_to_user || null,
+              date_naissance: d.birthDate || d.birthday || null,
+              allergies: Array.isArray(d.allergies) ? d.allergies.join(', ') : (d.allergies || d.healthNotes || null),
+              notes_sante: d.healthNotes || null,
+              notes: d.notes || null,
+            }
+          }),
+        }
+      }
+
+      case 'lire_mes_routines': {
+        const { data: routines } = await db
+          .from('routines')
+          .select('title, category, frequency, custom_days, completed, streak_count')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+        return {
+          ok: true,
+          nb_routines: (routines ?? []).length,
+          routines: (routines ?? []).map((r: any) => ({
+            titre: r.title,
+            categorie: r.category, // 'morning' ou 'evening'
+            frequence: r.frequency,
+            jours_personnalises: r.custom_days || null,
+            faite_aujourdhui: !!r.completed,
+            streak: r.streak_count ?? 0,
+          })),
+        }
+      }
+
+      case 'lire_mes_repas': {
+        const { data: slots } = await db
+          .from('meal_plan')
+          .select('day_of_week, meal_type, headcount, meal_scope, recipes(title)')
+          .eq('user_id', userId)
+        const { data: courses } = await db
+          .from('shopping_list')
+          .select('ingredient, quantity, checked, to_buy')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+        return {
+          ok: true,
+          repas_planifies: (slots ?? []).map((s: any) => ({
+            jour: s.day_of_week,
+            repas: s.meal_type,
+            recette: s.recipes?.title ?? null,
+            nb_personnes: s.headcount ?? null,
+            qui_mange: s.meal_scope ?? null,
+          })),
+          liste_de_courses: (courses ?? [])
+            .filter((c: any) => c.to_buy !== false && !c.checked)
+            .map((c: any) => ({ article: c.ingredient, quantite: c.quantity ?? null })),
         }
       }
 
