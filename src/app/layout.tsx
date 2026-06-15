@@ -12,9 +12,20 @@ import GlobalHeader from '@/components/GlobalHeader'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'RISE NOVAÉ',
-  description: 'Ton compagnon de transformation personnelle',
+  metadataBase: new URL('https://app.novae-by-omanaia.com'),
+  title: {
+    default: 'NOVAÉ by OMANAÏA',
+    template: '%s | NOVAÉ',
+  },
+  description: "NOVAÉ, l'application qui t'accompagne au quotidien avec NOVA, ta coach IA : programme de 90 jours, planner, routines, journaling et communauté.",
   manifest: '/manifest.json',
+  // Par défaut, l'espace applicatif (derrière connexion) n'est pas indexé.
+  // Les pages publiques (ex: le blog) redéfinissent leurs propres
+  // métadonnées, y compris `robots`, via generateMetadata.
+  robots: {
+    index: false,
+    follow: false,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

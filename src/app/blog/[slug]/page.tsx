@@ -15,13 +15,19 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const article = getArticle(slug)
-  if (!article) return { title: 'Article introuvable | NOVAÉ' }
+  if (!article) return { title: 'Article introuvable | NOVAÉ', robots: { index: false, follow: false } }
 
   const url = `https://app.novae-by-omanaia.com/blog/${article.slug}`
   return {
     title: article.metaTitle,
     description: article.metaDescription,
     alternates: { canonical: url },
+    // Le layout racine met l'app en noindex par défaut (espace privé).
+    // Le blog est public : on indique explicitement à Google de l'indexer.
+    robots: {
+      index: true,
+      follow: true,
+    },
     openGraph: {
       title: article.metaTitle,
       description: article.metaDescription,
