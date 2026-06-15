@@ -22,7 +22,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
           disallow: ['/'],
         },
       ],
-      sitemap: 'https://novae-by-omanaia.com/sitemap.xml',
+      sitemap: 'https://app.novae-by-omanaia.com/sitemap-app.xml',
     }
   }
 
