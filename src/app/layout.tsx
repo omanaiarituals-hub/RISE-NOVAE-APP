@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   },
   description: "NOVAÉ, l'application qui t'accompagne au quotidien avec NOVA, ta coach IA : programme de 90 jours, planner, routines, journaling et communauté.",
   manifest: '/manifest.json',
+  verification: {
+    google: 'hjmuYuyMOLOIQDTVwmHabKyghViwFTAWTEqt1o1kFgU',
+  },
   // Par défaut, l'espace applicatif (derrière connexion) n'est pas indexé.
   // Les pages publiques (ex: le blog) redéfinissent leurs propres
   // métadonnées, y compris `robots`, via generateMetadata.
