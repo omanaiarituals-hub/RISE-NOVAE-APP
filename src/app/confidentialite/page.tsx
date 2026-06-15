@@ -47,14 +47,15 @@ export default function ConfidentialitePage() {
           <P><strong>Données d'identification :</strong> adresse email, pseudo choisi par l'utilisateur.</P>
           <P><strong>Données de progression personnelle :</strong> routines créées, missions complétées, réflexions et intentions journalières, habitudes suivies, planification des repas.</P>
           <P><strong>Données de planification :</strong> événements du calendrier, tâches, liste de courses.</P>
+          <P><strong>Données démographiques (sur base volontaire) :</strong> âge, localisation, présence d'enfants au foyer, renseignées lors de votre inscription ou dans votre profil. Ces informations servent à personnaliser votre expérience et à établir des statistiques globales et anonymes sur notre audience.</P>
           <P><strong>Données techniques :</strong> adresse IP, type de navigateur, système d'exploitation, date et heure de connexion, identifiant de session.</P>
-          <P>Nous ne collectons pas de données sensibles au sens de l'article 9 du RGPD (santé, origine ethnique, opinions politiques, etc.).</P>
+          <P>Certains modules (par exemple le suivi émotionnel ou le module périménopause) peuvent vous amener à renseigner des informations relevant de la santé, au sens de l'article 9 du RGPD. Ces informations restent strictement confidentielles, ne sont jamais lues par nos équipes, et ne sont utilisées que pour le fonctionnement du service que vous avez choisi d'activer. Elles ne sont jamais incluses dans les statistiques d'audience mentionnées en section 3.</P>
 
           <H2>3 — Finalités et bases légales du traitement</H2>
           <P><strong>Fourniture du service (base : exécution du contrat) :</strong> création et gestion de votre compte, synchronisation de vos données entre appareils, fonctionnement des modules de l'Application.</P>
-          <P><strong>Amélioration du service (base : intérêt légitime) :</strong> analyse agrégée et anonymisée des usages pour améliorer les fonctionnalités. Aucune donnée personnelle identifiable n'est utilisée à cette fin.</P>
+          <P><strong>Amélioration du service et statistiques d'audience (base : intérêt légitime) :</strong> analyse agrégée et anonymisée des usages (par exemple : taux d'utilisation des différents modules, profil démographique global de notre audience) pour améliorer l'Application et présenter des statistiques globales, y compris à des partenaires commerciaux ou publicitaires. Ces statistiques sont toujours agrégées et anonymes : elles ne permettent à aucun moment d'identifier une personne en particulier, et aucune donnée individuelle n'est communiquée.</P>
           <P><strong>Obligations légales (base : obligation légale) :</strong> conservation des données requises par la loi française.</P>
-          <P>Nous n'utilisons pas vos données à des fins publicitaires et ne les vendons jamais à des tiers.</P>
+          <P>Nous ne vendons jamais vos données personnelles, et ne les transmettons jamais individuellement à un tiers à des fins publicitaires. Seules des statistiques agrégées et anonymes peuvent être partagées, comme indiqué ci-dessus.</P>
 
           <H2>4 — Durée de conservation</H2>
           <P>Les données de compte sont conservées pendant toute la durée d'activité du compte et supprimées dans un délai de 30 jours suivant la demande de suppression du compte.</P>
@@ -72,7 +73,7 @@ export default function ConfidentialitePage() {
   <li><strong>Stripe</strong> (Irlande) — paiements sécurisés.
   Données : email, carte bancaire (jamais stockée par nos soins),
   abonnement.</li>
-          <P>Aucune donnée n'est transférée à des fins commerciales à des tiers.</P>
+          <P>Vos données personnelles individuelles ne sont jamais transférées à des fins commerciales à des tiers. Seules des statistiques globales, agrégées et anonymes (voir section 3) peuvent être communiquées à des partenaires.</P>
 
           <H2>6 — Vos droits</H2>
           <P>Conformément au Règlement Général sur la Protection des Données (RGPD — Règlement UE 2016/679) et à la loi Informatique et Libertés, vous disposez des droits suivants :</P>
