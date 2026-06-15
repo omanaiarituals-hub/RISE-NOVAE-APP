@@ -318,25 +318,40 @@ export default function TrackerPage() {
       const startDateStr = fmtDate(startDateObj);
 
       const { data: tasks } = await supabase
-        .from("tasks")
-        .select("category, start_hour, duration_hours")
+        .from("planner_events")
+        .select("category, start_minutes, end_minutes, start_date")
         .eq("user_id", user.id)
-        .gte("date", startDateStr);
+        .gte("start_date", `${startDateStr}T00:00:00`);
+
+      // DEBUG TEMPORAIRE — à retirer une fois le bug du tracker résolu.
+      console.log('[TRACKER DEBUG] startDateStr=', startDateStr, 'nb tasks=', tasks?.length, 'tasks=', tasks)
 
       const CAT_MAP: Record<string, { label: string; emoji: string; color: string }> = {
         pro:    { label: "Professionnel",   emoji: "💼", color: "#A0BEDC" },
         self:   { label: "Personnel / Moi", emoji: "🌸", color: "#D4A090" },
         family: { label: "Famille",         emoji: "💛", color: "#E8D080" },
+        rdv_famille: { label: "Famille",    emoji: "💛", color: "#E8D080" },
         social: { label: "Social",          emoji: "🌿", color: "#90C8A8" },
+        work:   { label: "Professionnel",   emoji: "💼", color: "#A0BEDC" },
+        personal: { label: "Personnel / Moi", emoji: "🌸", color: "#D4A090" },
+        health: { label: "Santé",           emoji: "💪", color: "#90C8A8" },
+        other:  { label: "Autre",           emoji: "📌", color: "#ccc" },
       };
 
       if (tasks && tasks.length > 0) {
-        const minuteMap: Record<string, number> = { pro: 0, self: 0, family: 0, social: 0 };
+        const minuteMap: Record<string, number> = {};
         tasks.forEach((t: any) => {
-          const key = (t.category || "pro").toLowerCase();
-          if (minuteMap[key] !== undefined) {
-            minuteMap[key] += (t.duration_hours || 1) * 60;
-          }
+          // 'family' et 'rdv_famille' (et 'work'/'personal') sont regroupés
+          // sous la même tranche affichée pour ne pas multiplier les parts.
+          const rawKey = (t.category || "other").toLowerCase();
+          const key = rawKey === "rdv_famille" ? "family"
+            : rawKey === "work" ? "pro"
+            : rawKey === "personal" ? "self"
+            : rawKey;
+          const start = t.start_minutes ?? 540
+          const end = t.end_minutes ?? (start + 60)
+          const durationMin = Math.max(0, end - start)
+          minuteMap[key] = (minuteMap[key] || 0) + durationMin;
         });
         const slices: TimeSlice[] = Object.entries(minuteMap)
           .filter(([, mins]) => mins > 0)
@@ -345,8 +360,10 @@ export default function TrackerPage() {
             label: CAT_MAP[k]?.label || k,
             emoji: CAT_MAP[k]?.emoji || "📌",
             color: CAT_MAP[k]?.color || "#ccc",
-            hours: Math.round(mins / 60),
+            hours: Math.round((mins / 60) * 10) / 10,
           }));
+        // DEBUG TEMPORAIRE — à retirer une fois le bug du tracker résolu.
+        console.log('[TRACKER DEBUG] minuteMap=', minuteMap, 'slices=', slices)
         if (slices.length > 0) setTimeData(slices);
         else loadMockTime();
       } else {
