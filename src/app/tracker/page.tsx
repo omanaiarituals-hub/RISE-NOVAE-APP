@@ -323,9 +323,6 @@ export default function TrackerPage() {
         .eq("user_id", user.id)
         .gte("start_date", `${startDateStr}T00:00:00`);
 
-      // DEBUG TEMPORAIRE — à retirer une fois le bug du tracker résolu.
-      console.log('[TRACKER DEBUG] startDateStr=', startDateStr, 'nb tasks=', tasks?.length, 'tasks=', tasks)
-
       const CAT_MAP: Record<string, { label: string; emoji: string; color: string }> = {
         pro:    { label: "Professionnel",   emoji: "💼", color: "#A0BEDC" },
         self:   { label: "Personnel / Moi", emoji: "🌸", color: "#D4A090" },
@@ -362,8 +359,6 @@ export default function TrackerPage() {
             color: CAT_MAP[k]?.color || "#ccc",
             hours: Math.round((mins / 60) * 10) / 10,
           }));
-        // DEBUG TEMPORAIRE — à retirer une fois le bug du tracker résolu.
-        console.log('[TRACKER DEBUG] minuteMap=', minuteMap, 'slices=', slices)
         if (slices.length > 0) setTimeData(slices);
         else loadMockTime();
       } else {
