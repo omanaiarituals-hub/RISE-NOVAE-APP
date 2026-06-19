@@ -1,0 +1,79 @@
+{
+  "_comment_fr": "Element transversal au parcours entier, pas lie a un Acte specifique. Egalement : recapitulatif des regles de deverrouillage test vs production, a appliquer au niveau du code (pas seulement de la donnee).",
+
+  "global_recovery_protocol": {
+    "id": "global-protocol",
+    "title": "Si je me perds à nouveau",
+    "display_rule": "Accessible à tout moment depuis un lien discret en bas de chaque Acte. Jamais en pop-up, jamais déclenché automatiquement.",
+    "intro_text": "Ce parcours t'accompagne à travers 4 étapes. Mais la vie continue, et parfois, tu te perdras à nouveau. C'est normal. Ce n'est pas un échec. C'est un signal que tu as besoin de revenir ici.",
+    "signals_section": {
+      "title": "Mes signaux de perte",
+      "instruction": "Coche ceux que tu reconnais chez toi (liste personnalisable, à titre de repère, pas de diagnostic)",
+      "items": [
+        "Je dis oui automatiquement",
+        "Je ne sais plus ce que je veux",
+        "Je me sens coupable d'exister pleinement",
+        "Je m'adapte aux autres sans m'en rendre compte",
+        "Je suis épuisée sans raison visible",
+        "Mon corps est tendu en permanence",
+        "Je me coupe de mes émotions"
+      ]
+    },
+    "return_protocol": {
+      "title": "Protocole de retour",
+      "step_1": {
+        "label": "Pause immédiate (1h)",
+        "actions": [
+          "Annuler 1 chose non essentielle aujourd'hui",
+          "M'isoler 20 minutes minimum",
+          "Respirer profondément 10 cycles"
+        ]
+      },
+      "step_2": {
+        "label": "Relecture ciblée selon le signal",
+        "routing": {
+          "si_perdue_dans_adaptation": "Relire la synthèse de l'Acte 1 et de l'Acte 2",
+          "si_perdue_dans_deconnexion_de_moi": "Relire la synthèse de l'Acte 3",
+          "si_perdue_dans_inaction": "Relire la synthèse de l'Acte 4 et le suivi des engagements"
+        }
+      },
+      "step_3": {
+        "label": "Action minimale (24h max)",
+        "prompt": "Quelle est la première chose que je peux faire pour revenir à moi ?",
+        "instruction": "La faire dans les 24h."
+      }
+    },
+    "never_includes": "Ce protocole ne pose à aucun moment de question d'évaluation clinique ou de risque. Il reste un outil d'auto-régulation et de retour au calme. Pour toute ressource professionnelle, voir le composant pharmacy_widget (indépendant, toujours visible, jamais lié à ce protocole de façon automatique)."
+  },
+
+  "pharmacy_widget_reminder": {
+    "_note": "Deja specifie dans la spec produit initiale et le mockup HTML valide. Rappel des regles ici pour ne pas les perdre au moment de l'integration : icone discrete en bas a droite, couleur pastel non alarmante (pas de rouge), jamais de popup, jamais declenchee automatiquement par le contenu saisi. Contenu au clic : numeros France/Belgique/Suisse/Canada deja lites dans le carnet original."
+  },
+
+  "test_mode_vs_production_rules": {
+    "_comment_fr": "A appliquer au niveau du composant front et des requetes Supabase, pas seulement comme donnee statique.",
+
+    "test_mode": {
+      "description": "Mode actuel pour validation par Ness uniquement.",
+      "rules": [
+        "Tous les Actes (1 a 4) sont accessibles depuis l'ecran d'accueil du parcours, dans n'importe quel ordre",
+        "Aucun verrou Free/Premium applique, meme si le compte testeur est en tier Free",
+        "Aucune notification de relecture programmee n'est envoyee automatiquement (pour eviter les notifications de test parasites) ; possibilite de la declencher manuellement via un bouton de debug",
+        "Le diagnostic d'entree peut etre repete autant de fois que necessaire pour tester l'affichage du delta",
+        "Toutes les sauvegardes de reponses sont marquees avec un flag is_test_data=true pour pouvoir les purger avant le lancement global sans toucher aux vraies donnees utilisatrices"
+      ],
+      "implementation_note": "Recommandation : gerer ce mode via une variable d'environnement ou un flag sur le compte utilisateur (ex: is_internal_tester=true sur la table users ou profiles existante), plutot que via test_mode sur deep_journeys, pour ne pas avoir a modifier la donnee au moment du switch. Le champ test_mode dans le fichier 01-catalogue-deep-journeys.json sert de reference conceptuelle ; l'implementation reelle doit verifier le statut testeur de l'utilisateur connecte plutot que l'etat global du parcours."
+    },
+
+    "production_mode": {
+      "description": "Mode a activer au deploiement global. Bascule simple : retirer le flag testeur, ou changer la condition de gating dans le code.",
+      "rules": [
+        "Acte 1 accessible a tous (Free et Premium)",
+        "Actes 2 a 4 verrouilles tant que l'Acte precedent n'a pas sa page de synthese completee (is_act_closing=true sur la derniere section de chaque Acte)",
+        "Actes 2 a 4 necessitent en plus le tier Premium (cumul des deux conditions : synthese precedente faite ET abonnement actif)",
+        "Notifications de relecture programmees automatiquement a la cloture de chaque Acte, selon reread_offsets_days du parcours",
+        "Signal intermediaire a mi-parcours entre deux relectures (deja specifie dans l'etude retention), actif uniquement en production"
+      ]
+    }
+  }
+}

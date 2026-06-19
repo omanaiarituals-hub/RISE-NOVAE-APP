@@ -1,0 +1,177 @@
+{
+  "_comment_fr": "Acte 4 sur 4 - REALIGNEMENT. Deja oriente action positive dans l'original. test_mode=true sur le parcours parent : accessible directement.",
+
+  "act_number": 4,
+  "title": "Réalignement",
+  "intention": "Faire coïncider mes actes avec ce que je sais de moi.",
+  "unlock_rule_test_mode": "open",
+  "unlock_rule_production": "locked_until_act_3_synthesis_completed",
+
+  "intro_text_full": "Tu n'es plus dans la compréhension. Tu es dans le choix. Cet acte ne vise pas la perfection, ni la transformation spectaculaire. Il vise la cohérence entre ce que tu sais de toi et ce que tu fais. Le réalignement commence quand les décisions suivent la conscience. Le changement durable ne repose pas sur la motivation, mais sur la cohérence répétée.",
+
+  "sections": [
+    {
+      "id": "a4s1",
+      "order": 1,
+      "title": "Devenir cohérente avec ce que je sais de moi",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a4s1q1",
+          "text": "Qu'est-ce que je sais désormais de moi, que je veux honorer dans mes choix quotidiens ?"
+        }
+      ]
+    },
+    {
+      "id": "a4s2",
+      "order": 2,
+      "title": "Stabilité quotidienne",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a4s2q1",
+          "text": "Quels changements simples dans mon quotidien pourraient soutenir mon équilibre ?"
+        },
+        {
+          "id": "a4s2q2",
+          "text": "Qu'est-ce qui renforcerait ma stabilité émotionnelle ?"
+        },
+        {
+          "id": "a4s2q3",
+          "text": "Qu'est-ce que je peux mettre en place sans attendre d'aller \"mieux\" ?"
+        }
+      ]
+    },
+    {
+      "id": "a4s3",
+      "order": 3,
+      "title": "Limites définitives",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a4s3q1",
+          "text": "Quelles limites je décide d'installer durablement ?"
+        },
+        {
+          "id": "a4s3q2",
+          "text": "Qu'est-ce que je n'accepte plus, peu importe le contexte ou la personne ?"
+        },
+        {
+          "id": "a4s3q3",
+          "text": "Qu'est-ce que je protège avant tout ?"
+        }
+      ]
+    },
+    {
+      "id": "a4s4",
+      "order": 4,
+      "title": "Ma première décision engagée",
+      "type": "open_text",
+      "is_act_closing": false,
+      "prompts": [
+        {
+          "id": "a4s4q1",
+          "text": "Quelle est la première décision qui prouve que je reprends le contrôle ?"
+        },
+        {
+          "id": "a4s4q2",
+          "text": "Qu'est-ce que je peux décider aujourd'hui, sans attendre ?"
+        },
+        {
+          "id": "a4s4q3",
+          "text": "Quelle action concrète en découle ?"
+        }
+      ],
+      "commitment_prompt": "Ma première décision engagée, et la date de cet engagement"
+    },
+    {
+      "id": "a4s5",
+      "order": 5,
+      "title": "Mes projets vivants",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a4s5q1",
+          "text": "Quels projets me donnent envie de me lever le matin ?"
+        },
+        {
+          "id": "a4s5q2",
+          "text": "Même avec peu d'énergie, qu'est-ce qui m'attire ?"
+        },
+        {
+          "id": "a4s5q3",
+          "text": "Qu'est-ce que je peux nourrir sans pression de résultat ?"
+        }
+      ]
+    },
+    {
+      "id": "a4s6",
+      "order": 6,
+      "title": "Ce que je veux ressentir davantage",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a4s6q1",
+          "text": "Quelles émotions je veux ressentir plus souvent ?"
+        },
+        {
+          "id": "a4s6q2",
+          "text": "Qu'est-ce qui m'en rapproche concrètement ?"
+        },
+        {
+          "id": "a4s6q3",
+          "text": "Qu'est-ce que je peux ajuster dès maintenant ?"
+        }
+      ]
+    },
+    {
+      "id": "a4s7",
+      "order": 7,
+      "title": "La femme que je deviens",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a4s7q1",
+          "text": "Quelle femme suis-je en train de devenir ?"
+        },
+        {
+          "id": "a4s7q2",
+          "text": "Qu'est-ce qui prouve que ce mouvement est déjà en cours ?"
+        },
+        {
+          "id": "a4s7q3",
+          "text": "Qu'est-ce que je fais aujourd'hui qui m'en rapproche ?"
+        }
+      ]
+    },
+    {
+      "id": "a4s8",
+      "order": 8,
+      "title": "Mes micro habitudes de soutien",
+      "type": "habit_tracker",
+      "is_act_closing": true,
+      "intro_text": "Une micro habitude = 5 minutes maximum, faisable tous les jours.",
+      "habit_slots": ["Matin", "Journée", "Soir"],
+      "habit_fields": ["Quoi", "Quand (ancrage)", "Pourquoi"],
+      "tracking_duration_weeks": 3,
+      "tracking_granularity": "daily_checkbox",
+      "commitment_prompt": "Je commence ces 3 habitudes le (date), et je les suis pendant 3 semaines",
+      "closing_quote": "Je ne suis pas parfaite. Je suis en chemin. Chaque petite action alignée compte. Même ralentir n'annule pas le chemin parcouru."
+    }
+  ],
+
+  "anchor_tool": {
+    "id": "a4-anchor",
+    "title": "Outil d'ancrage — avant une décision, ou si la peur d'agir paralyse",
+    "available_during": "all_sections",
+    "type": "guided_exercise",
+    "context_note": "Agir en cohérence avec soi peut déclencher de la peur : « Et si je me trompe ? Et si les autres me jugent ? » Cette peur est normale. Elle signale que tu sors de ta zone de confort.",
+    "steps": [
+      "Test de cohérence interne : énonce la décision à voix haute (« Je décide de... »)",
+      "Observe ton corps immédiatement après : poitrine ouverte, respiration fluide, légèreté → signal oui. Gorge serrée, poitrine fermée, tension → signal non",
+      "Si signal non : reformule autrement et reteste",
+      "Si la peur d'agir paralyse : nomme-la à voix haute (« J'ai peur de... »), accueille-la (« Cette peur est normale, elle me protège du changement »), respire en cycle 4-7-8 (inspire 4 temps, retiens 7 temps, expire 8 temps, répète 4 cycles)",
+      "Décide : « Malgré cette peur, je choisis d'agir parce que... », puis agis dans les 5 minutes qui suivent avec une micro-action minimale"
+    ]
+  }
+}

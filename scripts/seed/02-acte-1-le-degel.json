@@ -1,0 +1,267 @@
+{
+  "_comment_fr": "Acte 1 sur 4 - LE DEGEL. A inserer dans deep_journey_acts avec journey_id correspondant a reclaim-myself. test_mode=true sur le parcours parent : cet Acte est accessible directement sans avoir complete d'autre Acte avant.",
+
+  "act_number": 1,
+  "title": "Le Dégel",
+  "intention": "Voir clair sur où j'en suis aujourd'hui, sans me juger.",
+  "unlock_rule_test_mode": "open",
+  "unlock_rule_production": "always_open_as_act_1",
+
+  "sections": [
+    {
+      "id": "a1s1",
+      "order": 1,
+      "title": "Photo instantanée",
+      "subtitle": "La personne que je suis aujourd'hui",
+      "type": "open_text",
+      "intro_text": "Pas de \"parce que\", pas d'analyse. Seulement ce qui est là, maintenant.",
+      "prompts": [
+        {
+          "id": "a1s1q1",
+          "text": "Comment je me sens intérieurement aujourd'hui, en un mot précis ?",
+          "with_scale": true,
+          "scale_label": "Sur une échelle de 1 à 10, où j'en suis"
+        },
+        {
+          "id": "a1s1q2",
+          "text": "Qu'est-ce que je remarque de bon dans mon état actuel, même petit ?"
+        },
+        {
+          "id": "a1s1q3",
+          "text": "À quels moments de la journée je me sens le plus moi-même ?"
+        }
+      ]
+    },
+    {
+      "id": "a1s2",
+      "order": 2,
+      "title": "Ce qui est déjà solide en moi",
+      "type": "open_text",
+      "intro_text": "Même lorsque certaines étapes sont déjà traversées, il reste des forces qu'on ne voit pas toujours.",
+      "prompts": [
+        {
+          "id": "a1s2q1",
+          "text": "Qu'est-ce qui, en moi, a déjà tenu bon malgré les derniers mois ?"
+        },
+        {
+          "id": "a1s2q2",
+          "text": "Quelle force ai-je développée sans même m'en rendre compte ?"
+        },
+        {
+          "id": "a1s2q3",
+          "text": "Qu'est-ce qui me redonne de l'énergie, même un peu, au quotidien ?"
+        }
+      ]
+    },
+    {
+      "id": "a1s3",
+      "order": 3,
+      "title": "Ce que j'ai appris de moi",
+      "type": "open_text",
+      "intro_text": "Ce que je sais déjà, et que je dois garder en mémoire. Je ne suis pas au point zéro.",
+      "prompts": [
+        {
+          "id": "a1s3q1",
+          "text": "Qu'ai-je appris sur moi ces derniers mois, qui me sert maintenant ?"
+        },
+        {
+          "id": "a1s3q2",
+          "text": "Quelle capacité je n'avais pas avant et que j'ai aujourd'hui ?"
+        }
+      ]
+    },
+    {
+      "id": "a1s4",
+      "order": 4,
+      "title": "Les traces du changement",
+      "subtitle": "Ce qui a évolué en moi",
+      "type": "open_text",
+      "intro_text": "Sans parler d'événement précis, observe l'impact global.",
+      "prompts": [
+        {
+          "id": "a1s4q1",
+          "text": "Qu'est-ce qui a grandi dans ma confiance, même légèrement ?"
+        },
+        {
+          "id": "a1s4q2",
+          "text": "Comment mon rapport aux autres s'est-il enrichi ?"
+        },
+        {
+          "id": "a1s4q3",
+          "text": "En quoi ma façon d'aimer ou de m'attacher est-elle devenue plus consciente ?"
+        },
+        {
+          "id": "a1s4q4",
+          "text": "Qu'est-ce qui s'est renforcé chez moi, même discrètement ?"
+        }
+      ]
+    },
+    {
+      "id": "a1s5",
+      "order": 5,
+      "title": "Mes ressources émotionnelles",
+      "type": "open_text",
+      "intro_text": "Identifier une ressource n'est pas anodin. C'est un point d'appui.",
+      "prompts": [
+        {
+          "id": "a1s5q1",
+          "text": "Sur quels sujets ai-je déjà gagné en sérénité ? (solitude, sécurité, estime, lien aux autres...)"
+        },
+        {
+          "id": "a1s5q2",
+          "text": "Qu'est-ce qui m'aide, concrètement, quand une émotion forte arrive ?"
+        }
+      ]
+    },
+    {
+      "id": "a1s6",
+      "order": 6,
+      "title": "Mes façons de me protéger",
+      "type": "open_text",
+      "intro_text": "Reconnais-tu certaines de tes façons de prendre soin de toi ?",
+      "prompts": [
+        {
+          "id": "a1s6q1",
+          "text": "Comment je prends soin de moi quand une situation est difficile ?"
+        },
+        {
+          "id": "a1s6q2",
+          "text": "Parmi mes habitudes de protection, lesquelles me servent encore vraiment aujourd'hui ?"
+        }
+      ]
+    },
+    {
+      "id": "a1s7",
+      "order": 7,
+      "title": "Mes émotions, mes indicatrices",
+      "type": "open_text",
+      "intro_text": "Les émotions ne sont pas des ennemies, ce sont des indicateurs.",
+      "prompts": [
+        {
+          "id": "a1s7q1",
+          "text": "Quelles émotions reviennent le plus souvent dans mes journées, et que me disent-elles ?"
+        },
+        {
+          "id": "a1s7q2",
+          "text": "Quelles émotions j'accueille facilement aujourd'hui, contrairement à avant ?"
+        }
+      ]
+    },
+    {
+      "id": "a1s8",
+      "order": 8,
+      "title": "Ce que j'ai déjà réussi",
+      "type": "open_text",
+      "intro_text": "Le cerveau oublie vite les preuves.",
+      "prompts": [
+        {
+          "id": "a1s8q1",
+          "text": "Qu'ai-je déjà réussi à traverser ?"
+        },
+        {
+          "id": "a1s8q2",
+          "text": "Quelles petites ou grandes victoires je minimise encore ?"
+        },
+        {
+          "id": "a1s8q3",
+          "text": "Quelles décisions courageuses ai-je déjà prises ?"
+        },
+        {
+          "id": "a1s8q4",
+          "text": "En quoi suis-je plus solide aujourd'hui qu'avant ?"
+        }
+      ]
+    },
+    {
+      "id": "a1s9",
+      "order": 9,
+      "title": "Mes besoins actuels",
+      "type": "open_text",
+      "intro_text": "Les besoins ignorés deviennent des tensions. Les nommer, c'est déjà en prendre soin.",
+      "prompts": [
+        {
+          "id": "a1s9q1",
+          "text": "De quoi ai-je réellement besoin aujourd'hui pour avancer sereinement ? (sécurité, clarté, repos, soutien, solitude, liberté, structure...)"
+        },
+        {
+          "id": "a1s9q2",
+          "text": "Lesquels de ces besoins sont prioritaires pour moi maintenant ?"
+        }
+      ]
+    },
+    {
+      "id": "a1s10",
+      "order": 10,
+      "title": "Ce qui m'appartient vraiment",
+      "type": "open_text",
+      "intro_text": "Sans jugement.",
+      "prompts": [
+        {
+          "id": "a1s10q1",
+          "text": "Qu'est-ce que je sais déjà m'offrir à moi-même, sans attendre que ça vienne de l'extérieur ?"
+        },
+        {
+          "id": "a1s10q2",
+          "text": "Où est-ce que je me fais déjà confiance ?"
+        }
+      ]
+    },
+    {
+      "id": "a1s11",
+      "order": 11,
+      "title": "Là où je me sens plus forte",
+      "type": "open_text",
+      "intro_text": "Même dans l'inconfort, il y a une base.",
+      "prompts": [
+        {
+          "id": "a1s11q1",
+          "text": "En quoi ai-je gagné en maturité ?"
+        },
+        {
+          "id": "a1s11q2",
+          "text": "Où est-ce que je me respecte davantage qu'avant ?"
+        },
+        {
+          "id": "a1s11q3",
+          "text": "Qu'est-ce que je ne tolère plus aujourd'hui, et que je suis fière de ne plus tolérer ?"
+        }
+      ]
+    },
+    {
+      "id": "a1s12",
+      "order": 12,
+      "title": "Mes priorités de transformation",
+      "type": "synthesis",
+      "intro_text": "Exercice de choix conscient. Parmi tout ce que tu as écrit, choisis 3 axes que tu veux faire évoluer en priorité.",
+      "is_act_closing": true,
+      "prompts": [
+        {
+          "id": "a1s12q1",
+          "text": "Mes 3 axes de transformation prioritaires",
+          "type": "list_3_items",
+          "follow_up": [
+            "Pourquoi celui-ci ?",
+            "Qu'est-ce que ça changerait concrètement dans ma vie ?"
+          ]
+        }
+      ],
+      "commitment_prompt": "Quel est mon engagement, daté, pour avancer sur ces 3 axes ?",
+      "closing_quote": "Je vois clairement qui je suis aujourd'hui. Ce que j'ai traversé m'a construite, pas diminuée."
+    }
+  ],
+
+  "anchor_tool": {
+    "id": "a1-anchor",
+    "title": "Outil d'ancrage — si une émotion forte apparaît",
+    "available_during": "all_sections",
+    "type": "guided_exercise",
+    "steps": [
+      "Pause. Tu peux arrêter d'écrire un instant.",
+      "Nomme l'émotion : « Je ressens de la tristesse / de la colère / de la peur »",
+      "Localise-la dans ton corps : où la sens-tu ? (gorge, poitrine, ventre, mâchoires...)",
+      "Respire avec elle, 3 cycles minimum : inspire 4 temps, retiens 4 temps, expire 6 temps, pause 2 temps",
+      "Accueille-la sans juger : « C'est normal de ressentir ça. Mon corps me parle. »",
+      "Décide : je continue à écrire, ou je fais une pause et je reviens plus tard"
+    ]
+  }
+}

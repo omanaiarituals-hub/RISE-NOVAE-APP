@@ -14,6 +14,8 @@ import { detectStruggleMode, type StruggleState } from '@/lib/struggle/detect'
 import StreakFlame from '@/components/StreakFlame';
 import AdminTile from '@/components/AdminTile'
 import { logEvent } from '@/lib/events'
+import ReclaimMyselfTile from '@/components/ReclaimMyselfTile'
+
 
 
 const MODULES_GRID = [
@@ -363,7 +365,7 @@ export default function HomePage() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7, marginBottom: 10 }}>
-                {MODULES_GRID.map((mod) => {
+                 {MODULES_GRID.map((mod) => {
                   const t = modTones[mod.tone]
                   return (
                     <Link key={mod.href} href={mod.href} style={{ textDecoration: 'none' }}>
@@ -375,6 +377,7 @@ export default function HomePage() {
                   )
                 })}
                 <AdminTile />
+                <ReclaimMyselfTile />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center', paddingRight: 4 }}>

@@ -1,0 +1,165 @@
+{
+  "_comment_fr": "Acte 3 sur 4 - REAPPROPRIATION. Deja naturellement positif dans le carnet original, peu de reformulation necessaire. test_mode=true sur le parcours parent : accessible directement.",
+
+  "act_number": 3,
+  "title": "Réappropriation",
+  "intention": "Revenir à l'essentiel, qui était déjà là.",
+  "unlock_rule_test_mode": "open",
+  "unlock_rule_production": "locked_until_act_2_synthesis_completed",
+
+  "intro_text_full": "Après avoir observé, puis désencombré, vient le moment de te réapproprier. Cet acte ne consiste pas à te reconstruire à partir d'un idéal. Il s'agit de retrouver ce qui est déjà là, mais qui a été mis de côté. L'espace est dégagé. Le bruit s'apaise. Ce vide n'est pas un manque. C'est un terrain fertile.",
+
+  "sections": [
+    {
+      "id": "a3s1",
+      "order": 1,
+      "title": "Qui suis-je au-delà des rôles",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a3s1q1",
+          "text": "Quand je suis seule et que personne ne me juge, je suis quelqu'un qui..."
+        },
+        {
+          "id": "a3s1q2",
+          "text": "Ce qui me caractérise vraiment, indépendamment du regard des autres, c'est..."
+        },
+        {
+          "id": "a3s1q3",
+          "text": "Les 3 valeurs qui me définissent profondément",
+          "type": "list_3_items"
+        }
+      ]
+    },
+    {
+      "id": "a3s2",
+      "order": 2,
+      "title": "Mon corps comme boussole",
+      "type": "open_text",
+      "intro_text": "Le corps précède souvent la pensée.",
+      "prompts": [
+        {
+          "id": "a3s2q1",
+          "text": "Comment mon corps se manifeste-t-il aujourd'hui ?"
+        },
+        {
+          "id": "a3s2q2",
+          "text": "Où est-ce que je ressens des tensions, et où est-ce que je ressens de la détente ?"
+        },
+        {
+          "id": "a3s2q3",
+          "text": "Que m'indique mon corps que je n'ai pas encore pleinement entendu ?"
+        }
+      ]
+    },
+    {
+      "id": "a3s3",
+      "order": 3,
+      "title": "Mes sources d'énergie",
+      "type": "energy_table",
+      "intro_text": "Liste 10 activités ou situations de ta semaine type. Pour chacune, note si elle te donne (+) ou te prend (-) de l'énergie.",
+      "table_columns": ["Activité / situation", "+ ou -", "Pourquoi"],
+      "rows_count": 10,
+      "summary_prompt": "Bilan : combien de + ? Combien de - ? Quelles activités + je veux augmenter ?"
+    },
+    {
+      "id": "a3s4",
+      "order": 4,
+      "title": "Ce qui me ressemble profondément",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a3s4q1",
+          "text": "Qu'est-ce qui me correspond vraiment, sans justification ?"
+        },
+        {
+          "id": "a3s4q2",
+          "text": "Qu'est-ce que j'ai envie de remettre au centre de ma vie ?"
+        },
+        {
+          "id": "a3s4q3",
+          "text": "Qu'est-ce qui me donne le sentiment d'être à ma place ?"
+        }
+      ]
+    },
+    {
+      "id": "a3s5",
+      "order": 5,
+      "title": "Mon rapport aux émotions",
+      "type": "open_text",
+      "intro_text": "Si certaines émotions reviennent plus fort ici, c'est normal : le cerveau réagit quand l'élan revient.",
+      "prompts": [
+        {
+          "id": "a3s5q1",
+          "text": "Quelles émotions j'accueille facilement aujourd'hui ?"
+        },
+        {
+          "id": "a3s5q2",
+          "text": "Lesquelles ai-je encore du mal à laisser exister ?"
+        },
+        {
+          "id": "a3s5q3",
+          "text": "Comment est-ce que je peux leur faire plus de place sans me laisser envahir ?"
+        }
+      ]
+    },
+    {
+      "id": "a3s6",
+      "order": 6,
+      "title": "Mes choix actuels",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a3s6q1",
+          "text": "Si je m'écoutais pleinement, que choisirais-je aujourd'hui ?"
+        },
+        {
+          "id": "a3s6q2",
+          "text": "Quels besoins je refuse désormais de mettre en veille ?"
+        },
+        {
+          "id": "a3s6q3",
+          "text": "Qu'est-ce que je veux protéger en priorité ?"
+        }
+      ]
+    },
+    {
+      "id": "a3s7",
+      "order": 7,
+      "title": "Preuve de reconnexion",
+      "type": "synthesis",
+      "is_act_closing": true,
+      "prompts": [
+        {
+          "id": "a3s7q1",
+          "text": "Quelle est la première preuve concrète que je me reconnecte à moi ?"
+        },
+        {
+          "id": "a3s7q2",
+          "text": "Qu'est-ce qui a déjà changé, même subtilement ?"
+        },
+        {
+          "id": "a3s7q3",
+          "text": "Qu'est-ce que cela me donne envie de faire ensuite ?"
+        }
+      ],
+      "commitment_prompt": "Mes 3 micro habitudes de soutien (voir Acte 4), et la date de cet engagement",
+      "closing_quote": "Je me connais. Même si je me perds parfois, je sais revenir à moi. La vraie moi est toujours là. Elle attend juste que je revienne."
+    }
+  ],
+
+  "anchor_tool": {
+    "id": "a3-anchor",
+    "title": "Outil d'ancrage — si te retrouver fait peur",
+    "available_during": "all_sections",
+    "type": "guided_exercise",
+    "context_note": "Te retrouver fait parfois peur. « Et si je ne me reconnais pas ? Et si la vraie moi ne plaît à personne ? » Cette peur est normale. Elle signale que tu touches quelque chose de vrai.",
+    "steps": [
+      "Cartographie sensorielle : scanne ton corps de la tête aux pieds (2 minutes), yeux fermés si possible",
+      "Pose ta main sur la zone la plus détendue. C'est là que tu es alignée",
+      "Demande à cette zone : « Qu'est-ce que tu sais de moi ? » Laisse venir une image, un mot, une sensation",
+      "Écris ce qui vient, même si ça n'a pas de sens logique apparent",
+      "Si tu te sens déconnectée : respiration ventrale allongée, une main sur le ventre, une main sur le cœur. Inspire en gonflant le ventre, expire en le vidant complètement, pendant 3 minutes minimum. À chaque inspiration : « Je reviens à moi. » À chaque expiration : « Je relâche ce qui n'est pas moi. »"
+    ]
+  }
+}

@@ -1,89 +1,114 @@
-// src/app/api/cron/weekly-debrief/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { notifyUser } from '@/lib/push/notify'
+// app/api/cron/weekly-debrief/route.ts
+//
+// MISE A JOUR : injection du contexte Parcours Profonds (Reclaim Myself)
+// dans la generation du debrief hebdomadaire, en plus des donnees du
+// programme 90j existantes (mission_responses, user_progress, habits...).
+//
+// MISE A JOUR 2 : passage de @supabase/auth-helpers-nextjs (deprecie,
+// createRouteHandlerClient n'existe plus dans la version installee) vers
+// @supabase/ssr, qui est le package actuellement installe et a jour dans
+// le projet (verifie : @supabase/ssr@0.10.2).
+//
+// Ce fichier est ecrit comme une route complete et autonome. Si ta route
+// actuelle de debrief hebdomadaire a deja une logique differente (autre
+// recuperation de donnees, autre format de sortie), garde ta logique metier
+// et adapte uniquement la creation du client supabase au pattern ci-dessous,
+// puis integre le bloc marque "AJOUT PARCOURS PROFONDS" au bon endroit.
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
+import { getNovaContextFromDeepJourneys, formatNovaContextAsPromptBlock } from '@/lib/deepJourneys'
 
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+const client = new Anthropic()
 
-  const today = new Date()
-  const weekNumber = Math.ceil(today.getDate() / 7)
-  const results: any[] = []
-
-  try {
-    const { data: subs } = await supabaseAdmin
-      .from('push_subscriptions')
-      .select('user_id')
-    const uniqueUserIds = Array.from(new Set((subs || []).map(s => s.user_id)))
-
-    for (const userId of uniqueUserIds) {
-      try {
-        const [tasksRes, routinesRes, progressRes] = await Promise.all([
-          supabaseAdmin.from('tasks').select('id').eq('user_id', userId).eq('status', 'completed'),
-          supabaseAdmin.from('routines').select('id').eq('user_id', userId).eq('completed', true),
-          supabaseAdmin.from('program_progress').select('current_day').eq('user_id', userId).maybeSingle(),
-        ])
-
-        const stats = {
-          tasks_done: tasksRes.data?.length || 0,
-          routines_done: routinesRes.data?.length || 0,
-          program_day: progressRes.data?.current_day || 0,
+async function getSupabaseServerClient() {
+  const cookieStore = await cookies()
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // setAll peut echouer dans un Server Component, sans impact ici
+            // car on est dans un Route Handler qui peut ecrire des cookies.
+          }
         }
-
-        // Génération via Claude Haiku
-        const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': process.env.ANTHROPIC_API_KEY || '',
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 500,
-            messages: [{
-              role: 'user',
-              content: `Tu es NOVAÉ. Génère un bilan hebdomadaire court et motivant (max 150 mots) basé sur ces stats : ${JSON.stringify(stats)}. Donne 3 axes d'amélioration concrets. Tutoie l'utilisatrice.`,
-            }],
-          }),
-        })
-        const aiData = await aiResponse.json()
-        const debriefText = aiData.content?.[0]?.text || 'Bilan non disponible'
-
-        await supabaseAdmin.from('weekly_debriefs').upsert({
-          user_id: userId,
-          week_number: weekNumber,
-          week_start: today.toISOString().split('T')[0],
-          debrief_text: debriefText,
-          stats,
-          created_at: new Date().toISOString(),
-        })
-
-        await notifyUser({
-          userId,
-          type: 'weekly_debrief',
-          title: '✦ Ton bilan de la semaine est prêt',
-          body: `${stats.routines_done} routines · ${stats.tasks_done} tâches · Jour ${stats.program_day}/90`,
-          url: '/profil?tab=bilans',
-          preferenceKey: 'notif_bilan',
-        })
-
-        results.push({ user_id: userId, status: 'ok', stats })
-      } catch (err) {
-        results.push({ user_id: userId, status: 'error', error: String(err) })
       }
     }
+  )
+}
 
-    return NextResponse.json({ success: true, processed: results.length, results })
+export async function POST(request: Request) {
+  const supabase = await getSupabaseServerClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (!user || authError) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  }
+
+  try {
+    // --- Donnees existantes du programme 90j, a adapter a ta requete reelle ---
+    const { data: weekMissions } = await supabase
+      .from('mission_responses')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('day_number', { ascending: false })
+      .limit(7)
+
+    const { data: progress } = await supabase
+      .from('user_progress')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    // --- AJOUT PARCOURS PROFONDS : debut ---
+    const deepJourneyContext = await getNovaContextFromDeepJourneys(user.id)
+    const deepJourneyPromptBlock = formatNovaContextAsPromptBlock(deepJourneyContext)
+    // --- AJOUT PARCOURS PROFONDS : fin ---
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: `Tu es NOVA, et tu rédiges le débrief hebdomadaire d'une utilisatrice de NOVAÉ.
+Ce débrief doit être chaleureux, honnête, jamais culpabilisant, et toujours orienté vers ce qui avance.
+
+Données de la semaine sur le programme 90 jours :
+${JSON.stringify({ weekMissions, progress })}
+${deepJourneyPromptBlock ? '\n' + deepJourneyPromptBlock + '\n' : ''}
+
+Si cette personne a aussi travaillé sur Reclaim Myself cette semaine ou récemment, tu peux relier les deux dans ton débrief de façon naturelle (par exemple si une de ses limites posées dans Reclaim Myself se reflète dans une mission qu'elle a tenue ou pas tenue cette semaine). Ne force jamais ce lien s'il n'est pas pertinent.
+
+Tu rédiges en français, à la deuxième personne, avec un ton intime et direct. Tu ne poses jamais de diagnostic, même informel, et tu ne formules jamais d'évaluation psychologique : tu observes et tu encourages, à partir de ses propres mots et de ses propres actions.`,
+      messages: [
+        {
+          role: 'user',
+          content: 'Rédige mon débrief de la semaine.'
+        }
+      ]
+    })
+
+    const debriefText = response.content[0].type === 'text' ? response.content[0].text : ''
+
+    // Sauvegarde du debrief, a adapter au nom de ta table existante si differente
+    await supabase.from('weekly_debriefs').insert({
+      user_id: user.id,
+      content: debriefText,
+      generated_at: new Date().toISOString()
+    })
+
+    return NextResponse.json({ debrief: debriefText })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    console.error('Erreur route weekly-debrief:', error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

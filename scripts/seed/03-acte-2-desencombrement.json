@@ -1,0 +1,191 @@
+{
+  "_comment_fr": "Acte 2 sur 4 - DESENCOMBREMENT. test_mode=true sur le parcours parent : accessible directement, meme sans avoir fait l'Acte 1.",
+
+  "act_number": 2,
+  "title": "Désencombrement",
+  "intention": "Retirer ce qui n'est plus moi, pour faire de la place à ce qui l'est.",
+  "unlock_rule_test_mode": "open",
+  "unlock_rule_production": "locked_until_act_1_synthesis_completed",
+
+  "neuroscience_note": {
+    "title": "Pourquoi ce travail peut bousculer",
+    "text": "Le cerveau humain est avant tout un organe de survie. Désencombrer, remettre en question ou poser des limites peut être perçu comme une zone d'incertitude, et activer de la résistance ou de la fatigue mentale. Ce n'est pas un signe que tu te trompes. C'est un signe que tu sors du connu. Si tu ressens de la résistance pendant cet Acte, c'est normal. Options : pause de 24h puis reviens, ou réponds à 1 question par jour seulement, ou écris juste 3 mots-clés au lieu de phrases complètes. L'important n'est pas la perfection, c'est l'honnêteté."
+  },
+
+  "sections": [
+    {
+      "id": "a2s1",
+      "order": 1,
+      "title": "Les identités qui m'ont bien servie, jusqu'ici",
+      "type": "open_text",
+      "intro_text": "Rôles souvent endossés : la gentille, la forte, la sauveuse, la discrète, la performante, la compréhensive, la responsable. Reconnais-tu certains de ces rôles chez toi ?",
+      "prompts": [
+        {
+          "id": "a2s1q1",
+          "text": "Quels rôles ai-je joués pour me sentir en sécurité, et qu'est-ce qu'ils m'ont appris ?"
+        },
+        {
+          "id": "a2s1q2",
+          "text": "Lesquels me correspondent encore aujourd'hui, par choix plutôt que par habitude ?"
+        }
+      ]
+    },
+    {
+      "id": "a2s2",
+      "order": 2,
+      "title": "Ce que je choisis de garder, en conscience",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a2s2q1",
+          "text": "Qu'est-ce que je pensais de moi qui s'avère encore vrai, et que je veux garder ?"
+        },
+        {
+          "id": "a2s2q2",
+          "text": "Qu'est-ce que je fais aujourd'hui par choix plutôt que par peur ?"
+        }
+      ]
+    },
+    {
+      "id": "a2s3",
+      "order": 3,
+      "title": "Mes fidélités choisies",
+      "type": "open_text",
+      "intro_text": "Certaines fidélités sont conscientes et nous portent. D'autres ne sont plus les nôtres.",
+      "prompts": [
+        {
+          "id": "a2s3q1",
+          "text": "À qui ou à quoi je reste fidèle parce que ça compte vraiment pour moi ?"
+        },
+        {
+          "id": "a2s3q2",
+          "text": "Que gagnerais-je à me libérer des fidélités qui ne sont plus les miennes ?"
+        }
+      ]
+    },
+    {
+      "id": "a2s4",
+      "order": 4,
+      "title": "Ce que je veux porter, et rien de plus",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a2s4q1",
+          "text": "Qu'est-ce qui m'appartient vraiment et que je veux continuer à porter ?"
+        },
+        {
+          "id": "a2s4q2",
+          "text": "Quelles charges étaient utiles avant, et que je peux poser aujourd'hui avec gratitude pour ce qu'elles m'ont appris ?"
+        }
+      ]
+    },
+    {
+      "id": "a2s5",
+      "order": 5,
+      "title": "Ce que j'accepte aujourd'hui, en connaissance de cause",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a2s5q1",
+          "text": "Qu'est-ce que j'accepte aujourd'hui parce que ça me correspond vraiment ?"
+        },
+        {
+          "id": "a2s5q2",
+          "text": "Qu'est-ce que je m'autorise à refuser désormais, sereinement ?"
+        }
+      ]
+    },
+    {
+      "id": "a2s6",
+      "order": 6,
+      "title": "Ma responsabilité personnelle",
+      "type": "open_text",
+      "intro_text": "Sans culpabilité. Sans accusation.",
+      "prompts": [
+        {
+          "id": "a2s6q1",
+          "text": "En quoi suis-je actrice de ce que je vis aujourd'hui ?"
+        },
+        {
+          "id": "a2s6q2",
+          "text": "Qu'est-ce qui dépend réellement de moi, et que je peux faire grandir ?"
+        },
+        {
+          "id": "a2s6q3",
+          "text": "Qu'est-ce qui ne dépend plus des autres, mais de moi ?"
+        }
+      ]
+    },
+    {
+      "id": "a2s7",
+      "order": 7,
+      "title": "Les comportements que je choisis de cultiver",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a2s7q1",
+          "text": "Quel comportement je veux renforcer parce qu'il me fait du bien ?"
+        },
+        {
+          "id": "a2s7q2",
+          "text": "Qu'est-ce que je choisis consciemment de continuer à faire ?"
+        }
+      ]
+    },
+    {
+      "id": "a2s8",
+      "order": 8,
+      "title": "Me faire confiance, un peu plus chaque jour",
+      "type": "open_text",
+      "prompts": [
+        {
+          "id": "a2s8q1",
+          "text": "À quels moments est-ce que je m'écoute déjà bien ?"
+        },
+        {
+          "id": "a2s8q2",
+          "text": "Comment je peux continuer à renforcer cette confiance en moi ?"
+        }
+      ]
+    },
+    {
+      "id": "a2s9",
+      "order": 9,
+      "title": "Déclaration de clarté",
+      "type": "fill_in_blank",
+      "intro_text": "Complète cette phrase sans l'édulcorer.",
+      "prompts": [
+        {
+          "id": "a2s9q1",
+          "template": "Aujourd'hui, je reconnais que je suis devenue ___. Ce chemin m'a appris ___. Je choisis d'avancer avec ___."
+        }
+      ],
+      "requires_signature_and_date": true
+    },
+    {
+      "id": "a2s10",
+      "order": 10,
+      "title": "Nettoyage conscient",
+      "type": "three_column_list",
+      "intro_text": "Ne cherche pas la perfection. Cherche la justesse.",
+      "columns": ["Ce que je garde", "Ce que je relâche, avec gratitude pour ce que ça m'a apporté", "Ce que je transforme"],
+      "is_act_closing": true,
+      "commitment_prompt": "Mes 3 limites non négociables, et la date de cet engagement",
+      "closing_quote": "Je choisis ce que je garde. Ce que je pose, je le pose avec gratitude, pas avec rejet."
+    }
+  ],
+
+  "anchor_tool": {
+    "id": "a2-anchor",
+    "title": "Outil d'ancrage — si la culpabilité apparaît après avoir posé une limite",
+    "available_during": "all_sections",
+    "type": "guided_exercise",
+    "context_note": "Cette culpabilité est normale. Elle indique que tu changes.",
+    "steps": [
+      "Écris ce que dit la culpabilité : « Tu es égoïste de... »",
+      "Réponds-lui avec bienveillance : « Non, je ne suis pas égoïste. Je me protège juste. »",
+      "Reformule en phrase vraie : « Poser cette limite, c'est prendre soin de moi, pas blesser l'autre. »",
+      "Si la culpabilité persiste : respiration carrée. Inspire 4 temps, retiens 4 temps, expire 4 temps, retiens poumons vides 4 temps. Répète 5 cycles minimum."
+    ]
+  }
+}

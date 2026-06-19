@@ -1,0 +1,20 @@
+{
+  "_comment_fr": "Insertion pour la table deep_journeys. Un seul parcours pour l'instant : Reclaim Myself. flag_test_mode=true signifie tout est deverrouille pour test interne. Repasser a false avant deploiement global pour activer le verrouillage sequentiel des Actes.",
+
+  "deep_journeys": [
+    {
+      "slug": "reclaim-myself",
+      "title": "Reclaim Myself",
+      "subtitle": "Me recentrer et retrouver ma place",
+      "description": "Un parcours en 4 Actes pour revenir a soi apres une periode de changement, de rupture ou de perte de reperes. Ecriture guidee, sans deadline, a ton rythme.",
+      "acts_count": 4,
+      "diagnostic_fields": ["clarte", "energie", "estime", "limites", "alignement", "paix_interieure"],
+      "reread_offsets_days": [7, 30, 90, 180],
+      "free_acts_limit": 1,
+      "active": true,
+      "sort_order": 1,
+      "test_mode": true,
+      "test_mode_comment": "Quand test_mode=true : tous les Actes sont accessibles sans ordre impose, pas de gating Free/Premium, pas de verrouillage sequentiel. Passer a false en prod globale pour activer free_acts_limit et le sequentiel."
+    }
+  ]
+}
