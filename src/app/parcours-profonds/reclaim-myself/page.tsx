@@ -18,6 +18,8 @@ import {
 import PharmacyWidget from '@/components/parcours-profonds/PharmacyWidget'
 import SynthesisCard from '@/components/parcours-profonds/SynthesisCard'
 
+export const dynamic = 'force-dynamic'
+
 export default function ReclaimMyselfHomePage() {
   const [journey, setJourney] = useState<DeepJourney | null>(null)
   const [acts, setActs] = useState<DeepJourneyAct[]>([])

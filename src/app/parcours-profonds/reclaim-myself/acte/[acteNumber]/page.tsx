@@ -27,6 +27,8 @@ import EnergyTable from '@/components/parcours-profonds/EnergyTable'
 import HabitTracker from '@/components/parcours-profonds/HabitTracker'
 import SynthesisCard from '@/components/parcours-profonds/SynthesisCard'
 
+export const dynamic = 'force-dynamic'
+
 export default function ActeSessionPage() {
   const params = useParams()
   const router = useRouter()
