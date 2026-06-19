@@ -2,7 +2,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -26,7 +25,6 @@ export default function ReclaimMyselfHomePage() {
   const [highestCompletedAct, setHighestCompletedAct] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const searchParams = useSearchParams()
 
   useEffect(() => {
     loadData()
