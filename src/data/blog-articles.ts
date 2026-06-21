@@ -21,7 +21,7 @@ const CTA = `
 <div class="article-cta">
   <h3>C'est exactement pour ça que j'ai créé NOVAÉ</h3>
   <p>Un programme de 90 jours, une coach IA qui te connaît, et des outils que j'ai construits à partir des neurosciences et de la thérapie cognitive. Parce que j'en avais besoin moi-même, et que je ne l'ai trouvé nulle part.</p>
-  <a class="article-cta-btn" href="https://app.novae-by-omanaia.com/signup">Essayer 14 jours gratuitement</a>
+  <a class="article-cta-btn" href="https://app.novae-by-omanaia.com/auth">Essayer 14 jours gratuitement</a>
 </div>`
 
 export const blogArticles: BlogArticle[] = [
