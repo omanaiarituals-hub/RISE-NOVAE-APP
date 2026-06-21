@@ -70,7 +70,7 @@ export default function CGUPage() {
             <article>
               <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 500, color: '#1A1A1A', marginBottom: 10 }}>6. Propriété intellectuelle</h2>
               <p style={{ fontSize: 14, color: '#4A4A4A', lineHeight: 1.75 }}>
-                Tous les contenus de l'application (textes, design, programme 90 jours, méthodologie) sont la propriété exclusive d'OMANAÏA. Toute reproduction, modification ou redistribution sans autorisation est interdite.
+                Tous les contenus de l'application (textes, design, Reset 90 jours, méthodologie) sont la propriété exclusive d'OMANAÏA. Toute reproduction, modification ou redistribution sans autorisation est interdite.
               </p>
             </article>
 

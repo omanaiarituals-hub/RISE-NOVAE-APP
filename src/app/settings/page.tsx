@@ -354,7 +354,7 @@ export default function SettingsPage() {
               Cette action est <strong>irréversible</strong>. Tu vas perdre :
             </p>
             <ul style={{ fontSize: 13, color: '#6b5340', lineHeight: 1.7, margin: '0 0 20px', paddingLeft: 20 }}>
-              <li>Ta progression du programme 90 jours</li>
+              <li>Ta progression du Reset 90 jours</li>
               <li>Tes missions complétées et tes réflexions</li>
               <li>Toutes tes conversations avec NOVAÉ</li>
               <li>Tes posts, commentaires et badges communauté</li>

@@ -107,7 +107,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'program',
     emoji: '🎯',
-    title: 'Programme 90 jours',
+    title: 'Reset 90 jours',
     tagline: 'Ton parcours sur-mesure',
     description: 'Pas un simple programme. NOVAÉ t\'accompagne jour après jour avec des missions calibrées selon qui tu es — et ajuste le rythme si tu décroches. 90 jours pour te retrouver.',
     color: 'rgba(123,111,160,0.12)',

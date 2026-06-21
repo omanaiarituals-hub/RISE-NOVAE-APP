@@ -34,7 +34,7 @@ const PLANS: Plan[] = [
     description: 'Accès illimité à tous les modules. Sans engagement.',
     features: [
       'Agent IA illimité',
-      'Programme 90 jours complet',
+      'Reset 90 jours complet',
       'Scan recettes par IA',
       'Bilan hebdomadaire personnalisé',
       'Astuces détaillées et Cercle de la semaine',
@@ -365,7 +365,7 @@ function renderStatusBlock(
         Tu profites des modules essentiels.
       </p>
       <p className="text-sm text-[#8b5a3c]/80 mb-6">
-        Débloque l Agent IA, le Programme 90 jours et bien plus en passant Premium.
+        Débloque l Agent IA, le Reset 90 jours et bien plus en passant Premium.
       </p>
       <Link
         href="/subscribe"

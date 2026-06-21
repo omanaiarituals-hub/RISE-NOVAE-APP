@@ -326,7 +326,7 @@ Ton : ${profile.ton_souhaite}. Tutoie. Maximum 300 mots.`
               <div className="px-6 py-4 border-b border-novae-beige/20 flex items-center gap-3">
                 <div className="w-8 h-8 bg-novae-gold/10 rounded-lg flex items-center justify-center text-base">🎯</div>
                 <div>
-                  <h3 className="font-medium text-novae-anthracite text-sm">Programme 90 Jours NOVAÉ</h3>
+                  <h3 className="font-medium text-novae-anthracite text-sm">Reset 90 jours NOVAÉ</h3>
                   <p className="text-xs text-novae-anthracite/40">En cours · Phase Reprogrammation</p>
                 </div>
                 <span className="ml-auto px-2 py-1 bg-green-50 text-green-600 text-xs rounded-lg font-medium">Actif</span>

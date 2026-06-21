@@ -21,7 +21,7 @@ import ReclaimMyselfTile from '@/components/ReclaimMyselfTile'
 
 
 const MODULES_GRID = [
-  { href: '/program',   emoji: '🎯', title: 'Programme 90j', tone: 'ic-programme' },
+  { href: '/program',   emoji: '🎯', title: 'Reset 90j', tone: 'ic-programme' },
   { href: '/planner',   emoji: '📅', title: 'Planner',       tone: 'ic-planner'   },
   { href: '/tracker',   emoji: '📊', title: 'Tracker',       tone: 'ic-tracker'   },
   { href: '/routines',  emoji: '☀️', title: 'Routines',      tone: 'ic-routines'  },
@@ -36,7 +36,7 @@ const PHASE_MESSAGES: Record<string, { label: string; message: string; phase: st
   reprogrammation: { phase: 'Phase 1', label: 'Reprogrammation', message: 'Tu construis les fondations. Chaque petit geste compte.' },
   action:          { phase: 'Phase 2', label: 'Action & Discipline', message: "Tu passes à l'action. La régularité est ta force." },
   expansion:       { phase: 'Phase 3', label: 'Expansion', message: "Tu es en phase d'expansion. Continue à viser haut." },
-  start:           { phase: 'Programme 90j', label: 'Prête à commencer', message: "Démarre ton programme de 90 jours pour te transformer." },
+  start:           { phase: 'Reset 90j', label: 'Prête à commencer', message: "Démarre ton programme de 90 jours pour te transformer." },
 }
 
 function fmtDate(d: Date) {
@@ -301,7 +301,7 @@ export default function HomePageClient() {
                 </Link>
               )}
 
-              {/* Carte Programme 90j */}
+              {/* Carte Reset 90j */}
               <Link href="/program" style={{ textDecoration: 'none', display: 'block', marginBottom: 12 }}>
                 <div style={{ padding: '16px 18px', background: 'linear-gradient(135deg, rgba(255,255,255,0.55), rgba(255,255,255,0.25))', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', border: '1px solid rgba(255,255,255,0.5)', borderRadius: 18, boxShadow: '0 8px 24px rgba(139,90,60,0.1)', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: -40, right: -40, width: 110, height: 110, background: 'radial-gradient(circle, rgba(212,165,116,0.4), transparent)', borderRadius: '50%', pointerEvents: 'none' }} />

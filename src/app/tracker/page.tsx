@@ -206,7 +206,7 @@ function Progress90j({ data }: { data: any }) {
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <span style={{ fontSize: 22 }}>🎯</span>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Cormorant Garamond',serif", color: C.noir }}>Programme 90 jours</div>
+          <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Cormorant Garamond',serif", color: C.noir }}>Reset 90 jours</div>
           <div style={{ fontSize: 11, color: C.gris }}>Phase {phase.num} — {phase.name}</div>
         </div>
         <div style={{ textAlign: "right" }}>

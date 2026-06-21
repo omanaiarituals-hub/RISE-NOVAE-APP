@@ -21,7 +21,7 @@ const LAUNCH_CUTOFF = new Date('2026-06-01T00:00:00Z')
 const PRICE_ID_PREMIUM = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PREMIUM || 'price_REMPLACE_MOI'
 
 const PREMIUM_FEATURES = [
-  { emoji: '🎯', title: 'Programme 90 jours adaptatif', desc: '3 phases, des missions qui évoluent avec toi' },
+  { emoji: '🎯', title: 'Reset 90 jours adaptatif', desc: '3 phases, des missions qui évoluent avec toi' },
   { emoji: '✦', title: 'Agent IA NOVAÉ illimité', desc: 'Ton coach personnel qui te connaît et s\'adapte' },
   { emoji: '📸', title: 'Scan recettes IA + Routines IA', desc: 'Photographie un plat → recette générée. Routines selon ton énergie' },
   { emoji: '👨‍👩‍👧', title: 'Famille intelligente', desc: 'Détection automatique des conflits & allergies pour tes proches' },
@@ -47,7 +47,7 @@ const COMPARISON: ComparisonRow[] = [
   { label: 'Famille — saisie membres', free: '✓', premium: '✓' },
   { label: 'Communauté — lecture & likes', free: '✓', premium: '✓' },
   { label: 'Réservé Premium', isHeader: true },
-  { label: 'Programme 90 jours adaptatif', free: '🔒', premium: '✓' },
+  { label: 'Reset 90 jours adaptatif', free: '🔒', premium: '✓' },
   { label: 'Agent IA NOVAÉ (coach personnel)', free: '🔒', premium: '✓' },
   { label: 'Scan recettes par IA', free: '🔒', premium: '✓' },
   { label: 'Routines IA personnalisées', free: '🔒', premium: '✓' },

@@ -85,7 +85,7 @@ Cap interne : 25 scans/semaine pour limiter exposition coût API en cas d'abus.
 Tout le FREE +
 - ✨ **Scan-to-recipe illimité**
 - 🤖 IA Coach conversationnel illimité avec détection des contradictions
-- 📅 Programme 90 jours OMANAÏA débloqué
+- 📅 reset 90 jours OMANAÏA débloqué
 - 👯 Accès à la Communauté (posts, commentaires, défis, leaderboard)
 - 📊 Débrief IA hebdomadaire (cron dimanche)
 - 🔮 Cercle de la semaine (spotlight rotatif)
@@ -384,7 +384,7 @@ export async function canAccess(
 - ✅ Hook conversion : offre **Pionnière -20% à vie**, réservée 200 premières
 - ✅ Scan-to-recipe : **5/mois en free**, illimité Premium
 - ✅ **Communauté : Premium-only**
-- ✅ **Programme 90j : Premium-only**
+- ✅ **Reset 90j : Premium-only**
 - ✅ IA Coach : limité en free, illimité Premium
 - ✅ Beta testers actuels : peuvent souscrire au tarif Pionnière, sinon restent en free (historique préservé)
 - ✅ Architecture : champ `subscription_tier` + helper `canAccess` centralisé
