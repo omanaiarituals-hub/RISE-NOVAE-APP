@@ -31,7 +31,6 @@
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 
 :root{
-  /* Palette rose poudré */
   --rose-bg:#FDF0F0;
   --rose-1:#F2D4D4;
   --rose-2:#E8C4C8;
@@ -63,31 +62,14 @@ html{scroll-behavior:smooth}
 body{font-family:'DM Sans',system-ui,sans-serif;color:var(--text-dark);background:var(--rose-bg);overflow-x:hidden;line-height:1.55}
 
 /* ─── TRUST BAR ─── */
-.trust-bar{
-  position:fixed;top:0;left:0;right:0;z-index:110;
-  background:linear-gradient(90deg,var(--rose-dark) 0%,var(--rose-deep) 50%,var(--rose-dark) 100%);
-  padding:7px 20px;text-align:center;
-  font-size:11px;letter-spacing:.3px;color:var(--rose-1);
-  box-shadow:0 2px 12px rgba(0,0,0,.1);
-}
+.trust-bar{position:fixed;top:0;left:0;right:0;z-index:110;background:linear-gradient(90deg,var(--rose-dark) 0%,var(--rose-deep) 50%,var(--rose-dark) 100%);padding:7px 20px;text-align:center;font-size:11px;letter-spacing:.3px;color:var(--rose-1);box-shadow:0 2px 12px rgba(0,0,0,.1)}
 .trust-bar-inner{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;font-weight:500}
 .trust-bar-item{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .trust-bar-sep{color:var(--copper-light);opacity:.6;font-size:13px}
 
 /* ─── NAV ─── */
-nav{
-  position:fixed;top:32px;left:0;right:0;z-index:100;
-  display:flex;align-items:center;justify-content:space-between;
-  padding:16px 40px;
-  transition:background .4s ease,padding .3s ease;
-}
-nav.scrolled{
-  background:linear-gradient(180deg,rgba(196,132,142,.96),rgba(155,90,101,.92));
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  padding:10px 40px;
-  border-bottom:1px solid rgba(232,180,138,.3);
-  box-shadow:0 4px 20px rgba(0,0,0,.12);
-}
+nav{position:fixed;top:32px;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:16px 40px;transition:background .4s ease,padding .3s ease}
+nav.scrolled{background:linear-gradient(180deg,rgba(196,132,142,.96),rgba(155,90,101,.92));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:10px 40px;border-bottom:1px solid rgba(232,180,138,.3);box-shadow:0 4px 20px rgba(0,0,0,.12)}
 .nav-logo{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:500;letter-spacing:1.2px;color:#fff;display:flex;align-items:baseline;gap:10px;text-shadow:0 1px 3px rgba(0,0,0,.15)}
 .nav-logo .by{font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:2.2px;text-transform:uppercase;font-weight:500;color:var(--copper-light)}
 .nav-links{display:flex;align-items:center;gap:20px}
@@ -97,36 +79,13 @@ nav.scrolled{
 .nav-cta:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(196,149,106,.5)}
 
 /* ─── HERO ─── */
-.hero{
-  position:relative;min-height:100vh;
-  display:flex;align-items:center;justify-content:center;
-  overflow:hidden;padding:155px 24px 80px;
-}
-.hero-bg{
-  position:absolute;inset:0;
-  background-image:url('https://images.unsplash.com/photo-1569925444984-9e2e5fc3d1fb?w=1800&q=85');
-  background-size:cover;background-position:center 25%;
-  filter:saturate(.9) brightness(.78);
-  animation:zoomout 16s ease-out forwards;
-}
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:155px 24px 80px}
+.hero-bg{position:absolute;inset:0;background-image:url('https://images.unsplash.com/photo-1569925444984-9e2e5fc3d1fb?w=1800&q=85');background-size:cover;background-position:center 25%;filter:saturate(.9) brightness(.78);animation:zoomout 16s ease-out forwards}
 @keyframes zoomout{from{transform:scale(1.06)}to{transform:scale(1)}}
-.hero-overlay{
-  position:absolute;inset:0;
-  background:
-    radial-gradient(ellipse at 20% 30%,rgba(242,212,212,.2) 0%,transparent 55%),
-    linear-gradient(150deg,rgba(155,90,101,.72) 0%,rgba(196,132,142,.5) 45%,rgba(242,212,212,.3) 100%);
-}
+.hero-overlay{position:absolute;inset:0;background:radial-gradient(ellipse at 20% 30%,rgba(242,212,212,.2) 0%,transparent 55%),linear-gradient(150deg,rgba(155,90,101,.72) 0%,rgba(196,132,142,.5) 45%,rgba(242,212,212,.3) 100%)}
 .hero-content{position:relative;z-index:2;max-width:860px;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}
 .hero-left{text-align:left}
-.hero-eyebrow{
-  display:inline-flex;align-items:center;gap:8px;
-  font-size:10px;font-weight:600;letter-spacing:2.8px;text-transform:uppercase;
-  color:var(--rose-1);
-  background:rgba(155,90,101,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  border:1px solid rgba(232,180,192,.4);
-  padding:7px 16px;border-radius:999px;margin-bottom:26px;
-  opacity:0;animation:fadeup .8s .2s forwards;
-}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:10px;font-weight:600;letter-spacing:2.8px;text-transform:uppercase;color:var(--rose-1);background:rgba(155,90,101,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(232,180,192,.4);padding:7px 16px;border-radius:999px;margin-bottom:26px;opacity:0;animation:fadeup .8s .2s forwards}
 .hero-h1{font-family:'Cormorant Garamond',serif;font-size:clamp(40px,6vw,72px);font-weight:400;line-height:1.0;color:#fff;letter-spacing:.5px;margin-bottom:20px;text-shadow:0 2px 12px rgba(0,0,0,.2);opacity:0;animation:fadeup .8s .35s forwards}
 .hero-h1 em{font-style:italic;color:var(--copper-light)}
 .hero-tagline{font-size:15px;font-weight:600;letter-spacing:.4px;color:var(--rose-1);text-transform:uppercase;margin-bottom:14px;text-shadow:0 1px 8px rgba(0,0,0,.2);opacity:0;animation:fadeup .8s .42s forwards}
@@ -134,35 +93,11 @@ nav.scrolled{
 .hero-btns{display:flex;flex-direction:column;gap:12px;opacity:0;animation:fadeup .8s .65s forwards}
 .btn-main{display:inline-flex;align-items:center;gap:10px;justify-content:center;background:linear-gradient(135deg,var(--rose-deep),var(--rose-dark));color:#fff;padding:15px 30px;border-radius:999px;font-size:13px;font-weight:600;letter-spacing:.4px;text-decoration:none;box-shadow:0 10px 30px rgba(155,90,101,.4);transition:all .25s ease;border:1px solid rgba(232,180,192,.3)}
 .btn-main:hover{transform:translateY(-2px);box-shadow:0 14px 38px rgba(155,90,101,.55)}
-.btn-test{
-  display:inline-flex;align-items:center;gap:8px;justify-content:center;
-  background:rgba(255,255,255,.2);backdrop-filter:blur(10px);
-  color:#fff;padding:14px 28px;border-radius:999px;font-size:13px;font-weight:600;
-  letter-spacing:.3px;text-decoration:none;
-  border:2px solid rgba(255,255,255,.6);
-  box-shadow:0 4px 18px rgba(0,0,0,.18);
-  transition:all .25s ease;
-}
-.btn-test:hover{background:rgba(255,255,255,.32);border-color:#fff;transform:translateY(-1px)}
 .hero-pill{font-size:11px;font-weight:500;color:rgba(255,255,255,.6);letter-spacing:.8px;opacity:0;animation:fadeup .8s .8s forwards;margin-top:4px}
 .hero-pill strong{color:var(--copper-light)}
-.hero-blog-link{
-  display:flex;align-items:center;gap:12px;
-  margin-top:10px;padding:13px 18px;
-  background:rgba(255,255,255,.92);
-  backdrop-filter:blur(12px);
-  border:2px solid rgba(255,255,255,1);
-  border-radius:14px;
-  text-decoration:none;transition:all .25s ease;
-  opacity:0;animation:fadeup .8s .9s forwards;
-  box-shadow:0 6px 20px rgba(0,0,0,.2);
-}
+.hero-blog-link{display:flex;align-items:center;gap:12px;margin-top:10px;padding:13px 18px;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border:2px solid rgba(255,255,255,1);border-radius:14px;text-decoration:none;transition:all .25s ease;opacity:0;animation:fadeup .8s .9s forwards;box-shadow:0 6px 20px rgba(0,0,0,.2)}
 .hero-blog-link:hover{background:#fff;transform:translateY(-2px);box-shadow:0 10px 28px rgba(0,0,0,.25)}
-.hero-blog-label{
-  font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
-  color:#fff;white-space:nowrap;flex-shrink:0;
-  background:var(--rose-dark);padding:4px 10px;border-radius:6px;
-}
+.hero-blog-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#fff;white-space:nowrap;flex-shrink:0;background:var(--rose-dark);padding:4px 10px;border-radius:6px}
 .hero-blog-title{font-size:13px;font-weight:600;color:var(--text-dark);line-height:1.35;font-style:italic;font-family:'Cormorant Garamond',serif}
 
 /* Nova widget */
@@ -184,12 +119,7 @@ nav.scrolled{
 .lav-dot{width:7px;height:7px;border-radius:50%;background:var(--lav);flex-shrink:0;margin-top:3px;animation:blink 2s infinite}
 
 /* ─── NOVA DIFF ─── */
-.nova-diff{
-  background:
-    radial-gradient(ellipse at 10% 50%,rgba(224,208,236,.4) 0%,transparent 55%),
-    linear-gradient(180deg,var(--beige-rose) 0%,var(--rose-1) 100%);
-  padding:96px 40px;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;
-}
+.nova-diff{background:radial-gradient(ellipse at 10% 50%,rgba(224,208,236,.4) 0%,transparent 55%),linear-gradient(180deg,var(--beige-rose) 0%,var(--rose-1) 100%);padding:96px 40px;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
 .section-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:10px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:var(--rose-dark);margin-bottom:18px}
 .section-h2{font-family:'Cormorant Garamond',serif;font-size:clamp(30px,3.8vw,48px);font-weight:600;line-height:1.08;color:var(--noir);margin-bottom:20px;letter-spacing:.3px}
 .section-h2 em{font-style:italic;color:var(--rose-dark)}
@@ -208,72 +138,8 @@ nav.scrolled{
 .notif-text{font-size:12.5px;color:var(--text-dark);line-height:1.45;font-weight:500}
 .notif-time{font-size:10px;color:var(--text-mute);margin-top:4px}
 
-/* ─── TEST CHARGE MENTALE ─── */
-.test-section{
-  background:linear-gradient(135deg,var(--rose-dark) 0%,var(--rose-deep) 40%,var(--mauve) 100%);
-  padding:90px 40px;text-align:center;position:relative;overflow:hidden;
-}
-.test-section::before{content:'';position:absolute;top:-60%;left:-10%;width:120%;height:200%;background:radial-gradient(ellipse,rgba(255,255,255,.06) 0%,transparent 60%);pointer-events:none}
-.test-inner{position:relative;z-index:2;max-width:580px;margin:0 auto}
-.test-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:10px;font-weight:600;letter-spacing:2.8px;text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:18px}
-.test-h2{font-family:'Cormorant Garamond',serif;font-size:clamp(30px,4vw,50px);font-weight:400;line-height:1.08;color:#fff;margin-bottom:14px}
-.test-h2 em{font-style:italic;color:var(--copper-light)}
-.test-sub{font-size:15px;color:rgba(255,255,255,.78);line-height:1.65;margin-bottom:36px}
-.test-form{display:flex;flex-direction:column;gap:12px;max-width:420px;margin:0 auto}
-.test-input{
-  width:100%;padding:15px 20px;border-radius:12px;
-  background:rgba(255,255,255,.15);backdrop-filter:blur(10px);
-  border:1px solid rgba(255,255,255,.3);
-  color:#fff;font-size:14px;font-family:'DM Sans',sans-serif;
-  outline:none;transition:border-color .2s ease,background .2s ease;
-}
-.test-input::placeholder{color:rgba(255,255,255,.5)}
-.test-input:focus{border-color:rgba(255,255,255,.6);background:rgba(255,255,255,.2)}
-.test-rgpd{font-size:11px;color:rgba(255,255,255,.55);line-height:1.5;text-align:left}
-.test-rgpd a{color:rgba(255,255,255,.75);text-decoration:underline}
-.test-submit{
-  padding:15px 32px;border-radius:999px;border:none;cursor:pointer;
-  background:linear-gradient(135deg,var(--copper-light),var(--copper));
-  color:#fff;font-size:13.5px;font-weight:600;font-family:'DM Sans',sans-serif;
-  letter-spacing:.4px;box-shadow:0 10px 28px rgba(196,149,106,.4);
-  transition:all .25s ease;
-}
-.test-submit:hover{transform:translateY(-2px);box-shadow:0 14px 36px rgba(196,149,106,.55)}
-.test-success{display:none;background:rgba(255,255,255,.15);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.3);border-radius:16px;padding:28px;color:#fff;font-size:14px;line-height:1.7;text-align:center}
-.test-success strong{color:var(--copper-light)}
-
-/* Quiz */
-.quiz-progress{height:4px;background:rgba(255,255,255,.2);border-radius:999px;margin-bottom:28px;overflow:hidden}
-.quiz-progress-bar{height:100%;background:linear-gradient(90deg,var(--copper-light),#fff);border-radius:999px;transition:width .4s ease}
-.quiz-question{font-family:'Cormorant Garamond',serif;font-size:clamp(20px,3vw,26px);font-style:italic;color:#fff;margin-bottom:20px;line-height:1.3;text-align:left}
-.quiz-options{display:flex;flex-direction:column;gap:10px;margin-bottom:24px}
-.quiz-option{
-  padding:14px 18px;border-radius:12px;
-  background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.25);
-  color:#fff;font-size:14px;font-weight:500;
-  cursor:pointer;text-align:left;
-  transition:all .2s ease;font-family:'DM Sans',sans-serif;
-}
-.quiz-option:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.55)}
-.quiz-option.selected{background:rgba(255,255,255,.3);border-color:#fff;font-weight:600}
-.quiz-nav{display:flex;justify-content:space-between;align-items:center}
-.quiz-prev{background:transparent;border:1px solid rgba(255,255,255,.3);color:rgba(255,255,255,.7);padding:10px 20px;border-radius:999px;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;transition:all .2s ease}
-.quiz-prev:hover{border-color:rgba(255,255,255,.6);color:#fff}
-.quiz-next{background:linear-gradient(135deg,var(--copper-light),var(--copper));color:#fff;border:none;padding:13px 28px;border-radius:999px;cursor:pointer;font-size:13.5px;font-weight:600;font-family:'DM Sans',sans-serif;box-shadow:0 8px 22px rgba(196,149,106,.4);transition:all .25s ease}
-.quiz-next:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(196,149,106,.55)}
-.quiz-next:disabled{opacity:.4;cursor:not-allowed;transform:none}
-.quiz-email-block{display:flex;flex-direction:column;gap:14px;max-width:420px;margin:0 auto;text-align:left}
-.quiz-email-icon{font-size:36px;text-align:center}
-.quiz-email-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:#fff;text-align:center;margin-bottom:2px}
-.quiz-email-sub{font-size:14px;color:rgba(255,255,255,.8);line-height:1.6;text-align:center;margin-bottom:6px}
-
 /* ─── MIRROR ─── */
-.mirror{
-  background:
-    radial-gradient(ellipse at 80% 100%,var(--rose-2) 0%,transparent 60%),
-    linear-gradient(180deg,var(--rose-1) 0%,var(--beige-2) 100%);
-  padding:96px 40px;display:grid;grid-template-columns:1fr 1.05fr;gap:64px;align-items:center;
-}
+.mirror{background:radial-gradient(ellipse at 80% 100%,var(--rose-2) 0%,transparent 60%),linear-gradient(180deg,var(--rose-1) 0%,var(--beige-2) 100%);padding:96px 40px;display:grid;grid-template-columns:1fr 1.05fr;gap:64px;align-items:center}
 .mirror-img{position:relative;border-radius:24px;overflow:hidden;height:540px;box-shadow:0 28px 64px var(--shadow-deep)}
 .mirror-img img{width:100%;height:100%;object-fit:cover;object-position:center top}
 .mirror-img::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(58,31,36,.72) 0%,transparent 55%)}
@@ -305,11 +171,8 @@ nav.scrolled{
 .triade-card-h{font-family:'Cormorant Garamond',serif;font-size:28px;font-style:italic;font-weight:400;margin-bottom:5px;line-height:1.1;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.4)}
 .triade-card-desc{font-size:13px;color:rgba(255,255,255,.85);line-height:1.6}
 
-/* ─── MODULES (phrase + icônes) ─── */
-.modules{
-  background:linear-gradient(180deg,var(--rose-1) 0%,var(--beige-rose) 100%);
-  padding:80px 40px;text-align:center;
-}
+/* ─── MODULES ─── */
+.modules{background:linear-gradient(180deg,var(--rose-1) 0%,var(--beige-rose) 100%);padding:80px 40px;text-align:center}
 .modules-h2{font-family:'Cormorant Garamond',serif;font-size:clamp(28px,3.5vw,44px);font-weight:400;line-height:1.1;color:var(--text-dark);margin-bottom:10px}
 .modules-h2 em{font-style:italic;color:var(--rose-dark)}
 .modules-sub{font-size:15px;color:var(--text-dark);max-width:560px;margin:0 auto 36px;line-height:1.65;font-weight:500}
@@ -413,7 +276,6 @@ footer .links{display:flex;gap:18px}
   .hero-btns{align-items:center}
   .nova-widget-card{max-width:100%}
   .nova-diff{grid-template-columns:1fr;gap:36px;padding:70px 22px}
-  .test-section{padding:70px 22px}
   .mirror{grid-template-columns:1fr;gap:40px;padding:70px 22px}
   .mirror-img{height:360px}
   .promise{padding:70px 22px}
@@ -484,7 +346,6 @@ footer .links{display:flex;gap:18px}
       <p class="hero-sub">Les autres apps attendent que tu reviennes. Nova, elle, te connaît. Et c'est elle qui fait le premier pas quand tu disparais.</p>
       <div class="hero-btns">
         <a href="https://app.novae-by-omanaia.com" class="btn-main" data-track="hero_primary">✦ Essaie 14 jours, sans carte bancaire</a>
-        <a href="#test-charge" class="btn-test" data-track="hero_test">🧠 Teste ton niveau de charge mentale</a>
         <div class="hero-pill">Puis <strong>7,90€/mois</strong> · annulable en un clic</div>
         <a href="#blog" class="hero-blog-link" data-track="hero_blog">
           <span class="hero-blog-label">📖 Le blog</span>
@@ -557,61 +418,6 @@ footer .links{display:flex;gap:18px}
   </div>
 </section>
 
-<!-- TEST CHARGE MENTALE -->
-<section class="test-section" id="test-charge">
-  <div class="test-inner">
-    <div class="test-eyebrow">✦ Diagnostic gratuit · 2 minutes</div>
-    <h2 class="test-h2">Quel est ton vrai niveau<br>de <em>charge mentale ?</em></h2>
-    <p class="test-sub">5 questions. Nova analyse tes réponses et t'envoie un diagnostic personnalisé par email. Gratuit, sans engagement.</p>
-
-    <!-- ÉTAPE 1 : Questions -->
-    <div id="quizStep1" style="display:none">
-      <div class="quiz-progress"><div class="quiz-progress-bar" id="quizProgressBar" style="width:20%"></div></div>
-      <div class="quiz-question" id="quizQuestion"></div>
-      <div class="quiz-options" id="quizOptions"></div>
-      <div class="quiz-nav">
-        <button class="quiz-prev" id="quizPrev" onclick="quizPrev()" style="display:none">← Précédent</button>
-        <button class="quiz-next" id="quizNext" onclick="quizNext()">Suivant →</button>
-      </div>
-    </div>
-
-    <!-- ÉTAPE 0 : Bouton de démarrage -->
-    <div id="quizStep0">
-      <button class="test-submit" onclick="startQuiz()" type="button" style="margin-top:8px">🧠 Commencer le test gratuit →</button>
-    </div>
-
-    <!-- ÉTAPE 2 : Email -->
-    <div id="quizStep2" style="display:none">
-      <div class="quiz-email-block">
-        <div class="quiz-email-icon">💜</div>
-        <p class="quiz-email-title">Nova a analysé tes réponses.</p>
-        <p class="quiz-email-sub">Entre ton email pour recevoir ton diagnostic personnalisé. Nova va te dire exactement ce qui se passe et ce qui peut changer.</p>
-        <input type="email" class="test-input" id="testEmail" placeholder="ton@email.com" autocomplete="email">
-        <p class="test-rgpd">🔒 Ton email sert uniquement à t'envoyer ton diagnostic. Pas de spam, désabonnement en un clic. Conformément au <a href="https://app.novae-by-omanaia.com/confidentialite" target="_blank">RGPD</a>, tes données ne sont jamais revendues ni partagées avec des tiers.</p>
-        <!-- ════════════════════════════════════════════════════════════ -->
-<!-- CHECKBOX CONSENTEMENT RGPD pour le quiz                        -->
-<!-- À insérer dans landing.html dans le bloc #quizStep2,           -->
-<!-- juste AVANT le bouton "Recevoir mon diagnostic"               -->
-<!-- ════════════════════════════════════════════════════════════ -->
-
-<label style="display:flex;align-items:flex-start;gap:8px;font-size:11px;color:rgba(255,255,255,.6);line-height:1.5;text-align:left;margin:8px 0 14px;cursor:pointer;">
-  <input type="checkbox" id="testConsent" style="margin-top:2px;flex-shrink:0;width:16px;height:16px;accent-color:#C4956A;cursor:pointer;">
-  <span>J'accepte que Nova analyse mes réponses pour générer mon diagnostic et que mon email soit utilisé pour me l'envoyer. <a href="https://app.novae-by-omanaia.com/confidentialite" target="_blank" style="color:rgba(255,255,255,.8);text-decoration:underline;">En savoir plus</a></span>
-</label>
-        <button class="test-submit" onclick="submitTest()" type="button">Recevoir mon diagnostic de Nova →</button>
-      </div>
-    </div>
-
-    <!-- ÉTAPE 3 : Succès -->
-    <div class="test-success" id="testSuccess">
-      <div style="font-size:32px;margin-bottom:12px">💜</div>
-      <strong>C'est parti !</strong> Nova prépare ton diagnostic.<br>
-      Vérifie ta boîte mail dans quelques minutes, et regarde dans les spams si besoin.<br><br>
-      <a href="https://app.novae-by-omanaia.com" style="color:var(--copper-light);font-weight:600;text-decoration:none;font-size:14px">Essaie NOVAÉ maintenant pendant 14 jours gratuits →</a>
-    </div>
-  </div>
-</section>
-
 <!-- ═══ MIRROR ═══ -->
 <section class="mirror">
   <div class="mirror-img reveal">
@@ -671,14 +477,14 @@ footer .links{display:flex;gap:18px}
   </div>
 </section>
 
-<!-- ═══ MODULES — phrase + chips ═══ -->
+<!-- ═══ MODULES ═══ -->
 <section class="modules">
   <div class="reveal">
     <div class="section-eyebrow" style="justify-content:center">✦ Tout connecté</div>
     <h2 class="modules-h2">Tout ton essentiel<br><em>au même endroit.</em></h2>
     <p class="modules-sub">Programme, agenda, routines, repas, famille, notes : chaque module se parle. Nova lit tout ça et agit en conséquence.</p>
     <div class="modules-icons">
-      <span class="mod-chip"><span class="e">🎯</span> Programme 90j</span>
+      <span class="mod-chip"><span class="e">🎯</span> Reset 90 jours</span>
       <span class="mod-chip"><span class="e">🤖</span> Nova · Agent IA</span>
       <span class="mod-chip"><span class="e">📅</span> Planner</span>
       <span class="mod-chip"><span class="e">☀️</span> Routines</span>
@@ -828,182 +634,6 @@ document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
 function acceptCookies(){localStorage.setItem('novae_cookie_consent','accepted');document.getElementById('cookieBanner').style.display='none';}
 function refuseCookies(){localStorage.setItem('novae_cookie_consent','refused');document.getElementById('cookieBanner').style.display='none';}
 if(!localStorage.getItem('novae_cookie_consent')){document.getElementById('cookieBanner').style.display='flex';}
-
-// QUIZ CHARGE MENTALE
-// ════════════════════════════════════════════════════════════════════
-// QUIZ CHARGE MENTALE — VERSION HYBRIDE (choix multiple + réponse libre)
-// Remplace tout le bloc entre "const questions = [" et "// Init quiz..."
-// (lignes ~820 à ~951 de landing.html)
-// ════════════════════════════════════════════════════════════════════
-
-const questions = [
-  {
-    type: 'choice',
-    q: "Le soir, tu t'endors avec combien de « je dois pas oublier » en tête ?",
-    opts: [
-      { label: "Aucun, je décompresse facilement", score: 0 },
-      { label: "2 ou 3, ça reste gérable", score: 1 },
-      { label: "Une liste entière que je ressasse", score: 2 },
-      { label: "Je n'arrive plus à faire le vide du tout", score: 3 }
-    ]
-  },
-  {
-    type: 'free',
-    q: "Décris en quelques mots ce qui pèse le plus dans ta tête en ce moment.",
-    placeholder: "Écris librement, Nova lira vraiment ta réponse…"
-  },
-  {
-    type: 'choice',
-    q: "Quand quelqu'un te demande « ça va ? », ta vraie réponse c'est quoi ?",
-    opts: [
-      { label: "Vraiment bien, je suis en forme", score: 0 },
-      { label: "Ça va, un peu fatiguée mais ça tourne", score: 1 },
-      { label: "Épuisée mais je gère, comme toujours", score: 2 },
-      { label: "Je suis à bout mais je dis que ça va", score: 3 }
-    ]
-  },
-  {
-    type: 'choice',
-    q: "Le matin au réveil, ta première pensée c'est plutôt...",
-    opts: [
-      { label: "Une nouvelle journée, je suis prête", score: 0 },
-      { label: "Déjà ? Bon allez.", score: 1 },
-      { label: "La liste de tout ce que j'ai à faire", score: 2 },
-      { label: "J'aurais voulu dormir encore pour ne pas y penser", score: 3 }
-    ]
-  },
-  {
-    type: 'free',
-    q: "Si tu pouvais déléguer UNE seule chose demain matin, ce serait quoi ?",
-    placeholder: "Une tâche, une charge, une pensée… dis-le à Nova."
-  }
-];
-
-let currentQ = 0;
-let answers = [];      // index choisi (choice) OU texte (free)
-let scores = [];       // score par question (0 pour les questions libres)
-let freeTexts = [];    // textes des réponses libres
-
-function renderQuestion() {
-  const q = questions[currentQ];
-  document.getElementById('quizQuestion').textContent = q.q;
-  document.getElementById('quizProgressBar').style.width = ((currentQ + 1) / questions.length * 100) + '%';
-
-  const opts = document.getElementById('quizOptions');
-  opts.innerHTML = '';
-
-  if (q.type === 'free') {
-    // Réponse libre : un textarea
-    const ta = document.createElement('textarea');
-    ta.className = 'quiz-free-input';
-    ta.placeholder = q.placeholder || 'Ta réponse…';
-    ta.value = freeTexts[currentQ] || '';
-    ta.rows = 4;
-    ta.style.cssText = 'width:100%;border-radius:14px;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;padding:14px 16px;font-size:15px;font-family:inherit;line-height:1.5;resize:vertical;outline:none;';
-    ta.oninput = () => {
-      freeTexts[currentQ] = ta.value;
-      answers[currentQ] = ta.value.trim() ? ta.value.trim() : undefined;
-      document.getElementById('quizNext').disabled = !ta.value.trim();
-    };
-    opts.appendChild(ta);
-  } else {
-    // Choix multiple
-    q.opts.forEach((opt, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'quiz-option' + (answers[currentQ] === i ? ' selected' : '');
-      btn.textContent = opt.label;
-      btn.onclick = () => selectOption(i);
-      opts.appendChild(btn);
-    });
-  }
-
-  document.getElementById('quizPrev').style.display = currentQ > 0 ? 'block' : 'none';
-  const nextBtn = document.getElementById('quizNext');
-  nextBtn.textContent = currentQ === questions.length - 1 ? 'Voir mon résultat →' : 'Suivant →';
-
-  // Activer/désactiver le bouton suivant selon le type
-  if (q.type === 'free') {
-    nextBtn.disabled = !(freeTexts[currentQ] && freeTexts[currentQ].trim());
-  } else {
-    nextBtn.disabled = answers[currentQ] === undefined;
-  }
-}
-
-function selectOption(idx) {
-  answers[currentQ] = idx;
-  scores[currentQ] = questions[currentQ].opts[idx].score;
-  document.querySelectorAll('.quiz-option').forEach((b, i) => {
-    b.classList.toggle('selected', i === idx);
-  });
-  document.getElementById('quizNext').disabled = false;
-}
-
-function quizNext() {
-  const q = questions[currentQ];
-  if (q.type === 'free') {
-    if (!freeTexts[currentQ] || !freeTexts[currentQ].trim()) return;
-  } else {
-    if (answers[currentQ] === undefined) return;
-  }
-  if (currentQ < questions.length - 1) {
-    currentQ++;
-    renderQuestion();
-  } else {
-    document.getElementById('quizStep1').style.display = 'none';
-    document.getElementById('quizStep2').style.display = 'block';
-  }
-}
-
-function quizPrev() {
-  if (currentQ > 0) { currentQ--; renderQuestion(); }
-}
-
-function submitTest() {
-  const email = document.getElementById('testEmail').value.trim();
-  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const input = document.getElementById('testEmail');
-  if (!emailRe.test(email)) {
-    input.style.borderColor = 'rgba(255,150,150,.8)';
-    input.placeholder = 'Entre une adresse email valide';
-    input.focus();
-    return;
-  }
-  // Consentement RGPD obligatoire
-  const consent = document.getElementById('testConsent');
-  if (consent && !consent.checked) {
-    consent.parentElement.style.color = 'rgba(255,150,150,.9)';
-    return;
-  }
-
-  const totalScore = scores.reduce((a, b) => a + (b || 0), 0);
-  const answersText = questions.map((q, i) => {
-    if (q.type === 'free') {
-      return `Q${i+1} (libre): ${q.q} => ${freeTexts[i] || 'Non répondu'}`;
-    }
-    const chosen = answers[i] !== undefined ? q.opts[answers[i]].label : 'Non répondu';
-    return `Q${i+1}: ${q.q} => ${chosen}`;
-  }).join('\n');
-
-  fetch('https://app.novae-by-omanaia.com/api/test-charge-mentale', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, totalScore, answers: answersText, consent: true })
-  }).catch(() => {});
-
-  if (typeof track === 'function') track('test_submit', 'charge_mentale_score_' + totalScore);
-
-  document.getElementById('quizStep2').style.display = 'none';
-  document.getElementById('testSuccess').style.display = 'block';
-}
-
-function startQuiz() {
-  document.getElementById('quizStep0').style.display = 'none';
-  document.getElementById('quizStep1').style.display = 'block';
-  renderQuestion();
-}
-
-// Init quiz - NE PAS appeler renderQuestion() au départ
-// renderQuestion();
 </script>
 
 </body>
