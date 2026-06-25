@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
@@ -18,28 +18,51 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-
   const [showCGUModal, setShowCGUModal] = useState(false)
   const [cguModalAccepted, setCguModalAccepted] = useState(false)
 
+  // Ref pour éviter les doubles redirections
+  const redirecting = useRef(false)
+
+  // ─── Redirect quand user est détecté ───────────────────────────────────────
+  // On écoute aussi directement onAuthStateChange pour mobile PWA
+  // où useSupabaseAuth peut avoir un timing différent
   useEffect(() => {
-    if (user) {
-      checkCGUAcceptance()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+        if (redirecting.current) return
+        redirecting.current = true
+        await checkAndRedirect(session.user.id)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Fallback : si useSupabaseAuth remonte un user (ex: déjà connecté)
+  useEffect(() => {
+    if (user && !redirecting.current) {
+      redirecting.current = true
+      checkAndRedirect(user.id)
     }
   }, [user])
 
-  const checkCGUAcceptance = async () => {
-    if (!user) return
-    const { data } = await supabase
-      .from('users')
-      .select('cgu_accepted_at')
-      .eq('id', user.id)
-      .single()
+  const checkAndRedirect = async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('cgu_accepted_at')
+        .eq('id', userId)
+        .single()
 
-    if (data?.cgu_accepted_at) {
-      router.push('/')
-    } else {
-      setShowCGUModal(true)
+      if (data?.cgu_accepted_at) {
+        router.replace('/')
+      } else {
+        redirecting.current = false
+        setShowCGUModal(true)
+      }
+    } catch {
+      // En cas d'erreur DB, on redirige quand même vers l'accueil
+      router.replace('/')
     }
   }
 
@@ -55,7 +78,7 @@ export default function AuthPage() {
         })
         .eq('id', user.id)
       setShowCGUModal(false)
-      router.push('/')
+      router.replace('/')
     } catch {
       setError('Erreur lors de la validation. Réessaie.')
     } finally {
@@ -98,13 +121,11 @@ export default function AuthPage() {
             cgu_accepted_at: new Date().toISOString(),
             cgu_version: '1.0',
           })
-          // Sauvegarde aussi le pseudo dans ai_personality_profile si existe
           await supabase
             .from('ai_personality_profile')
             .update({ pseudo: pseudo || email.split('@')[0] })
             .eq('user_id', data.user.id)
 
-          // Ajout automatique dans Brevo selon la date
           const isBeta = new Date() < new Date('2026-06-02')
           await fetch('/api/subscribe', {
             method: 'POST',
@@ -118,11 +139,16 @@ export default function AuthPage() {
           })
         }
         setSuccess('Compte créé ! Vérifie ton email pour confirmer ton inscription.')
+
       } else {
+        // LOGIN — onAuthStateChange va déclencher la redirect automatiquement
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
         if (signInError) throw signInError
+        // Pas de router.push ici — onAuthStateChange s'en charge
+        // Cela évite le race condition sur mobile PWA
       }
     } catch (err: any) {
+      redirecting.current = false
       const msg = err?.message || 'Une erreur est survenue'
       if (msg.includes('already registered')) setError('Cet email est déjà utilisé. Connecte-toi.')
       else if (msg.includes('Invalid login')) setError('Email ou mot de passe incorrect. Vérifie ta saisie.')
@@ -141,7 +167,7 @@ export default function AuthPage() {
     setLoading(true)
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+        redirectTo: `https://app.novae-by-omanaia.com/auth/reset-password`,
       })
       if (error) throw error
       setSuccess('Email envoyé ! Vérifie ta boîte mail (et tes spams) pour réinitialiser ton mot de passe.')
@@ -227,7 +253,6 @@ export default function AuthPage() {
           {/* Card */}
           <div style={{ background: '#FFFFFF', borderRadius: 20, padding: '36px 32px', boxShadow: '0 4px 24px rgba(0,0,0,0.07)', border: '1px solid #F0EAE2' }}>
 
-            {/* Toggle — masqué en mode forgot */}
             {mode !== 'forgot' && (
               <div style={{ display: 'flex', background: '#FAF7F2', borderRadius: 10, padding: 4, marginBottom: 28 }}>
                 {(['signup', 'login'] as const).map(m => (
@@ -239,7 +264,6 @@ export default function AuthPage() {
               </div>
             )}
 
-            {/* ── MODE MOT DE PASSE OUBLIÉ ── */}
             {mode === 'forgot' ? (
               <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ textAlign: 'center', marginBottom: 8 }}>
@@ -247,7 +271,6 @@ export default function AuthPage() {
                   <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500, color: '#1A1A1A', margin: '0 0 6px' }}>Mot de passe oublié</h2>
                   <p style={{ fontSize: 13, color: '#6B6B6B', margin: 0, lineHeight: 1.6 }}>Saisis ton email et on t'envoie un lien pour le réinitialiser.</p>
                 </div>
-
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 600, color: '#6B6B6B', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Email</label>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
@@ -255,15 +278,12 @@ export default function AuthPage() {
                     onFocus={e => e.target.style.borderColor = '#C4956A'}
                     onBlur={e => e.target.style.borderColor = '#E8E4DF'} />
                 </div>
-
                 {error && <div style={{ background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#C04040' }}>{error}</div>}
                 {success && <div style={{ background: 'rgba(76,175,80,0.08)', border: '1px solid rgba(76,175,80,0.25)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#2A7A30' }}>{success}</div>}
-
                 <button type="submit" disabled={loading}
                   style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: loading ? '#E8E4DF' : '#1A1A1A', color: loading ? '#aaa' : 'white', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}>
                   {loading ? 'Envoi...' : 'Envoyer le lien →'}
                 </button>
-
                 <button type="button" onClick={() => { setMode('login'); setError(''); setSuccess('') }}
                   style={{ background: 'none', border: 'none', color: '#C4956A', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', fontFamily: "'DM Sans', sans-serif" }}>
                   ← Retour à la connexion
@@ -271,7 +291,6 @@ export default function AuthPage() {
               </form>
 
             ) : (
-              /* ── MODE LOGIN / SIGNUP ── */
               <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
                 {mode === 'signup' && (
@@ -292,7 +311,6 @@ export default function AuthPage() {
                     onBlur={e => e.target.style.borderColor = '#E8E4DF'} />
                 </div>
 
-                {/* Mot de passe avec œil */}
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 600, color: '#6B6B6B', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Mot de passe</label>
                   <div style={{ position: 'relative' }}>
@@ -306,17 +324,13 @@ export default function AuthPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#6B6B6B', fontSize: 16, padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      title={showPassword ? 'Masquer' : 'Afficher'}
-                    >
+                      style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#6B6B6B', fontSize: 16, padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {showPassword ? (
-                        // Œil barré
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
                           <line x1="1" y1="1" x2="23" y2="23"/>
                         </svg>
                       ) : (
-                        // Œil ouvert
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                           <circle cx="12" cy="12" r="3"/>
@@ -326,7 +340,6 @@ export default function AuthPage() {
                   </div>
                 </div>
 
-                {/* Lien mot de passe oublié — uniquement en mode login */}
                 {mode === 'login' && (
                   <div style={{ textAlign: 'right', marginTop: -6 }}>
                     <button type="button" onClick={() => { setMode('forgot'); setError(''); setSuccess('') }}
@@ -336,14 +349,13 @@ export default function AuthPage() {
                   </div>
                 )}
 
-                {/* CGU inscription */}
                 {mode === 'signup' && (
                   <div style={{ background: '#FAF7F2', borderRadius: 10, padding: '14px 16px', border: '1px solid #F0EAE2' }}>
                     <p style={{ fontSize: 11, fontWeight: 600, color: '#6B6B6B', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 10px' }}>À savoir avant de commencer</p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
                       {[
                         '🎯 NOVAÉ est un guide — les résultats dépendent de ton implication',
-                        '🤖 L\'Agent IA ne remplace pas un professionnel de santé',
+                        "🤖 L'Agent IA ne remplace pas un professionnel de santé",
                         '🔒 Tes données sont sécurisées et ne sont jamais vendues',
                       ].map((txt, i) => (
                         <p key={i} style={{ fontSize: 12, color: '#4A4A4A', margin: 0, lineHeight: 1.5 }}>{txt}</p>
@@ -373,10 +385,15 @@ export default function AuthPage() {
                   </div>
                 )}
 
+                {/* Indicateur de chargement connexion mobile */}
+                {loading && mode === 'login' && (
+                  <div style={{ textAlign: 'center', fontSize: 12, color: '#8B6F55', fontStyle: 'italic' }}>
+                    Connexion en cours...
+                  </div>
+                )}
+
                 <button type="submit" disabled={loading || (mode === 'signup' && !acceptCGU)}
-                  style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: loading || (mode === 'signup' && !acceptCGU) ? '#E8E4DF' : '#1A1A1A', color: loading || (mode === 'signup' && !acceptCGU) ? '#aaa' : 'white', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, cursor: loading || (mode === 'signup' && !acceptCGU) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4 }}
-                  onMouseEnter={e => { if (!loading && (mode === 'login' || acceptCGU)) (e.target as HTMLButtonElement).style.background = '#C4956A' }}
-                  onMouseLeave={e => { if (!loading && (mode === 'login' || acceptCGU)) (e.target as HTMLButtonElement).style.background = '#1A1A1A' }}>
+                  style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: loading || (mode === 'signup' && !acceptCGU) ? '#E8E4DF' : '#1A1A1A', color: loading || (mode === 'signup' && !acceptCGU) ? '#aaa' : 'white', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, cursor: loading || (mode === 'signup' && !acceptCGU) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4 }}>
                   {loading ? 'Chargement...' : mode === 'signup' ? 'Créer mon compte →' : 'Me connecter →'}
                 </button>
 

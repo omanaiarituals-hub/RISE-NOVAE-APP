@@ -1,8 +1,9 @@
 {
-  "name": "NOVAÉ",
+  "name": "NOVAÉ by OMANAÏA",
   "short_name": "NOVAÉ",
   "description": "L'assistante qui porte ta charge mentale avec toi",
-  "start_url": "/",
+  "start_url": "https://app.novae-by-omanaia.com/",
+  "scope": "https://app.novae-by-omanaia.com/",
   "display": "standalone",
   "background_color": "#F8F1E5",
   "theme_color": "#F8F1E5",
