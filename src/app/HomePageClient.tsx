@@ -67,8 +67,9 @@ export default function HomePageClient() {
   const [novaPending, setNovaPending] = useState<{ thread_id: string } | null>(null)
 
   const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason: null })
-  const hour = new Date().getHours()
-  const greeting = hour < 5 ? 'Bonne nuit' : hour < 12 ? 'Bonjour' : hour < 18 ? 'Bonne après-midi' : 'Bonsoir'
+  // APRÈS
+const [greeting, setGreeting] = useState('Bonjour')
+const [dateLabel, setDateLabel] = useState('')
 
   useEffect(() => {
     if (!user || onboardingChecked) return
@@ -85,6 +86,9 @@ export default function HomePageClient() {
 
   useEffect(() => {
     setProverbeDuJour(getProverbeDuJour())
+    const h = new Date().getHours()
+setGreeting(h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Bonne après-midi' : 'Bonsoir')
+setDateLabel(new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))
   }, [])
 
   useEffect(() => {
@@ -230,7 +234,7 @@ export default function HomePageClient() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 10, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2.5px', margin: '0 0 5px', fontWeight: 600 }}>
-                  {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+{dateLabel}
                 </p>
                 <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 400, color: '#3d2618', margin: 0, lineHeight: 1, letterSpacing: '0.5px' }}>
                   {greeting}{pseudo && (<>, <span style={{ color: '#8b5a3c', fontStyle: 'italic' }}>{pseudo}</span></>)}{' '}👋
