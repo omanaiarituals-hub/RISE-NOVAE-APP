@@ -1,5 +1,5 @@
 // src/app/HomePageClient.tsx
-// Rendu uniquement quand le host n'est PAS le domaine apex (landing).
+// REFONTE ACCUEIL — 4 univers compacts, visibles sans scroll, icônes illustrées.
 'use client'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -12,35 +12,62 @@ import { OnboardingTour } from '@/components/OnboardingTour'
 import { getProverbeDuJour } from '@/lib/proverbes'
 import NotificationBell from '@/components/NotificationBell'
 import { detectStruggleMode, type StruggleState } from '@/lib/struggle/detect'
-import StreakFlame from '@/components/StreakFlame';
-import AdminTile from '@/components/AdminTile'
+import StreakFlame from '@/components/StreakFlame'
 import { logEvent } from '@/lib/events'
-import ReclaimMyselfTile from '@/components/ReclaimMyselfTile'
 
+const ADMIN_EMAILS = ['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com']
+const TESTER_EMAILS = ['nesserinesediri@gmail.com']
 
+type ModuleItem = { href: string; emoji: string; title: string; badge?: string; tester?: boolean }
+type Univers = {
+  key: string; title: string; subtitle: string; icon: string
+  tint: string; border: string; ink: string; modules: ModuleItem[]
+}
 
-const MODULES_GRID = [
-  { href: '/program',   emoji: '🎯', title: 'Reset 90j', tone: 'ic-programme' },
-  { href: '/planner',   emoji: '📅', title: 'Planner',       tone: 'ic-planner'   },
-  { href: '/tracker',   emoji: '📊', title: 'Tracker',       tone: 'ic-tracker'   },
-  { href: '/routines',  emoji: '☀️', title: 'Routines',      tone: 'ic-routines'  },
-  { href: '/agent',     emoji: '🤖', title: 'Agent IA',      tone: 'ic-agent'     },
-  { href: '/recipes',   emoji: '🍴', title: 'Repas',         tone: 'ic-recettes'  },
-  { href: '/family',    emoji: '💛', title: 'Famille',       tone: 'ic-famille'   },
-  { href: '/notes',     emoji: '📝', title: 'Notes',         tone: 'ic-notes'     },
-  { href: '/astuces',   emoji: '💡', title: 'Astuces',       tone: 'ic-astuces'   },
+const UNIVERS_LIST: Univers[] = [
+  {
+    key: 'quotidien', title: 'Mon quotidien', subtitle: 'Organise tes journées avec sérénité.',
+    icon: '/icons/icon-quotidien.png', tint: 'rgba(197,211,180,0.22)', border: 'rgba(167,189,144,0.40)', ink: '#5C7044',
+    modules: [
+      { href: '/planner', emoji: '📅', title: 'Planner' }, { href: '/routines', emoji: '☀️', title: 'Routines' },
+      { href: '/recipes', emoji: '🍴', title: 'Repas' }, { href: '/notes', emoji: '📝', title: 'Notes' },
+    ],
+  },
+  {
+    key: 'transformation', title: 'Ma transformation', subtitle: "Change ta vie un pas après l'autre.",
+    icon: '/icons/icon-transformation.png', tint: 'rgba(242,194,182,0.22)', border: 'rgba(223,160,143,0.40)', ink: '#B5654A',
+    modules: [
+      { href: '/program', emoji: '🎯', title: 'Reset 90j' },
+      { href: '/parcours-profonds/reclaim-myself', emoji: '🪞', title: 'Reclaim', badge: 'TEST', tester: true },
+      { href: '/defis', emoji: '⚡', title: 'Défis' },
+    ],
+  },
+  {
+    key: 'equilibre', title: 'Mon équilibre', subtitle: 'Observe, ajuste et prends soin de toi.',
+    icon: '/icons/icon-equilibre.png', tint: 'rgba(212,196,226,0.22)', border: 'rgba(185,162,212,0.40)', ink: '#7E63A8',
+    modules: [
+      { href: '/tracker', emoji: '📊', title: 'Tracker' }, { href: '/family', emoji: '💛', title: 'Famille' },
+      { href: '/community', emoji: '👥', title: 'Commu.' },
+    ],
+  },
+  {
+    key: 'accompagnement', title: 'Mon accompagnement', subtitle: "Tu n'avances jamais seule.",
+    icon: '/icons/icon-accompagnement.png', tint: 'rgba(245,216,155,0.22)', border: 'rgba(231,192,111,0.40)', ink: '#A8852E',
+    modules: [
+      { href: '/agent', emoji: '🤖', title: 'Nova', badge: 'IA' },
+      { href: '/astuces', emoji: '💡', title: 'Astuces' },
+      { href: '/blog', emoji: '📖', title: 'Blog' },
+    ],
+  },
 ]
 
-const PHASE_MESSAGES: Record<string, { label: string; message: string; phase: string }> = {
-  reprogrammation: { phase: 'Phase 1', label: 'Reprogrammation', message: 'Tu construis les fondations. Chaque petit geste compte.' },
-  action:          { phase: 'Phase 2', label: 'Action & Discipline', message: "Tu passes à l'action. La régularité est ta force." },
-  expansion:       { phase: 'Phase 3', label: 'Expansion', message: "Tu es en phase d'expansion. Continue à viser haut." },
-  start:           { phase: 'Reset 90j', label: 'Prête à commencer', message: "Démarre ton programme de 90 jours pour te transformer." },
+const PHASE_MESSAGES: Record<string, { label: string; phase: string }> = {
+  reprogrammation: { phase: 'Phase 1', label: 'Reprogrammation' },
+  action: { phase: 'Phase 2', label: 'Action' },
+  expansion: { phase: 'Phase 3', label: 'Expansion' },
+  start: { phase: 'Reset 90j', label: 'Prête à commencer' },
 }
 
-function fmtDate(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-}
 function getPhase(day: number) {
   if (day < 1) return 'start'
   if (day <= 30) return 'reprogrammation'
@@ -52,37 +79,25 @@ export default function HomePageClient() {
   const { user, loading } = useSupabaseAuth()
   const pseudo = usePseudo()
   const router = useRouter()
-
   const [onboardingChecked, setOnboardingChecked] = useState(false)
   const [showTour, setShowTour] = useState(false)
   const [currentDay, setCurrentDay] = useState(0)
   const [programProgress, setProgramProgress] = useState(0)
-  const [todayTasks, setTodayTasks] = useState<any[]>([])
-  const [streak, setStreak] = useState(0)
   const [proverbeDuJour, setProverbeDuJour] = useState('')
-  const [todayPlannerCount, setTodayPlannerCount] = useState(0)
-  const [activeChallengesCount, setActiveChallengesCount] = useState(0)
-  const [newCommunityPosts, setNewCommunityPosts] = useState<number | null>(null)
   const [novaPending, setNovaPending] = useState<{ thread_id: string } | null>(null)
-
   const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason: null })
   const [greeting, setGreeting] = useState('Bonjour')
   const [dateLabel, setDateLabel] = useState('')
 
-  // ─── ONBOARDING CHECK ───────────────────────────────────────────────────────
-  // IMPORTANT : on attend que `loading` soit terminé avant de décider quoi que ce soit.
-  // Sinon, sur mobile/PWA ou au retour de navigation, `user` est transitoirement null
-  // et provoque une redirection parasite.
+  const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
+  const isTester = !!user?.email && TESTER_EMAILS.includes(user.email.toLowerCase())
+
   useEffect(() => {
-    if (loading) return            // session pas encore résolue → on ne fait RIEN
-    if (!user) return              // vraiment pas connecté → l'accueil s'affiche en mode déconnecté
+    if (loading) return
+    if (!user) return
     if (onboardingChecked) return
     ;(async () => {
-      const { data } = await supabase
-        .from('ai_personality_profile')
-        .select('id')
-        .eq('user_id', user.id)
-        .single()
+      const { data } = await supabase.from('ai_personality_profile').select('id').eq('user_id', user.id).single()
       setOnboardingChecked(true)
       if (!data) router.push('/onboarding')
     })()
@@ -105,355 +120,175 @@ export default function HomePageClient() {
   const checkNovaPending = async () => {
     if (!user) return
     try {
-      const { data } = await supabase
-        .from('nova_pending_messages')
-        .select('thread_id')
-        .eq('user_id', user.id)
-        .eq('is_read', false)
-        .limit(1)
-      if (data && data.length > 0) {
-        setNovaPending({ thread_id: data[0].thread_id })
-      }
-    } catch (err) {
-      console.error('[HomePage] nova pending error:', err)
-    }
+      const { data } = await supabase.from('nova_pending_messages').select('thread_id')
+        .eq('user_id', user.id).eq('is_read', false).limit(1)
+      if (data && data.length > 0) setNovaPending({ thread_id: data[0].thread_id })
+    } catch {}
   }
 
   const loadData = async () => {
     if (!user) return
     try {
-      const [prog, todosRes] = await Promise.all([
-        supabase.from('program_progress').select('*').eq('user_id', user.id).maybeSingle(),
-        supabase.from('todo_list').select('id, status').eq('user_id', user.id),
-      ])
-
-      if (prog.data) {
-        const d = prog.data.current_day || 1
-        setCurrentDay(d)
-        setProgramProgress(Math.round((d / 90) * 100))
-        setStreak(prog.data.streak || 0)
-      } else {
-        setCurrentDay(0); setProgramProgress(0); setStreak(0)
-      }
-
-      const pendingTodos = (todosRes.data || []).filter((t: any) => t.status !== 'completed' && t.status !== 'done')
-      setTodayTasks(pendingTodos)
-    } catch (err) {
-      console.error('[HomePage] loadData error:', err)
-    }
-
-    loadCommunityCountFast()
-    loadTodayPlanner()
-    loadActiveChallenges()
+      const { data: prog } = await supabase.from('program_progress').select('current_day').eq('user_id', user.id).maybeSingle()
+      if (prog) { const d = prog.current_day || 1; setCurrentDay(d); setProgramProgress(Math.round((d / 90) * 100)) }
+    } catch {}
     detectStruggleMode(supabase, user.id).then(setStruggle).catch(() => {})
   }
 
-  const loadCommunityCountFast = async () => {
-    if (!user) return
-    try {
-      const cacheKey = 'novae-community-count'
-      const cacheTimeKey = 'novae-community-count-time'
-      const cached = sessionStorage.getItem(cacheKey)
-      const cachedTime = sessionStorage.getItem(cacheTimeKey)
-      const now = Date.now()
-      if (cached && cachedTime && (now - parseInt(cachedTime)) < 60000) {
-        setNewCommunityPosts(parseInt(cached)); return
-      }
-      const lastVisit = localStorage.getItem('novae-community-last-visit')
-      const since = lastVisit ? new Date(lastVisit).toISOString() : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      const { count, error } = await supabase
-        .from('community_posts').select('*', { count: 'exact', head: true })
-        .gte('created_at', since).neq('user_id', user.id)
-      if (error) { setNewCommunityPosts(0); return }
-      const value = count || 0
-      setNewCommunityPosts(value)
-      sessionStorage.setItem(cacheKey, String(value))
-      sessionStorage.setItem(cacheTimeKey, String(now))
-    } catch { setNewCommunityPosts(0) }
-  }
-
-  const loadTodayPlanner = async () => {
-    if (!user) return
-    try {
-      const today = fmtDate(new Date())
-      const { count } = await supabase
-        .from('planner_events').select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .gte('start_date', `${today}T00:00:00`)
-        .lt('start_date', `${today}T23:59:59`)
-      setTodayPlannerCount(count || 0)
-    } catch { setTodayPlannerCount(0) }
-  }
-
-  const loadActiveChallenges = async () => {
-    if (!user) return
-    try {
-      const { count } = await supabase
-        .from('challenge_participations').select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id).eq('completed', false)
-      setActiveChallengesCount(count || 0)
-    } catch { setActiveChallengesCount(0) }
-  }
-
-  const restartTour = () => {
-    localStorage.removeItem('novae-onboarding-done')
-    setShowTour(true)
-    window.dispatchEvent(new CustomEvent('novae-restart-tour'))
-  }
-
+  const visibleModules = (u: Univers) => u.modules.filter(m => !m.tester || isTester)
   const phaseInfo = PHASE_MESSAGES[getPhase(currentDay)]
 
   return (
     <>
       <OnboardingTour forceShow={showTour} onClose={() => setShowTour(false)} />
-
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: 'radial-gradient(ellipse at 20% 0%, #F8E6DB 0%, transparent 55%),radial-gradient(ellipse at 80% 100%, #EBD7E0 0%, transparent 60%),linear-gradient(180deg, #FBF4EC 0%, #F8F1E5 55%, #F3E9DF 100%)' }} />
-
-      <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", position: 'relative', zIndex: 2, paddingBottom: 24 }}>
+      <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', sans-serif", position: 'relative', zIndex: 2, overflow: 'hidden' }}>
 
         {/* HEADER */}
-        <div style={{ position: 'sticky', top: 0, zIndex: 30, background: 'linear-gradient(180deg, rgba(240,201,208,0.95) 0%, rgba(233,186,196,0.9) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(225,170,180,0.45)', boxShadow: '0 4px 18px rgba(160,110,120,0.12)', padding: '12px 20px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-            <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500, color: '#5B3821', letterSpacing: '1.2px' }}>Novaé</span>
-            <span style={{ fontSize: 8.5, color: '#A86B78', letterSpacing: '2.2px', textTransform: 'uppercase', marginTop: 3, fontWeight: 600 }}>by Omanaïa</span>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ flexShrink: 0, background: 'linear-gradient(180deg, rgba(240,201,208,0.97) 0%, rgba(233,186,196,0.92) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(225,170,180,0.45)', boxShadow: '0 4px 18px rgba(160,110,120,0.12)', padding: '10px 18px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <img src="/logo.png" alt="NOVAÉ by OMANAÏA" style={{ height: 30, objectFit: 'contain' }} />
+          <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+            <Link href="/agent?voice=1" aria-label="Parler à Nova" style={{ textDecoration: 'none' }}>
+              <div className="mic-cta" style={{ width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'linear-gradient(135deg, #c4956a 0%, #b07d5a 55%, #c98b86 100%)', boxShadow: '0 4px 14px rgba(176,125,90,0.45)', cursor: 'pointer' }}>🎙️</div>
+            </Link>
             <NotificationBell />
-            {/* On n'affiche "Se connecter" QUE si la session est résolue ET vide.
-                Pendant le chargement, on n'affiche rien pour éviter le flash. */}
             {!loading && (user ? <UserMenu /> : (
-              <Link href="/auth" style={{ padding: '7px 14px', borderRadius: 16, background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(123,57,71,0.22)', color: '#7A3F4A', textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>Se connecter</Link>
+              <Link href="/auth" style={{ padding: '6px 12px', borderRadius: 16, background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(123,57,71,0.22)', color: '#7A3F4A', textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>Se connecter</Link>
             ))}
           </div>
         </div>
 
-        {/* CONTENU */}
-        <main className="home-main">
+        {/* CONTENU SCROLLABLE */}
+        <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '12px 16px 8px' }}>
 
-          {/* Bonjour */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 10, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2.5px', margin: '0 0 5px', fontWeight: 600 }} suppressHydrationWarning>
-                  {dateLabel}
-                </p>
-                <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 400, color: '#3d2618', margin: 0, lineHeight: 1, letterSpacing: '0.5px' }} suppressHydrationWarning>
-                  {greeting}{pseudo && (<>, <span style={{ color: '#8b5a3c', fontStyle: 'italic' }}>{pseudo}</span></>)}{' '}👋
-                </h1>
-                <p style={{ marginTop: 9, fontFamily: "'Cormorant Garamond', serif", fontSize: 13.5, fontStyle: 'italic', color: '#6b5340', lineHeight: 1.4, borderLeft: '2px solid #c4956a', paddingLeft: 11 }}>
-                  « {proverbeDuJour} »
-                </p>
-              </div>
-              <Link href="/agent?voice=1" aria-label="Parler a Nova" title="Parler a Nova" style={{ textDecoration: 'none', flexShrink: 0, marginTop: 4 }}>
-                <div className="mic-cta" style={micButtonStyle}>🎙️</div>
-              </Link>
-              <Link href="/agent" style={{ textDecoration: 'none', flexShrink: 0, marginTop: 4 }}>
-                <div style={novaButtonStyle}><span style={{ fontSize: 13, lineHeight: 1 }}>✦</span><span>Nova</span></div>
-              </Link>
-            </div>
+          {/* BONJOUR */}
+          <div style={{ marginBottom: 10 }}>
+            <p style={{ fontSize: 9.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2px', margin: '0 0 3px', fontWeight: 600 }} suppressHydrationWarning>{dateLabel}</p>
+            <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 400, color: '#3d2618', margin: 0, lineHeight: 1.1 }} suppressHydrationWarning>
+              {greeting}{pseudo && (<>, <span style={{ color: '#8b5a3c', fontStyle: 'italic' }}>{pseudo}</span></>)}{' '}👋
+            </h1>
+            <p style={{ margin: '6px 0 0', fontFamily: "'Cormorant Garamond', serif", fontSize: 12.5, fontStyle: 'italic', color: '#6b5340', lineHeight: 1.35, borderLeft: '2px solid #c4956a', paddingLeft: 9 }}>« {proverbeDuJour} »</p>
           </div>
 
-          {/* ── BANNIÈRE NOVA PROACTIVE ── */}
+          {/* NOVA PENDING */}
           {novaPending && (
-            <Link
-              href={`/agent?nova_thread=${novaPending.thread_id}`}
-              style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}
-            >
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(212,196,226,0.55), rgba(138,111,176,0.18))',
-                backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(138,111,176,0.35)',
-                borderRadius: 16, padding: '12px 16px',
-                display: 'flex', alignItems: 'center', gap: 12
-              }}>
-                <div style={{
-                  width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-                  background: 'linear-gradient(135deg, #D4C4E2, #8A6FB0)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#fff', fontFamily: "'Cormorant Garamond', serif",
-                  fontStyle: 'italic', fontWeight: 700, fontSize: 20
-                }}>N</div>
+            <Link href={`/agent?nova_thread=${novaPending.thread_id}`} style={{ textDecoration: 'none', display: 'block', marginBottom: 10 }}>
+              <div style={{ background: 'linear-gradient(135deg, rgba(212,196,226,0.55), rgba(138,111,176,0.18))', border: '1px solid rgba(138,111,176,0.35)', borderRadius: 14, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 9 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #D4C4E2, #8A6FB0)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>N</div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 9.5, fontWeight: 700, color: '#5b4b7a', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.18em' }}>Nova t'a laissé un message</p>
-                  <p style={{ fontSize: 13.5, color: '#3d2618', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}>Appuie pour lire 💜</p>
+                  <p style={{ fontSize: 8.5, fontWeight: 700, color: '#5b4b7a', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Nova t'a laissé un message</p>
+                  <p style={{ fontSize: 12, color: '#3d2618', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}>Appuie pour lire 💜</p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e07a8a', boxShadow: '0 0 0 3px rgba(224,122,138,0.25)' }} className="nova-pulse" />
-                  <span style={{ color: '#8A6FB0', fontSize: 16 }}>→</span>
-                </div>
+                <span style={{ color: '#8A6FB0' }}>→</span>
               </div>
             </Link>
           )}
 
-          <div className="home-grid">
-
-            {/* COLONNE GAUCHE */}
-            <div>
-              <div style={{ marginBottom: 12 }}>
-                <StreakFlame />
+          {/* STRUGGLE */}
+          {struggle.active && (
+            <Link href="/agent" style={{ textDecoration: 'none', display: 'block', marginBottom: 10 }}>
+              <div style={{ background: 'linear-gradient(135deg, rgba(196,149,106,0.20), rgba(123,111,160,0.18))', border: '1px solid rgba(196,149,106,0.35)', borderRadius: 14, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 9 }}>
+                <span style={{ fontSize: 18 }}>🌙</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 8.5, fontWeight: 700, color: '#8b5a3c', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Une période plus calme ?</p>
+                  <p style={{ fontSize: 12, color: '#3d2618', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}>Je suis là si tu veux juste échanger.</p>
+                </div>
+                <span style={{ color: '#8b5a3c' }}>→</span>
               </div>
+            </Link>
+          )}
 
-              {struggle.active && (
-                <Link href="/agent" style={{ textDecoration: 'none', display: 'block', marginBottom: 12 }}>
-                  <div style={{ background: 'linear-gradient(135deg, rgba(196,149,106,0.20), rgba(123,111,160,0.18))', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1px solid rgba(196,149,106,0.35)', borderRadius: 16, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 22 }}>🌙</span>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 9.5, fontWeight: 700, color: '#8b5a3c', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.18em' }}>Une période plus calme ?</p>
-                      <p style={{ fontSize: 13.5, color: '#3d2618', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}>Je suis là si tu veux juste échanger.</p>
-                    </div>
-                    <span style={{ color: '#8b5a3c', fontSize: 16 }}>→</span>
+          {/* DUO FLAMME + RESET */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+            <div style={{ background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.55)', borderRadius: 14, padding: '10px 12px' }}>
+              <StreakFlame />
+            </div>
+            <Link href="/program" style={{ textDecoration: 'none' }}>
+              <div style={{ height: '100%', background: 'rgba(243,205,182,0.35)', border: '1px solid rgba(230,180,147,0.45)', borderRadius: 14, padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 66 }}>
+                <div>
+                  <div style={{ fontSize: 7.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 600 }}>{phaseInfo.phase}</div>
+                  <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: '#3d2618', lineHeight: 1.1, marginTop: 1 }}>{phaseInfo.label}</div>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 2, marginBottom: 4 }}>
+                    <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 500, color: '#3d2618', lineHeight: 1 }}>{currentDay > 0 ? currentDay : '—'}</span>
+                    <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 11, color: '#a08770' }}>/ 90</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 10.5, color: '#8b5a3c', fontWeight: 600 }}>{programProgress}%</span>
                   </div>
-                </Link>
-              )}
-
-              {/* Carte Reset 90j */}
-              <Link href="/program" style={{ textDecoration: 'none', display: 'block', marginBottom: 12 }}>
-                <div style={{ padding: '16px 18px', background: 'linear-gradient(135deg, rgba(255,255,255,0.55), rgba(255,255,255,0.25))', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', border: '1px solid rgba(255,255,255,0.5)', borderRadius: 18, boxShadow: '0 8px 24px rgba(139,90,60,0.1)', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: -40, right: -40, width: 110, height: 110, background: 'radial-gradient(circle, rgba(212,165,116,0.4), transparent)', borderRadius: '50%', pointerEvents: 'none' }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, position: 'relative' }}>
-                    <div>
-                      <div style={{ fontSize: 9, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2.2px', fontWeight: 600 }}>{phaseInfo.phase}</div>
-                      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 17, color: '#3d2618', marginTop: 2, fontWeight: 500 }}>{phaseInfo.label}</div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
-                      {streak > 0 && (
-                        <div style={{ background: 'rgba(255,165,0,0.14)', border: '1px solid rgba(255,165,0,0.35)', borderRadius: 10, padding: '3px 8px' }}>
-                          <span style={{ fontSize: 11 }}>🔥</span><span style={{ fontSize: 11, color: '#b8732d', fontWeight: 700, marginLeft: 4 }}>{streak}j</span>
-                        </div>
-                      )}
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 23, fontWeight: 500, color: '#8b5a3c', lineHeight: 1 }}>{programProgress}%</div>
-                        <div style={{ fontSize: 8.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.4px' }}>Accompli</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 9 }}>
-                    <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 42, fontWeight: 500, color: '#3d2618', lineHeight: 1 }}>{currentDay > 0 ? currentDay : '—'}</span>
-                    <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, color: '#a08770' }}>/ 90</span>
-                  </div>
-                  <div style={{ height: 4, background: 'rgba(139,90,60,0.15)', borderRadius: 999, overflow: 'hidden', marginBottom: 9 }}>
-                    <div style={{ height: '100%', width: `${programProgress}%`, background: 'linear-gradient(90deg, #d4a574, #c4956a)', borderRadius: 999, transition: 'width 1s ease' }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                    <div style={{ fontSize: 12, color: '#6b5340', lineHeight: 1.45, flex: 1 }}>{phaseInfo.message}</div>
-                    <span style={{ fontSize: 11, color: '#8b5a3c', fontWeight: 700, whiteSpace: 'nowrap' }}>Voir →</span>
+                  <div style={{ height: 3, background: 'rgba(139,90,60,0.15)', borderRadius: 999, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${programProgress}%`, background: 'linear-gradient(90deg, #d4a574, #c4956a)', borderRadius: 999 }} />
                   </div>
                 </div>
-              </Link>
-
-              {/* 4 raccourcis */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                <Link href="/planner" style={{ textDecoration: 'none' }}>
-                  <div style={quickTileStyle}><div style={{ fontSize: 18, marginBottom: 1 }}>📋</div><div style={quickNumStyle}>{todayTasks.length}</div><div style={quickLabelStyle}>ToDo</div></div>
-                </Link>
-                <Link href="/planner" style={{ textDecoration: 'none' }}>
-                  <div style={quickTileStyle}><div style={{ fontSize: 18, marginBottom: 1 }}>📅</div><div style={quickNumStyle}>{todayPlannerCount}</div><div style={quickLabelStyle}>Planning</div></div>
-                </Link>
-                <Link href="/community" onClick={() => localStorage.setItem('novae-community-last-visit', new Date().toISOString())} style={{ textDecoration: 'none' }}>
-                  <div style={{ ...quickTileStyle, position: 'relative' }}>
-                    {newCommunityPosts !== null && newCommunityPosts > 0 && (
-                      <span style={{ position: 'absolute', top: 5, right: 5, background: 'linear-gradient(135deg, #c44757, #8b2d3d)', color: 'white', fontSize: 9, fontWeight: 700, minWidth: 17, height: 17, padding: '0 5px', borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #f3dcc6' }}>{newCommunityPosts > 9 ? '9+' : newCommunityPosts}</span>
-                    )}
-                    <div style={{ fontSize: 18, marginBottom: 1 }}>👥</div><div style={quickNumStyle}>{newCommunityPosts === null ? '…' : newCommunityPosts > 0 ? newCommunityPosts : '—'}</div><div style={quickLabelStyle}>Communauté</div>
-                  </div>
-                </Link>
-                <Link href="/defis" style={{ textDecoration: 'none' }}>
-                  <div style={quickTileStyle}><div style={{ fontSize: 18, marginBottom: 1 }}>⚡</div><div style={quickNumStyle}>{activeChallengesCount}</div><div style={quickLabelStyle}>Défis</div></div>
-                </Link>
               </div>
-            </div>
-
-            {/* COLONNE DROITE */}
-            <div>
-              <div style={{ padding: '2px 4px 8px', fontSize: 9, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2.5px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ height: 1, flex: 1, background: 'linear-gradient(90deg, transparent, rgba(139,90,60,0.3), transparent)' }} />
-                Tous les modules
-                <span style={{ height: 1, flex: 1, background: 'linear-gradient(90deg, transparent, rgba(139,90,60,0.3), transparent)' }} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7, marginBottom: 10 }}>
-                 {MODULES_GRID.map((mod) => {
-                  const t = modTones[mod.tone]
-                  return (
-                    <Link key={mod.href} href={mod.href} style={{ textDecoration: 'none' }}>
-                      <div style={{ background: t.tile, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', border: `1px solid ${t.border}`, borderRadius: 13, padding: '9px 10px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 3px 10px rgba(139,90,60,0.06)' }}>
-                        <div style={{ ...modIconBaseStyle, background: t.icon }}>{mod.emoji}</div>
-                        <div style={{ fontSize: 12, color: '#3d2618', fontWeight: 600, lineHeight: 1.1 }}>{mod.title}</div>
-                      </div>
-                    </Link>
-                  )
-                })}
-                <AdminTile />
-                <ReclaimMyselfTile />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center', paddingRight: 4 }}>
-                <button onClick={restartTour} style={{ padding: '6px 13px', background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', border: '1px solid rgba(212,165,116,0.35)', borderRadius: 999, fontSize: 11, color: '#5c4530', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>🎓 Tuto</button>
-                <Link href="/settings" style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(212,165,116,0.35)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, textDecoration: 'none' }}>⚙️</Link>
-              </div>
-            </div>
-
+            </Link>
           </div>
-        </main>
 
-        <style jsx>{`
-          .home-main { width: 100%; max-width: 600px; margin: 0 auto; padding: 16px 18px 24px; }
-          .home-grid { display: grid; grid-template-columns: 1fr; gap: 0; }
-          @media (min-width: 900px) {
-            .home-main { max-width: 1060px; }
-            .home-grid { grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
-          }
-          @keyframes micPulse {
-            0%, 100% { box-shadow: 0 6px 18px rgba(176,125,90,0.45), 0 0 0 0 rgba(196,149,106,0.55); }
-            50% { box-shadow: 0 6px 18px rgba(176,125,90,0.45), 0 0 0 9px rgba(196,149,106,0); }
-          }
-          .mic-cta { animation: micPulse 2.2s ease-in-out infinite; }
-          @keyframes novaPulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(224,122,138,0.55); }
-            50% { box-shadow: 0 0 0 5px rgba(224,122,138,0); }
-          }
-          .nova-pulse { animation: novaPulse 1.8s ease-in-out infinite; }
-        `}</style>
+          {/* LABEL UNIVERS */}
+          <div style={{ fontSize: 9, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600, marginBottom: 7, paddingLeft: 2 }}>Mes univers</div>
 
+          {/* 4 UNIVERS */}
+          <div className="univers-stack">
+            {UNIVERS_LIST.map((u) => {
+              const mods = visibleModules(u)
+              return (
+                <div key={u.key} className="univers-card" style={{ background: u.tint, border: `1px solid ${u.border}`, borderRadius: 14, position: 'relative', overflow: 'hidden', padding: '10px 12px 9px' }}>
+                  {/* Illustration déco flottante droite */}
+                  <img src={u.icon} alt="" aria-hidden="true" style={{ position: 'absolute', right: -10, top: '50%', transform: 'translateY(-50%)', width: 68, height: 68, objectFit: 'contain', opacity: 0.45, pointerEvents: 'none' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, position: 'relative', zIndex: 1 }}>
+                    {/* Icône */}
+                    <div style={{ width: 40, height: 40, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.5)' }}>
+                      <img src={u.icon} alt={u.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    {/* Titre */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 14.5, fontWeight: 600, color: u.ink, lineHeight: 1.1 }}>{u.title}</div>
+                      <div style={{ fontSize: 9.5, color: '#6b5340', lineHeight: 1.25, marginTop: 1 }}>{u.subtitle}</div>
+                    </div>
+                  </div>
+                  {/* Modules */}
+                  <div style={{ display: 'flex', gap: 5, marginTop: 8, position: 'relative', zIndex: 1 }}>
+                    {mods.map((m) => (
+                      <Link key={m.href} href={m.href} style={{ textDecoration: 'none', flex: 1 }}>
+                        <div style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.8)', borderRadius: 9, padding: '6px 3px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, position: 'relative' }}>
+                          {m.badge && <span style={{ position: 'absolute', top: 2, right: 2, fontSize: 5.5, fontWeight: 700, color: u.ink, background: 'rgba(255,255,255,0.9)', borderRadius: 999, padding: '1px 3px' }}>{m.badge}</span>}
+                          <span style={{ fontSize: 16, lineHeight: 1 }}>{m.emoji}</span>
+                          <span style={{ fontSize: 9, color: '#3d2618', fontWeight: 600, textAlign: 'center', lineHeight: 1 }}>{m.title}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* ADMIN */}
+          {isAdmin && (
+            <Link href="/admin" style={{ textDecoration: 'none', display: 'block', marginTop: 8 }}>
+              <div style={{ background: 'linear-gradient(135deg, rgba(61,38,24,0.85), rgba(107,83,64,0.75))', border: '1px solid rgba(196,149,106,0.4)', borderRadius: 12, padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🛡️</span>
+                <div style={{ flex: 1, fontSize: 12, color: '#F3DCC6', fontWeight: 600 }}>Admin · Pilotage</div>
+                <span style={{ color: '#F3DCC6' }}>→</span>
+              </div>
+            </Link>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 7, alignItems: 'center', marginTop: 9, paddingBottom: 4 }}>
+            <button onClick={() => { localStorage.removeItem('novae-onboarding-done'); setShowTour(true); window.dispatchEvent(new CustomEvent('novae-restart-tour')) }} style={{ padding: '5px 10px', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(212,165,116,0.3)', borderRadius: 999, fontSize: 10, color: '#5c4530', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>🎓 Tuto</button>
+            <Link href="/settings" style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(212,165,116,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, textDecoration: 'none' }}>⚙️</Link>
+          </div>
+        </div>
       </div>
+
+      <style jsx>{`
+        .univers-stack { display: flex; flex-direction: column; gap: 7px; }
+        @media (min-width: 640px) { .univers-stack { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } }
+        @keyframes micPulse {
+          0%, 100% { box-shadow: 0 4px 14px rgba(176,125,90,0.45), 0 0 0 0 rgba(196,149,106,0.55); }
+          50% { box-shadow: 0 4px 14px rgba(176,125,90,0.45), 0 0 0 7px rgba(196,149,106,0); }
+        }
+        .mic-cta { animation: micPulse 2.2s ease-in-out infinite; }
+      `}</style>
     </>
   )
-}
-
-const micButtonStyle: React.CSSProperties = {
-  width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  fontSize: 19, background: 'linear-gradient(135deg, #c4956a 0%, #b07d5a 55%, #c98b86 100%)',
-  boxShadow: '0 6px 18px rgba(176,125,90,0.45), 0 0 0 3px rgba(196,149,106,0.12)', cursor: 'pointer',
-}
-const novaButtonStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999,
-  background: 'linear-gradient(135deg, #c4956a 0%, #b07d5a 55%, #c98b86 100%)', color: '#fff',
-  fontFamily: "'Cormorant Garamond', serif", fontSize: 15, fontWeight: 600, letterSpacing: '0.4px',
-  boxShadow: '0 6px 18px rgba(176,125,90,0.45), 0 0 0 3px rgba(196,149,106,0.12)', whiteSpace: 'nowrap',
-}
-const quickTileStyle: React.CSSProperties = {
-  background: 'linear-gradient(135deg, rgba(255,255,255,0.55), rgba(255,255,255,0.25))',
-  backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.5)',
-  borderRadius: 14, padding: '9px 4px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center',
-  gap: 2, boxShadow: '0 3px 10px rgba(139,90,60,0.06)', position: 'relative',
-}
-const quickNumStyle: React.CSSProperties = {
-  fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontWeight: 600, color: '#3d2618', lineHeight: 1,
-}
-const quickLabelStyle: React.CSSProperties = {
-  fontSize: 8.5, color: '#6b5340', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, textAlign: 'center', lineHeight: 1.1,
-}
-const modIconBaseStyle: React.CSSProperties = {
-  width: 28, height: 28, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0,
-}
-const modTones: Record<string, { tile: string; icon: string; border: string }> = {
-  'ic-programme': { tile: 'rgba(243,205,182,0.42)', icon: 'linear-gradient(135deg,#F3CDB6,#E6B493)', border: 'rgba(230,180,147,0.6)' },
-  'ic-planner':   { tile: 'rgba(194,215,232,0.42)', icon: 'linear-gradient(135deg,#C2D7E8,#A2C1DA)', border: 'rgba(162,193,218,0.6)' },
-  'ic-tracker':   { tile: 'rgba(197,211,180,0.42)', icon: 'linear-gradient(135deg,#C5D3B4,#A7BD90)', border: 'rgba(167,189,144,0.6)' },
-  'ic-routines':  { tile: 'rgba(245,216,155,0.42)', icon: 'linear-gradient(135deg,#F5D89B,#E7C06F)', border: 'rgba(231,192,111,0.6)' },
-  'ic-agent':     { tile: 'rgba(212,196,226,0.42)', icon: 'linear-gradient(135deg,#D4C4E2,#B9A2D4)', border: 'rgba(185,162,212,0.6)' },
-  'ic-recettes':  { tile: 'rgba(242,194,182,0.42)', icon: 'linear-gradient(135deg,#F2C2B6,#DFA08F)', border: 'rgba(223,160,143,0.6)' },
-  'ic-famille':   { tile: 'rgba(185,215,203,0.42)', icon: 'linear-gradient(135deg,#B9D7CB,#94BFAC)', border: 'rgba(148,191,172,0.6)' },
-  'ic-notes':     { tile: 'rgba(233,216,192,0.5)',  icon: 'linear-gradient(135deg,#E9D8C0,#D2B996)', border: 'rgba(210,185,150,0.65)' },
-  'ic-astuces':   { tile: 'rgba(244,226,162,0.5)',  icon: 'linear-gradient(135deg,#F4E2A2,#E4CD72)', border: 'rgba(228,205,114,0.65)' },
 }
