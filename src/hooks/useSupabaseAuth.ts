@@ -11,26 +11,43 @@ export function useSupabaseAuth() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Timeout de sécurité : 4 secondes max sur mobile
+    let resolved = false
+
+    // Timeout de sécurité : 8 secondes sur mobile PWA (était 4s, trop court)
     const timeout = setTimeout(() => {
-      setLoading(false)
-    }, 4000)
+      if (!resolved) {
+        resolved = true
+        setLoading(false)
+      }
+    }, 8000)
 
     const getSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        // Premier essai
+        let { data: { session } } = await supabase.auth.getSession()
+
+        // Sur mobile PWA, le cookie peut ne pas être lu au premier appel.
+        // On retente une fois après 800ms si la session est vide.
+        if (!session) {
+          await new Promise(r => setTimeout(r, 800))
+          const retry = await supabase.auth.getSession()
+          session = retry.data.session
+        }
+
         setSession(session)
         setUser(session?.user ?? null)
 
-        // Non-bloquant : on n'attend PAS initializeUserData
         if (session?.user) {
           initializeUserData(session.user).catch(console.error)
         }
       } catch (err) {
         console.error('Erreur getSession:', err)
       } finally {
-        clearTimeout(timeout)
-        setLoading(false)
+        if (!resolved) {
+          resolved = true
+          clearTimeout(timeout)
+          setLoading(false)
+        }
       }
     }
 
@@ -42,13 +59,18 @@ export function useSupabaseAuth() {
       setSession(session)
       setUser(session?.user ?? null)
 
-      // Non-bloquant
       if (event === 'SIGNED_IN' && session?.user) {
         initializeUserData(session.user).catch(console.error)
       }
 
-      clearTimeout(timeout)
-      setLoading(false)
+      if (!resolved) {
+        resolved = true
+        clearTimeout(timeout)
+        setLoading(false)
+      } else {
+        // Mise à jour silencieuse après résolution initiale
+        setLoading(false)
+      }
     })
 
     return () => {

@@ -1,5 +1,4 @@
 // src/app/HomePageClient.tsx
-// Contenu de l'ancienne page.tsx, inchange, juste deplace ici.
 // Rendu uniquement quand le host n'est PAS le domaine apex (landing).
 'use client'
 import { useRouter } from 'next/navigation'
@@ -50,7 +49,7 @@ function getPhase(day: number) {
 }
 
 export default function HomePageClient() {
-  const { user } = useSupabaseAuth()
+  const { user, loading } = useSupabaseAuth()
   const pseudo = usePseudo()
   const router = useRouter()
 
@@ -67,12 +66,17 @@ export default function HomePageClient() {
   const [novaPending, setNovaPending] = useState<{ thread_id: string } | null>(null)
 
   const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason: null })
-  // APRÈS
-const [greeting, setGreeting] = useState('Bonjour')
-const [dateLabel, setDateLabel] = useState('')
+  const [greeting, setGreeting] = useState('Bonjour')
+  const [dateLabel, setDateLabel] = useState('')
 
+  // ─── ONBOARDING CHECK ───────────────────────────────────────────────────────
+  // IMPORTANT : on attend que `loading` soit terminé avant de décider quoi que ce soit.
+  // Sinon, sur mobile/PWA ou au retour de navigation, `user` est transitoirement null
+  // et provoque une redirection parasite.
   useEffect(() => {
-    if (!user || onboardingChecked) return
+    if (loading) return            // session pas encore résolue → on ne fait RIEN
+    if (!user) return              // vraiment pas connecté → l'accueil s'affiche en mode déconnecté
+    if (onboardingChecked) return
     ;(async () => {
       const { data } = await supabase
         .from('ai_personality_profile')
@@ -82,26 +86,21 @@ const [dateLabel, setDateLabel] = useState('')
       setOnboardingChecked(true)
       if (!data) router.push('/onboarding')
     })()
-  }, [user, onboardingChecked, router])
+  }, [user, loading, onboardingChecked, router])
 
   useEffect(() => {
     setProverbeDuJour(getProverbeDuJour())
     const h = new Date().getHours()
-setGreeting(h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Bonne après-midi' : 'Bonsoir')
-setDateLabel(new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))
+    setGreeting(h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Bonne après-midi' : 'Bonsoir')
+    setDateLabel(new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))
   }, [])
 
   useEffect(() => {
-    if (user) {
-      loadData()
-      checkNovaPending()
-    }
-  }, [user])
-
-  useEffect(() => {
-  if (!user) return
-  logEvent(supabase, user.id, 'module_programme')
-}, [user])
+    if (loading || !user) return
+    loadData()
+    checkNovaPending()
+    logEvent(supabase, user.id, 'module_programme')
+  }, [user, loading])
 
   const checkNovaPending = async () => {
     if (!user) return
@@ -220,9 +219,11 @@ setDateLabel(new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'num
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <NotificationBell />
-            {user ? <UserMenu /> : (
+            {/* On n'affiche "Se connecter" QUE si la session est résolue ET vide.
+                Pendant le chargement, on n'affiche rien pour éviter le flash. */}
+            {!loading && (user ? <UserMenu /> : (
               <Link href="/auth" style={{ padding: '7px 14px', borderRadius: 16, background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(123,57,71,0.22)', color: '#7A3F4A', textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>Se connecter</Link>
-            )}
+            ))}
           </div>
         </div>
 
@@ -233,10 +234,10 @@ setDateLabel(new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'num
           <div style={{ marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 10, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2.5px', margin: '0 0 5px', fontWeight: 600 }}>
-{dateLabel}
+                <p style={{ fontSize: 10, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2.5px', margin: '0 0 5px', fontWeight: 600 }} suppressHydrationWarning>
+                  {dateLabel}
                 </p>
-                <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 400, color: '#3d2618', margin: 0, lineHeight: 1, letterSpacing: '0.5px' }}>
+                <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 400, color: '#3d2618', margin: 0, lineHeight: 1, letterSpacing: '0.5px' }} suppressHydrationWarning>
                   {greeting}{pseudo && (<>, <span style={{ color: '#8b5a3c', fontStyle: 'italic' }}>{pseudo}</span></>)}{' '}👋
                 </h1>
                 <p style={{ marginTop: 9, fontFamily: "'Cormorant Garamond', serif", fontSize: 13.5, fontStyle: 'italic', color: '#6b5340', lineHeight: 1.4, borderLeft: '2px solid #c4956a', paddingLeft: 11 }}>
