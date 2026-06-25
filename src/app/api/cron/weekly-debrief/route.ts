@@ -1,19 +1,12 @@
 // app/api/cron/weekly-debrief/route.ts
 //
-// MISE A JOUR : injection du contexte Parcours Profonds (Reclaim Myself)
-// dans la generation du debrief hebdomadaire, en plus des donnees du
-// programme 90j existantes (mission_responses, user_progress, habits...).
+// CORRECTION : la requête de progression lisait la table `user_progress`
+// qui n'est quasiment pas utilisée dans l'app. Toute l'app utilise
+// `program_progress` (champs : current_day, streak, phase). Le débrief
+// était donc généré sans aucune donnée de progression → contenu vide/générique.
+// On lit désormais `program_progress`.
 //
-// MISE A JOUR 2 : passage de @supabase/auth-helpers-nextjs (deprecie,
-// createRouteHandlerClient n'existe plus dans la version installee) vers
-// @supabase/ssr, qui est le package actuellement installe et a jour dans
-// le projet (verifie : @supabase/ssr@0.10.2).
-//
-// Ce fichier est ecrit comme une route complete et autonome. Si ta route
-// actuelle de debrief hebdomadaire a deja une logique differente (autre
-// recuperation de donnees, autre format de sortie), garde ta logique metier
-// et adapte uniquement la creation du client supabase au pattern ci-dessous,
-// puis integre le bloc marque "AJOUT PARCOURS PROFONDS" au bon endroit.
+// CORRECTION 2 : modèle Anthropic mis à jour vers claude-sonnet-4-6.
 
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
@@ -57,7 +50,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    // --- Donnees existantes du programme 90j, a adapter a ta requete reelle ---
+    // --- Donnees de la semaine sur le programme 90j ---
     const { data: weekMissions } = await supabase
       .from('mission_responses')
       .select('*')
@@ -65,9 +58,10 @@ export async function POST(request: Request) {
       .order('day_number', { ascending: false })
       .limit(7)
 
+    // CORRIGÉ : program_progress (et non user_progress)
     const { data: progress } = await supabase
-      .from('user_progress')
-      .select('*')
+      .from('program_progress')
+      .select('current_day, streak, phase')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -77,7 +71,7 @@ export async function POST(request: Request) {
     // --- AJOUT PARCOURS PROFONDS : fin ---
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: `Tu es NOVA, et tu rédiges le débrief hebdomadaire d'une utilisatrice de NOVAÉ.
 Ce débrief doit être chaleureux, honnête, jamais culpabilisant, et toujours orienté vers ce qui avance.
@@ -99,7 +93,6 @@ Tu rédiges en français, à la deuxième personne, avec un ton intime et direct
 
     const debriefText = response.content[0].type === 'text' ? response.content[0].text : ''
 
-    // Sauvegarde du debrief, a adapter au nom de ta table existante si differente
     await supabase.from('weekly_debriefs').insert({
       user_id: user.id,
       content: debriefText,

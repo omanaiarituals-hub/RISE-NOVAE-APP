@@ -756,7 +756,7 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
         setAppContext(prev => prev ? { ...prev, routines: prev.routines.map(r => r.id === action.data.id ? { ...r, completed: true } : r) } : prev)
         addSystemMessage('Routine marquee comme completee !')
       } else if (action.type === 'add_shopping') {
-        const { data } = await supabase.from('shopping_lists').insert({
+        const { data } = await supabase.from('shopping_list').insert({
           user_id: user.id, checked: false, in_stock: false, to_buy: true,
           ...action.data, created_at: new Date().toISOString(), updated_at: new Date().toISOString()
         }).select().single()
