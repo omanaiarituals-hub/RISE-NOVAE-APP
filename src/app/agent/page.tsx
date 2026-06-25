@@ -742,14 +742,15 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
   const executeAction = async (action: Action) => {
     if (!user) return
     try {
-      if (action.type === 'add_task') {
-        const { data } = await supabase.from('tasks').insert({
-          user_id: user.id, status: 'pending', duration_hours: 1, color: LAV_SOFT,
-          ...action.data, created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+    if (action.type === 'add_task') {
+        const { data } = await supabase.from('todo_list').insert({
+          user_id: user.id, status: 'pending', priority: 'medium',
+          title: action.data.title, due_date: action.data.date ?? null,
+          created_at: new Date().toISOString(), updated_at: new Date().toISOString()
         }).select().single()
         if (data) {
           setAppContext(prev => prev ? { ...prev, tasks: [...prev.tasks, data] } : prev)
-          addSystemMessage('Tache "' + action.data.title + '" ajoutee au planner !')
+          addSystemMessage('Tache "' + action.data.title + '" ajoutee a ta to-do !')
         }
       } else if (action.type === 'complete_routine') {
         await supabase.from('routines').update({ completed: true, last_completed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', action.data.id).eq('user_id', user.id)

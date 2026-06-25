@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'RISE NOVAÉ',
+    title: 'NOVAÉ',
   },
   icons: {
     icon: '/novae-icon.svg',
