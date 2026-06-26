@@ -13,8 +13,6 @@ const REVIEW_STORAGE_KEY = 'novae_admin_review_v1'
 
 const C = {
   cream: '#FBF4EC',
-  rose: 'rgba(240,201,208,0.97)',
-  roseBorder: 'rgba(225,170,180,0.45)',
   brown: '#3d2618',
   brownLight: '#6b5340',
   brownMid: '#8b6f55',
@@ -123,21 +121,20 @@ type Tab = 'stats' | 'challenges' | 'posts' | 'landing' | 'audience'
 // ─── Roadmap status — mise à jour 26/06/2026 ───
 const ROADMAP_VALIDATED: Record<string, string[]> = {
   'Modules app': [
-    'Dashboard 9 tuiles → refonte 4 univers thématiques',
+    'Dashboard → refonte 4 univers thématiques',
     'Programme 90j (3 phases) — Reset 90j',
-    'Planner + To-do (Nova écrit dans todo_list visible Planner)',
+    'Planner + To-do (Nova écrit dans todo_list)',
     'Habit Tracker',
-    'Défis + Badges',
+    'Défis + Badges (10 badges)',
     'Recettes & Courses (bug shopping_list corrigé)',
     'Famille & Proches',
     'Agent IA NOVAÉ (Claude API + bilan hebdo cron)',
     'Paramètres',
     'Blog bien-être (page créée)',
-    'Quiz charge mentale + diagnostic IA',
     'Onboarding 10Q (UI flow complet)',
     'Reclaim Myself — Parcours Profond (4 actes)',
     'Objectif du jour sur accueil (carte interactive)',
-    'Communauté carte accueil avec compteur nouveaux posts',
+    'Communauté carte accueil avec compteur posts',
   ],
   'Infra & lancement': [
     'Domaine novae-by-omanaia.com (landing)',
@@ -145,29 +142,28 @@ const ROADMAP_VALIDATED: Record<string, string[]> = {
     'Brevo SMTP configuré',
     'Email J0 bienvenue automatique (template 6)',
     'Late Welcome batch 10/10 (template 16)',
-    'Cron Vercel — 5 crons configurés vercel.json',
-    'Cron débrief hebdo pour toutes les utilisatrices (service_role)',
-    'Push notifications réactivées + RLS user_events',
-    'Middleware — bypass crons (résolution 307)',
-    'PWA manifest start_url absolu + icônes 192/512',
-    'SEO robots.ts + sitemap + Open Graph',
+    '5 crons Vercel configurés (vercel.json)',
+    'Cron débrief hebdo pour toutes les utilisatrices',
+    'Push notifications + RLS user_events',
+    'Middleware bypass crons (résolution 307)',
+    'PWA manifest + icônes + SEO',
+    'Tracking landing → URL absolue corrigée',
   ],
   'Sprint Streak + Badges': [
     'Tables user_streaks / user_badges / user_events',
-    'Flamme animée compacte + bouton « Je suis là »',
+    'Flamme animée + bouton « Je suis là »',
     'Jour de répit 1/sem',
     '10 badges + modale + partage communauté',
     'Page /profil/badges',
-    'Doublon flamme carte Programme 90j supprimé',
+    'Doublon flamme supprimé',
   ],
   'Audit & corrections (26/06/2026)': [
     'Modal notifications — createPortal zIndex 99999',
     'Tâches Nova visibles dans Planner (todo_list)',
-    'Titre PWA RISE NOVAÉ → NOVAÉ',
+    'Titre PWA corrigé → NOVAÉ',
     'Onglet Programmes statique supprimé du profil',
-    'Cron morning/evening débloqués (bypass middleware)',
-    'Tracking landing — URL absolue app.novae-by-omanaia.com',
-    'Connexion mobile — retry session + timeout 8s',
+    'Connexion mobile stabilisée (retry session)',
+    '12 utilisatrices dans admin (lecture users table)',
   ],
   'Stratégie contenu': [
     '90 épisodes Chroniques de NOVAÉ scriptés',
@@ -196,16 +192,11 @@ const ROADMAP_PENDING: Record<string, string[]> = {
     'A/B test onboarding 5Q vs 10Q',
     'Pinterest 3 pins/sem',
   ],
-  'Qualité code': [
-    '217 console.log en production → supprimer',
-    'Dashboard 6 requêtes en cascade → regrouper',
-    'Page Admin 2218 lignes → découper',
-    'Unifier todo_list / tasks (tâches éparses)',
-  ],
-  'Bugs / backlog': [
-    'Badge communauté compteur réponses ne se met pas à jour',
-    'Indicateur non-lus communauté manquant',
-    'Icônes univers — fond blanc (remove.bg ou mixBlendMode)',
+  'Qualité & backlog': [
+    '217 console.log en production à supprimer',
+    'Dashboard 6 requêtes en cascade à regrouper',
+    'Badge communauté compteur réponses',
+    'Icônes univers fond blanc (remove.bg)',
     'Tester cron streak-reminder 18h UTC',
   ],
 }
@@ -219,7 +210,6 @@ export default function AdminPage() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   const [selectedKpi, setSelectedKpi] = useState<KpiKey>('all')
-  const [periodDays, setPeriodDays] = useState(7)
 
   // Streaks (table user_streaks — sprint 10/05)
   const [avgStreak, setAvgStreak] = useState(0)
@@ -507,34 +497,29 @@ const loadAuthUserCount = async () => {
 }
 
   const loadUsers = async () => {
-    const cutoff = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString()
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-    // On lit depuis `users` (toutes les inscrites) + ai_personality_profile (pour le pseudo)
-    const [usersRes, profilesRes, progressRes, missionsRes, convRes, postsRes] = await Promise.all([
-      supabase.from('users').select('id, email, created_at'),
-      supabase.from('ai_personality_profile').select('user_id, pseudo, updated_at'),
+    const [profilesRes, progressRes, missionsRes, convRes, postsRes] = await Promise.all([
+      supabase.from('ai_personality_profile').select('user_id, pseudo, created_at, updated_at'),
       supabase.from('program_progress').select('user_id, current_day, started_at'),
-      supabase.from('mission_responses').select('user_id, completed_at').gte('completed_at', cutoff),
-      supabase.from('agent_conversations').select('user_id, created_at').gte('created_at', cutoff),
+      supabase.from('mission_responses').select('user_id, completed_at').gte('completed_at', sevenDaysAgo),
+      supabase.from('agent_conversations').select('user_id, created_at').gte('created_at', sevenDaysAgo),
       supabase.from('community_posts').select('user_id, created_at'),
     ])
 
-    const allUsers = usersRes.data || []
     const profiles = profilesRes.data || []
     const progresses = progressRes.data || []
     const missions = missionsRes.data || []
     const convs = convRes.data || []
     const allPosts = postsRes.data || []
 
-    const profileMap = new Map(profiles.map(p => [p.user_id, p]))
     const progressMap = new Map(progresses.map(p => [p.user_id, p]))
 
-    const userRows: UserRow[] = allUsers.map(u => {
-      const profile = profileMap.get(u.id)
-      const prog = progressMap.get(u.id)
-      const userMissions = missions.filter(m => m.user_id === u.id)
-      const userConvs = convs.filter(c => c.user_id === u.id)
-      const userPosts = allPosts.filter(post => post.user_id === u.id)
+    const userRows: UserRow[] = profiles.map(p => {
+      const prog = progressMap.get(p.user_id)
+      const userMissions = missions.filter(m => m.user_id === p.user_id)
+      const userConvs = convs.filter(c => c.user_id === p.user_id)
+      const userPosts = allPosts.filter(post => post.user_id === p.user_id)
 
       const allActivities = [
         ...userMissions.map(m => m.completed_at),
@@ -553,9 +538,9 @@ const loadAuthUserCount = async () => {
       )
 
       return {
-        user_id: u.id,
-        pseudo: profile?.pseudo || u.email?.split('@')[0] || u.id.slice(0, 8),
-        profile_created_at: u.created_at,
+        user_id: p.user_id,
+        pseudo: p.pseudo || p.user_id.slice(0, 8),
+        profile_created_at: p.created_at,
         current_day: currentDay,
         program_started_at: prog?.started_at || null,
         last_activity: lastActivity,
@@ -796,23 +781,23 @@ const loadAuthUserCount = async () => {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 10,
         }}>
-          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-            <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: '#5B3821', fontWeight: 500, letterSpacing: '1px' }}>Novaé</span>
-            <span style={{ fontSize: 9, color: '#A86B78', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 2, fontWeight: 600 }}>Admin · Pilotage</span>
+          <div>
+            <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: C.copperDark, fontWeight: 600 }}>NOVAÉ</span>
+            <span style={{ fontSize: 11, color: C.brownLight, marginLeft: 10, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Admin</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: '#8b5a3c', opacity: 0.7 }}>{user?.email}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, color: C.brownLight }}>{user?.email}</span>
             <button onClick={loadAll} style={{
-              background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(196,149,106,0.35)',
-              borderRadius: 10, padding: '6px 12px', color: C.copperDark, fontSize: 12,
-              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+              background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.35)',
+              borderRadius: 8, padding: '6px 12px', color: C.copperDark, fontSize: 12,
+              cursor: 'pointer', fontFamily: 'inherit',
             }}>
               ↻ Actualiser
             </button>
             <Link href="/" style={{
-              background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(212,165,116,0.3)',
-              borderRadius: 10, padding: '6px 12px', color: C.brownLight, fontSize: 12,
-              textDecoration: 'none', fontWeight: 500,
+              background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(212,165,116,0.3)',
+              borderRadius: 8, padding: '6px 12px', color: C.brownLight, fontSize: 12,
+              textDecoration: 'none',
             }}>
               ← App
             </Link>
@@ -822,25 +807,25 @@ const loadAuthUserCount = async () => {
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 20px 60px' }}>
 
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
             {[
-              { id: 'stats',      label: '📊 Stats',          bg: C.greenTile,  border: 'rgba(167,189,144,0.5)',  active: '#5C7044' },
-              { id: 'challenges', label: '🎯 Défis',           bg: C.roseTile,   border: 'rgba(223,160,143,0.5)',  active: '#B5654A' },
-              { id: 'posts',      label: '💬 Posts',           bg: C.purpleTile, border: 'rgba(185,162,212,0.5)',  active: '#7E63A8' },
-              { id: 'landing',    label: '📈 Landing',         bg: C.yellowTile, border: 'rgba(231,192,111,0.5)',  active: '#A8852E' },
-              { id: 'audience',   label: '👥 Audience',        bg: C.greenTile,  border: 'rgba(167,189,144,0.5)',  active: '#5C7044' },
+              { id: 'stats',      label: '📊 Stats',    bg: 'rgba(197,211,180,0.35)', border: 'rgba(167,189,144,0.5)', active: '#5C7044' },
+              { id: 'challenges', label: '🎯 Défis',    bg: 'rgba(242,194,182,0.35)', border: 'rgba(223,160,143,0.5)', active: '#B5654A' },
+              { id: 'posts',      label: '💬 Posts',    bg: 'rgba(212,196,226,0.35)', border: 'rgba(185,162,212,0.5)', active: '#7E63A8' },
+              { id: 'landing',    label: '📈 Landing',  bg: 'rgba(245,216,155,0.35)', border: 'rgba(231,192,111,0.5)', active: '#A8852E' },
+              { id: 'audience',   label: '👥 Audience', bg: 'rgba(197,211,180,0.35)', border: 'rgba(167,189,144,0.5)', active: '#5C7044' },
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as Tab)}
                 style={{
                   padding: '8px 16px', borderRadius: 12,
-                  background: activeTab === tab.id ? tab.active : tab.bg,
+                  background: activeTab === tab.id ? (tab as any).active : (tab as any).bg,
                   color: activeTab === tab.id ? '#fff' : C.brownLight,
                   fontSize: 12, fontWeight: activeTab === tab.id ? 700 : 500,
                   cursor: 'pointer', fontFamily: 'inherit',
-                  border: `1px solid ${tab.border}`,
-                  boxShadow: activeTab === tab.id ? `0 4px 12px rgba(0,0,0,0.15)` : 'none',
+                  border: `1px solid ${(tab as any).border}`,
+                  boxShadow: activeTab === tab.id ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
                   transition: 'all 0.15s',
                 }}
               >
@@ -906,25 +891,17 @@ const loadAuthUserCount = async () => {
               </div>
 
               <div style={glassCard}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <h3 style={sectionTitle}>
-                    Utilisatrices <span style={{ color: C.brownLight, fontWeight: 400, fontSize: 14 }}>({filteredUsers.length}/{users.length})</span>
+                    Utilisatrices <span style={{ color: C.brownLight, fontWeight: 400, fontSize: 14 }}>({filteredUsers.length})</span>
                   </h3>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                    {[1, 7, 14, 30, 90].map(d => (
-                      <button key={d} onClick={() => { setPeriodDays(d); loadUsers() }}
-                        style={{ padding: '3px 8px', borderRadius: 6, border: `1px solid rgba(196,149,106,${periodDays === d ? '0.8' : '0.3'})`, background: periodDays === d ? C.copper : 'transparent', color: periodDays === d ? '#fff' : C.copperDark, fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                        {d === 1 ? '24h' : `${d}j`}
-                      </button>
-                    ))}
-                    {selectedKpi !== 'all' && (
-                      <button onClick={() => setSelectedKpi('all')} style={{
-                        background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.3)',
-                        borderRadius: 6, padding: '3px 8px', color: C.copperDark, fontSize: 10,
-                        cursor: 'pointer', fontFamily: 'inherit', marginLeft: 4,
-                      }}>← Toutes</button>
-                    )}
-                  </div>
+                  {selectedKpi !== 'all' && (
+                    <button onClick={() => setSelectedKpi('all')} style={{
+                      background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.3)',
+                      borderRadius: 8, padding: '4px 10px', color: C.copperDark, fontSize: 11,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}>← Toutes</button>
+                  )}
                 </div>
 
                 {filteredUsers.length === 0 ? (
@@ -1229,6 +1206,7 @@ const loadAuthUserCount = async () => {
             </div>
           )}
 
+          {/* Revue dimanche supprimée */}
 
           {activeTab === 'landing' && (
   <div>
@@ -1300,6 +1278,7 @@ const loadAuthUserCount = async () => {
   accent={C.green}
   sub={`${landingStats.cta.totalSessions > 0 ? landingStats.cta.conversionRate.toFixed(1) : '0'}% de conversion`}
 />
+
         </div>
  
         {/* ─── CTA BREAKDOWN ─── */}
@@ -1362,6 +1341,7 @@ const loadAuthUserCount = async () => {
               max={landingStats.cta.totalSessions}
               color={C.purple}
             />
+
             <FunnelStep
               label="Ont lu un article du blog"
               value={landingStats.cta.sessionsClickedBlog}
@@ -1372,6 +1352,92 @@ const loadAuthUserCount = async () => {
         </div>
 
         {/* ─── LEADS QUIZ CHARGE MENTALE ─── */}
+        <div style={glassCard}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <h3 style={sectionTitle}>Leads du quiz "charge mentale"</h3>
+              <p style={sectionDesc}>Emails collectés via le quiz de la landing, avec leur score et profil.</p>
+            </div>
+            {landingStats.quiz.leads.length > 0 && (
+              <button
+                onClick={() => {
+                  const header = 'email,score,profil,score_label,date\n'
+                  const lines = landingStats.quiz.leads.map(l =>
+                    [l.email, l.score ?? '', l.profil ?? '', l.scoreLabel ?? '', l.date].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')
+                  )
+                  const csv = header + lines.join('\n')
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `novae-leads-quiz-${new Date().toISOString().slice(0, 10)}.csv`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                style={{
+                  background: 'rgba(196,149,106,0.15)',
+                  border: '1px solid rgba(196,149,106,0.35)',
+                  borderRadius: 8, padding: '6px 12px',
+                  color: C.copperDark, fontSize: 12,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                ⬇ Exporter en CSV
+              </button>
+            )}
+          </div>
+
+          {landingStats.quiz.profilBreakdown.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }}>
+              {landingStats.quiz.profilBreakdown.map((p, i) => (
+                <span key={i} style={{
+                  fontSize: 12, padding: '4px 10px', borderRadius: 999,
+                  background: 'rgba(155,90,101,0.1)', color: C.copperDark,
+                  border: '1px solid rgba(155,90,101,0.2)',
+                }}>
+                  {p.profil} · {p.count}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {landingStats.quiz.leads.length === 0 ? (
+            <p style={{ fontSize: 13, color: C.brownLight, padding: '14px 0' }}>Aucun lead encore enregistré sur cette période.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', color: C.brownLight, borderBottom: '1px solid rgba(212,165,116,0.25)' }}>
+                    <th style={{ padding: '6px 8px' }}>Email</th>
+                    <th style={{ padding: '6px 8px' }}>Score</th>
+                    <th style={{ padding: '6px 8px' }}>Profil</th>
+                    <th style={{ padding: '6px 8px' }}>Niveau</th>
+                    <th style={{ padding: '6px 8px' }}>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {landingStats.quiz.leads.slice(0, 50).map((l, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(212,165,116,0.12)' }}>
+                      <td style={{ padding: '6px 8px', color: C.brown }}>{l.email}</td>
+                      <td style={{ padding: '6px 8px' }}>{l.score ?? '–'}</td>
+                      <td style={{ padding: '6px 8px' }}>{l.profil ?? '–'}</td>
+                      <td style={{ padding: '6px 8px' }}>{l.scoreLabel ?? '–'}</td>
+                      <td style={{ padding: '6px 8px', color: C.brownLight }}>{formatDateTime(l.date)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {landingStats.quiz.leads.length > 50 && (
+                <p style={{ fontSize: 11, color: C.brownLight, marginTop: 8, fontStyle: 'italic' }}>
+                  Affichage des 50 plus récents ({landingStats.quiz.leads.length} au total sur la période). Exporte en CSV pour voir tous les leads.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+ 
+        {/* ─── SCROLL DEPTH ─── */}
+        <div style={glassCard}>
           <h3 style={sectionTitle}>Profondeur de lecture</h3>
           <p style={sectionDesc}>Combien de visiteuses scrollent jusqu'au bout de la page.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
@@ -1764,11 +1830,11 @@ const formInput: React.CSSProperties = {
 }
 
 const glassCard: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.55)',
+  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.25))',
   backdropFilter: 'blur(18px)',
   WebkitBackdropFilter: 'blur(18px)',
-  border: '1px solid rgba(255,255,255,0.65)',
-  borderRadius: 16, padding: 18, marginBottom: 14,
+  border: '1px solid rgba(255, 255, 255, 0.5)',
+  borderRadius: 20, padding: 22, marginBottom: 16,
   boxShadow: '0 4px 16px rgba(139, 90, 60, 0.06)',
 }
 
