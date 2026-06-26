@@ -592,8 +592,10 @@ const loadAuthUserCount = async () => {
   const thirtyDayAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
   const fortyFiveDayAgo = Date.now() - 45 * 24 * 60 * 60 * 1000
 
+  const periodCutoff = Date.now() - periodDays * 24 * 60 * 60 * 1000
   const active24hCount = users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > oneDayAgo).length
   const active7dCount = users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > sevenDayAgo).length
+  const activePeriodCount = users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > periodCutoff).length
   const strugglingCount = users.filter(u => u.is_struggling).length
   const neverActiveCount = users.filter(u => !u.last_activity).length
   const communityPostsTotal = users.reduce((sum, u) => sum + u.community_posts, 0)
@@ -612,7 +614,7 @@ const loadAuthUserCount = async () => {
     switch (selectedKpi) {
       case 'onboarded': return users
       case 'active_24h': return users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > oneDayAgo)
-      case 'active_7d': return users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > sevenDayAgo)
+      case 'active_7d': return users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > periodCutoff)
       case 'on_program': return users.filter(u => u.current_day > 0)
       case 'struggling': return users.filter(u => u.is_struggling)
       case 'community': return users.filter(u => u.community_posts > 0)
@@ -854,7 +856,7 @@ const loadAuthUserCount = async () => {
   sub={authUserCount && authUserCount > 0 ? `${Math.round((onboardedCount / authUserCount) * 100)}% conversion` : undefined} 
 />
 <KpiTile selected={selectedKpi === 'active_24h'} onClick={() => setSelectedKpi('active_24h')} emoji="🔥" label="Actives 24h" value={active24hCount} accent={C.red} sub={total > 0 ? `${Math.round((active24hCount / total) * 100)}%` : undefined} />
-                <KpiTile selected={selectedKpi === 'active_7d'} onClick={() => setSelectedKpi('active_7d')} emoji="✨" label="Actives 7j" value={active7dCount} accent={C.green} sub={total > 0 ? `${Math.round((active7dCount / total) * 100)}%` : undefined} />
+                <KpiTile selected={selectedKpi === 'active_7d'} onClick={() => setSelectedKpi('active_7d')} emoji="✨" label={`Actives ${periodDays === 1 ? '24h' : periodDays + 'j'}`} value={activePeriodCount} accent={C.green} sub={total > 0 ? `${Math.round((activePeriodCount / total) * 100)}%` : undefined} />
                 <KpiTile selected={selectedKpi === 'on_program'} onClick={() => setSelectedKpi('on_program')} emoji="🎯" label="Programme actif" value={onProgramCount} accent={C.purple} />
                 <KpiTile selected={selectedKpi === 'struggling'} onClick={() => setSelectedKpi('struggling')} emoji="🌙" label="Mode traversée" value={strugglingCount} accent={C.brownMid} sub="inactives 4j+" />
                 <KpiTile selected={selectedKpi === 'community'} onClick={() => setSelectedKpi('community')} emoji="💬" label="Posts communauté" value={communityPostsTotal} accent={C.purple} sub={`par ${users.filter(u => u.community_posts > 0).length} utilisatrices`} />
