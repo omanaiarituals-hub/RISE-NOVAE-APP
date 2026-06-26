@@ -21,12 +21,8 @@ const C = {
   copperDark: '#8b5a3c',
   red: '#c44a4a',
   green: '#5C7044',
-  greenTile: 'rgba(197,211,180,0.35)',
   yellow: '#A8852E',
-  yellowTile: 'rgba(245,216,155,0.35)',
   purple: '#7E63A8',
-  purpleTile: 'rgba(212,196,226,0.35)',
-  roseTile: 'rgba(242,194,182,0.35)',
 }
 
 interface UserRow {
@@ -118,23 +114,21 @@ const DEFAULT_MANUAL_KPIS: ManualKpis = {
 
 type KpiKey = 'all' | 'onboarded' | 'active_24h' | 'active_7d' | 'on_program' | 'struggling' | 'community' | 'never_active'
 type Tab = 'stats' | 'challenges' | 'posts' | 'review' | 'landing' | 'audience'
-// ─── Roadmap status — mise à jour 26/06/2026 ───
+// ─── Roadmap status — extrait du dossier V2 Pro ───
 const ROADMAP_VALIDATED: Record<string, string[]> = {
-  'Modules app': [
-    'Dashboard → refonte 4 univers thématiques',
-    'Programme 90j (3 phases) — Reset 90j',
-    'Planner + To-do (Nova écrit dans todo_list)',
+  'Modules app (P.1 du dossier)': [
+    'Dashboard 9 tuiles',
+    'Programme 90j (3 phases)',
+    'Planner + To-do',
     'Habit Tracker',
-    'Défis + Badges (10 badges)',
-    'Recettes & Courses (bug shopping_list corrigé)',
+    'Défis + Badges',
+    'Recettes & Courses',
     'Famille & Proches',
     'Agent IA NOVAÉ (Claude API + bilan hebdo cron)',
     'Paramètres',
-    'Blog bien-être (page créée)',
+    'Blog SEO (3 articles)',
+    'Quiz charge mentale + diagnostic IA',
     'Onboarding 10Q (UI flow complet)',
-    'Reclaim Myself — Parcours Profond (4 actes)',
-    'Objectif du jour sur accueil (carte interactive)',
-    'Communauté carte accueil avec compteur posts',
   ],
   'Infra & lancement': [
     'Domaine novae-by-omanaia.com (landing)',
@@ -142,28 +136,14 @@ const ROADMAP_VALIDATED: Record<string, string[]> = {
     'Brevo SMTP configuré',
     'Email J0 bienvenue automatique (template 6)',
     'Late Welcome batch 10/10 (template 16)',
-    '5 crons Vercel configurés (vercel.json)',
-    'Cron débrief hebdo pour toutes les utilisatrices',
-    'Push notifications + RLS user_events',
-    'Middleware bypass crons (résolution 307)',
-    'PWA manifest + icônes + SEO',
-    'Tracking landing → URL absolue corrigée',
+    'Cron Vercel 18h UTC notif flammes en danger',
   ],
-  'Sprint Streak + Badges': [
+  'Sprint Streak + Badges (10/05/2026)': [
     'Tables user_streaks / user_badges / user_events',
-    'Flamme animée + bouton « Je suis là »',
+    'Flamme animée compacte + bouton « Je suis là »',
     'Jour de répit 1/sem',
     '10 badges + modale + partage communauté',
     'Page /profil/badges',
-    'Doublon flamme supprimé',
-  ],
-  'Audit & corrections (26/06/2026)': [
-    'Modal notifications — createPortal zIndex 99999',
-    'Tâches Nova visibles dans Planner (todo_list)',
-    'Titre PWA corrigé → NOVAÉ',
-    'Onglet Programmes statique supprimé du profil',
-    'Connexion mobile stabilisée (retry session)',
-    '12 utilisatrices dans admin (lecture users table)',
   ],
   'Stratégie contenu': [
     '90 épisodes Chroniques de NOVAÉ scriptés',
@@ -192,12 +172,9 @@ const ROADMAP_PENDING: Record<string, string[]> = {
     'A/B test onboarding 5Q vs 10Q',
     'Pinterest 3 pins/sem',
   ],
-  'Qualité & backlog': [
-    '217 console.log en production à supprimer',
-    'Dashboard 6 requêtes en cascade à regrouper',
-    'Badge communauté compteur réponses',
-    'Icônes univers fond blanc (remove.bg)',
-    'Tester cron streak-reminder 18h UTC',
+  'Bugs / nettoyage': [
+    'Doublon streak : retirer 🔥 8j de la carte Programme 90j',
+    'Tester cron streak-reminder demain 18h UTC',
   ],
 }
 
@@ -812,7 +789,7 @@ const loadAuthUserCount = async () => {
               { id: 'stats',      label: '📊 Stats',    bg: 'rgba(197,211,180,0.35)', border: 'rgba(167,189,144,0.5)', active: '#5C7044' },
               { id: 'challenges', label: '🎯 Défis',    bg: 'rgba(242,194,182,0.35)', border: 'rgba(223,160,143,0.5)', active: '#B5654A' },
               { id: 'posts',      label: '💬 Posts',    bg: 'rgba(212,196,226,0.35)', border: 'rgba(185,162,212,0.5)', active: '#7E63A8' },
-              { id: 'review',     label: '❖ Revue',     bg: 'rgba(242,194,182,0.35)', border: 'rgba(223,160,143,0.5)', active: '#B5654A' },
+              { id: 'review',     label: '✦ Revue',     bg: 'rgba(242,194,182,0.35)', border: 'rgba(223,160,143,0.5)', active: '#B5654A' },
               { id: 'landing',    label: '📈 Landing',  bg: 'rgba(245,216,155,0.35)', border: 'rgba(231,192,111,0.5)', active: '#A8852E' },
               { id: 'audience',   label: '👥 Audience', bg: 'rgba(197,211,180,0.35)', border: 'rgba(167,189,144,0.5)', active: '#5C7044' },
             ].map(tab => (
@@ -1207,10 +1184,7 @@ const loadAuthUserCount = async () => {
             </div>
           )}
 
-          {/* Revue dimanche supprimée */}
-
-          {/* Revue dimanche */}
-{/* ─── REVUE DIMANCHE ─── */}
+          {/* ─── REVUE DIMANCHE ─── */}
           {activeTab === 'review' && (
             <div>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, gap: 12, flexWrap: 'wrap' }}>
@@ -1400,14 +1374,181 @@ const loadAuthUserCount = async () => {
               </div>
               
 
-              {/* Section 3 bis — Détail Brevo auto-fetché */}              saisies manuelles sont sauvegardées automatiquement dans ton navigateur. Pense à les actualiser chaque dimanche.
+              {/* Section 3 bis — Détail Brevo auto-fetché */}
+              <div style={{display:"none"}}><div style={glassCard}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <h3 style={sectionTitle}>📧 Stats Brevo détaillées (7 derniers jours)</h3>
+                    <p style={sectionDesc}>
+                      Récupéré automatiquement via l'API Brevo. {brevoStats?.period && `Période : ${brevoStats.period.startDate} → ${brevoStats.period.endDate}.`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={loadBrevoStats}
+                    disabled={brevoLoading}
+                    style={{
+                      background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.35)',
+                      borderRadius: 8, padding: '6px 12px', color: C.copperDark, fontSize: 12,
+                      cursor: brevoLoading ? 'wait' : 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                    }}
+                  >
+                    {brevoLoading ? '…' : '↻ Recharger'}
+                  </button>
+                </div>
+
+                {brevoLoading && !brevoStats ? (
+                  <p style={{ fontSize: 12, color: C.brownLight, padding: '16px 0' }}>Chargement des stats Brevo…</p>
+                ) : brevoError && !brevoStats ? (
+                  <div style={{ padding: '14px 16px', background: 'rgba(196,74,74,0.08)', border: '1px solid rgba(196,74,74,0.25)', borderRadius: 10 }}>
+                    <p style={{ fontSize: 13, color: C.red, margin: 0, fontWeight: 600 }}>Impossible de joindre Brevo</p>
+                    <p style={{ fontSize: 11, color: C.brownLight, margin: '4px 0 0' }}>{brevoError}</p>
+                    <p style={{ fontSize: 11, color: C.brownLight, margin: '4px 0 0', fontStyle: 'italic' }}>
+                      Vérifie que <code>BREVO_API_KEY</code> est bien configurée sur Vercel et que le déploiement est à jour.
+                    </p>
+                  </div>
+                ) : brevoStats ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+                    <BrevoCell label="Emails envoyés" value={brevoStats.raw.requests.toLocaleString('fr-FR')} />
+                    <BrevoCell
+                      label="Délivrés"
+                      value={brevoStats.raw.delivered.toLocaleString('fr-FR')}
+                      sub={`${brevoStats.computed.deliveryRate.toFixed(1)}% de livraison`}
+                      accent={brevoStats.computed.deliveryRate >= 95 ? 'green' : brevoStats.computed.deliveryRate >= 90 ? 'yellow' : 'red'}
+                    />
+                    <BrevoCell
+                      label="Ouvertures uniques"
+                      value={brevoStats.raw.uniqueOpens.toLocaleString('fr-FR')}
+                      sub={`${brevoStats.computed.openRate.toFixed(1)}% taux d'ouverture`}
+                      accent={brevoStats.computed.openRate >= 30 ? 'green' : brevoStats.computed.openRate >= 20 ? 'yellow' : 'red'}
+                    />
+                    <BrevoCell
+                      label="Clics uniques"
+                      value={brevoStats.raw.uniqueClicks.toLocaleString('fr-FR')}
+                      sub={`${brevoStats.computed.clickRate.toFixed(1)}% taux de clic`}
+                      accent={brevoStats.computed.clickRate >= 3 ? 'green' : brevoStats.computed.clickRate >= 1 ? 'yellow' : 'red'}
+                    />
+                    <BrevoCell
+                      label="Bounces totaux"
+                      value={brevoStats.raw.totalBounces.toLocaleString('fr-FR')}
+                      sub={`${brevoStats.computed.bounceRate.toFixed(1)}% taux de bounce`}
+                      accent={brevoStats.computed.bounceRate <= 2 ? 'green' : brevoStats.computed.bounceRate <= 5 ? 'yellow' : 'red'}
+                    />
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 12, color: C.brownLight, padding: '16px 0' }}>Aucune donnée disponible.</p>
+                )}
+              </div>
+
+<BrevoEventsTable />
+
+              {/* Section 4 — Roadmap interactive */}
+<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 16 }}>
+  <h3 style={{ ...sectionTitle, margin: 0 }}>📌 Roadmap vivante</h3>
+  <button onClick={resetRoadmap} style={{
+    background: 'transparent', border: 'none', color: C.brownLight,
+    fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+    textDecoration: 'underline', opacity: 0.7,
+  }}>
+    ↺ Réinitialiser
+  </button>
+</div>
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+
+  {/* Validé */}
+  <div style={{ ...glassCard, marginBottom: 0, borderColor: 'rgba(123,168,105,0.4)' }}>
+    <h3 style={{ ...sectionTitle, color: C.green }}>✅ Validé en prod</h3>
+    {Object.entries(roadmapData.validated).map(([category, items]) => (
+      <div key={category} style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.copperDark, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+          {category}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {items.map((item, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '3px 0', fontSize: 12, color: C.brown, lineHeight: 1.5 }}>
+              <button onClick={() => toggleItem('validated', category, item)} title="Remettre en attente"
+                style={{ background: 'rgba(123,168,105,0.15)', border: '1px solid rgba(123,168,105,0.4)', cursor: 'pointer', padding: 0, width: 16, height: 16, borderRadius: 4, fontSize: 11, color: C.green, flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                ✓
+              </button>
+              <span style={{ flex: 1 }}>{item}</span>
+              <button onClick={() => removeItem('validated', category, item)} title="Supprimer"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', fontSize: 14, color: C.brownLight, flexShrink: 0, opacity: 0.4 }}>
+                ×
+              </button>
+            </div>
+          ))}
+          {adding?.column === 'validated' && adding?.category === category ? (
+            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+              <input autoFocus value={newItemText} onChange={e => setNewItemText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addItem('validated', category); if (e.key === 'Escape') { setAdding(null); setNewItemText('') } }}
+                placeholder="Nouvel item…"
+                style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(123,168,105,0.4)', background: '#faf7f2', color: C.brown, fontFamily: 'inherit', outline: 'none' }} />
+              <button onClick={() => addItem('validated', category)} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>✓</button>
+              <button onClick={() => { setAdding(null); setNewItemText('') }} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>×</button>
+            </div>
+          ) : (
+            <button onClick={() => setAdding({ column: 'validated', category })}
+              style={{ background: 'none', border: 'none', color: C.green, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', padding: '4px 0 0', opacity: 0.7 }}>
+              + Ajouter
+            </button>
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+
+  {/* En attente */}
+  <div style={{ ...glassCard, marginBottom: 0, borderColor: 'rgba(212,167,56,0.4)' }}>
+    <h3 style={{ ...sectionTitle, color: C.copperDark }}>⏳ En attente</h3>
+    {Object.entries(roadmapData.pending).map(([category, items]) => (
+      <div key={category} style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.copperDark, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+          {category}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {items.map((item, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '3px 0', fontSize: 12, color: C.brown, lineHeight: 1.5 }}>
+              <button onClick={() => toggleItem('pending', category, item)} title="Marquer comme validé"
+                style={{ background: '#faf7f2', border: '1px solid rgba(212,165,116,0.5)', cursor: 'pointer', padding: 0, width: 16, height: 16, borderRadius: 4, fontSize: 11, color: 'transparent', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ✓
+              </button>
+              <span style={{ flex: 1 }}>{item}</span>
+              <button onClick={() => removeItem('pending', category, item)} title="Supprimer"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', fontSize: 14, color: C.brownLight, flexShrink: 0, opacity: 0.4 }}>
+                ×
+              </button>
+            </div>
+          ))}
+          {adding?.column === 'pending' && adding?.category === category ? (
+            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+              <input autoFocus value={newItemText} onChange={e => setNewItemText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addItem('pending', category); if (e.key === 'Escape') { setAdding(null); setNewItemText('') } }}
+                placeholder="Nouvel item…"
+                style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(212,165,116,0.4)', background: '#faf7f2', color: C.brown, fontFamily: 'inherit', outline: 'none' }} />
+              <button onClick={() => addItem('pending', category)} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>✓</button>
+              <button onClick={() => { setAdding(null); setNewItemText('') }} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>×</button>
+            </div>
+          ) : (
+            <button onClick={() => setAdding({ column: 'pending', category })}
+              style={{ background: 'none', border: 'none', color: C.copperDark, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', padding: '4px 0 0', opacity: 0.7 }}>
+              + Ajouter
+            </button>
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+
+</div>
+
+              </div>
+              <p style={{ fontSize: 11, color: C.brownLight, fontStyle: 'italic', marginTop: 20, textAlign: 'center' }}>
+                ✦ Les saisies manuelles sont sauvegardées automatiquement dans ton navigateur. Pense à les actualiser chaque dimanche.
                  </p>
             </div>
           )}
 
-          
-
-                    {activeTab === 'landing' && (
+          {activeTab === 'landing' && (
   <div>
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, gap: 12, flexWrap: 'wrap' }}>
       <div>
@@ -1477,7 +1618,15 @@ const loadAuthUserCount = async () => {
   accent={C.green}
   sub={`${landingStats.cta.totalSessions > 0 ? landingStats.cta.conversionRate.toFixed(1) : '0'}% de conversion`}
 />
-
+          <KpiTile
+            selected={false}
+            onClick={() => {}}
+            emoji="🧠"
+            label="Leads quiz charge mentale"
+            value={landingStats.quiz.total}
+            accent={C.purple}
+            sub={`${landingStats.quiz.last24h} sur 24h · ${landingStats.quiz.last7d} sur 7j`}
+          />
         </div>
  
         {/* ─── CTA BREAKDOWN ─── */}
@@ -1494,6 +1643,7 @@ const loadAuthUserCount = async () => {
                 const labelMap: Record<string, string> = {
                   'nav_cta':       'Nav top — Avant-première gratuite',
                   'hero_primary':  'Hero — Teste le changement',
+                  'hero_test':     'Hero — Fais le quiz charge mentale',
                   'hero_blog':     'Hero — Lire un article du blog',
                   'mirror_cta':    'Mirror — Teste le changement',
                   'community_cta': 'Communauté — Rejoins-les',
@@ -1540,7 +1690,12 @@ const loadAuthUserCount = async () => {
               max={landingStats.cta.totalSessions}
               color={C.purple}
             />
-
+            <FunnelStep
+              label="Ont fait le quiz"
+              value={landingStats.cta.sessionsClickedQuiz}
+              max={landingStats.cta.totalSessions}
+              color={C.brown}
+            />
             <FunnelStep
               label="Ont lu un article du blog"
               value={landingStats.cta.sessionsClickedBlog}
