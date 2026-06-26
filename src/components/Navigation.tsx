@@ -2,61 +2,76 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { UNIVERS, ENCRE, ENCRE_DOUCE } from '@/lib/univers'
+
+const NAV_ITEMS = [
+  { href: '/',        label: 'Accueil', emoji: '🏠' },
+  { href: '/program', label: 'Reset',   emoji: '🎯' },
+  { href: '/agent',   label: 'Nova',    emoji: '✦',  center: true },
+  { href: '/tracker', label: 'Suivi',   emoji: '📊' },
+  { href: '/profil',  label: 'Moi',     emoji: '👤' },
+]
 
 export default function Navigation() {
   const pathname = usePathname()
 
   const isActive = (href: string) =>
-    pathname === href || pathname?.startsWith(href + '/')
+    href === '/' ? pathname === '/' : pathname === href || pathname?.startsWith(href + '/')
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-50"
-      style={{
-        background: 'rgba(255,251,245,0.92)',
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
-        borderTop: '1px solid rgba(61,38,24,0.08)',
-        boxShadow: '0 -6px 24px rgba(61,38,24,0.06)',
-      }}
-    >
-      <div
-        className="flex items-stretch gap-1.5 overflow-x-auto px-3 py-2 mx-auto"
-        style={{ maxWidth: 920, scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-      >
-        {UNIVERS.map((u) => {
-          const Icon = u.icon
-          const active = isActive(u.href)
+    <nav style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+      background: 'rgba(255,251,245,0.96)',
+      backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+      borderTop: '1px solid rgba(61,38,24,0.08)',
+      boxShadow: '0 -4px 20px rgba(61,38,24,0.07)',
+    }}>
+      <div style={{
+        maxWidth: 500, margin: '0 auto',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-around',
+        padding: '6px 8px 10px',
+        paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
+      }}>
+        {NAV_ITEMS.map((item) => {
+          const active = isActive(item.href)
+
+          if (item.center) {
+            return (
+              <Link key={item.href} href={item.href} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                <div style={{
+                  width: 52, height: 52, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #c4956a, #b07d5a 55%, #c98b86)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 18px rgba(196,149,106,0.5)',
+                  marginTop: -18,
+                  fontSize: 22, color: '#fff',
+                  fontFamily: "'Cormorant Garamond', serif",
+                }}>
+                  {item.emoji}
+                </div>
+                <span style={{ fontSize: 9.5, fontWeight: 600, color: '#b07d5a', letterSpacing: '0.04em' }}>
+                  {item.label}
+                </span>
+              </Link>
+            )
+          }
+
           return (
-            <Link
-              key={u.key}
-              href={u.href}
-              aria-current={active ? 'page' : undefined}
-              className="flex flex-1 flex-col items-center justify-center rounded-2xl transition-all duration-200"
-              style={{
-                minWidth: 62,
-                padding: '7px 6px',
-                background: active ? u.color : 'transparent',
-                boxShadow: active ? `inset 0 0 0 1.5px ${u.ink}33` : 'none',
-              }}
-            >
-              <Icon
-                size={20}
-                strokeWidth={active ? 2.4 : 2}
-                style={{ color: active ? ENCRE : u.ink, marginBottom: 3 }}
-              />
-              <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: active ? 700 : 500,
-                  color: active ? ENCRE : ENCRE_DOUCE,
-                  lineHeight: 1.1,
-                  textAlign: 'center',
-                  letterSpacing: '0.01em',
-                }}
-              >
-                {u.short}
+            <Link key={item.href} href={item.href} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flex: 1 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18,
+                background: active ? 'rgba(196,149,106,0.15)' : 'transparent',
+                transition: 'background 0.15s',
+              }}>
+                {item.emoji}
+              </div>
+              <span style={{
+                fontSize: 9.5, fontWeight: active ? 700 : 500,
+                color: active ? '#b07d5a' : '#8b6f55',
+                letterSpacing: '0.03em',
+              }}>
+                {item.label}
               </span>
             </Link>
           )
