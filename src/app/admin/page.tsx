@@ -187,6 +187,7 @@ export default function AdminPage() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   const [selectedKpi, setSelectedKpi] = useState<KpiKey>('all')
+  const [periodDays, setPeriodDays] = useState(7)
 
   // Streaks (table user_streaks — sprint 10/05)
   const [avgStreak, setAvgStreak] = useState(0)
@@ -474,29 +475,33 @@ const loadAuthUserCount = async () => {
 }
 
   const loadUsers = async () => {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const cutoff = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString()
 
-    const [profilesRes, progressRes, missionsRes, convRes, postsRes] = await Promise.all([
+    const [usersRes, profilesRes, progressRes, missionsRes, convRes, postsRes] = await Promise.all([
+      supabase.from('users').select('id, email, created_at'),
       supabase.from('ai_personality_profile').select('user_id, pseudo, created_at, updated_at'),
       supabase.from('program_progress').select('user_id, current_day, started_at'),
-      supabase.from('mission_responses').select('user_id, completed_at').gte('completed_at', sevenDaysAgo),
-      supabase.from('agent_conversations').select('user_id, created_at').gte('created_at', sevenDaysAgo),
+      supabase.from('mission_responses').select('user_id, completed_at').gte('completed_at', cutoff),
+      supabase.from('agent_conversations').select('user_id, created_at').gte('created_at', cutoff),
       supabase.from('community_posts').select('user_id, created_at'),
     ])
 
+    const allUsers = usersRes.data || []
     const profiles = profilesRes.data || []
     const progresses = progressRes.data || []
     const missions = missionsRes.data || []
     const convs = convRes.data || []
     const allPosts = postsRes.data || []
 
+    const profileMap = new Map(profiles.map(p => [p.user_id, p]))
     const progressMap = new Map(progresses.map(p => [p.user_id, p]))
 
-    const userRows: UserRow[] = profiles.map(p => {
-      const prog = progressMap.get(p.user_id)
-      const userMissions = missions.filter(m => m.user_id === p.user_id)
-      const userConvs = convs.filter(c => c.user_id === p.user_id)
-      const userPosts = allPosts.filter(post => post.user_id === p.user_id)
+    const userRows: UserRow[] = allUsers.map(u => {
+      const profile = profileMap.get(u.id)
+      const prog = progressMap.get(u.id)
+      const userMissions = missions.filter(m => m.user_id === u.id)
+      const userConvs = convs.filter(c => c.user_id === u.id)
+      const userPosts = allPosts.filter(post => post.user_id === u.id)
 
       const allActivities = [
         ...userMissions.map(m => m.completed_at),
@@ -515,9 +520,9 @@ const loadAuthUserCount = async () => {
       )
 
       return {
-        user_id: p.user_id,
-        pseudo: p.pseudo || p.user_id.slice(0, 8),
-        profile_created_at: p.created_at,
+        user_id: u.id,
+        pseudo: profile?.pseudo || u.email?.split('@')[0] || u.id.slice(0, 8),
+        profile_created_at: u.created_at,
         current_day: currentDay,
         program_started_at: prog?.started_at || null,
         last_activity: lastActivity,
@@ -815,7 +820,18 @@ const loadAuthUserCount = async () => {
           {/* ─── STATS ─── */}
           {activeTab === 'stats' && (
             <div>
-              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: '0 0 6px', fontWeight: 500 }}>Vue d'ensemble</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
+                <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: 0, fontWeight: 500 }}>Vue d'ensemble</h2>
+                <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                  <span style={{ fontSize: 10, color: C.brownLight, marginRight: 4 }}>Période :</span>
+                  {[1, 7, 14, 30, 90].map(d => (
+                    <button key={d} onClick={() => { setPeriodDays(d); loadUsers() }}
+                      style={{ padding: '3px 9px', borderRadius: 7, border: `1px solid ${periodDays === d ? 'rgba(196,149,106,0.8)' : 'rgba(196,149,106,0.3)'}`, background: periodDays === d ? C.copper : 'transparent', color: periodDays === d ? '#fff' : C.copperDark, fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {d === 1 ? '24h' : `${d}j`}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <p style={{ fontSize: 12, color: C.brownLight, margin: '0 0 20px', fontStyle: 'italic' }}>Clique sur une tuile pour filtrer le tableau ci-dessous.</p>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 28 }}>
@@ -1618,15 +1634,7 @@ const loadAuthUserCount = async () => {
   accent={C.green}
   sub={`${landingStats.cta.totalSessions > 0 ? landingStats.cta.conversionRate.toFixed(1) : '0'}% de conversion`}
 />
-          <KpiTile
-            selected={false}
-            onClick={() => {}}
-            emoji="🧠"
-            label="Leads quiz charge mentale"
-            value={landingStats.quiz.total}
-            accent={C.purple}
-            sub={`${landingStats.quiz.last24h} sur 24h · ${landingStats.quiz.last7d} sur 7j`}
-          />
+
         </div>
  
         {/* ─── CTA BREAKDOWN ─── */}
@@ -1643,7 +1651,6 @@ const loadAuthUserCount = async () => {
                 const labelMap: Record<string, string> = {
                   'nav_cta':       'Nav top — Avant-première gratuite',
                   'hero_primary':  'Hero — Teste le changement',
-                  'hero_test':     'Hero — Fais le quiz charge mentale',
                   'hero_blog':     'Hero — Lire un article du blog',
                   'mirror_cta':    'Mirror — Teste le changement',
                   'community_cta': 'Communauté — Rejoins-les',
