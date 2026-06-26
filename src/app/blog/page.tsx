@@ -1,21 +1,18 @@
 // src/app/blog/page.tsx
+'use client'
+
 import Link from 'next/link'
 import { blogArticles } from '@/data/blog-articles'
 
-export const metadata = {
-  title: 'Blog bien-être | NOVAÉ by OMANAÏA',
-  description: 'Neurosciences, charge mentale, habitudes : les articles de Ness pour comprendre et transformer ta vie.',
-}
-
-const TAG_COLORS: Record<string, { bg: string; color: string }> = {
-  'Neurosciences': { bg: 'rgba(212,196,226,0.35)', color: '#7E63A8' },
-  'CBT':           { bg: 'rgba(197,211,180,0.35)', color: '#5C7044' },
-  'Bien-être':     { bg: 'rgba(243,205,182,0.35)', color: '#B5654A' },
-  'Routines':      { bg: 'rgba(245,216,155,0.35)', color: '#A8852E' },
-}
-
 export default function BlogPage() {
   const sorted = [...blogArticles].sort((a, b) => b.date.localeCompare(a.date))
+
+  const TAG_COLORS: Record<string, { bg: string; color: string }> = {
+    'Neurosciences': { bg: 'rgba(212,196,226,0.35)', color: '#7E63A8' },
+    'CBT':           { bg: 'rgba(197,211,180,0.35)', color: '#5C7044' },
+    'Bien-être':     { bg: 'rgba(243,205,182,0.35)', color: '#B5654A' },
+    'Routines':      { bg: 'rgba(245,216,155,0.35)', color: '#A8852E' },
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #FBF4EC 0%, #F8F1E5 100%)', fontFamily: "'DM Sans', sans-serif" }}>
@@ -45,24 +42,19 @@ export default function BlogPage() {
             const tagStyle = TAG_COLORS[article.tag] ?? { bg: 'rgba(245,216,155,0.35)', color: '#A8852E' }
             return (
               <Link key={article.slug} href={`/blog/${article.slug}`} style={{ textDecoration: 'none' }}>
-                <div style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(196,149,106,0.18)', borderRadius: 16, overflow: 'hidden', display: 'flex', gap: 0, transition: 'box-shadow 0.15s' }}
-                  onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 6px 20px rgba(139,90,60,0.12)')}
-                  onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
-                >
-                  {/* Image */}
+                <div style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(196,149,106,0.18)', borderRadius: 16, overflow: 'hidden', display: 'flex' }}>
                   {article.image && (
                     <div style={{ width: 100, flexShrink: 0 }}>
                       <img src={article.image} alt={article.imageAlt} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                     </div>
                   )}
-                  {/* Texte */}
                   <div style={{ flex: 1, padding: '12px 14px', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 10, fontWeight: 700, color: tagStyle.color, background: tagStyle.bg, borderRadius: 999, padding: '2px 8px' }}>{article.tag}</span>
                       <span style={{ fontSize: 10, color: '#a08770' }}>{article.readTime}</span>
                     </div>
                     <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, fontWeight: 600, color: '#3d2618', lineHeight: 1.25, marginBottom: 6 }}>{article.title}</div>
-                    <div style={{ fontSize: 12, color: '#6b5340', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{article.excerpt}</div>
+                    <div style={{ fontSize: 12, color: '#6b5340', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{article.excerpt}</div>
                   </div>
                 </div>
               </Link>
