@@ -11,6 +11,14 @@
     {
       "path": "/api/cron/reminder",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/streak-reminder",
+      "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-debrief",
+      "schedule": "0 8 * * 0"
     }
   ]
 }
