@@ -187,7 +187,7 @@ export default function AdminPage() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   const [selectedKpi, setSelectedKpi] = useState<KpiKey>('all')
-  const [periodDays, setPeriodDays] = useState(7)
+  const [periodDays, setPeriodDays] = useState(30)
 
   // Streaks (table user_streaks — sprint 10/05)
   const [avgStreak, setAvgStreak] = useState(0)
@@ -475,7 +475,8 @@ const loadAuthUserCount = async () => {
 }
 
   const loadUsers = async () => {
-    const cutoff = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString()
+    // On charge toujours 90j de données — periodDays filtre l'affichage des KPIs uniquement
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
     const [usersRes, profilesRes, progressRes, missionsRes, convRes, postsRes] = await Promise.all([
       supabase.from('users').select('id, email, created_at'),
@@ -612,6 +613,7 @@ const loadAuthUserCount = async () => {
 
   const filteredUsers = (() => {
     switch (selectedKpi) {
+      case 'all': return users
       case 'onboarded': return users
       case 'active_24h': return users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > oneDayAgo)
       case 'active_7d': return users.filter(u => u.last_activity && new Date(u.last_activity).getTime() > periodCutoff)
