@@ -1,5 +1,5 @@
-// src/app/HomePageClient.tsx — v5
-// Cartes : Objectif du jour + Communauté (remplace flamme)
+// src/app/HomePageClient.tsx — v6
+// Objectif du jour affiché sur la carte après saisie
 'use client'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -100,6 +100,7 @@ export default function HomePageClient() {
   const [priorite, setPriorite] = useState('')
   const [objectifSaved, setObjectifSaved] = useState(false)
   const [objectifLoading, setObjectifLoading] = useState(false)
+  const [objectifDuJour, setObjectifDuJour] = useState<{ intention: string; priorite: string } | null>(null)
 
   const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
   const isTester = !!user?.email && TESTER_EMAILS.includes(user.email.toLowerCase())
@@ -142,8 +143,27 @@ export default function HomePageClient() {
   const loadData = async () => {
     if (!user) return
     try {
-      const { data: prog } = await supabase.from('program_progress').select('current_day').eq('user_id', user.id).maybeSingle()
-      if (prog) { const d = prog.current_day || 1; setCurrentDay(d); setProgramProgress(Math.round((d / 90) * 100)) }
+      const [progRes, noteRes] = await Promise.all([
+        supabase.from('program_progress').select('current_day').eq('user_id', user.id).maybeSingle(),
+        supabase.from('notes').select('content')
+          .eq('user_id', user.id)
+          .like('title', 'Objectif du%')
+          .gte('created_at', `${fmtDate(new Date())}T00:00:00`)
+          .maybeSingle(),
+      ])
+
+      if (progRes.data) {
+        const d = progRes.data.current_day || 1
+        setCurrentDay(d)
+        setProgramProgress(Math.round((d / 90) * 100))
+      }
+
+      if (noteRes.data?.content) {
+        const lines = noteRes.data.content.split('\n')
+        const int = lines.find((l: string) => l.startsWith('Intention :'))?.replace('Intention : ', '') || ''
+        const pri = lines.find((l: string) => l.startsWith('Priorité n°1 :'))?.replace('Priorité n°1 : ', '') || ''
+        if (int || pri) setObjectifDuJour({ intention: int, priorite: pri })
+      }
     } catch {}
     detectStruggleMode(supabase, user.id).then(setStruggle).catch(() => {})
   }
@@ -152,8 +172,11 @@ export default function HomePageClient() {
     if (!user) return
     try {
       const lastVisit = localStorage.getItem('novae-community-last-visit')
-      const since = lastVisit ? new Date(lastVisit).toISOString() : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      const { count } = await supabase.from('community_posts').select('*', { count: 'exact', head: true })
+      const since = lastVisit
+        ? new Date(lastVisit).toISOString()
+        : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      const { count } = await supabase.from('community_posts')
+        .select('*', { count: 'exact', head: true })
         .gte('created_at', since).neq('user_id', user.id)
       setNewCommunityPosts(count || 0)
     } catch { setNewCommunityPosts(0) }
@@ -163,7 +186,6 @@ export default function HomePageClient() {
     if (!user || (!intention.trim() && !priorite.trim())) return
     setObjectifLoading(true)
     try {
-      // Crée une note avec l'objectif du jour
       const content = `🎯 Objectif du jour\n\nIntention : ${intention}\nPriorité n°1 : ${priorite}`
       await supabase.from('notes').insert({
         user_id: user.id,
@@ -172,7 +194,6 @@ export default function HomePageClient() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      // Crée aussi la tâche prioritaire dans todo_list
       if (priorite.trim()) {
         await supabase.from('todo_list').insert({
           user_id: user.id,
@@ -183,6 +204,8 @@ export default function HomePageClient() {
           updated_at: new Date().toISOString(),
         })
       }
+      // Affiche immédiatement sur la carte
+      setObjectifDuJour({ intention: intention.trim(), priorite: priorite.trim() })
       setObjectifSaved(true)
       setTimeout(() => {
         setShowObjectifForm(false)
@@ -235,20 +258,24 @@ export default function HomePageClient() {
 
       {/* MODAL OBJECTIF DU JOUR */}
       {showObjectifForm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 99998, background: 'rgba(61,38,24,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 20px' }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowObjectifForm(false) }}>
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 99998, background: 'rgba(61,38,24,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 20px' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowObjectifForm(false) }}
+        >
           <div style={{ background: '#FAF7F2', borderRadius: '20px 20px 16px 16px', padding: '24px 20px 20px', width: '100%', maxWidth: 480, boxShadow: '0 -8px 32px rgba(61,38,24,0.18)', fontFamily: "'DM Sans', sans-serif" }}>
             {objectifSaved ? (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
                 <div style={{ fontSize: 40, marginBottom: 10 }}>✨</div>
                 <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, color: '#3d2618', margin: 0 }}>Objectif enregistré !</p>
-                <p style={{ fontSize: 13, color: '#8b6f55', marginTop: 6 }}>Nova en tient compte aujourd'hui.</p>
+                <p style={{ fontSize: 13, color: '#8b6f55', marginTop: 6 }}>Il s'affiche maintenant sur ton accueil.</p>
               </div>
             ) : (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                  <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: '#3d2618', margin: 0, fontWeight: 500 }}>Mon objectif du jour</h3>
-                  <button onClick={() => setShowObjectifForm(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#8b6f55', cursor: 'pointer', padding: '0 4px' }}>×</button>
+                  <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: '#3d2618', margin: 0, fontWeight: 500 }}>
+                    {objectifDuJour ? 'Modifier mon objectif' : 'Mon objectif du jour'}
+                  </h3>
+                  <button onClick={() => setShowObjectifForm(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: '#8b6f55', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
                 </div>
 
                 <div style={{ marginBottom: 14 }}>
@@ -259,7 +286,7 @@ export default function HomePageClient() {
                     type="text"
                     value={intention}
                     onChange={e => setIntention(e.target.value)}
-                    placeholder="Ex : rester calme et centrée malgré l'agenda chargé"
+                    placeholder={objectifDuJour?.intention || "Ex : rester calme et centrée malgré l'agenda chargé"}
                     style={{ width: '100%', border: '1.5px solid #E8E4DF', borderRadius: 10, padding: '11px 13px', fontSize: 14, color: '#1A1A1A', background: '#FFFFFF', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none' }}
                     onFocus={e => e.target.style.borderColor = '#c4956a'}
                     onBlur={e => e.target.style.borderColor = '#E8E4DF'}
@@ -274,14 +301,14 @@ export default function HomePageClient() {
                     type="text"
                     value={priorite}
                     onChange={e => setPriorite(e.target.value)}
-                    placeholder="Ex : finir le rapport avant 14h"
+                    placeholder={objectifDuJour?.priorite || "Ex : finir le rapport avant 14h"}
                     style={{ width: '100%', border: '1.5px solid #E8E4DF', borderRadius: 10, padding: '11px 13px', fontSize: 14, color: '#1A1A1A', background: '#FFFFFF', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none' }}
                     onFocus={e => e.target.style.borderColor = '#c4956a'}
                     onBlur={e => e.target.style.borderColor = '#E8E4DF'}
                     onKeyDown={e => { if (e.key === 'Enter') handleObjectifSubmit() }}
                   />
                   <p style={{ fontSize: 11, color: '#a08770', margin: '6px 0 0', fontStyle: 'italic' }}>
-                    Nova ajoutera cette priorité à ta to-do du jour.
+                    La priorité sera ajoutée à ta to-do du jour.
                   </p>
                 </div>
 
@@ -359,34 +386,64 @@ export default function HomePageClient() {
 
               {/* CARTE OBJECTIF DU JOUR */}
               <div
-                onClick={() => setShowObjectifForm(true)}
-                style={{ background: 'rgba(243,205,182,0.35)', border: '1px solid rgba(230,180,147,0.45)', borderRadius: 14, padding: '12px 12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 80, position: 'relative', overflow: 'hidden' }}>
+                onClick={() => {
+                  if (objectifDuJour) {
+                    setIntention(objectifDuJour.intention)
+                    setPriorite(objectifDuJour.priorite)
+                  }
+                  setShowObjectifForm(true)
+                }}
+                style={{ background: 'rgba(243,205,182,0.35)', border: '1px solid rgba(230,180,147,0.45)', borderRadius: 14, padding: '12px 12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 90, position: 'relative', overflow: 'hidden' }}
+              >
                 <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: 'rgba(196,149,106,0.15)', pointerEvents: 'none' }} />
-                <div>
-                  <div style={{ fontSize: 8.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 3 }}>Objectif du jour</div>
-                  <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: '#6b5340', lineHeight: 1.3 }}>Définis ton intention et ta priorité</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 8.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 5 }}>Objectif du jour</div>
+                  {objectifDuJour ? (
+                    <div>
+                      {objectifDuJour.intention && (
+                        <div style={{ fontSize: 11, color: '#3d2618', lineHeight: 1.4, marginBottom: 4, display: 'flex', gap: 4 }}>
+                          <span style={{ color: '#c4956a', fontWeight: 700, flexShrink: 0 }}>✦</span>
+                          <span style={{ fontStyle: 'italic' }}>{objectifDuJour.intention}</span>
+                        </div>
+                      )}
+                      {objectifDuJour.priorite && (
+                        <div style={{ fontSize: 11, color: '#3d2618', lineHeight: 1.4, display: 'flex', gap: 4 }}>
+                          <span style={{ color: '#B5654A', fontWeight: 700, flexShrink: 0 }}>①</span>
+                          <span style={{ fontWeight: 600 }}>{objectifDuJour.priorite}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: '#6b5340', lineHeight: 1.3 }}>
+                      Définis ton intention et ta priorité
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-                  <span style={{ fontSize: 11, color: '#c4956a', fontWeight: 600 }}>Avec Nova →</span>
-                  <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg, #c4956a, #b07d5a)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, fontWeight: 300 }}>+</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                  <span style={{ fontSize: 10, color: '#c4956a', fontWeight: 600 }}>
+                    {objectifDuJour ? 'Modifier →' : 'Avec Nova →'}
+                  </span>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, #c4956a, #b07d5a)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: objectifDuJour ? 13 : 17, flexShrink: 0 }}>
+                    {objectifDuJour ? '✎' : '+'}
+                  </div>
                 </div>
               </div>
 
               {/* CARTE COMMUNAUTÉ */}
               <Link href="/community" onClick={() => localStorage.setItem('novae-community-last-visit', new Date().toISOString())} style={{ textDecoration: 'none' }}>
-                <div style={{ background: 'rgba(212,196,226,0.30)', border: '1px solid rgba(185,162,212,0.45)', borderRadius: 14, padding: '12px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 80, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ background: 'rgba(212,196,226,0.30)', border: '1px solid rgba(185,162,212,0.45)', borderRadius: 14, padding: '12px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 90, position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: 'rgba(185,162,212,0.18)', pointerEvents: 'none' }} />
                   {newCommunityPosts !== null && newCommunityPosts > 0 && (
                     <span style={{ position: 'absolute', top: 8, right: 8, background: 'linear-gradient(135deg, #c44757, #8b2d3d)', color: '#fff', fontSize: 9, fontWeight: 700, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {newCommunityPosts > 9 ? '9+' : newCommunityPosts}
                     </span>
                   )}
-                  <div>
-                    <div style={{ fontSize: 8.5, color: '#7E63A8', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 3 }}>Communauté</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 8.5, color: '#7E63A8', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 5 }}>Communauté</div>
                     <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: '#6b5340', lineHeight: 1.3 }}>Tu ne reconstruis pas seule</div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-                    <span style={{ fontSize: 11, color: '#7E63A8', fontWeight: 600 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                    <span style={{ fontSize: 10, color: '#7E63A8', fontWeight: 600 }}>
                       {newCommunityPosts === null ? '...' : newCommunityPosts > 0 ? `${newCommunityPosts} nouveau${newCommunityPosts > 1 ? 'x' : ''}` : 'À jour ✓'}
                     </span>
                     <span style={{ fontSize: 16 }}>👥</span>
@@ -395,7 +452,7 @@ export default function HomePageClient() {
               </Link>
             </div>
 
-            {/* LABEL */}
+            {/* LABEL UNIVERS */}
             <div style={{ fontSize: 9, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600, marginBottom: 8, paddingLeft: 2 }}>Mes univers</div>
 
             {/* 4 UNIVERS */}
