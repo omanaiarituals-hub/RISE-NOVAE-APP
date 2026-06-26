@@ -1,4 +1,5 @@
-// src/app/HomePageClient.tsx — v4
+// src/app/HomePageClient.tsx — v5
+// Cartes : Objectif du jour + Communauté (remplace flamme)
 'use client'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -11,7 +12,6 @@ import { OnboardingTour } from '@/components/OnboardingTour'
 import { getProverbeDuJour } from '@/lib/proverbes'
 import NotificationBell from '@/components/NotificationBell'
 import { detectStruggleMode, type StruggleState } from '@/lib/struggle/detect'
-import StreakFlame from '@/components/StreakFlame'
 import { logEvent } from '@/lib/events'
 
 const ADMIN_EMAILS = ['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com']
@@ -26,8 +26,7 @@ type Univers = {
 const UNIVERS_LIST: Univers[] = [
   {
     key: 'quotidien', title: 'Mon quotidien', subtitle: 'Organise tes journées avec sérénité.',
-    icon: '/icon-quotidien.png',
-    tint: 'rgba(197,211,180,0.25)', border: 'rgba(167,189,144,0.40)', ink: '#5C7044',
+    icon: '/icon-quotidien.png', tint: 'rgba(197,211,180,0.25)', border: 'rgba(167,189,144,0.40)', ink: '#5C7044',
     modules: [
       { href: '/planner', title: 'Planner' }, { href: '/routines', title: 'Routines' },
       { href: '/recipes', title: 'Repas' }, { href: '/notes', title: 'Notes' },
@@ -35,8 +34,7 @@ const UNIVERS_LIST: Univers[] = [
   },
   {
     key: 'transformation', title: 'Ma transformation', subtitle: "Change ta vie un pas après l'autre.",
-    icon: '/icon-transformation.png',
-    tint: 'rgba(242,194,182,0.25)', border: 'rgba(223,160,143,0.40)', ink: '#B5654A',
+    icon: '/icon-transformation.png', tint: 'rgba(242,194,182,0.25)', border: 'rgba(223,160,143,0.40)', ink: '#B5654A',
     modules: [
       { href: '/program', title: 'Reset 90j' },
       { href: '/parcours-profonds/reclaim-myself', title: 'Reclaim', badge: 'TEST', tester: true },
@@ -45,8 +43,7 @@ const UNIVERS_LIST: Univers[] = [
   },
   {
     key: 'equilibre', title: 'Mon équilibre', subtitle: 'Observe, ajuste et prends soin de toi.',
-    icon: '/icon-equilibre.png',
-    tint: 'rgba(212,196,226,0.25)', border: 'rgba(185,162,212,0.40)', ink: '#7E63A8',
+    icon: '/icon-equilibre.png', tint: 'rgba(212,196,226,0.25)', border: 'rgba(185,162,212,0.40)', ink: '#7E63A8',
     modules: [
       { href: '/tracker', title: 'Tracker' }, { href: '/family', title: 'Famille' },
       { href: '/community', title: 'Commu.' },
@@ -54,8 +51,7 @@ const UNIVERS_LIST: Univers[] = [
   },
   {
     key: 'accompagnement', title: 'Mon accompagnement', subtitle: "Tu n'avances jamais seule.",
-    icon: '/icon-accompagnement.png',
-    tint: 'rgba(245,216,155,0.25)', border: 'rgba(231,192,111,0.40)', ink: '#A8852E',
+    icon: '/icon-accompagnement.png', tint: 'rgba(245,216,155,0.25)', border: 'rgba(231,192,111,0.40)', ink: '#A8852E',
     modules: [
       { href: '/agent', title: 'Nova', badge: 'IA' },
       { href: '/astuces', title: 'Astuces' },
@@ -78,10 +74,15 @@ function getPhase(day: number) {
   return 'expansion'
 }
 
+function fmtDate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+
 export default function HomePageClient() {
   const { user, loading } = useSupabaseAuth()
   const pseudo = usePseudo()
   const router = useRouter()
+
   const [onboardingChecked, setOnboardingChecked] = useState(false)
   const [showTour, setShowTour] = useState(false)
   const [currentDay, setCurrentDay] = useState(0)
@@ -91,6 +92,14 @@ export default function HomePageClient() {
   const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason: null })
   const [greeting, setGreeting] = useState('Bonjour')
   const [dateLabel, setDateLabel] = useState('')
+  const [newCommunityPosts, setNewCommunityPosts] = useState<number | null>(null)
+
+  // Objectif du jour
+  const [showObjectifForm, setShowObjectifForm] = useState(false)
+  const [intention, setIntention] = useState('')
+  const [priorite, setPriorite] = useState('')
+  const [objectifSaved, setObjectifSaved] = useState(false)
+  const [objectifLoading, setObjectifLoading] = useState(false)
 
   const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
   const isTester = !!user?.email && TESTER_EMAILS.includes(user.email.toLowerCase())
@@ -117,6 +126,7 @@ export default function HomePageClient() {
     if (loading || !user) return
     loadData()
     checkNovaPending()
+    loadCommunity()
     logEvent(supabase, user.id, 'module_programme')
   }, [user, loading])
 
@@ -138,24 +148,71 @@ export default function HomePageClient() {
     detectStruggleMode(supabase, user.id).then(setStruggle).catch(() => {})
   }
 
-  const visibleModules = (u: Univers) => u.modules.filter(m => !m.tester || isTester)
+  const loadCommunity = async () => {
+    if (!user) return
+    try {
+      const lastVisit = localStorage.getItem('novae-community-last-visit')
+      const since = lastVisit ? new Date(lastVisit).toISOString() : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      const { count } = await supabase.from('community_posts').select('*', { count: 'exact', head: true })
+        .gte('created_at', since).neq('user_id', user.id)
+      setNewCommunityPosts(count || 0)
+    } catch { setNewCommunityPosts(0) }
+  }
+
+  const handleObjectifSubmit = async () => {
+    if (!user || (!intention.trim() && !priorite.trim())) return
+    setObjectifLoading(true)
+    try {
+      // Crée une note avec l'objectif du jour
+      const content = `🎯 Objectif du jour\n\nIntention : ${intention}\nPriorité n°1 : ${priorite}`
+      await supabase.from('notes').insert({
+        user_id: user.id,
+        content,
+        title: `Objectif du ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      // Crée aussi la tâche prioritaire dans todo_list
+      if (priorite.trim()) {
+        await supabase.from('todo_list').insert({
+          user_id: user.id,
+          title: priorite,
+          priority: 'high',
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+      }
+      setObjectifSaved(true)
+      setTimeout(() => {
+        setShowObjectifForm(false)
+        setObjectifSaved(false)
+        setIntention('')
+        setPriorite('')
+      }, 1800)
+    } catch {}
+    setObjectifLoading(false)
+  }
+
+  const visibleModules = (u: Univers) => {
+    if (loading) return u.modules.filter(m => !m.tester)
+    return u.modules.filter(m => !m.tester || isTester)
+  }
+
   const phaseInfo = PHASE_MESSAGES[getPhase(currentDay)]
 
   const UniversCard = ({ u }: { u: Univers }) => {
     const mods = visibleModules(u)
     return (
       <div style={{ background: u.tint, border: `1px solid ${u.border}`, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'row', height: '100%' }}>
-        {/* RECTANGLE ILLUSTRATION GAUCHE */}
-        <div style={{ width: 80, flexShrink: 0, overflow: 'hidden', borderRight: `1px solid ${u.border}` }}>
-          <img src={u.icon} alt={u.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', minHeight: 90 }} />
+        <div style={{ width: 76, flexShrink: 0, background: u.tint.replace('0.25', '0.45'), display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 6px', borderRight: `1px solid ${u.border}` }}>
+          <img src={u.icon} alt={u.title} style={{ width: 60, height: 60, objectFit: 'contain', borderRadius: 12, mixBlendMode: 'multiply' }} />
         </div>
-        {/* CONTENU DROIT */}
         <div style={{ flex: 1, minWidth: 0, padding: '10px 10px 10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 15, fontWeight: 600, color: u.ink, lineHeight: 1.1, marginBottom: 2 }}>{u.title}</div>
             <div style={{ fontSize: 9.5, color: '#6b5340', lineHeight: 1.25, marginBottom: 8 }}>{u.subtitle}</div>
           </div>
-          {/* TUILES */}
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${mods.length}, 1fr)`, gap: 5 }}>
             {mods.map((m) => (
               <Link key={m.href} href={m.href} style={{ textDecoration: 'none' }}>
@@ -176,11 +233,74 @@ export default function HomePageClient() {
       <OnboardingTour forceShow={showTour} onClose={() => setShowTour(false)} />
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: 'radial-gradient(ellipse at 20% 0%, #F8E6DB 0%, transparent 55%),radial-gradient(ellipse at 80% 100%, #EBD7E0 0%, transparent 60%),linear-gradient(180deg, #FBF4EC 0%, #F8F1E5 55%, #F3E9DF 100%)' }} />
 
+      {/* MODAL OBJECTIF DU JOUR */}
+      {showObjectifForm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99998, background: 'rgba(61,38,24,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 20px' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowObjectifForm(false) }}>
+          <div style={{ background: '#FAF7F2', borderRadius: '20px 20px 16px 16px', padding: '24px 20px 20px', width: '100%', maxWidth: 480, boxShadow: '0 -8px 32px rgba(61,38,24,0.18)', fontFamily: "'DM Sans', sans-serif" }}>
+            {objectifSaved ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>✨</div>
+                <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, color: '#3d2618', margin: 0 }}>Objectif enregistré !</p>
+                <p style={{ fontSize: 13, color: '#8b6f55', marginTop: 6 }}>Nova en tient compte aujourd'hui.</p>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                  <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: '#3d2618', margin: 0, fontWeight: 500 }}>Mon objectif du jour</h3>
+                  <button onClick={() => setShowObjectifForm(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#8b6f55', cursor: 'pointer', padding: '0 4px' }}>×</button>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: 6 }}>
+                    Mon intention du jour
+                  </label>
+                  <input
+                    type="text"
+                    value={intention}
+                    onChange={e => setIntention(e.target.value)}
+                    placeholder="Ex : rester calme et centrée malgré l'agenda chargé"
+                    style={{ width: '100%', border: '1.5px solid #E8E4DF', borderRadius: 10, padding: '11px 13px', fontSize: 14, color: '#1A1A1A', background: '#FFFFFF', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none' }}
+                    onFocus={e => e.target.style.borderColor = '#c4956a'}
+                    onBlur={e => e.target.style.borderColor = '#E8E4DF'}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: 6 }}>
+                    Ma priorité n°1
+                  </label>
+                  <input
+                    type="text"
+                    value={priorite}
+                    onChange={e => setPriorite(e.target.value)}
+                    placeholder="Ex : finir le rapport avant 14h"
+                    style={{ width: '100%', border: '1.5px solid #E8E4DF', borderRadius: 10, padding: '11px 13px', fontSize: 14, color: '#1A1A1A', background: '#FFFFFF', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none' }}
+                    onFocus={e => e.target.style.borderColor = '#c4956a'}
+                    onBlur={e => e.target.style.borderColor = '#E8E4DF'}
+                    onKeyDown={e => { if (e.key === 'Enter') handleObjectifSubmit() }}
+                  />
+                  <p style={{ fontSize: 11, color: '#a08770', margin: '6px 0 0', fontStyle: 'italic' }}>
+                    Nova ajoutera cette priorité à ta to-do du jour.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleObjectifSubmit}
+                  disabled={objectifLoading || (!intention.trim() && !priorite.trim())}
+                  style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: (!intention.trim() && !priorite.trim()) ? '#E8E4DF' : 'linear-gradient(135deg, #c4956a, #b07d5a)', color: (!intention.trim() && !priorite.trim()) ? '#aaa' : '#fff', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, cursor: (!intention.trim() && !priorite.trim()) ? 'not-allowed' : 'pointer' }}>
+                  {objectifLoading ? 'Enregistrement...' : 'Valider mon objectif →'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', sans-serif", position: 'relative', zIndex: 2 }}>
 
         {/* HEADER */}
         <div style={{ flexShrink: 0, background: 'linear-gradient(180deg, rgba(240,201,208,0.97) 0%, rgba(233,186,196,0.92) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(225,170,180,0.45)', boxShadow: '0 4px 18px rgba(160,110,120,0.12)', padding: '10px 16px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          {/* Logo — taille augmentée */}
           <img src="/logo.png" alt="NOVAÉ by OMANAÏA" style={{ height: 42, objectFit: 'contain', maxWidth: 140 }} />
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <Link href="/agent?voice=1" aria-label="Parler à Nova" style={{ textDecoration: 'none' }}>
@@ -234,26 +354,42 @@ export default function HomePageClient() {
               </Link>
             )}
 
-            {/* CARTE UNIQUE : FLAMME + RESET côte à côte dans une seule carte */}
-            <div style={{ background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.6)', borderRadius: 14, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-              {/* Flamme */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <StreakFlame />
-              </div>
-              {/* Séparateur */}
-              <div style={{ width: 1, alignSelf: 'stretch', background: 'rgba(196,149,106,0.2)', flexShrink: 0 }} />
-              {/* Reset 90j */}
-              <Link href="/program" style={{ textDecoration: 'none', flex: 1, minWidth: 0 }}>
+            {/* DEUX CARTES : OBJECTIF DU JOUR + COMMUNAUTÉ */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+
+              {/* CARTE OBJECTIF DU JOUR */}
+              <div
+                onClick={() => setShowObjectifForm(true)}
+                style={{ background: 'rgba(243,205,182,0.35)', border: '1px solid rgba(230,180,147,0.45)', borderRadius: 14, padding: '12px 12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 80, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: 'rgba(196,149,106,0.15)', pointerEvents: 'none' }} />
                 <div>
-                  <div style={{ fontSize: 7.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 600 }}>{phaseInfo.phase}</div>
-                  <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: '#3d2618', lineHeight: 1.15, marginTop: 1 }}>{phaseInfo.label}</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 2, marginTop: 5, marginBottom: 4 }}>
-                    <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 500, color: '#3d2618', lineHeight: 1 }}>{currentDay > 0 ? currentDay : '—'}</span>
-                    <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 11, color: '#a08770' }}>/ 90</span>
-                    <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8b5a3c', fontWeight: 600 }}>{programProgress}%</span>
+                  <div style={{ fontSize: 8.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 3 }}>Objectif du jour</div>
+                  <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: '#6b5340', lineHeight: 1.3 }}>Définis ton intention et ta priorité</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                  <span style={{ fontSize: 11, color: '#c4956a', fontWeight: 600 }}>Avec Nova →</span>
+                  <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg, #c4956a, #b07d5a)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, fontWeight: 300 }}>+</div>
+                </div>
+              </div>
+
+              {/* CARTE COMMUNAUTÉ */}
+              <Link href="/community" onClick={() => localStorage.setItem('novae-community-last-visit', new Date().toISOString())} style={{ textDecoration: 'none' }}>
+                <div style={{ background: 'rgba(212,196,226,0.30)', border: '1px solid rgba(185,162,212,0.45)', borderRadius: 14, padding: '12px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 80, position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: 'rgba(185,162,212,0.18)', pointerEvents: 'none' }} />
+                  {newCommunityPosts !== null && newCommunityPosts > 0 && (
+                    <span style={{ position: 'absolute', top: 8, right: 8, background: 'linear-gradient(135deg, #c44757, #8b2d3d)', color: '#fff', fontSize: 9, fontWeight: 700, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {newCommunityPosts > 9 ? '9+' : newCommunityPosts}
+                    </span>
+                  )}
+                  <div>
+                    <div style={{ fontSize: 8.5, color: '#7E63A8', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 3 }}>Communauté</div>
+                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: '#6b5340', lineHeight: 1.3 }}>Tu ne reconstruis pas seule</div>
                   </div>
-                  <div style={{ height: 3, background: 'rgba(139,90,60,0.15)', borderRadius: 999, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${programProgress}%`, background: 'linear-gradient(90deg, #d4a574, #c4956a)', borderRadius: 999 }} />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                    <span style={{ fontSize: 11, color: '#7E63A8', fontWeight: 600 }}>
+                      {newCommunityPosts === null ? '...' : newCommunityPosts > 0 ? `${newCommunityPosts} nouveau${newCommunityPosts > 1 ? 'x' : ''}` : 'À jour ✓'}
+                    </span>
+                    <span style={{ fontSize: 16 }}>👥</span>
                   </div>
                 </div>
               </Link>
@@ -262,20 +398,18 @@ export default function HomePageClient() {
             {/* LABEL */}
             <div style={{ fontSize: 9, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600, marginBottom: 8, paddingLeft: 2 }}>Mes univers</div>
 
-            {/* 4 UNIVERS — mobile : colonne / desktop : grille 2x2 */}
+            {/* 4 UNIVERS */}
             <div className="univers-grid">
-              {UNIVERS_LIST.map((u) => (
-                <UniversCard key={u.key} u={u} />
-              ))}
+              {UNIVERS_LIST.map((u) => <UniversCard key={u.key} u={u} />)}
             </div>
 
             {/* ADMIN */}
             {isAdmin && (
               <Link href="/admin" style={{ textDecoration: 'none', display: 'block', marginTop: 8 }}>
                 <div style={{ background: 'linear-gradient(135deg, rgba(61,38,24,0.85), rgba(107,83,64,0.75))', border: '1px solid rgba(196,149,106,0.4)', borderRadius: 12, padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ flexShrink: 0 }}>🛡️</span>
+                  <span>🛡️</span>
                   <div style={{ flex: 1, fontSize: 12, color: '#F3DCC6', fontWeight: 600 }}>Admin · Pilotage</div>
-                  <span style={{ color: '#F3DCC6', flexShrink: 0 }}>→</span>
+                  <span style={{ color: '#F3DCC6' }}>→</span>
                 </div>
               </Link>
             )}
@@ -292,12 +426,10 @@ export default function HomePageClient() {
       <style jsx>{`
         .home-content { width: 100%; }
         .univers-grid { display: flex; flex-direction: column; gap: 8px; }
-
         @media (min-width: 768px) {
           .home-content { max-width: 900px; margin: 0 auto; }
           .univers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         }
-
         @keyframes micPulse {
           0%, 100% { box-shadow: 0 4px 14px rgba(176,125,90,0.45), 0 0 0 0 rgba(196,149,106,0.55); }
           50% { box-shadow: 0 4px 14px rgba(176,125,90,0.45), 0 0 0 7px rgba(196,149,106,0); }
