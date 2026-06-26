@@ -117,7 +117,7 @@ const DEFAULT_MANUAL_KPIS: ManualKpis = {
 }
 
 type KpiKey = 'all' | 'onboarded' | 'active_24h' | 'active_7d' | 'on_program' | 'struggling' | 'community' | 'never_active'
-type Tab = 'stats' | 'challenges' | 'posts' | 'landing' | 'audience'
+type Tab = 'stats' | 'challenges' | 'posts' | 'review' | 'landing' | 'audience'
 // ─── Roadmap status — mise à jour 26/06/2026 ───
 const ROADMAP_VALIDATED: Record<string, string[]> = {
   'Modules app': [
@@ -812,6 +812,7 @@ const loadAuthUserCount = async () => {
               { id: 'stats',      label: '📊 Stats',    bg: 'rgba(197,211,180,0.35)', border: 'rgba(167,189,144,0.5)', active: '#5C7044' },
               { id: 'challenges', label: '🎯 Défis',    bg: 'rgba(242,194,182,0.35)', border: 'rgba(223,160,143,0.5)', active: '#B5654A' },
               { id: 'posts',      label: '💬 Posts',    bg: 'rgba(212,196,226,0.35)', border: 'rgba(185,162,212,0.5)', active: '#7E63A8' },
+              { id: 'review',     label: '❖ Revue',     bg: 'rgba(242,194,182,0.35)', border: 'rgba(223,160,143,0.5)', active: '#B5654A' },
               { id: 'landing',    label: '📈 Landing',  bg: 'rgba(245,216,155,0.35)', border: 'rgba(231,192,111,0.5)', active: '#A8852E' },
               { id: 'audience',   label: '👥 Audience', bg: 'rgba(197,211,180,0.35)', border: 'rgba(167,189,144,0.5)', active: '#5C7044' },
             ].map(tab => (
@@ -1208,7 +1209,205 @@ const loadAuthUserCount = async () => {
 
           {/* Revue dimanche supprimée */}
 
-          {activeTab === 'landing' && (
+          {/* Revue dimanche */}
+{/* ─── REVUE DIMANCHE ─── */}
+          {activeTab === 'review' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: 0, fontWeight: 500 }}>Revue du dimanche</h2>
+                  <p style={{ fontSize: 12, color: C.brownLight, margin: '4px 0 0', fontStyle: 'italic' }}>
+                    Tableau 10.4 du dossier V2 Pro · Phase actuelle : <strong>M{currentMonth}</strong>
+                  </p>
+                </div>
+                <div style={{ textAlign: 'right', fontSize: 11, color: C.brownLight }}>
+                  <div>Aujourd'hui : <strong style={{ color: C.brown }}>{formatDate(today.toISOString())}</strong></div>
+                  <div style={{ marginTop: 2 }}>Prochain dimanche : <strong style={{ color: C.copperDark }}>{formatDate(nextSunday.toISOString())}</strong></div>
+                  {lastReviewAt && (
+                    <div style={{ marginTop: 2, opacity: 0.8 }}>Dernière saisie : {formatRelative(lastReviewAt)}</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 1 — Auto Supabase */}
+              <div style={{ ...glassCard, marginTop: 20 }}>
+                <h3 style={sectionTitle}>📊 KPIs automatiques (Supabase)</h3>
+                <p style={sectionDesc}>Calculés en temps réel à partir de tes tables. Cible <strong>M{currentMonth}</strong> + alerte selon le tableau 10.4.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+                  <ReviewKpi
+                    label="Nouvelles inscriptions / sem"
+                    source="Supabase ai_personality_profile"
+                    value={weeklySignups}
+                    unit=""
+                    targetByMonth={[25, 50, 75]}
+                    alert={10}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub={`${total} inscrites au total`}
+                  />
+                  <ReviewKpi
+                    label="J1 Activation"
+                    source="Supabase program_progress"
+                    value={j1Rate}
+                    unit="%"
+                    targetByMonth={[30, 40, 50]}
+                    alert={20}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub={`${j1Activated.length}/${j1Cohort.length} cohorte 24h+`}
+                  />
+                  <ReviewKpi
+                    label="J7 Retention"
+                    source="Supabase activity 7-14j"
+                    value={j7Rate}
+                    unit="%"
+                    targetByMonth={[20, 30, 40]}
+                    alert={15}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub={j7Cohort.length === 0 ? 'cohorte vide' : `${j7Active.length}/${j7Cohort.length} cohorte 7-14j`}
+                  />
+                  <ReviewKpi
+                    label="J30 Retention"
+                    source="Supabase activity 30-45j"
+                    value={j30Rate}
+                    unit="%"
+                    targetByMonth={[12, 18, 25]}
+                    alert={8}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub={j30Cohort.length === 0 ? 'cohorte vide (trop tôt)' : `${j30Active.length}/${j30Cohort.length} cohorte 30-45j`}
+                  />
+                  <ReviewKpi
+                    label="Streak moyen"
+                    source="Supabase user_streaks"
+                    value={avgStreak}
+                    unit="j"
+                    targetByMonth={[5, 8, 12]}
+                    alert={3}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub={`sur ${streakCount} streaks actifs`}
+                  />
+                </div>
+              </div>
+
+              {/* Section 2 — Manuel Stripe */}
+              <div style={glassCard}>
+                <h3 style={sectionTitle}>💳 Monétisation (Stripe — saisie manuelle)</h3>
+                <p style={sectionDesc}>À récupérer dans ton dashboard Stripe chaque dimanche. Auto-sauvegardé.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+                  <ReviewKpi
+                    label="Conversion free → premium"
+                    source="Stripe Dashboard"
+                    isManual
+                    manualValue={manualKpis.conversion}
+                    onManualChange={v => updateManualKpi('conversion', v)}
+                    unit="%"
+                    targetByMonth={[2, 5, 8]}
+                    alert={1}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                  />
+                  <ReviewKpi
+                    label="MRR"
+                    source="Stripe Dashboard"
+                    isManual
+                    manualValue={manualKpis.mrr}
+                    onManualChange={v => updateManualKpi('mrr', v)}
+                    unit="€"
+                    targetByMonth={[50, 200, 500]}
+                    alert={0}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub="cible cumulée"
+                  />
+                  <ReviewKpi
+                    label="Churn mensuel"
+                    source="Stripe Dashboard"
+                    isManual
+                    manualValue={manualKpis.churn}
+                    onManualChange={v => updateManualKpi('churn', v)}
+                    unit="%"
+                    targetByMonth={[15, 10, 5]}
+                    alert={20}
+                    higherIsBetter={false}
+                    currentMonth={currentMonth}
+                    sub="cible : INFÉRIEUR à"
+                  />
+                </div>
+              </div>
+
+              {/* Section 3 — Manuel Marketing */}
+              <div style={glassCard}>
+                <h3 style={sectionTitle}>📱 Marketing (TikTok / Brevo — saisie manuelle)</h3>
+                <p style={sectionDesc}>À récupérer dans TikTok Studio et Brevo chaque dimanche.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+                  <ReviewKpi
+                    label="Vues TikTok / vidéo (moy.)"
+                    source="TikTok Studio"
+                    isManual
+                    manualValue={manualKpis.tiktokViews}
+                    onManualChange={v => updateManualKpi('tiktokViews', v)}
+                    unit=""
+                    targetByMonth={[5000, 10000, 20000]}
+                    alert={1000}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                  />
+                  <ReviewKpi
+                    label="CTR lien bio"
+                    source="TikTok Studio"
+                    isManual
+                    manualValue={manualKpis.ctrBio}
+                    onManualChange={v => updateManualKpi('ctrBio', v)}
+                    unit="%"
+                    targetByMonth={[2, 4, 6]}
+                    alert={1}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                  />
+                  <ReviewKpi
+                    label="Taux ouverture email"
+                    source="Auto Brevo (7j)"
+                    value={brevoStats?.computed?.openRate}
+                    unit="%"
+                    targetByMonth={[30, 38, 45]}
+                    alert={20}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub={
+                      brevoLoading ? 'Chargement…' :
+                      brevoError ? `Erreur : ${brevoError}` :
+                      brevoStats ? `${brevoStats.raw.uniqueOpens} ouvertures / ${brevoStats.raw.delivered} envoyés` :
+                      'Aucune donnée'
+                    }
+                  />
+                  <ReviewKpi
+                    label="K-factor referral"
+                    source="Manuel — formule dossier"
+                    isManual
+                    manualValue={manualKpis.kFactor}
+                    onManualChange={v => updateManualKpi('kFactor', v)}
+                    unit=""
+                    targetByMonth={[0.1, 0.2, 0.3]}
+                    alert={0.05}
+                    higherIsBetter
+                    currentMonth={currentMonth}
+                    sub="invitations / inscriptions"
+                  />
+                </div>
+              </div>
+              
+
+              {/* Section 3 bis — Détail Brevo auto-fetché */}              saisies manuelles sont sauvegardées automatiquement dans ton navigateur. Pense à les actualiser chaque dimanche.
+                 </p>
+            </div>
+          )}
+
+          
+
+                    {activeTab === 'landing' && (
   <div>
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, gap: 12, flexWrap: 'wrap' }}>
       <div>
