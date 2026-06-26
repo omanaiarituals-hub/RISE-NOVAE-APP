@@ -12,7 +12,9 @@ const LAUNCH_DATE = new Date('2026-05-01') // Référence pour M1 / M2 / M3
 const REVIEW_STORAGE_KEY = 'novae_admin_review_v1'
 
 const C = {
-  cream: '#f3dcc6',
+  cream: '#FBF4EC',
+  rose: 'rgba(240,201,208,0.97)',
+  roseBorder: 'rgba(225,170,180,0.45)',
   brown: '#3d2618',
   brownLight: '#6b5340',
   brownMid: '#8b6f55',
@@ -20,9 +22,13 @@ const C = {
   copperLight: '#d4a574',
   copperDark: '#8b5a3c',
   red: '#c44a4a',
-  green: '#7ba869',
-  yellow: '#d4a738',
-  purple: '#7B6FA0',
+  green: '#5C7044',
+  greenTile: 'rgba(197,211,180,0.35)',
+  yellow: '#A8852E',
+  yellowTile: 'rgba(245,216,155,0.35)',
+  purple: '#7E63A8',
+  purpleTile: 'rgba(212,196,226,0.35)',
+  roseTile: 'rgba(242,194,182,0.35)',
 }
 
 interface UserRow {
@@ -113,7 +119,7 @@ const DEFAULT_MANUAL_KPIS: ManualKpis = {
 }
 
 type KpiKey = 'all' | 'onboarded' | 'active_24h' | 'active_7d' | 'on_program' | 'struggling' | 'community' | 'never_active'
-type Tab = 'stats' | 'challenges' | 'posts' | 'review' | 'landing' | 'audience'
+type Tab = 'stats' | 'challenges' | 'posts' | 'landing' | 'audience'
 // ─── Roadmap status — mise à jour 26/06/2026 ───
 const ROADMAP_VALIDATED: Record<string, string[]> = {
   'Modules app': [
@@ -772,40 +778,41 @@ const loadAuthUserCount = async () => {
       <div style={{
         position: 'fixed', inset: 0, zIndex: 0,
         background:
-          'radial-gradient(ellipse at 20% 0%, #e8c4a8 0%, transparent 55%),' +
-          'radial-gradient(ellipse at 80% 100%, #d4a574 0%, transparent 55%),' +
-          'linear-gradient(180deg, #f3dcc6 0%, #ead0b5 50%, #e0c4a3 100%)',
+          'radial-gradient(ellipse at 20% 0%, #F8E6DB 0%, transparent 55%),' +
+          'radial-gradient(ellipse at 80% 100%, #EBD7E0 0%, transparent 60%),' +
+          'linear-gradient(180deg, #FBF4EC 0%, #F8F1E5 55%, #F3E9DF 100%)',
       }} />
 
       <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", color: C.brown, position: 'relative', zIndex: 2 }}>
 
         {/* Header */}
         <div style={{
-          background: 'rgba(255,255,255,0.55)',
-          backdropFilter: 'blur(18px)',
-          WebkitBackdropFilter: 'blur(18px)',
-          borderBottom: '1px solid rgba(212,165,116,0.3)',
-          padding: '14px 24px',
+          background: 'linear-gradient(180deg, rgba(240,201,208,0.97) 0%, rgba(233,186,196,0.92) 100%)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(225,170,180,0.45)',
+          boxShadow: '0 4px 18px rgba(160,110,120,0.12)',
+          padding: '12px 24px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 10,
         }}>
-          <div>
-            <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: C.copperDark, fontWeight: 600 }}>NOVAÉ</span>
-            <span style={{ fontSize: 11, color: C.brownLight, marginLeft: 10, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Admin</span>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+            <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: '#5B3821', fontWeight: 500, letterSpacing: '1px' }}>Novaé</span>
+            <span style={{ fontSize: 9, color: '#A86B78', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 2, fontWeight: 600 }}>Admin · Pilotage</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 12, color: C.brownLight }}>{user?.email}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: '#8b5a3c', opacity: 0.7 }}>{user?.email}</span>
             <button onClick={loadAll} style={{
-              background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.35)',
-              borderRadius: 8, padding: '6px 12px', color: C.copperDark, fontSize: 12,
-              cursor: 'pointer', fontFamily: 'inherit',
+              background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(196,149,106,0.35)',
+              borderRadius: 10, padding: '6px 12px', color: C.copperDark, fontSize: 12,
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
             }}>
               ↻ Actualiser
             </button>
             <Link href="/" style={{
-              background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(212,165,116,0.3)',
-              borderRadius: 8, padding: '6px 12px', color: C.brownLight, fontSize: 12,
-              textDecoration: 'none',
+              background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(212,165,116,0.3)',
+              borderRadius: 10, padding: '6px 12px', color: C.brownLight, fontSize: 12,
+              textDecoration: 'none', fontWeight: 500,
             }}>
               ← App
             </Link>
@@ -815,28 +822,26 @@ const loadAuthUserCount = async () => {
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 20px 60px' }}>
 
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
             {[
-              { id: 'stats', label: '📊 Stats' },
-              { id: 'challenges', label: '🎯 Défis' },
-              { id: 'posts', label: '💬 Posts' },
-              { id: 'review', label: '✦ Revue dimanche' },
-              { id: 'landing',    label: '📈 Landing' },
-              { id: 'audience',   label: '👥 Audience' },
+              { id: 'stats',      label: '📊 Stats',          bg: C.greenTile,  border: 'rgba(167,189,144,0.5)',  active: '#5C7044' },
+              { id: 'challenges', label: '🎯 Défis',           bg: C.roseTile,   border: 'rgba(223,160,143,0.5)',  active: '#B5654A' },
+              { id: 'posts',      label: '💬 Posts',           bg: C.purpleTile, border: 'rgba(185,162,212,0.5)',  active: '#7E63A8' },
+              { id: 'landing',    label: '📈 Landing',         bg: C.yellowTile, border: 'rgba(231,192,111,0.5)',  active: '#A8852E' },
+              { id: 'audience',   label: '👥 Audience',        bg: C.greenTile,  border: 'rgba(167,189,144,0.5)',  active: '#5C7044' },
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as Tab)}
                 style={{
-                  padding: '10px 18px', borderRadius: 12,
-                  background: activeTab === tab.id
-                    ? 'linear-gradient(135deg, #c4956a, #8b5a3c)'
-                    : 'rgba(255,255,255,0.45)',
+                  padding: '8px 16px', borderRadius: 12,
+                  background: activeTab === tab.id ? tab.active : tab.bg,
                   color: activeTab === tab.id ? '#fff' : C.brownLight,
-                  fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 500,
+                  fontSize: 12, fontWeight: activeTab === tab.id ? 700 : 500,
                   cursor: 'pointer', fontFamily: 'inherit',
-                  border: activeTab === tab.id ? 'none' : '1px solid rgba(212,165,116,0.3)',
-                  boxShadow: activeTab === tab.id ? '0 4px 12px rgba(139, 90, 60, 0.18)' : 'none',
+                  border: `1px solid ${tab.border}`,
+                  boxShadow: activeTab === tab.id ? `0 4px 12px rgba(0,0,0,0.15)` : 'none',
+                  transition: 'all 0.15s',
                 }}
               >
                 {tab.label}
@@ -1224,368 +1229,6 @@ const loadAuthUserCount = async () => {
             </div>
           )}
 
-          {/* ─── REVUE DIMANCHE ─── */}
-          {activeTab === 'review' && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6, gap: 12, flexWrap: 'wrap' }}>
-                <div>
-                  <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, color: C.brown, margin: 0, fontWeight: 500 }}>Revue du dimanche</h2>
-                  <p style={{ fontSize: 12, color: C.brownLight, margin: '4px 0 0', fontStyle: 'italic' }}>
-                    Tableau 10.4 du dossier V2 Pro · Phase actuelle : <strong>M{currentMonth}</strong>
-                  </p>
-                </div>
-                <div style={{ textAlign: 'right', fontSize: 11, color: C.brownLight }}>
-                  <div>Aujourd'hui : <strong style={{ color: C.brown }}>{formatDate(today.toISOString())}</strong></div>
-                  <div style={{ marginTop: 2 }}>Prochain dimanche : <strong style={{ color: C.copperDark }}>{formatDate(nextSunday.toISOString())}</strong></div>
-                  {lastReviewAt && (
-                    <div style={{ marginTop: 2, opacity: 0.8 }}>Dernière saisie : {formatRelative(lastReviewAt)}</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Section 1 — Auto Supabase */}
-              <div style={{ ...glassCard, marginTop: 20 }}>
-                <h3 style={sectionTitle}>📊 KPIs automatiques (Supabase)</h3>
-                <p style={sectionDesc}>Calculés en temps réel à partir de tes tables. Cible <strong>M{currentMonth}</strong> + alerte selon le tableau 10.4.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-                  <ReviewKpi
-                    label="Nouvelles inscriptions / sem"
-                    source="Supabase ai_personality_profile"
-                    value={weeklySignups}
-                    unit=""
-                    targetByMonth={[25, 50, 75]}
-                    alert={10}
-                    higherIsBetter
-                    currentMonth={currentMonth}
-                    sub={`${total} inscrites au total`}
-                  />
-                  <ReviewKpi
-                    label="J1 Activation"
-                    source="Supabase program_progress"
-                    value={j1Rate}
-                    unit="%"
-                    targetByMonth={[30, 40, 50]}
-                    alert={20}
-                    higherIsBetter
-                    currentMonth={currentMonth}
-                    sub={`${j1Activated.length}/${j1Cohort.length} cohorte 24h+`}
-                  />
-                  <ReviewKpi
-                    label="J7 Retention"
-                    source="Supabase activity 7-14j"
-                    value={j7Rate}
-                    unit="%"
-                    targetByMonth={[20, 30, 40]}
-                    alert={15}
-                    higherIsBetter
-                    currentMonth={currentMonth}
-                    sub={j7Cohort.length === 0 ? 'cohorte vide' : `${j7Active.length}/${j7Cohort.length} cohorte 7-14j`}
-                  />
-                  <ReviewKpi
-                    label="J30 Retention"
-                    source="Supabase activity 30-45j"
-                    value={j30Rate}
-                    unit="%"
-                    targetByMonth={[12, 18, 25]}
-                    alert={8}
-                    higherIsBetter
-                    currentMonth={currentMonth}
-                    sub={j30Cohort.length === 0 ? 'cohorte vide (trop tôt)' : `${j30Active.length}/${j30Cohort.length} cohorte 30-45j`}
-                  />
-                  <ReviewKpi
-                    label="Streak moyen"
-                    source="Supabase user_streaks"
-                    value={avgStreak}
-                    unit="j"
-                    targetByMonth={[5, 8, 12]}
-                    alert={3}
-                    higherIsBetter
-                    currentMonth={currentMonth}
-                    sub={`sur ${streakCount} streaks actifs`}
-                  />
-                </div>
-              </div>
-
-              {/* Section 2 — Manuel Stripe */}
-              <div style={glassCard}>
-                <h3 style={sectionTitle}>💳 Monétisation (Stripe — saisie manuelle)</h3>
-                <p style={sectionDesc}>À récupérer dans ton dashboard Stripe chaque dimanche. Auto-sauvegardé.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-                  <ReviewKpi
-                    label="Conversion free → premium"
-                    source="Stripe Dashboard"
-                    isManual
-                    manualValue={manualKpis.conversion}
-                    onManualChange={v => updateManualKpi('conversion', v)}
-                    unit="%"
-                    targetByMonth={[2, 5, 8]}
-                    alert={1}
-                    higherIsBetter
-                    currentMonth={currentMonth}
-                  />
-                  <ReviewKpi
-                    label="MRR"
-                    source="Stripe Dashboard"
-                    isManual
-                    manualValue={manualKpis.mrr}
-                    onManualChange={v => updateManualKpi('mrr', v)}
-                    unit="€"
-                    targetByMonth={[50, 200, 500]}
-                    alert={0}
-                    higherIsBetter
-                    currentMonth={currentMonth}
-                    sub="cible cumulée"
-                  />
-                  <ReviewKpi
-                    label="Churn mensuel"
-                    source="Stripe Dashboard"
-                    isManual
-                    manualValue={manualKpis.churn}
-                    onManualChange={v => updateManualKpi('churn', v)}
-                    unit="%"
-                    targetByMonth={[15, 10, 5]}
-                    alert={20}
-                    higherIsBetter={false}
-                    currentMonth={currentMonth}
-                    sub="cible : INFÉRIEUR à"
-                  />
-                </div>
-              </div>
-
-              {/* Section 3 — Manuel Marketing */}
-              <div style={glassCard}>
-                <h3 style={sectionTitle}>📱 Marketing (TikTok / Brevo — saisie manuelle)</h3>
-                <p style={sectionDesc}>À récupérer dans TikTok Studio et Brevo chaque dimanche.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-                  <ReviewKpi
-                    label="Vues TikTok / vidéo (moy.)"
-                    source="TikTok Studio"
-                    isManual
-                    manualValue={manualKpis.tiktokViews}
-                    onManualChange={v => updateManualKpi('tiktokViews', v)}
-                    unit=""
-                    targetByMonth={[5000, 10000, 20000]}
-                    alert={1000}
-                    higherIsBetter
-                    currentMonth={currentMonth}
-                  />
-                  <ReviewKpi
-                    label="CTR lien bio"
-                    source="TikTok Studio"
-                    isManual
-                    manualValue={manualKpis.ctrBio}
-                    onManualChange={v => updateManualKpi('ctrBio', v)}
-                    unit="%"
-                    targetByMonth={[2, 4, 6]}
-                    alert={1}
-                    higherIsBetter
-                    currentMonth={currentMonth}
-                  />
-                  <ReviewKpi
-                    label="Taux ouverture email"
-                    source="Auto Brevo (7j)"
-                    value={brevoStats?.computed?.openRate}
-                    unit="%"
-                    targetByMonth={[30, 38, 45]}
-                    alert={20}
-                    higherIsBetter
-                    currentMonth={currentMonth}
-                    sub={
-                      brevoLoading ? 'Chargement…' :
-                      brevoError ? `Erreur : ${brevoError}` :
-                      brevoStats ? `${brevoStats.raw.uniqueOpens} ouvertures / ${brevoStats.raw.delivered} envoyés` :
-                      'Aucune donnée'
-                    }
-                  />
-                  <ReviewKpi
-                    label="K-factor referral"
-                    source="Manuel — formule dossier"
-                    isManual
-                    manualValue={manualKpis.kFactor}
-                    onManualChange={v => updateManualKpi('kFactor', v)}
-                    unit=""
-                    targetByMonth={[0.1, 0.2, 0.3]}
-                    alert={0.05}
-                    higherIsBetter
-                    currentMonth={currentMonth}
-                    sub="invitations / inscriptions"
-                  />
-                </div>
-              </div>
-              
-
-              {/* Section 3 bis — Détail Brevo auto-fetché */}
-              <div style={glassCard}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <h3 style={sectionTitle}>📧 Stats Brevo détaillées (7 derniers jours)</h3>
-                    <p style={sectionDesc}>
-                      Récupéré automatiquement via l'API Brevo. {brevoStats?.period && `Période : ${brevoStats.period.startDate} → ${brevoStats.period.endDate}.`}
-                    </p>
-                  </div>
-                  <button
-                    onClick={loadBrevoStats}
-                    disabled={brevoLoading}
-                    style={{
-                      background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.35)',
-                      borderRadius: 8, padding: '6px 12px', color: C.copperDark, fontSize: 12,
-                      cursor: brevoLoading ? 'wait' : 'pointer', fontFamily: 'inherit', flexShrink: 0,
-                    }}
-                  >
-                    {brevoLoading ? '…' : '↻ Recharger'}
-                  </button>
-                </div>
-
-                {brevoLoading && !brevoStats ? (
-                  <p style={{ fontSize: 12, color: C.brownLight, padding: '16px 0' }}>Chargement des stats Brevo…</p>
-                ) : brevoError && !brevoStats ? (
-                  <div style={{ padding: '14px 16px', background: 'rgba(196,74,74,0.08)', border: '1px solid rgba(196,74,74,0.25)', borderRadius: 10 }}>
-                    <p style={{ fontSize: 13, color: C.red, margin: 0, fontWeight: 600 }}>Impossible de joindre Brevo</p>
-                    <p style={{ fontSize: 11, color: C.brownLight, margin: '4px 0 0' }}>{brevoError}</p>
-                    <p style={{ fontSize: 11, color: C.brownLight, margin: '4px 0 0', fontStyle: 'italic' }}>
-                      Vérifie que <code>BREVO_API_KEY</code> est bien configurée sur Vercel et que le déploiement est à jour.
-                    </p>
-                  </div>
-                ) : brevoStats ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-                    <BrevoCell label="Emails envoyés" value={brevoStats.raw.requests.toLocaleString('fr-FR')} />
-                    <BrevoCell
-                      label="Délivrés"
-                      value={brevoStats.raw.delivered.toLocaleString('fr-FR')}
-                      sub={`${brevoStats.computed.deliveryRate.toFixed(1)}% de livraison`}
-                      accent={brevoStats.computed.deliveryRate >= 95 ? 'green' : brevoStats.computed.deliveryRate >= 90 ? 'yellow' : 'red'}
-                    />
-                    <BrevoCell
-                      label="Ouvertures uniques"
-                      value={brevoStats.raw.uniqueOpens.toLocaleString('fr-FR')}
-                      sub={`${brevoStats.computed.openRate.toFixed(1)}% taux d'ouverture`}
-                      accent={brevoStats.computed.openRate >= 30 ? 'green' : brevoStats.computed.openRate >= 20 ? 'yellow' : 'red'}
-                    />
-                    <BrevoCell
-                      label="Clics uniques"
-                      value={brevoStats.raw.uniqueClicks.toLocaleString('fr-FR')}
-                      sub={`${brevoStats.computed.clickRate.toFixed(1)}% taux de clic`}
-                      accent={brevoStats.computed.clickRate >= 3 ? 'green' : brevoStats.computed.clickRate >= 1 ? 'yellow' : 'red'}
-                    />
-                    <BrevoCell
-                      label="Bounces totaux"
-                      value={brevoStats.raw.totalBounces.toLocaleString('fr-FR')}
-                      sub={`${brevoStats.computed.bounceRate.toFixed(1)}% taux de bounce`}
-                      accent={brevoStats.computed.bounceRate <= 2 ? 'green' : brevoStats.computed.bounceRate <= 5 ? 'yellow' : 'red'}
-                    />
-                  </div>
-                ) : (
-                  <p style={{ fontSize: 12, color: C.brownLight, padding: '16px 0' }}>Aucune donnée disponible.</p>
-                )}
-              </div>
-
-<BrevoEventsTable />
-
-              {/* Section 4 — Roadmap interactive */}
-<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 16 }}>
-  <h3 style={{ ...sectionTitle, margin: 0 }}>📌 Roadmap vivante</h3>
-  <button onClick={resetRoadmap} style={{
-    background: 'transparent', border: 'none', color: C.brownLight,
-    fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-    textDecoration: 'underline', opacity: 0.7,
-  }}>
-    ↺ Réinitialiser
-  </button>
-</div>
-
-<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
-
-  {/* Validé */}
-  <div style={{ ...glassCard, marginBottom: 0, borderColor: 'rgba(123,168,105,0.4)' }}>
-    <h3 style={{ ...sectionTitle, color: C.green }}>✅ Validé en prod</h3>
-    {Object.entries(roadmapData.validated).map(([category, items]) => (
-      <div key={category} style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.copperDark, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
-          {category}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {items.map((item, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '3px 0', fontSize: 12, color: C.brown, lineHeight: 1.5 }}>
-              <button onClick={() => toggleItem('validated', category, item)} title="Remettre en attente"
-                style={{ background: 'rgba(123,168,105,0.15)', border: '1px solid rgba(123,168,105,0.4)', cursor: 'pointer', padding: 0, width: 16, height: 16, borderRadius: 4, fontSize: 11, color: C.green, flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
-                ✓
-              </button>
-              <span style={{ flex: 1 }}>{item}</span>
-              <button onClick={() => removeItem('validated', category, item)} title="Supprimer"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', fontSize: 14, color: C.brownLight, flexShrink: 0, opacity: 0.4 }}>
-                ×
-              </button>
-            </div>
-          ))}
-          {adding?.column === 'validated' && adding?.category === category ? (
-            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-              <input autoFocus value={newItemText} onChange={e => setNewItemText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') addItem('validated', category); if (e.key === 'Escape') { setAdding(null); setNewItemText('') } }}
-                placeholder="Nouvel item…"
-                style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(123,168,105,0.4)', background: '#faf7f2', color: C.brown, fontFamily: 'inherit', outline: 'none' }} />
-              <button onClick={() => addItem('validated', category)} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>✓</button>
-              <button onClick={() => { setAdding(null); setNewItemText('') }} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>×</button>
-            </div>
-          ) : (
-            <button onClick={() => setAdding({ column: 'validated', category })}
-              style={{ background: 'none', border: 'none', color: C.green, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', padding: '4px 0 0', opacity: 0.7 }}>
-              + Ajouter
-            </button>
-          )}
-        </div>
-      </div>
-    ))}
-  </div>
-
-  {/* En attente */}
-  <div style={{ ...glassCard, marginBottom: 0, borderColor: 'rgba(212,167,56,0.4)' }}>
-    <h3 style={{ ...sectionTitle, color: C.copperDark }}>⏳ En attente</h3>
-    {Object.entries(roadmapData.pending).map(([category, items]) => (
-      <div key={category} style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.copperDark, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
-          {category}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {items.map((item, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '3px 0', fontSize: 12, color: C.brown, lineHeight: 1.5 }}>
-              <button onClick={() => toggleItem('pending', category, item)} title="Marquer comme validé"
-                style={{ background: '#faf7f2', border: '1px solid rgba(212,165,116,0.5)', cursor: 'pointer', padding: 0, width: 16, height: 16, borderRadius: 4, fontSize: 11, color: 'transparent', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                ✓
-              </button>
-              <span style={{ flex: 1 }}>{item}</span>
-              <button onClick={() => removeItem('pending', category, item)} title="Supprimer"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', fontSize: 14, color: C.brownLight, flexShrink: 0, opacity: 0.4 }}>
-                ×
-              </button>
-            </div>
-          ))}
-          {adding?.column === 'pending' && adding?.category === category ? (
-            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-              <input autoFocus value={newItemText} onChange={e => setNewItemText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') addItem('pending', category); if (e.key === 'Escape') { setAdding(null); setNewItemText('') } }}
-                placeholder="Nouvel item…"
-                style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(212,165,116,0.4)', background: '#faf7f2', color: C.brown, fontFamily: 'inherit', outline: 'none' }} />
-              <button onClick={() => addItem('pending', category)} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>✓</button>
-              <button onClick={() => { setAdding(null); setNewItemText('') }} style={{ ...smallBtn, padding: '2px 8px', fontSize: 12 }}>×</button>
-            </div>
-          ) : (
-            <button onClick={() => setAdding({ column: 'pending', category })}
-              style={{ background: 'none', border: 'none', color: C.copperDark, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', padding: '4px 0 0', opacity: 0.7 }}>
-              + Ajouter
-            </button>
-          )}
-        </div>
-      </div>
-    ))}
-  </div>
-
-</div>
-
-              <p style={{ fontSize: 11, color: C.brownLight, fontStyle: 'italic', marginTop: 20, textAlign: 'center' }}>
-                ✦ Les saisies manuelles sont sauvegardées automatiquement dans ton navigateur. Pense à les actualiser chaque dimanche.
-                 </p>
-            </div>
-          )}
 
           {activeTab === 'landing' && (
   <div>
@@ -1657,15 +1300,6 @@ const loadAuthUserCount = async () => {
   accent={C.green}
   sub={`${landingStats.cta.totalSessions > 0 ? landingStats.cta.conversionRate.toFixed(1) : '0'}% de conversion`}
 />
-          <KpiTile
-            selected={false}
-            onClick={() => {}}
-            emoji="🧠"
-            label="Leads quiz charge mentale"
-            value={landingStats.quiz.total}
-            accent={C.purple}
-            sub={`${landingStats.quiz.last24h} sur 24h · ${landingStats.quiz.last7d} sur 7j`}
-          />
         </div>
  
         {/* ─── CTA BREAKDOWN ─── */}
@@ -1682,7 +1316,6 @@ const loadAuthUserCount = async () => {
                 const labelMap: Record<string, string> = {
                   'nav_cta':       'Nav top — Avant-première gratuite',
                   'hero_primary':  'Hero — Teste le changement',
-                  'hero_test':     'Hero — Fais le quiz charge mentale',
                   'hero_blog':     'Hero — Lire un article du blog',
                   'mirror_cta':    'Mirror — Teste le changement',
                   'community_cta': 'Communauté — Rejoins-les',
@@ -1730,12 +1363,6 @@ const loadAuthUserCount = async () => {
               color={C.purple}
             />
             <FunnelStep
-              label="Ont fait le quiz"
-              value={landingStats.cta.sessionsClickedQuiz}
-              max={landingStats.cta.totalSessions}
-              color={C.brown}
-            />
-            <FunnelStep
               label="Ont lu un article du blog"
               value={landingStats.cta.sessionsClickedBlog}
               max={landingStats.cta.totalSessions}
@@ -1745,92 +1372,6 @@ const loadAuthUserCount = async () => {
         </div>
 
         {/* ─── LEADS QUIZ CHARGE MENTALE ─── */}
-        <div style={glassCard}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            <div>
-              <h3 style={sectionTitle}>Leads du quiz "charge mentale"</h3>
-              <p style={sectionDesc}>Emails collectés via le quiz de la landing, avec leur score et profil.</p>
-            </div>
-            {landingStats.quiz.leads.length > 0 && (
-              <button
-                onClick={() => {
-                  const header = 'email,score,profil,score_label,date\n'
-                  const lines = landingStats.quiz.leads.map(l =>
-                    [l.email, l.score ?? '', l.profil ?? '', l.scoreLabel ?? '', l.date].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')
-                  )
-                  const csv = header + lines.join('\n')
-                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = `novae-leads-quiz-${new Date().toISOString().slice(0, 10)}.csv`
-                  a.click()
-                  URL.revokeObjectURL(url)
-                }}
-                style={{
-                  background: 'rgba(196,149,106,0.15)',
-                  border: '1px solid rgba(196,149,106,0.35)',
-                  borderRadius: 8, padding: '6px 12px',
-                  color: C.copperDark, fontSize: 12,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                ⬇ Exporter en CSV
-              </button>
-            )}
-          </div>
-
-          {landingStats.quiz.profilBreakdown.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }}>
-              {landingStats.quiz.profilBreakdown.map((p, i) => (
-                <span key={i} style={{
-                  fontSize: 12, padding: '4px 10px', borderRadius: 999,
-                  background: 'rgba(155,90,101,0.1)', color: C.copperDark,
-                  border: '1px solid rgba(155,90,101,0.2)',
-                }}>
-                  {p.profil} · {p.count}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {landingStats.quiz.leads.length === 0 ? (
-            <p style={{ fontSize: 13, color: C.brownLight, padding: '14px 0' }}>Aucun lead encore enregistré sur cette période.</p>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', color: C.brownLight, borderBottom: '1px solid rgba(212,165,116,0.25)' }}>
-                    <th style={{ padding: '6px 8px' }}>Email</th>
-                    <th style={{ padding: '6px 8px' }}>Score</th>
-                    <th style={{ padding: '6px 8px' }}>Profil</th>
-                    <th style={{ padding: '6px 8px' }}>Niveau</th>
-                    <th style={{ padding: '6px 8px' }}>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {landingStats.quiz.leads.slice(0, 50).map((l, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid rgba(212,165,116,0.12)' }}>
-                      <td style={{ padding: '6px 8px', color: C.brown }}>{l.email}</td>
-                      <td style={{ padding: '6px 8px' }}>{l.score ?? '–'}</td>
-                      <td style={{ padding: '6px 8px' }}>{l.profil ?? '–'}</td>
-                      <td style={{ padding: '6px 8px' }}>{l.scoreLabel ?? '–'}</td>
-                      <td style={{ padding: '6px 8px', color: C.brownLight }}>{formatDateTime(l.date)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {landingStats.quiz.leads.length > 50 && (
-                <p style={{ fontSize: 11, color: C.brownLight, marginTop: 8, fontStyle: 'italic' }}>
-                  Affichage des 50 plus récents ({landingStats.quiz.leads.length} au total sur la période). Exporte en CSV pour voir tous les leads.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
- 
-        {/* ─── SCROLL DEPTH ─── */}
-        <div style={glassCard}>
           <h3 style={sectionTitle}>Profondeur de lecture</h3>
           <p style={sectionDesc}>Combien de visiteuses scrollent jusqu'au bout de la page.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
@@ -2223,11 +1764,11 @@ const formInput: React.CSSProperties = {
 }
 
 const glassCard: React.CSSProperties = {
-  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.25))',
+  background: 'rgba(255,255,255,0.55)',
   backdropFilter: 'blur(18px)',
   WebkitBackdropFilter: 'blur(18px)',
-  border: '1px solid rgba(255, 255, 255, 0.5)',
-  borderRadius: 20, padding: 22, marginBottom: 16,
+  border: '1px solid rgba(255,255,255,0.65)',
+  borderRadius: 16, padding: 18, marginBottom: 14,
   boxShadow: '0 4px 16px rgba(139, 90, 60, 0.06)',
 }
 
