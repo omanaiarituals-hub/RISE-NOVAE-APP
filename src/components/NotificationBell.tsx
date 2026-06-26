@@ -25,7 +25,9 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [open, setOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 })
 
   useEffect(() => {
     if (!user) return
@@ -44,13 +46,31 @@ export default function NotificationBell() {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(e.target as Node)
+      ) {
         setOpen(false)
       }
     }
     if (open) document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
+
+  const handleOpen = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      // Position fixed : top sous le bouton, aligné à droite du bouton
+      // On s'assure que ça ne déborde pas à gauche
+      const dropdownWidth = Math.min(360, window.innerWidth - 24)
+      const rightOffset = window.innerWidth - rect.right
+      setDropdownPos({
+        top: rect.bottom + 10,
+        right: Math.max(12, rightOffset),
+      })
+    }
+    setOpen(!open)
+  }
 
   const loadNotifications = async () => {
     if (!user) return
@@ -97,97 +117,75 @@ export default function NotificationBell() {
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
   }
 
+  const dropdownWidth = typeof window !== 'undefined'
+    ? Math.min(360, window.innerWidth - 24)
+    : 360
+
   return (
-    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+    <>
       <button
-        onClick={() => setOpen(!open)}
+        ref={buttonRef}
+        onClick={handleOpen}
         aria-label="Notifications"
         style={{
-          width: 38,
-          height: 38,
-          borderRadius: '50%',
+          width: 38, height: 38, borderRadius: '50%',
           background: 'rgba(243, 220, 198, 0.15)',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
+          backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
           border: '1px solid rgba(243, 220, 198, 0.25)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          fontSize: 16,
-          color: '#f3dcc6',
-          cursor: 'pointer',
-          padding: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'relative', fontSize: 16, color: '#f3dcc6', cursor: 'pointer', padding: 0,
         }}
       >
         🔔
         {unreadCount > 0 && (
           <span style={{
-            position: 'absolute',
-            top: -3,
-            right: -3,
+            position: 'absolute', top: -3, right: -3,
             background: 'linear-gradient(135deg, #c44757, #8b2d3d)',
-            color: 'white',
-            fontSize: 9,
-            fontWeight: 700,
-            minWidth: 18,
-            height: 18,
-            padding: '0 5px',
-            borderRadius: 999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '2px solid #5b3821',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
+            color: 'white', fontSize: 9, fontWeight: 700,
+            minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '2px solid #5b3821', boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
           }}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
+      {/* DROPDOWN en position FIXED — passe au-dessus de tout, même les backdropFilter */}
       {open && (
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          right: 0,
-          marginTop: 12,
-          width: 360,
-          maxWidth: 'calc(100vw - 24px)',
-          maxHeight: 480,
-          background: '#FFFFFF',
-          border: '1px solid rgba(196, 149, 106, 0.25)',
-          borderRadius: 16,
-          boxShadow: '0 12px 32px rgba(91, 56, 33, 0.18)',
-          overflow: 'hidden',
-          zIndex: 1000,
-          fontFamily: "'DM Sans', sans-serif",
-        }}>
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            top: dropdownPos.top,
+            right: dropdownPos.right,
+            width: dropdownWidth,
+            maxHeight: 480,
+            background: '#FFFFFF',
+            border: '1px solid rgba(196, 149, 106, 0.25)',
+            borderRadius: 16,
+            boxShadow: '0 12px 40px rgba(91, 56, 33, 0.22)',
+            overflow: 'hidden',
+            zIndex: 9999,
+            fontFamily: "'DM Sans', sans-serif",
+          }}
+        >
           <div style={{
             padding: '14px 16px',
             borderBottom: '1px solid rgba(196, 149, 106, 0.2)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             background: 'linear-gradient(135deg, #faf3ea, #f3dcc6)',
           }}>
             <h3 style={{
-              margin: 0,
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 18,
-              color: '#3d2618',
-              fontWeight: 500,
+              margin: 0, fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 18, color: '#3d2618', fontWeight: 500,
             }}>
               Notifications{unreadCount > 0 ? ` (${unreadCount})` : ''}
             </h3>
             {unreadCount > 0 && (
               <button onClick={markAllAsRead} style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 11,
-                color: '#8b5a3c',
-                fontWeight: 600,
-                textDecoration: 'underline',
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 11, color: '#8b5a3c', fontWeight: 600, textDecoration: 'underline',
               }}>
                 Tout marquer lu
               </button>
@@ -199,9 +197,7 @@ export default function NotificationBell() {
               <div style={{ padding: '40px 20px', textAlign: 'center', color: '#8b6f55' }}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>🌸</div>
                 <p style={{ margin: 0, fontSize: 13 }}>Pas encore de notification</p>
-                <p style={{ margin: '4px 0 0', fontSize: 11, opacity: 0.7 }}>
-                  Tes notifs s'afficheront ici
-                </p>
+                <p style={{ margin: '4px 0 0', fontSize: 11, opacity: 0.7 }}>Tes notifs s'afficheront ici</p>
               </div>
             ) : (
               notifications.map(notif => (
@@ -221,37 +217,21 @@ export default function NotificationBell() {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <p style={{
-                      margin: '0 0 2px',
-                      fontSize: 13,
-                      fontWeight: notif.read ? 500 : 700,
-                      color: '#3d2618',
-                    }}>
+                    <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: notif.read ? 500 : 700, color: '#3d2618' }}>
                       {notif.title}
                     </p>
                     {!notif.read && (
-                      <span style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        background: '#c4956a',
-                        flexShrink: 0,
-                        marginTop: 6,
-                      }} />
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#c4956a', flexShrink: 0, marginTop: 6 }} />
                     )}
                   </div>
-                  <p style={{ margin: '2px 0 4px', fontSize: 12, color: '#6b5340', lineHeight: 1.4 }}>
-                    {notif.body}
-                  </p>
-                  <p style={{ margin: 0, fontSize: 10, color: '#a08770' }}>
-                    {formatTime(notif.created_at)}
-                  </p>
+                  <p style={{ margin: '2px 0 4px', fontSize: 12, color: '#6b5340', lineHeight: 1.4 }}>{notif.body}</p>
+                  <p style={{ margin: 0, fontSize: 10, color: '#a08770' }}>{formatTime(notif.created_at)}</p>
                 </div>
               ))
             )}
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
