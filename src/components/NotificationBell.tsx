@@ -25,9 +25,6 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [open, setOpen] = useState(false)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 })
 
   useEffect(() => {
     if (!user) return
@@ -35,51 +32,40 @@ export default function NotificationBell() {
     const channel = supabase
       .channel('notifications-bell')
       .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
+        event: 'INSERT', schema: 'public', table: 'notifications',
         filter: `user_id=eq.${user.id}`,
       }, () => loadNotifications())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [user])
 
+  // Ferme sur clic extérieur (desktop)
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
-        buttonRef.current && !buttonRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false)
-      }
+    if (!open) return
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-notif-panel]')) setOpen(false)
     }
-    if (open) document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
-  const handleOpen = () => {
-    if (!open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect()
-      // Position fixed : top sous le bouton, aligné à droite du bouton
-      // On s'assure que ça ne déborde pas à gauche
-      const dropdownWidth = Math.min(360, window.innerWidth - 24)
-      const rightOffset = window.innerWidth - rect.right
-      setDropdownPos({
-        top: rect.bottom + 10,
-        right: Math.max(12, rightOffset),
-      })
+  // Bloque le scroll du body quand ouvert sur mobile
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
     }
-    setOpen(!open)
-  }
+    return () => { document.body.style.overflow = '' }
+  }, [open])
 
   const loadNotifications = async () => {
     if (!user) return
     const { data } = await supabase
-      .from('notifications')
-      .select('*')
+      .from('notifications').select('*')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(20)
+      .order('created_at', { ascending: false }).limit(20)
     if (data) {
       setNotifications(data)
       setUnreadCount(data.filter(n => !n.read).length)
@@ -117,21 +103,17 @@ export default function NotificationBell() {
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
   }
 
-  const dropdownWidth = typeof window !== 'undefined'
-    ? Math.min(360, window.innerWidth - 24)
-    : 360
-
   return (
-    <>
+    <div data-notif-panel style={{ position: 'relative', display: 'inline-block' }}>
+      {/* BOUTON CLOCHE */}
       <button
-        ref={buttonRef}
-        onClick={handleOpen}
+        onClick={() => setOpen(!open)}
         aria-label="Notifications"
         style={{
           width: 38, height: 38, borderRadius: '50%',
-          background: 'rgba(243, 220, 198, 0.15)',
+          background: 'rgba(243,220,198,0.15)',
           backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-          border: '1px solid rgba(243, 220, 198, 0.25)',
+          border: '1px solid rgba(243,220,198,0.25)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           position: 'relative', fontSize: 16, color: '#f3dcc6', cursor: 'pointer', padding: 0,
         }}
@@ -144,94 +126,105 @@ export default function NotificationBell() {
             color: 'white', fontSize: 9, fontWeight: 700,
             minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '2px solid #5b3821', boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
+            border: '2px solid #5b3821',
           }}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
-      {/* DROPDOWN en position FIXED — passe au-dessus de tout, même les backdropFilter */}
       {open && (
-        <div
-          ref={dropdownRef}
-          style={{
-            position: 'fixed',
-            top: dropdownPos.top,
-            right: dropdownPos.right,
-            width: dropdownWidth,
-            maxHeight: 480,
-            background: '#FFFFFF',
-            border: '1px solid rgba(196, 149, 106, 0.25)',
-            borderRadius: 16,
-            boxShadow: '0 12px 40px rgba(91, 56, 33, 0.22)',
-            overflow: 'hidden',
-            zIndex: 9999,
-            fontFamily: "'DM Sans', sans-serif",
-          }}
-        >
-          <div style={{
-            padding: '14px 16px',
-            borderBottom: '1px solid rgba(196, 149, 106, 0.2)',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            background: 'linear-gradient(135deg, #faf3ea, #f3dcc6)',
-          }}>
-            <h3 style={{
-              margin: 0, fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 18, color: '#3d2618', fontWeight: 500,
-            }}>
-              Notifications{unreadCount > 0 ? ` (${unreadCount})` : ''}
-            </h3>
-            {unreadCount > 0 && (
-              <button onClick={markAllAsRead} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 11, color: '#8b5a3c', fontWeight: 600, textDecoration: 'underline',
-              }}>
-                Tout marquer lu
-              </button>
-            )}
-          </div>
+        <>
+          {/* OVERLAY sombre — couvre TOUT l'écran, zIndex très haut */}
+          <div
+            onClick={() => setOpen(false)}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(0,0,0,0.35)',
+              zIndex: 9998,
+              backdropFilter: 'none',
+            }}
+          />
 
-          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-            {notifications.length === 0 ? (
-              <div style={{ padding: '40px 20px', textAlign: 'center', color: '#8b6f55' }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>🌸</div>
-                <p style={{ margin: 0, fontSize: 13 }}>Pas encore de notification</p>
-                <p style={{ margin: '4px 0 0', fontSize: 11, opacity: 0.7 }}>Tes notifs s'afficheront ici</p>
+          {/* PANNEAU — au-dessus de l'overlay */}
+          <div style={{
+            position: 'fixed',
+            top: 0, right: 0,
+            width: 'min(380px, 100vw)',
+            height: '100dvh',
+            background: '#FFFFFF',
+            boxShadow: '-8px 0 32px rgba(91,56,33,0.18)',
+            zIndex: 9999,
+            display: 'flex', flexDirection: 'column',
+            fontFamily: "'DM Sans', sans-serif",
+          }}>
+            {/* HEADER */}
+            <div style={{
+              padding: '16px 18px',
+              borderBottom: '1px solid rgba(196,149,106,0.2)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              background: 'linear-gradient(135deg, #faf3ea, #f3dcc6)',
+              flexShrink: 0,
+            }}>
+              <h3 style={{
+                margin: 0, fontFamily: "'Cormorant Garamond', serif",
+                fontSize: 20, color: '#3d2618', fontWeight: 500,
+              }}>
+                Notifications{unreadCount > 0 ? ` (${unreadCount})` : ''}
+              </h3>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                {unreadCount > 0 && (
+                  <button onClick={markAllAsRead} style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 11, color: '#8b5a3c', fontWeight: 600, textDecoration: 'underline',
+                  }}>
+                    Tout lu
+                  </button>
+                )}
+                <button onClick={() => setOpen(false)} style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 20, color: '#8b5a3c', lineHeight: 1, padding: '0 4px',
+                }}>✕</button>
               </div>
-            ) : (
-              notifications.map(notif => (
-                <div
-                  key={notif.id}
-                  onClick={() => handleNotifClick(notif)}
-                  style={{
-                    padding: '12px 16px',
-                    borderBottom: '1px solid rgba(196, 149, 106, 0.1)',
-                    cursor: 'pointer',
-                    background: notif.read ? '#FFFFFF' : 'rgba(196,149,106,0.08)',
-                    transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#faf3ea' }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = notif.read ? '#FFFFFF' : 'rgba(196,149,106,0.08)'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: notif.read ? 500 : 700, color: '#3d2618' }}>
-                      {notif.title}
-                    </p>
-                    {!notif.read && (
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#c4956a', flexShrink: 0, marginTop: 6 }} />
-                    )}
-                  </div>
-                  <p style={{ margin: '2px 0 4px', fontSize: 12, color: '#6b5340', lineHeight: 1.4 }}>{notif.body}</p>
-                  <p style={{ margin: 0, fontSize: 10, color: '#a08770' }}>{formatTime(notif.created_at)}</p>
+            </div>
+
+            {/* LISTE */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {notifications.length === 0 ? (
+                <div style={{ padding: '60px 20px', textAlign: 'center', color: '#8b6f55' }}>
+                  <div style={{ fontSize: 36, marginBottom: 10 }}>🌸</div>
+                  <p style={{ margin: 0, fontSize: 14 }}>Pas encore de notification</p>
+                  <p style={{ margin: '4px 0 0', fontSize: 11, opacity: 0.7 }}>Tes notifs s'afficheront ici</p>
                 </div>
-              ))
-            )}
+              ) : (
+                notifications.map(notif => (
+                  <div
+                    key={notif.id}
+                    onClick={() => handleNotifClick(notif)}
+                    style={{
+                      padding: '14px 18px',
+                      borderBottom: '1px solid rgba(196,149,106,0.1)',
+                      cursor: 'pointer',
+                      background: notif.read ? '#FFFFFF' : 'rgba(196,149,106,0.07)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <p style={{ margin: '0 0 3px', fontSize: 13, fontWeight: notif.read ? 500 : 700, color: '#3d2618', lineHeight: 1.4 }}>
+                        {notif.title}
+                      </p>
+                      {!notif.read && (
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#c4956a', flexShrink: 0, marginTop: 5 }} />
+                      )}
+                    </div>
+                    <p style={{ margin: '0 0 5px', fontSize: 12, color: '#6b5340', lineHeight: 1.5 }}>{notif.body}</p>
+                    <p style={{ margin: 0, fontSize: 10, color: '#a08770' }}>{formatTime(notif.created_at)}</p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
-    </>
+    </div>
   )
 }

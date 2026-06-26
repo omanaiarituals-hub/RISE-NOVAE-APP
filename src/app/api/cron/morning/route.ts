@@ -52,7 +52,9 @@ async function generateNovaMessage(
       system: NOVA_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: contextPrompts[triggerType] }]
     })
-    return response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+return response.content[0].type === 'text' 
+  ? response.content[0].text.trim().replace(/\s*—\s*/g, ' ') 
+  : ''
   } catch (e) {
     console.error('Claude generation failed:', e)
     // Fallback si Claude échoue

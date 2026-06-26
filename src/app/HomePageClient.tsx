@@ -146,8 +146,8 @@ export default function HomePageClient() {
     return (
       <div style={{ background: u.tint, border: `1px solid ${u.border}`, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'row', height: '100%' }}>
         {/* RECTANGLE ILLUSTRATION GAUCHE */}
-        <div style={{ width: 76, flexShrink: 0, background: u.tint.replace('0.25', '0.45'), display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 6px', borderRight: `1px solid ${u.border}` }}>
-          <img src={u.icon} alt={u.title} style={{ width: 60, height: 60, objectFit: 'contain', borderRadius: 12 }} />
+        <div style={{ width: 80, flexShrink: 0, overflow: 'hidden', borderRight: `1px solid ${u.border}` }}>
+          <img src={u.icon} alt={u.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', minHeight: 90 }} />
         </div>
         {/* CONTENU DROIT */}
         <div style={{ flex: 1, minWidth: 0, padding: '10px 10px 10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
