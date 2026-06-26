@@ -114,21 +114,24 @@ const DEFAULT_MANUAL_KPIS: ManualKpis = {
 
 type KpiKey = 'all' | 'onboarded' | 'active_24h' | 'active_7d' | 'on_program' | 'struggling' | 'community' | 'never_active'
 type Tab = 'stats' | 'challenges' | 'posts' | 'review' | 'landing' | 'audience'
-// ─── Roadmap status — extrait du dossier V2 Pro ───
+// ─── Roadmap status — mise à jour 26/06/2026 ───
 const ROADMAP_VALIDATED: Record<string, string[]> = {
-  'Modules app (P.1 du dossier)': [
-    'Dashboard 9 tuiles',
-    'Programme 90j (3 phases)',
-    'Planner + To-do',
+  'Modules app': [
+    'Dashboard 9 tuiles → refonte 4 univers thématiques',
+    'Programme 90j (3 phases) — Reset 90j',
+    'Planner + To-do (Nova écrit dans todo_list visible Planner)',
     'Habit Tracker',
     'Défis + Badges',
-    'Recettes & Courses',
+    'Recettes & Courses (bug shopping_list corrigé)',
     'Famille & Proches',
     'Agent IA NOVAÉ (Claude API + bilan hebdo cron)',
     'Paramètres',
-    'Blog SEO (3 articles)',
+    'Blog bien-être (page créée)',
     'Quiz charge mentale + diagnostic IA',
     'Onboarding 10Q (UI flow complet)',
+    'Reclaim Myself — Parcours Profond (4 actes)',
+    'Objectif du jour sur accueil (carte interactive)',
+    'Communauté carte accueil avec compteur nouveaux posts',
   ],
   'Infra & lancement': [
     'Domaine novae-by-omanaia.com (landing)',
@@ -136,14 +139,29 @@ const ROADMAP_VALIDATED: Record<string, string[]> = {
     'Brevo SMTP configuré',
     'Email J0 bienvenue automatique (template 6)',
     'Late Welcome batch 10/10 (template 16)',
-    'Cron Vercel 18h UTC notif flammes en danger',
+    'Cron Vercel — 5 crons configurés vercel.json',
+    'Cron débrief hebdo pour toutes les utilisatrices (service_role)',
+    'Push notifications réactivées + RLS user_events',
+    'Middleware — bypass crons (résolution 307)',
+    'PWA manifest start_url absolu + icônes 192/512',
+    'SEO robots.ts + sitemap + Open Graph',
   ],
-  'Sprint Streak + Badges (10/05/2026)': [
+  'Sprint Streak + Badges': [
     'Tables user_streaks / user_badges / user_events',
     'Flamme animée compacte + bouton « Je suis là »',
     'Jour de répit 1/sem',
     '10 badges + modale + partage communauté',
     'Page /profil/badges',
+    'Doublon flamme carte Programme 90j supprimé',
+  ],
+  'Audit & corrections (26/06/2026)': [
+    'Modal notifications — createPortal zIndex 99999',
+    'Tâches Nova visibles dans Planner (todo_list)',
+    'Titre PWA RISE NOVAÉ → NOVAÉ',
+    'Onglet Programmes statique supprimé du profil',
+    'Cron morning/evening débloqués (bypass middleware)',
+    'Tracking landing — URL absolue app.novae-by-omanaia.com',
+    'Connexion mobile — retry session + timeout 8s',
   ],
   'Stratégie contenu': [
     '90 épisodes Chroniques de NOVAÉ scriptés',
@@ -172,9 +190,17 @@ const ROADMAP_PENDING: Record<string, string[]> = {
     'A/B test onboarding 5Q vs 10Q',
     'Pinterest 3 pins/sem',
   ],
-  'Bugs / nettoyage': [
-    'Doublon streak : retirer 🔥 8j de la carte Programme 90j',
-    'Tester cron streak-reminder demain 18h UTC',
+  'Qualité code': [
+    '217 console.log en production → supprimer',
+    'Dashboard 6 requêtes en cascade → regrouper',
+    'Page Admin 2218 lignes → découper',
+    'Unifier todo_list / tasks (tâches éparses)',
+  ],
+  'Bugs / backlog': [
+    'Badge communauté compteur réponses ne se met pas à jour',
+    'Indicateur non-lus communauté manquant',
+    'Icônes univers — fond blanc (remove.bg ou mixBlendMode)',
+    'Tester cron streak-reminder 18h UTC',
   ],
 }
 
@@ -187,6 +213,7 @@ export default function AdminPage() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   const [selectedKpi, setSelectedKpi] = useState<KpiKey>('all')
+  const [periodDays, setPeriodDays] = useState(7)
 
   // Streaks (table user_streaks — sprint 10/05)
   const [avgStreak, setAvgStreak] = useState(0)
@@ -474,29 +501,34 @@ const loadAuthUserCount = async () => {
 }
 
   const loadUsers = async () => {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const cutoff = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString()
 
-    const [profilesRes, progressRes, missionsRes, convRes, postsRes] = await Promise.all([
-      supabase.from('ai_personality_profile').select('user_id, pseudo, created_at, updated_at'),
+    // On lit depuis `users` (toutes les inscrites) + ai_personality_profile (pour le pseudo)
+    const [usersRes, profilesRes, progressRes, missionsRes, convRes, postsRes] = await Promise.all([
+      supabase.from('users').select('id, email, created_at'),
+      supabase.from('ai_personality_profile').select('user_id, pseudo, updated_at'),
       supabase.from('program_progress').select('user_id, current_day, started_at'),
-      supabase.from('mission_responses').select('user_id, completed_at').gte('completed_at', sevenDaysAgo),
-      supabase.from('agent_conversations').select('user_id, created_at').gte('created_at', sevenDaysAgo),
+      supabase.from('mission_responses').select('user_id, completed_at').gte('completed_at', cutoff),
+      supabase.from('agent_conversations').select('user_id, created_at').gte('created_at', cutoff),
       supabase.from('community_posts').select('user_id, created_at'),
     ])
 
+    const allUsers = usersRes.data || []
     const profiles = profilesRes.data || []
     const progresses = progressRes.data || []
     const missions = missionsRes.data || []
     const convs = convRes.data || []
     const allPosts = postsRes.data || []
 
+    const profileMap = new Map(profiles.map(p => [p.user_id, p]))
     const progressMap = new Map(progresses.map(p => [p.user_id, p]))
 
-    const userRows: UserRow[] = profiles.map(p => {
-      const prog = progressMap.get(p.user_id)
-      const userMissions = missions.filter(m => m.user_id === p.user_id)
-      const userConvs = convs.filter(c => c.user_id === p.user_id)
-      const userPosts = allPosts.filter(post => post.user_id === p.user_id)
+    const userRows: UserRow[] = allUsers.map(u => {
+      const profile = profileMap.get(u.id)
+      const prog = progressMap.get(u.id)
+      const userMissions = missions.filter(m => m.user_id === u.id)
+      const userConvs = convs.filter(c => c.user_id === u.id)
+      const userPosts = allPosts.filter(post => post.user_id === u.id)
 
       const allActivities = [
         ...userMissions.map(m => m.completed_at),
@@ -515,9 +547,9 @@ const loadAuthUserCount = async () => {
       )
 
       return {
-        user_id: p.user_id,
-        pseudo: p.pseudo || p.user_id.slice(0, 8),
-        profile_created_at: p.created_at,
+        user_id: u.id,
+        pseudo: profile?.pseudo || u.email?.split('@')[0] || u.id.slice(0, 8),
+        profile_created_at: u.created_at,
         current_day: currentDay,
         program_started_at: prog?.started_at || null,
         last_activity: lastActivity,
@@ -869,17 +901,25 @@ const loadAuthUserCount = async () => {
               </div>
 
               <div style={glassCard}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
                   <h3 style={sectionTitle}>
-                    Utilisatrices <span style={{ color: C.brownLight, fontWeight: 400, fontSize: 14 }}>({filteredUsers.length})</span>
+                    Utilisatrices <span style={{ color: C.brownLight, fontWeight: 400, fontSize: 14 }}>({filteredUsers.length}/{users.length})</span>
                   </h3>
-                  {selectedKpi !== 'all' && (
-                    <button onClick={() => setSelectedKpi('all')} style={{
-                      background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.3)',
-                      borderRadius: 8, padding: '4px 10px', color: C.copperDark, fontSize: 11,
-                      cursor: 'pointer', fontFamily: 'inherit',
-                    }}>← Toutes</button>
-                  )}
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    {[1, 7, 14, 30, 90].map(d => (
+                      <button key={d} onClick={() => { setPeriodDays(d); loadUsers() }}
+                        style={{ padding: '3px 8px', borderRadius: 6, border: `1px solid rgba(196,149,106,${periodDays === d ? '0.8' : '0.3'})`, background: periodDays === d ? C.copper : 'transparent', color: periodDays === d ? '#fff' : C.copperDark, fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {d === 1 ? '24h' : `${d}j`}
+                      </button>
+                    ))}
+                    {selectedKpi !== 'all' && (
+                      <button onClick={() => setSelectedKpi('all')} style={{
+                        background: 'rgba(196,149,106,0.15)', border: '1px solid rgba(196,149,106,0.3)',
+                        borderRadius: 6, padding: '3px 8px', color: C.copperDark, fontSize: 10,
+                        cursor: 'pointer', fontFamily: 'inherit', marginLeft: 4,
+                      }}>← Toutes</button>
+                    )}
+                  </div>
                 </div>
 
                 {filteredUsers.length === 0 ? (
