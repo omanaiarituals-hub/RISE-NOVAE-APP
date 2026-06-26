@@ -234,26 +234,26 @@ export default function HomePageClient() {
               </Link>
             )}
 
-            {/* DUO FLAMME + RESET */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-              <div style={{ background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.6)', borderRadius: 14, padding: '10px 12px' }}>
+            {/* CARTE UNIQUE : FLAMME + RESET côte à côte dans une seule carte */}
+            <div style={{ background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.6)', borderRadius: 14, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* Flamme */}
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <StreakFlame />
               </div>
-              <Link href="/program" style={{ textDecoration: 'none' }}>
-                <div style={{ height: '100%', background: 'rgba(243,205,182,0.35)', border: '1px solid rgba(230,180,147,0.45)', borderRadius: 14, padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 70, boxSizing: 'border-box' }}>
-                  <div>
-                    <div style={{ fontSize: 7.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 600 }}>{phaseInfo.phase}</div>
-                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: '#3d2618', lineHeight: 1.15, marginTop: 2 }}>{phaseInfo.label}</div>
+              {/* Séparateur */}
+              <div style={{ width: 1, alignSelf: 'stretch', background: 'rgba(196,149,106,0.2)', flexShrink: 0 }} />
+              {/* Reset 90j */}
+              <Link href="/program" style={{ textDecoration: 'none', flex: 1, minWidth: 0 }}>
+                <div>
+                  <div style={{ fontSize: 7.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 600 }}>{phaseInfo.phase}</div>
+                  <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: '#3d2618', lineHeight: 1.15, marginTop: 1 }}>{phaseInfo.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 2, marginTop: 5, marginBottom: 4 }}>
+                    <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 500, color: '#3d2618', lineHeight: 1 }}>{currentDay > 0 ? currentDay : '—'}</span>
+                    <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 11, color: '#a08770' }}>/ 90</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8b5a3c', fontWeight: 600 }}>{programProgress}%</span>
                   </div>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 2, marginBottom: 4 }}>
-                      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 500, color: '#3d2618', lineHeight: 1 }}>{currentDay > 0 ? currentDay : '—'}</span>
-                      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 11, color: '#a08770' }}>/ 90</span>
-                      <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8b5a3c', fontWeight: 600 }}>{programProgress}%</span>
-                    </div>
-                    <div style={{ height: 3, background: 'rgba(139,90,60,0.15)', borderRadius: 999, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${programProgress}%`, background: 'linear-gradient(90deg, #d4a574, #c4956a)', borderRadius: 999 }} />
-                    </div>
+                  <div style={{ height: 3, background: 'rgba(139,90,60,0.15)', borderRadius: 999, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${programProgress}%`, background: 'linear-gradient(90deg, #d4a574, #c4956a)', borderRadius: 999 }} />
                   </div>
                 </div>
               </Link>
