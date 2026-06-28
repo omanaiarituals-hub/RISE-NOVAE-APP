@@ -1,7 +1,15 @@
+// src/app/api/phase-letter/route.ts
+// CORRECTION P0 : ajout du gating d'abonnement.
+// Avant, une utilisatrice en tier "free" (après expiration du trial) pouvait appeler
+// cette route et générer une lettre IA sans être Premium. Le canAccess('premium_content')
+// bloque maintenant les non-abonnées avec un 403 propre.
+// Le reste de la route est inchangé.
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
+import { canAccess } from '@/lib/permissions'
 
 const PHASE_NAMES: Record<number, { name: string; days: string }> = {
   1: { name: 'Reprogrammation', days: 'J1 — J30' },
@@ -38,11 +46,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'non authentifié' }, { status: 401 })
     }
 
-    // Service client pour les écritures (bypass RLS pour insert)
+    // Service client pour les lectures/écritures (bypass RLS)
     const adminClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
+
+    // ── GATING ABONNEMENT (P0 ajouté) ─────────────────────────────────────────
+    // La lettre de phase est une feature Premium. Les utilisatrices en trial y ont
+    // accès pendant les 14 jours ; les free/expired sont bloquées.
+    const access = await canAccess(adminClient, 'premium_content', user.id)
+    if (!access.allowed) {
+      return NextResponse.json(
+        { error: 'Abonnement Premium requis pour accéder à ta lettre de phase.', reason: access.reason },
+        { status: 403 }
+      )
+    }
+    // ──────────────────────────────────────────────────────────────────────────
 
     // Lettre déjà existante ?
     const { data: existing } = await adminClient
@@ -191,7 +211,6 @@ ${debriefsText ? `SES DERNIERS DÉBRIEFS HEBDOMADAIRES :\n${debriefsText}\n` : '
       return NextResponse.json({ error: 'Lettre vide' }, { status: 500 })
     }
 
-    // Sauvegarde
     const { data: inserted, error: insertError } = await adminClient
       .from('phase_letters')
       .insert({

@@ -1,11 +1,10 @@
+// src/lib/supabase/userInit.ts
+// Identique à l'original, console.log de debug supprimés (restent les console.error).
 import { supabase } from './client'
 import { User } from '@supabase/supabase-js'
 
 export async function ensureUserEntry(user: User): Promise<{ success: boolean; error?: any }> {
   try {
-    console.log('Vérification entrée utilisateur pour:', user.id)
-    
-    // Vérifier si l'utilisateur existe déjà
     const { data: existingUser, error: selectError } = await supabase
       .from('users')
       .select('id')
@@ -17,17 +16,10 @@ export async function ensureUserEntry(user: User): Promise<{ success: boolean; e
       return { success: false, error: selectError }
     }
 
-    // Si l'utilisateur existe déjà, retourner succès
-    if (existingUser) {
-      console.log('Entrée utilisateur existe déjà')
-      return { success: true }
-    }
+    if (existingUser) return { success: true }
 
-    // 14 jours d'essai gratuit pour toute nouvelle inscription
     const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
-    console.log(`[userInit] Trial 14j jusqu'au : ${trialEndsAt}`)
 
-    // Créer l'entrée utilisateur
     const { error: insertError } = await supabase
       .from('users')
       .insert({
@@ -37,9 +29,9 @@ export async function ensureUserEntry(user: User): Promise<{ success: boolean; e
         avatar_url: user.user_metadata?.avatar_url || null,
         onboarding_data: {},
         preferences: {},
-        subscription_tier: 'trial',          // ← trial auto à l'inscription
+        subscription_tier: 'trial',
         subscription_status: 'active',
-        trial_ends_at: trialEndsAt,           // ← minimum 14j, étendu pendant avant-première
+        trial_ends_at: trialEndsAt,
         timezone: 'UTC',
         language: 'fr',
         marketing_consent: false,
@@ -51,7 +43,6 @@ export async function ensureUserEntry(user: User): Promise<{ success: boolean; e
       return { success: false, error: insertError }
     }
 
-    console.log('Entrée utilisateur créée avec succès')
     return { success: true }
   } catch (error) {
     console.error('Erreur inattendue ensureUserEntry:', error)
@@ -61,9 +52,6 @@ export async function ensureUserEntry(user: User): Promise<{ success: boolean; e
 
 export async function ensureProgramProgress(userId: string): Promise<{ success: boolean; error?: any }> {
   try {
-    console.log('Vérification program_progress pour:', userId)
-    
-    // Vérifier si program_progress existe déjà
     const { data: existingProgress, error: selectError } = await supabase
       .from('program_progress')
       .select('id')
@@ -75,13 +63,8 @@ export async function ensureProgramProgress(userId: string): Promise<{ success: 
       return { success: false, error: selectError }
     }
 
-    // Si program_progress existe déjà, retourner succès
-    if (existingProgress) {
-      console.log('Program_progress existe déjà')
-      return { success: true }
-    }
+    if (existingProgress) return { success: true }
 
-    // Créer l'entrée program_progress
     const { error: insertError } = await supabase
       .from('program_progress')
       .insert({
@@ -101,7 +84,6 @@ export async function ensureProgramProgress(userId: string): Promise<{ success: 
       return { success: false, error: insertError }
     }
 
-    console.log('Program_progress créé avec succès')
     return { success: true }
   } catch (error) {
     console.error('Erreur inattendue ensureProgramProgress:', error)
@@ -110,20 +92,11 @@ export async function ensureProgramProgress(userId: string): Promise<{ success: 
 }
 
 export async function initializeUserData(user: User): Promise<{ success: boolean; error?: any }> {
-  console.log('Initialisation données utilisateur pour:', user.id)
-  
-  // Créer l'entrée utilisateur
   const userResult = await ensureUserEntry(user)
-  if (!userResult.success) {
-    return userResult
-  }
+  if (!userResult.success) return userResult
 
-  // Créer program_progress
   const progressResult = await ensureProgramProgress(user.id)
-  if (!progressResult.success) {
-    return progressResult
-  }
+  if (!progressResult.success) return progressResult
 
-  console.log('Initialisation données utilisateur terminée')
   return { success: true }
 }

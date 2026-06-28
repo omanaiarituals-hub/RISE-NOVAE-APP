@@ -1,12 +1,19 @@
 // app/api/cron/weekly-debrief/route.ts
-// CORRECTION MAJEURE : ce cron tourne maintenant pour TOUTES les utilisatrices
-// actives (service_role key + boucle), pas seulement pour celle connectée.
-// Corrections : user_progress → program_progress, modèle à jour, CRON_SECRET.
+// CORRECTIONS P0 :
+//  1) Le handler est désormais GET (Vercel Cron appelle l'URL en GET).
+//     Avant, il était en POST → erreur 405 chaque dimanche, le débrief ne tournait JAMAIS.
+//  2) Après génération, on ENVOIE une notification push (le débrief n'était jamais livré,
+//     il était seulement écrit dans la table weekly_debriefs).
+// Le reste (boucle sur les utilisatrices actives, service_role, CRON_SECRET) est conservé.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 import { getNovaContextFromDeepJourneys, formatNovaContextAsPromptBlock } from '@/lib/deepJourneys'
+import { notifyUser } from '@/lib/push/notify'
+
+export const runtime = 'nodejs'
+export const maxDuration = 60
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,8 +60,8 @@ Tu observes et tu encourages à partir de ses propres mots et actions.`,
   return response.content[0].type === 'text' ? response.content[0].text : ''
 }
 
-export async function POST(request: NextRequest) {
-  // Sécurité : vérification du secret cron
+export async function GET(request: NextRequest) {
+  // Sécurité : vérification du secret cron (Vercel ajoute ce header automatiquement)
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
@@ -106,6 +113,20 @@ export async function POST(request: NextRequest) {
           content: debriefText,
           generated_at: new Date().toISOString()
         })
+
+        // LIVRAISON : on prévient l'utilisatrice que son débrief est prêt.
+        // Sans ça, le débrief restait invisible pour qui n'ouvrait pas l'app.
+        try {
+          await notifyUser({
+            userId: user.id,
+            type: 'weekly_debrief',
+            title: 'Ton débrief de la semaine est prêt',
+            body: 'NOVA a préparé ton bilan du dimanche. Prends un moment pour le lire. ✦',
+            url: '/agent',
+          })
+        } catch (notifErr) {
+          console.error(`[weekly-debrief] Notif échouée pour ${user.email}:`, notifErr)
+        }
 
         results.push({ userId: user.id, status: 'generated' })
         console.log(`[weekly-debrief] Débrief généré pour ${user.email}`)

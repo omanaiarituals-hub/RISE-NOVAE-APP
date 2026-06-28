@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { canAccess, incrementAiChatCount } from '@/lib/permissions'
 import missionsData from '@/data/missions.json'
+import { getNovaContextFromDeepJourneys, formatNovaContextAsPromptBlock } from '@/lib/deepJourneys'
+import { rateLimit } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30 // ← évite le timeout Vercel à 10s
@@ -194,6 +196,48 @@ const TOOLS = [
         rappel_minutes_avant: { type: 'integer', description: 'Minutes de rappel avant (défaut 15).' },
       },
       required: ['titre', 'categorie'],
+    },
+  },
+  {
+    name: 'lire_historique_programme',
+    description:
+      "Lit l'historique des réflexions et missions du programme 90 jours sur plusieurs jours (ce qu'elle a écrit jour après jour). À utiliser DÈS qu'elle demande d'analyser sa progression, ses patterns, ou ses derniers jours.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        depuis_jour: { type: 'integer', description: 'Numéro de jour de départ (optionnel).' },
+        limite: { type: 'integer', description: 'Nombre de jours à récupérer (défaut 30).' },
+      },
+    },
+  },
+  {
+    name: 'lire_parcours_profonds',
+    description:
+      "Lit ce qu'elle a écrit dans ses Parcours Profonds (ex : Reclaim Myself) — forces, valeurs, engagements, réponses. À utiliser pour relier ses réflexions profondes au quotidien.",
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'lire_mes_debriefs',
+    description:
+      "Lit ses débriefs hebdomadaires passés (les bilans du dimanche). À utiliser pour faire le point sur plusieurs semaines ou rappeler ce qui avait été observé.",
+    input_schema: {
+      type: 'object',
+      properties: { limite: { type: 'integer', description: 'Nombre de débriefs (défaut 4).' } },
+    },
+  },
+  {
+    name: 'lire_ma_progression',
+    description:
+      "Lit sa progression : streak (flamme) et badges obtenus. À utiliser pour commenter sa régularité et ses réussites.",
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'lire_ma_communaute',
+    description:
+      "Lit sa propre activité dans la communauté (ses publications). À utiliser si elle parle de la communauté ou de ce qu'elle a partagé.",
+    input_schema: {
+      type: 'object',
+      properties: { limite: { type: 'integer', description: 'Nombre de publications (défaut 10).' } },
     },
   },
 ]
@@ -435,6 +479,68 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
         }
       }
 
+      case 'lire_historique_programme': {
+        const limite = Math.min(Math.max(Number(input?.limite) || 30, 1), 90)
+        let q = db
+          .from('mission_responses')
+          .select('day_number, reflection, completed_tasks, completed_at')
+          .eq('user_id', userId)
+        if (input?.depuis_jour != null) q = q.gte('day_number', Number(input.depuis_jour))
+        const { data, error } = await q.order('day_number', { ascending: false }).limit(limite)
+        if (error) return { ok: false, message: error.message }
+        return { ok: true, jours: data || [], nombre: (data || []).length }
+      }
+
+      case 'lire_parcours_profonds': {
+        const context = await getNovaContextFromDeepJourneys(userId)
+        const bloc = formatNovaContextAsPromptBlock(context)
+        return {
+          ok: true,
+          parcours_profonds: bloc || 'Aucune donnée de parcours profond pour le moment.',
+        }
+      }
+
+      case 'lire_mes_debriefs': {
+        const limite = Math.min(Math.max(Number(input?.limite) || 4, 1), 12)
+        const { data, error } = await db
+          .from('weekly_debriefs')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(limite)
+        if (error) return { ok: false, message: error.message }
+        return { ok: true, debriefs: data || [], nombre: (data || []).length }
+      }
+
+      case 'lire_ma_progression': {
+        const [streakRes, badgesRes] = await Promise.all([
+          db.from('user_streaks').select('*').eq('user_id', userId).maybeSingle(),
+          db
+            .from('user_badges')
+            .select('*')
+            .eq('user_id', userId)
+            .order('earned_at', { ascending: false }),
+        ])
+        return {
+          ok: true,
+          streak: streakRes.data || null,
+          badges: badgesRes.data || [],
+          nombre_badges: (badgesRes.data || []).length,
+        }
+      }
+
+      case 'lire_ma_communaute': {
+        const limite = Math.min(Math.max(Number(input?.limite) || 10, 1), 30)
+        const { data, error } = await db
+          .from('community_posts')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(limite)
+        if (error) return { ok: false, message: error.message }
+        return { ok: true, publications: data || [], nombre: (data || []).length }
+      }
+
       case 'creer_note': {
         if (!input?.contenu) return { ok: false, message: 'Contenu manquant.' }
         const { data, error } = await db
@@ -673,7 +779,10 @@ async function buildSystemPrompt(db: SupabaseClient, userId: string) {
     .join('\n')
 
   return `Tu es NOVAÉ, l'assistante de transformation de ${pseudo} dans l'app NOVAÉ by OMANAÏA. On t'appelle "Nova".
-Tu peux à la fois PARLER avec elle ET AGIR dans son espace grâce à des outils (lire sa journée, valider sa mission du jour, créer une note, ajouter une tâche, ajouter un événement au planner, planifier un repas, créer une routine).
+Tu peux à la fois PARLER avec elle ET AGIR dans son espace grâce à des outils. Tu peux LIRE : sa journée, ses tâches, son planning, ses notes, ses défis, sa famille, ses routines, ses repas, l'historique de ses réflexions du programme 90 jours (lire_historique_programme), ses Parcours Profonds comme Reclaim Myself (lire_parcours_profonds), ses débriefs hebdomadaires passés (lire_mes_debriefs), sa progression — flamme et badges (lire_ma_progression), et son activité dans la communauté (lire_ma_communaute). Tu peux AGIR : valider sa mission du jour, créer une note, ajouter une tâche, ajouter un événement au planner, planifier un repas, créer une routine.
+
+## Tu as accès à son historique
+Tu n'es PAS aveugle sur son passé. Quand elle te demande d'analyser ses derniers jours, sa progression ou ses patterns, tu APPELLES d'abord lire_historique_programme (et au besoin lire_parcours_profonds, lire_mes_debriefs, lire_ma_progression) AVANT de répondre. Tu ne dis JAMAIS que tu n'as pas accès à ses réflexions passées ni que le système ne stocke pas son historique : tu vas chercher ses vraies données avec tes outils de lecture, puis tu réponds à partir d'elles.
 
 ## Ta voix
 Chaleureuse, directe, honnête. Tu tutoies. Réponses concises (3-4 phrases). Une seule question à la fois.
@@ -740,6 +849,16 @@ export async function POST(request: NextRequest) {
       )
     }
     const isQuotaUser = access.quota_remaining !== undefined
+
+    // ── Rate limiting par utilisatrice (protection coût API Claude) ──────────
+const rl = await rateLimit(db, user.id, 'agent')
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'too_many_requests', message: 'Trop de messages en peu de temps. Attends une minute. ✦' },
+        { status: 429 }
+      )
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     const { message, history, clientContext } = await request.json()
     if (!message || typeof message !== 'string') {
