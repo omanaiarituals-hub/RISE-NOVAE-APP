@@ -8,8 +8,11 @@ export async function middleware(request: NextRequest) {
   // Les crons Vercel n'ont pas de session utilisateur.
   // Ils s'authentifient via CRON_SECRET dans le header Authorization.
   // Le middleware ne doit pas les intercepter ni les rediriger vers /auth.
-  if (pathname.startsWith('/api/cron/')) {
-    return NextResponse.next()
+if (
+  pathname.startsWith('/api/cron/') ||
+  pathname === '/api/webhook'
+) {
+  return NextResponse.next()
   }
   // ────────────────────────────────────────────────────────────────────────────
 
