@@ -537,8 +537,10 @@ export default function AgentPage() {
     const ctx = appContext
     if (!ctx) return []
     const out: { icon: string; label: string; prompt: string }[] = []
-    const today = new Date()
-    const todayStr = today.toISOString().split('T')[0]
+   const today = new Date()
+const _tp = new Date(today.toLocaleString('en-US', { timeZone: 'Europe/Paris' }))
+const _pad = (n: number) => String(n).padStart(2, '0')
+const todayStr = `${_tp.getFullYear()}-${_pad(_tp.getMonth() + 1)}-${_pad(_tp.getDate())}`
 
     if (today.getDay() === 0)
       out.push({ icon: '📊', label: 'Faire mon bilan de la semaine', prompt: 'Fais-moi le bilan complet de ma semaine et aide-moi à préparer la suivante.' })
@@ -588,9 +590,11 @@ export default function AgentPage() {
   })()
 
   const buildSystemPrompt = (ctx: AppContext) => {
-    const today = new Date()
-    const isSunday = today.getDay() === 0
-    const todayStr = today.toISOString().split('T')[0]
+  const today = new Date()
+const _tp2 = new Date(today.toLocaleString('en-US', { timeZone: 'Europe/Paris' }))
+const _pad2 = (n: number) => String(n).padStart(2, '0')
+const isSunday = _tp2.getDay() === 0
+const todayStr = `${_tp2.getFullYear()}-${_pad2(_tp2.getMonth() + 1)}-${_pad2(_tp2.getDate())}`
 
     const todayTasks = ctx.tasks.filter(t => t.date && t.date.startsWith(todayStr))
     const futureTasks = ctx.tasks.filter(t => t.date && t.date >= todayStr)
