@@ -247,37 +247,38 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
   try {
     switch (name) {
       case 'lire_ma_journee': {
-        const { data: prog } = await db
-          .from('program_progress')
-          .select('current_day, streak_days, completed_missions')
-          .eq('user_id', userId)
-          .maybeSingle()
-const _n = new Date()
-const _p = new Date(_n.toLocaleString('en-US', { timeZone: 'Europe/Paris' }))
-const _pad = (n: number) => String(n).padStart(2, '0')
-const today = `${_p.getFullYear()}-${_pad(_p.getMonth() + 1)}-${_pad(_p.getDate())}`
-        const { data: tasks } = await db
-          .from('todo_list')
-          .select('title, status, due_date, priority')
-          .eq('user_id', userId)
-          .eq('status', 'pending')
-          .limit(20)
-        const { data: events } = await db
-          .from('planner_events')
-          .select('title, start_minutes, end_minutes, category, status')
-          .eq('user_id', userId)
-          .gte('start_date', `${today}T00:00:00`)
-          .lte('start_date', `${today}T23:59:59`)
-          .order('start_minutes', { ascending: true })
-        return {
-          ok: true,
-          jour_programme: prog?.current_day ?? null,
-          streak: prog?.streak_days ?? 0,
-          missions_completees: prog?.completed_missions ?? 0,
-          taches_a_faire: tasks ?? [],
-          evenements_aujourdhui: events ?? [],
-        }
-      }
+  const _n = new Date()
+  const _p = new Date(_n.toLocaleString('en-US', { timeZone: 'Europe/Paris' }))
+  const _pad = (n: number) => String(n).padStart(2, '0')
+  const today = `${_p.getFullYear()}-${_pad(_p.getMonth() + 1)}-${_pad(_p.getDate())}`
+
+  const { data: prog } = await db
+    .from('program_progress')
+    .select('current_day, streak_days, completed_missions')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const { data: tasks } = await db
+    .from('todo_list')
+    .select('title, status, due_date, priority')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .limit(20)
+  const { data: events } = await db
+    .from('planner_events')
+    .select('title, start_minutes, end_minutes, category, status')
+    .eq('user_id', userId)
+    .gte('start_date', `${today}T00:00:00+00:00`)
+    .lte('start_date', `${today}T23:59:59+00:00`)
+    .order('start_minutes', { ascending: true })
+  return {
+    ok: true,
+    jour_programme: prog?.current_day ?? null,
+    streak: prog?.streak_days ?? 0,
+    missions_completees: prog?.completed_missions ?? 0,
+    taches_a_faire: tasks ?? [],
+    evenements_aujourdhui: events ?? [],
+  }
+}
 
       case 'lire_mes_taches': {
         const { data: taches } = await db
@@ -294,27 +295,27 @@ const today = `${_p.getFullYear()}-${_pad(_p.getMonth() + 1)}-${_pad(_p.getDate(
         }
       }
 
-      case 'lire_planning_jour': {
-        const jour = input?.date
-        if (!jour) return { ok: false, message: 'Date manquante (format YYYY-MM-DD).' }
-        const { data: evts } = await db
-          .from('planner_events')
-          .select('title, start_minutes, end_minutes, category')
-          .eq('user_id', userId)
-          .gte('start_date', `${jour}T00:00:00`)
-          .lte('start_date', `${jour}T23:59:59`)
-          .order('start_minutes', { ascending: true })
-        const pad2 = (n: number) => String(n).padStart(2, '0')
-        const hm = (mins: number | null) =>
-          mins == null ? '--:--' : `${pad2(Math.floor(mins / 60))}:${pad2(mins % 60)}`
-        const evenements = (evts ?? []).map((e: any) => ({
-          titre: e.title,
-          debut: hm(e.start_minutes),
-          fin: hm(e.end_minutes),
-          categorie: e.category,
-        }))
-        return { ok: true, date: jour, nb: evenements.length, evenements }
-      }
+     case 'lire_planning_jour': {
+  const jour = input?.date
+  if (!jour) return { ok: false, message: 'Date manquante (format YYYY-MM-DD).' }
+  const { data: evts } = await db
+    .from('planner_events')
+    .select('title, start_minutes, end_minutes, category')
+    .eq('user_id', userId)
+    .gte('start_date', `${jour}T00:00:00+00:00`)
+    .lte('start_date', `${jour}T23:59:59+00:00`)
+    .order('start_minutes', { ascending: true })
+  const pad2 = (n: number) => String(n).padStart(2, '0')
+  const hm = (mins: number | null) =>
+    mins == null ? '--:--' : `${pad2(Math.floor(mins / 60))}:${pad2(mins % 60)}`
+  const evenements = (evts ?? []).map((e: any) => ({
+    titre: e.title,
+    debut: hm(e.start_minutes),
+    fin: hm(e.end_minutes),
+    categorie: e.category,
+  }))
+  return { ok: true, date: jour, nb: evenements.length, evenements }
+}
 
       case 'valider_mission_du_jour': {
         const { data: prog } = await db
