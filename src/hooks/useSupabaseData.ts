@@ -444,7 +444,7 @@ export function useShoppingList(user: User | null) {
     const fetchShoppingList = async () => {
       try {
         const { data, error } = await supabase
-          .from('shopping_lists')
+          .from('shopping_list')
           .select('*')
           .eq('user_id', user.id)
           .order('created_at', { ascending: true })
@@ -469,7 +469,7 @@ export function useShoppingList(user: User | null) {
 
     try {
       const { data, error } = await supabase
-        .from('shopping_lists')
+        .from('shopping_list')
         .insert({
           user_id: user.id,
           ...itemData,
@@ -497,7 +497,7 @@ export function useShoppingList(user: User | null) {
 
     try {
       const { data, error } = await supabase
-        .from('shopping_lists')
+        .from('shopping_list')
         .update({
           ...updates,
           updated_at: new Date().toISOString()
@@ -525,7 +525,7 @@ export function useShoppingList(user: User | null) {
 
     try {
       const { error } = await supabase
-        .from('shopping_lists')
+        .from('shopping_list')
         .delete()
         .eq('id', itemId)
         .eq('user_id', user.id)
