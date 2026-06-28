@@ -66,6 +66,5 @@ export const config = {
      * - les fichiers .svg, .png, .jpg
      * - /api/cron/* (crons Vercel — pas de session utilisateur)
      */
-    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|OneSignalSDKWorker\\.js|manifest\\.json|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+'/((?!_next/static|_next/image|favicon.ico|sw\\.js|OneSignalSDKWorker\\.js|manifest\\.json|api/cron|api/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',  ],
 }
