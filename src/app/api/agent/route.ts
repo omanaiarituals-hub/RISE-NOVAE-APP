@@ -252,7 +252,10 @@ async function executeTool(name: string, input: any, userId: string, db: Supabas
           .select('current_day, streak_days, completed_missions')
           .eq('user_id', userId)
           .maybeSingle()
-        const today = todayISODate()
+const _n = new Date()
+const _p = new Date(_n.toLocaleString('en-US', { timeZone: 'Europe/Paris' }))
+const _pad = (n: number) => String(n).padStart(2, '0')
+const today = `${_p.getFullYear()}-${_pad(_p.getMonth() + 1)}-${_pad(_p.getDate())}`
         const { data: tasks } = await db
           .from('todo_list')
           .select('title, status, due_date, priority')
