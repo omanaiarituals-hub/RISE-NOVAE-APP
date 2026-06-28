@@ -51,4 +51,4 @@ export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|sw\\.js|OneSignalSDKWorker\\.js|manifest\\.json|api/cron|api/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-}
+} 
