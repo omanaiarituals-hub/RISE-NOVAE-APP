@@ -5,11 +5,12 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (
-    pathname.startsWith('/api/cron/') ||
-    pathname === '/api/webhook'
-  ) {
-    return NextResponse.next()
-  }
+  pathname.startsWith('/api/cron/') ||
+  pathname === '/api/webhook' ||
+  request.headers.get('stripe-signature') !== null
+) {
+  return NextResponse.next()
+}
 
   const host = request.headers.get('host') || ''
   const isApex = host === 'novae-by-omanaia.com' || host === 'www.novae-by-omanaia.com'
