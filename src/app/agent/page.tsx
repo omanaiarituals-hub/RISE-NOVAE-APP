@@ -39,6 +39,7 @@ interface AppContext {
   todayDate: string
   dayOfWeek: string
   profile: any
+  plannerEvents: any[]
 }
 
 const OWNER_ID = 'cce02eb0-53a1-49c0-82bc-1851a92f1e3c'
@@ -494,7 +495,13 @@ export default function AgentPage() {
     if (!user) return
     setContextLoading(true)
     try {
-      const [profileRes, tasksRes, routinesRes, recipesRes, mealPlansRes, shoppingRes, familyRes, progressRes] = await Promise.all([
+      const todayForCtx = (() => {
+          const n = new Date()
+          const p = new Date(n.toLocaleString('en-US', { timeZone: 'Europe/Paris' }))
+          const pad = (x: number) => String(x).padStart(2, '0')
+          return `${p.getFullYear()}-${pad(p.getMonth() + 1)}-${pad(p.getDate())}`
+        })()
+        const [profileRes, tasksRes, routinesRes, recipesRes, mealPlansRes, shoppingRes, familyRes, progressRes, plannerEventsRes] = await Promise.all([
         supabase.from('ai_personality_profile').select('*').eq('user_id', user.id).single(),
         supabase.from('tasks').select('*').eq('user_id', user.id).order('date', { ascending: true }),
         supabase.from('routines').select('*').eq('user_id', user.id),
@@ -502,7 +509,7 @@ export default function AgentPage() {
         supabase.from('meal_plan').select('*, recipes(id, title, ingredients, category, meal_type)').eq('user_id', user.id),
         supabase.from('shopping_list').select('*').eq('user_id', user.id),
         supabase.from('family_data').select('*').eq('user_id', user.id).eq('is_active', true),
-        supabase.from('program_progress').select('*').eq('user_id', user.id).single()
+        supabase.from('planner_events').select('title, start_minutes, end_minutes, category').eq('user_id', user.id).gte('start_date', `${todayForCtx}T00:00:00+00:00`).lte('start_date', `${todayForCtx}T23:59:59+00:00`).order('start_minutes', { ascending: true }),
       ])
 
       const now = new Date()
@@ -523,7 +530,8 @@ export default function AgentPage() {
         struggle,
         profile: profileRes.data || null,
         todayDate: now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
-        dayOfWeek: days[now.getDay()]
+        dayOfWeek: days[now.getDay()],
+        plannerEvents: plannerEventsRes.data || [],
       })
     } catch (error) {
       console.error('Erreur chargement contexte:', error)
@@ -677,7 +685,8 @@ DISCLAIMER OBLIGATOIRE : Tu es un guide IA, pas un professionnel de sante, de co
 Tu as acces en temps reel a TOUTES les donnees de l'utilisatrice ci-dessous. Tu DOIS les utiliser pour repondre - ne dis JAMAIS que tu n'y as pas acces.
 Tu as aussi acces a ton historique de conversations passees avec elle - utilise-le pour assurer une continuite.
 Aujourd'hui : ${ctx.dayOfWeek} ${ctx.todayDate}.${isSunday ? ' C est dimanche - propose un bilan hebdomadaire complet en fin de reponse.' : ''}
-${struggleSection}
+PLANNING DU JOUR (${(ctx.plannerEvents || []).length} événements) :
+${(ctx.plannerEvents || []).length > 0 ? (ctx.plannerEvents || []).map((e: any) => { const pad = (n: number) => String(n).padStart(2, '0'); const hm = (m: number) => `${pad(Math.floor(m/60))}:${pad(m%60)}`; return `- ${e.title} : ${hm(e.start_minutes || 0)} → ${hm(e.end_minutes || 60)}`; }).join('\n') : 'Aucun événement planifié aujourd\'hui.'}${struggleSection}
 ${missionSection}
 
 === DONNEES REELLES DE L'UTILISATRICE ===
