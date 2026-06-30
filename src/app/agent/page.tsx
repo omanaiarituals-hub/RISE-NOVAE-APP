@@ -117,7 +117,6 @@ export default function AgentPage() {
   // ── Vérifier si Nova a un message en attente ──
   const checkNovaPendingMessages = async () => {
     if (!user) return
-    console.log('User ID:', user?.id)
     try {
       const { data } = await supabase
         .from('nova_pending_messages')
@@ -495,7 +494,7 @@ export default function AgentPage() {
     if (!user) return
     setContextLoading(true)
     try {
-      const todayForCtx = (() => {
+     const todayForCtx = (() => {
           const n = new Date()
           const p = new Date(n.toLocaleString('en-US', { timeZone: 'Europe/Paris' }))
           const pad = (x: number) => String(x).padStart(2, '0')
@@ -509,9 +508,10 @@ export default function AgentPage() {
         supabase.from('meal_plan').select('*, recipes(id, title, ingredients, category, meal_type)').eq('user_id', user.id),
         supabase.from('shopping_list').select('*').eq('user_id', user.id),
         supabase.from('family_data').select('*').eq('user_id', user.id).eq('is_active', true),
+        supabase.from('program_progress').select('*').eq('user_id', user.id).single(),
         supabase.from('planner_events').select('title, start_minutes, end_minutes, category').eq('user_id', user.id).gte('start_date', `${todayForCtx}T00:00:00+00:00`).lte('start_date', `${todayForCtx}T23:59:59+00:00`).order('start_minutes', { ascending: true }),
       ])
-
+      
       const now = new Date()
       const days = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
       const currentDay = progressRes.data?.current_day || 0
