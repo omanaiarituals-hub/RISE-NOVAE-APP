@@ -83,8 +83,7 @@ const uniqueUserIds = Array.from(new Set(subs.map(s => s.user_id)))
             body: `Commence à ${h}:${m} (${delayLabel})`,
             url: '/planner',
             icon: '/icons/icon-192x192.png',
-            preferenceKey: 'notify_reminders',
-          })
+preferenceKey: 'notif_conflits',          })
 
           // Marque comme envoyé pour ne pas re-notifier
           await supabaseAdmin
