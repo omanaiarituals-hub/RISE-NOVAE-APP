@@ -1,11 +1,13 @@
 // src/app/api/cron/morning/route.ts
-// CORRECTION P0 : ajout du reset des routines completed=false chaque matin
-// AVANT le brief, on remet completed=false pour toutes les utilisatrices actives.
-// Le reste du fichier est identique.
+// AJOUT par rapport à la version précédente : 2 emails comportementaux Brevo
+//   - J+2 inactif (template #48) : inscrite depuis 2 jours, jamais revenue
+//   - J+30 fin Phase 1 (template #37) : atteint le jour 30 du programme
+// Le reset des routines (section 0) et le reste sont inchangés.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { notifyUser } from '@/lib/push/notify'
+import { sendBrevoEmail } from '@/lib/brevo/send'
 import Anthropic from '@anthropic-ai/sdk'
 import { randomUUID } from 'crypto'
 
@@ -72,7 +74,6 @@ async function generateNovaMessage(
   }
 }
 
-// Calcule la date du jour en heure de Paris (pas UTC)
 function getTodayParis(): string {
   const now = new Date()
   const paris = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Paris' }))
@@ -92,9 +93,6 @@ export async function GET(req: NextRequest) {
 
   try {
     // ─── 0. RESET DES ROUTINES ──────────────────────────────────────────
-    // Chaque matin, toutes les routines repassent à completed=false
-    // pour que les utilisatrices puissent les cocher à nouveau aujourd'hui.
-    // On ne remet à zéro que celles qui ont été complétées AVANT aujourd'hui.
     const { error: resetError } = await supabaseAdmin
       .from('routines')
       .update({ completed: false })
@@ -105,6 +103,97 @@ export async function GET(req: NextRequest) {
       console.error('[cron/morning] Erreur reset routines:', resetError)
     } else {
       results.push('Reset routines completed=false ✓')
+    }
+
+    // ─── 0bis. EMAIL J+2 INACTIF (Brevo template #48) ───────────────────
+    // Utilisatrices inscrites il y a exactement 2 jours, jamais revenues
+    // sur le programme (last_access_date jamais mis à jour depuis l'inscription).
+    const twoDaysAgoStart = new Date(now); twoDaysAgoStart.setUTCDate(twoDaysAgoStart.getUTCDate() - 2)
+    twoDaysAgoStart.setUTCHours(0, 0, 0, 0)
+    const twoDaysAgoEnd = new Date(twoDaysAgoStart); twoDaysAgoEnd.setUTCHours(23, 59, 59, 999)
+
+    const { data: newInactiveUsers } = await supabaseAdmin
+      .from('users')
+      .select('id, email, full_name, created_at')
+      .gte('created_at', twoDaysAgoStart.toISOString())
+      .lte('created_at', twoDaysAgoEnd.toISOString())
+
+    for (const u of newInactiveUsers || []) {
+      const { data: progress } = await supabaseAdmin
+        .from('program_progress')
+        .select('last_access_date, current_day')
+        .eq('user_id', u.id)
+        .maybeSingle()
+
+      // "Inactive" = jamais avancé au-delà du jour 1, ou pas de progression du tout
+      const stillOnDayOne = !progress || (progress.current_day || 1) <= 1
+      if (!stillOnDayOne || !u.email) continue
+
+      const { data: emailLog } = await supabaseAdmin
+        .from('email_log')
+        .select('id')
+        .eq('user_id', u.id)
+        .eq('email_type', 'j2_inactif')
+        .limit(1)
+        .maybeSingle()
+      if (emailLog) continue
+
+      const prenom = (u.full_name || u.email.split('@')[0] || 'toi').split(' ')[0]
+      const emailResult = await sendBrevoEmail({
+        to: { email: u.email, name: prenom },
+        templateId: 48,
+        params: { PRENOM: prenom },
+      })
+
+      if (emailResult.success) {
+        await supabaseAdmin.from('email_log').insert({
+          user_id: u.id, email_type: 'j2_inactif', sent_at: new Date().toISOString(),
+        }).select().maybeSingle().then(() => {}).catch(() => {})
+        results.push(`Email J+2 inactif → ${u.email}`)
+      } else {
+        console.error('[cron/morning] Email J+2 échoué:', u.email, emailResult.error)
+      }
+    }
+
+    // ─── 0ter. EMAIL J+30 FIN DE PHASE 1 (Brevo template #37) ───────────
+    // Utilisatrices qui viennent d'atteindre le jour 30 du programme.
+    const { data: phase1Completers } = await supabaseAdmin
+      .from('program_progress')
+      .select('user_id, current_day')
+      .eq('current_day', 31) // vient de passer le cap (avance le matin même)
+
+    for (const p of phase1Completers || []) {
+      const { data: userRow } = await supabaseAdmin
+        .from('users')
+        .select('email, full_name')
+        .eq('id', p.user_id)
+        .maybeSingle()
+      if (!userRow?.email) continue
+
+      const { data: emailLog30 } = await supabaseAdmin
+        .from('email_log')
+        .select('id')
+        .eq('user_id', p.user_id)
+        .eq('email_type', 'j30_phase1')
+        .limit(1)
+        .maybeSingle()
+      if (emailLog30) continue
+
+      const prenom30 = (userRow.full_name || userRow.email.split('@')[0] || 'toi').split(' ')[0]
+      const emailResult30 = await sendBrevoEmail({
+        to: { email: userRow.email, name: prenom30 },
+        templateId: 37,
+        params: { PRENOM: prenom30 },
+      })
+
+      if (emailResult30.success) {
+        await supabaseAdmin.from('email_log').insert({
+          user_id: p.user_id, email_type: 'j30_phase1', sent_at: new Date().toISOString(),
+        }).select().maybeSingle().then(() => {}).catch(() => {})
+        results.push(`Email J+30 → ${userRow.email}`)
+      } else {
+        console.error('[cron/morning] Email J+30 échoué:', userRow.email, emailResult30.error)
+      }
     }
 
     // ─── 1. BRIEF MATIN ─────────────────────────────────────────────────
