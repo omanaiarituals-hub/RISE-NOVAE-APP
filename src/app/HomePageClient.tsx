@@ -125,31 +125,34 @@ export default function HomePageClient() {
 
   useEffect(() => {
     if (loading || !user) return
-    loadData()
-    checkNovaPending()
-    loadCommunity()
+    loadAllDashboardData()
     logEvent(supabase, user.id, 'module_programme')
   }, [user, loading])
 
-  const checkNovaPending = async () => {
+  // PERF (P1) : les 6 requêtes du dashboard sont parallélisées en un seul
+  // Promise.all au lieu de 4 fonctions séquentielles (loadData, checkNovaPending,
+  // loadCommunity, detectStruggleMode). Un seul aller-retour réseau au lieu de 4.
+  const loadAllDashboardData = async () => {
     if (!user) return
     try {
-      const { data } = await supabase.from('nova_pending_messages').select('thread_id')
-        .eq('user_id', user.id).eq('is_read', false).limit(1)
-      if (data && data.length > 0) setNovaPending({ thread_id: data[0].thread_id })
-    } catch {}
-  }
+      const lastVisit = localStorage.getItem('novae-community-last-visit')
+      const since = lastVisit
+        ? new Date(lastVisit).toISOString()
+        : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-  const loadData = async () => {
-    if (!user) return
-    try {
-      const [progRes, noteRes] = await Promise.all([
+      const [progRes, noteRes, novaRes, communityRes, struggleRes] = await Promise.all([
         supabase.from('program_progress').select('current_day').eq('user_id', user.id).maybeSingle(),
         supabase.from('notes').select('content')
           .eq('user_id', user.id)
           .like('title', 'Objectif du%')
           .gte('created_at', `${fmtDate(new Date())}T00:00:00`)
           .maybeSingle(),
+        supabase.from('nova_pending_messages').select('thread_id')
+          .eq('user_id', user.id).eq('is_read', false).limit(1),
+        supabase.from('community_posts')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', since).neq('user_id', user.id),
+        detectStruggleMode(supabase, user.id).catch(() => null),
       ])
 
       if (progRes.data) {
@@ -164,22 +167,17 @@ export default function HomePageClient() {
         const pri = lines.find((l: string) => l.startsWith('Priorité n°1 :'))?.replace('Priorité n°1 : ', '') || ''
         if (int || pri) setObjectifDuJour({ intention: int, priorite: pri })
       }
-    } catch {}
-    detectStruggleMode(supabase, user.id).then(setStruggle).catch(() => {})
-  }
 
-  const loadCommunity = async () => {
-    if (!user) return
-    try {
-      const lastVisit = localStorage.getItem('novae-community-last-visit')
-      const since = lastVisit
-        ? new Date(lastVisit).toISOString()
-        : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      const { count } = await supabase.from('community_posts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', since).neq('user_id', user.id)
-      setNewCommunityPosts(count || 0)
-    } catch { setNewCommunityPosts(0) }
+      if (novaRes.data && novaRes.data.length > 0) {
+        setNovaPending({ thread_id: novaRes.data[0].thread_id })
+      }
+
+      setNewCommunityPosts(communityRes.count || 0)
+
+      if (struggleRes) setStruggle(struggleRes)
+    } catch {
+      setNewCommunityPosts(0)
+    }
   }
 
   const handleObjectifSubmit = async () => {
