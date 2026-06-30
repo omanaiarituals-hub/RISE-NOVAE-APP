@@ -146,9 +146,9 @@ export async function GET(req: NextRequest) {
       })
 
       if (emailResult.success) {
-        await supabaseAdmin.from('email_log').insert({
-          user_id: u.id, email_type: 'j2_inactif', sent_at: new Date().toISOString(),
-        }).select().maybeSingle().then(() => {}).catch(() => {})
+       await supabaseAdmin.from('email_log').insert({
+  user_id: u.id, email_type: 'j2_inactif', sent_at: new Date().toISOString(),
+})
         results.push(`Email J+2 inactif → ${u.email}`)
       } else {
         console.error('[cron/morning] Email J+2 échoué:', u.email, emailResult.error)
@@ -187,9 +187,9 @@ export async function GET(req: NextRequest) {
       })
 
       if (emailResult30.success) {
-        await supabaseAdmin.from('email_log').insert({
-          user_id: p.user_id, email_type: 'j30_phase1', sent_at: new Date().toISOString(),
-        }).select().maybeSingle().then(() => {}).catch(() => {})
+       await supabaseAdmin.from('email_log').insert({
+  user_id: p.user_id, email_type: 'j30_phase1', sent_at: new Date().toISOString(),
+})
         results.push(`Email J+30 → ${userRow.email}`)
       } else {
         console.error('[cron/morning] Email J+30 échoué:', userRow.email, emailResult30.error)
