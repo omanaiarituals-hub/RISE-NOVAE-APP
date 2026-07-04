@@ -1,4 +1,12 @@
 // src/app/api/test-charge-mentale/route.ts
+// CORRECTIFS (audit 02/07/2026) :
+//  1. RATE LIMITING par IP + par email (table public_rate_limits, fail-open) :
+//     cette route publique appelle Claude ET envoie un email Brevo. Sans limite,
+//     un script pouvait brûler du budget Anthropic et transformer le domaine
+//     en canon à spam (l'email est envoyé à une adresse libre).
+//  2. PLAFONNEMENT DES ENTRÉES : answers limité à 2000 caractères, score borné
+//     0..15. Réduit la surface d'injection de prompt et les coûts de tokens.
+//  3. Le reste (diagnostic Nova, email Brevo, liste 9, quiz_leads) est inchangé.
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
@@ -22,6 +30,40 @@ const CORS_HEADERS = {
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+}
+
+// ─── Rate limit public (par identifiant libre : IP ou email) ────────────────
+// Table : public_rate_limits (voir SQL fourni avec l'audit).
+// Fail-open : si la table n'existe pas ou si la requête échoue, on laisse passer.
+async function publicRateLimit(
+  identifier: string,
+  action: string,
+  max: number,
+  windowMinutes: number
+): Promise<boolean> {
+  try {
+    const windowStart = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString()
+
+    const { count, error } = await supabaseAdmin
+      .from('public_rate_limits')
+      .select('*', { count: 'exact', head: true })
+      .eq('identifier', identifier)
+      .eq('action', action)
+      .gte('created_at', windowStart)
+
+    if (error) return true // fail-open
+
+    if ((count ?? 0) >= max) return false
+
+    await supabaseAdmin.from('public_rate_limits').insert({
+      identifier,
+      action,
+      created_at: new Date().toISOString(),
+    })
+    return true
+  } catch {
+    return true // fail-open
+  }
 }
 
 const NOVA_DIAGNOSTIC_PROMPT = `Tu es Nova, la coach IA de NOVAÉ. Tu analyses les réponses d'une femme à un test de charge mentale et tu génères un diagnostic personnalisé, profond et bienveillant.
@@ -59,6 +101,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email invalide' }, { status: 400, headers: CORS_HEADERS })
     }
 
+    // ─── Plafonnement des entrées ───
+    const score = Number(totalScore)
+    if (!isFinite(score) || score < 0 || score > 15) {
+      return NextResponse.json({ error: 'Score invalide' }, { status: 400, headers: CORS_HEADERS })
+    }
+    const answersText = String(answers).slice(0, 2000)
+
+    // ─── Rate limiting : 3 tests / heure par IP, 2 / jour par email ───
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      'unknown'
+
+    const ipOk = await publicRateLimit(`ip:${ip}`, 'test_charge_mentale', 3, 60)
+    const emailOk = await publicRateLimit(`email:${email.toLowerCase()}`, 'test_charge_mentale', 2, 1440)
+    if (!ipOk || !emailOk) {
+      return NextResponse.json(
+        { error: 'Tu as déjà fait le test récemment. Vérifie ta boîte mail (et tes spams) ✦' },
+        { status: 429, headers: CORS_HEADERS }
+      )
+    }
+
     // Générer le diagnostic via Claude
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -66,7 +130,7 @@ export async function POST(req: NextRequest) {
       system: NOVA_DIAGNOSTIC_PROMPT,
       messages: [{
         role: 'user',
-        content: `Score total : ${totalScore}/15\n\nRéponses :\n${answers}\n\nGénère le diagnostic JSON.`
+        content: `Score total : ${score}/15\n\nRéponses :\n${answersText}\n\nGénère le diagnostic JSON.`
       }]
     })
 
@@ -87,7 +151,7 @@ export async function POST(req: NextRequest) {
         'api-key': process.env.BREVO_API_KEY!
       },
       body: JSON.stringify({
-sender: { name: 'Nova de NOVAÉ', email: 'contact@novae-by-omanaia.com' },
+        sender: { name: 'Nova de NOVAÉ', email: 'contact@novae-by-omanaia.com' },
         to: [{ email }],
         subject: `💜 Ton diagnostic NOVAÉ : ${diagnostic.profil}`,
         htmlContent: buildEmailHtml(diagnostic, email)
@@ -122,7 +186,7 @@ sender: { name: 'Nova de NOVAÉ', email: 'contact@novae-by-omanaia.com' },
         updateEnabled: true,
         attributes: {
           SOURCE: 'test_charge_mentale',
-          SCORE_CHARGE_MENTALE: totalScore,
+          SCORE_CHARGE_MENTALE: score,
           PROFIL_CHARGE: diagnostic.profil,
           SCORE_LABEL: diagnostic.score_label
         }
@@ -134,10 +198,10 @@ sender: { name: 'Nova de NOVAÉ', email: 'contact@novae-by-omanaia.com' },
     // on ne fait pas échouer la requête pour l'utilisatrice.
     const { error: leadError } = await supabaseAdmin.from('quiz_leads').insert({
       email,
-      total_score: totalScore,
+      total_score: score,
       profil: diagnostic.profil,
       score_label: diagnostic.score_label,
-      answers,
+      answers: answersText,
     })
     if (leadError) {
       console.error('[test-charge-mentale] Erreur enregistrement lead:', leadError.message)

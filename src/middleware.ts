@@ -4,13 +4,16 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (
-  pathname.startsWith('/api/cron/') ||
-  pathname === '/api/webhook' ||
-  request.headers.get('stripe-signature') !== null
-) {
-  return NextResponse.next()
-}
+  // CORRECTIF SÉCURITÉ (audit 02/07/2026) :
+  // L'ancienne condition `request.headers.get('stripe-signature') !== null`
+  // permettait à N'IMPORTE QUELLE requête de contourner le middleware
+  // simplement en ajoutant un header "stripe-signature: x".
+  // Le webhook Stripe est déjà exclu par son chemin (/api/webhook), à la fois
+  // ici et dans le matcher plus bas. Le webhook vérifie de toute façon la
+  // vraie signature Stripe dans sa route. Le bypass par header est supprimé.
+  if (pathname.startsWith('/api/cron/') || pathname === '/api/webhook') {
+    return NextResponse.next()
+  }
 
   const host = request.headers.get('host') || ''
   const isApex = host === 'novae-by-omanaia.com' || host === 'www.novae-by-omanaia.com'
@@ -52,4 +55,4 @@ export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|sw\\.js|OneSignalSDKWorker\\.js|manifest\\.json|api/cron|api/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-} 
+}

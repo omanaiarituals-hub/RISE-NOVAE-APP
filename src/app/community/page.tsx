@@ -399,7 +399,8 @@ export default function CommunityPage() {
     const post = posts.find(p => p.id === postId)
     if (post) {
       const newCount = Math.max(0, post.comments_count - 1)
-      await supabase.from('community_posts').update({ comments_count: newCount }).eq('id', postId)
+      // CORRECTIF (audit 02/07/2026) : incrément atomique via RPC.
+      await supabase.rpc('increment_post_comments', { post_id_in: postId, delta: -1 })
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: newCount } : p))
     }
     setCommentMenuOpen(null)
@@ -409,11 +410,14 @@ export default function CommunityPage() {
     if (!user) return
     if (post.liked_by_me) {
       await supabase.from('community_likes').delete().eq('post_id', post.id).eq('user_id', user.id)
-      await supabase.from('community_posts').update({ likes_count: Math.max(0, post.likes_count - 1) }).eq('id', post.id)
+      // CORRECTIF (audit 02/07/2026) : incrément atomique côté base via RPC
+      // au lieu d'un "lire le compteur puis réécrire" depuis le navigateur,
+      // qui perdait des likes en cas d'actions simultanées.
+      await supabase.rpc('increment_post_likes', { post_id_in: post.id, delta: -1 })
       setPosts(prev => prev.map(p => p.id === post.id ? { ...p, liked_by_me: false, likes_count: Math.max(0, p.likes_count - 1) } : p))
     } else {
       await supabase.from('community_likes').insert({ post_id: post.id, user_id: user.id })
-      await supabase.from('community_posts').update({ likes_count: post.likes_count + 1 }).eq('id', post.id)
+      await supabase.rpc('increment_post_likes', { post_id_in: post.id, delta: 1 })
       setPosts(prev => prev.map(p => p.id === post.id ? { ...p, liked_by_me: true, likes_count: p.likes_count + 1 } : p))
       const likeCount = posts.filter(p => p.liked_by_me).length
       if (likeCount === 0) await grantBadge('first_like', '💛 Bienveillante')
@@ -438,7 +442,8 @@ export default function CommunityPage() {
 
     const post = posts.find(p => p.id === postId)
     const newCount = (post?.comments_count || 0) + 1
-    await supabase.from('community_posts').update({ comments_count: newCount }).eq('id', postId)
+    // CORRECTIF (audit 02/07/2026) : incrément atomique via RPC.
+    await supabase.rpc('increment_post_comments', { post_id_in: postId, delta: 1 })
 
     setComments(prev => ({ ...prev, [postId]: [...(prev[postId] || []), { ...data, pseudo }] }))
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: newCount } : p))
@@ -447,16 +452,20 @@ export default function CommunityPage() {
     const targetPost = posts.find(p => p.id === postId)
     if (targetPost && targetPost.user_id !== user.id) {
       try {
-        await fetch('/api/notifications/reply', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            targetUserId: targetPost.user_id,
-            replierPseudo: pseudo || user.email?.split('@')[0] || 'Quelqu\'un',
-            postId,
-            postPreview: targetPost.content,
-          }),
-        })
+        // CORRECTIF SÉCURITÉ (audit 02/07/2026) : la route exige désormais
+        // une authentification et relit elle-même le post en base.
+        // On n'envoie plus que le postId, avec le token de session.
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          await fetch('/api/notifications/reply', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ postId }),
+          })
+        }
       } catch (err) { console.error('Reply notif error:', err) }
     }
   }

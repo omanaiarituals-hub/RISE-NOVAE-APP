@@ -1,8 +1,11 @@
 // src/app/layout.tsx
+// CORRECTIF (audit 02/07/2026) : NovaeProvider enveloppait toute l'app mais
+// aucun composant ne consomme useNovae (vérifié : seul NovaeContext.tsx
+// lui-même le référençait). Retiré : ça ne changeait rien à l'affichage,
+// mais chaque page payait le coût du contexte et de son état pour rien.
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { NovaeProvider } from '@/context/NovaeContext'
 import PushManager from '@/components/PushManager'
 import { SetupGuide } from '@/components/SetupGuide'
 import { PWAInstallPrompt } from '@/components/PWAInstallPrompt'
@@ -54,15 +57,18 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body className={inter.className} style={{ margin: 0, background: '#F8F1E5' }}>
-        <NovaeProvider>
-          <SetupGuide />
-          <GlobalHeader />
-          <main>
-            {children}
-          </main>
-        </NovaeProvider>
+        <SetupGuide />
+        <GlobalHeader />
+        <main>
+          {children}
+        </main>
         <PWAInstallPrompt />
         <PushManager />
+        {/* CORRECTIF (audit 02/07/2026) : CookieBanner était importé mais
+            jamais rendu — aucune visiteuse n'a jamais vu de bandeau de
+            consentement cookies. Composant remonté ici, sans autre
+            modification (logique de consentement inchangée). */}
+        <CookieBanner />
         <script dangerouslySetInnerHTML={{__html: `
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
