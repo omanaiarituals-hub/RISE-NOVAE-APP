@@ -4,10 +4,10 @@
 import { useState } from 'react'
 
 const EMERGENCY_NUMBERS = [
-  { country: 'France', items: ['3114 — Numéro national de prévention du suicide (gratuit, 24h/24)', '01 45 39 40 00 — SOS Amitié (écoute, 24h/24)'] },
-  { country: 'Belgique', items: ['1813 — Centre de Prévention du Suicide (24h/24)', '106 — Télé-Accueil (écoute, 24h/24)'] },
-  { country: 'Suisse', items: ['143 — La Main Tendue (24h/24)'] },
-  { country: 'Canada / Québec', items: ['1-866-277-3553 — Ligne québécoise de prévention du suicide (24h/24)'] }
+  { country: 'France', items: ['3114 : Numéro national de prévention du suicide (gratuit, 24h/24)', '01 45 39 40 00 : SOS Amitié (écoute, 24h/24)'] },
+  { country: 'Belgique', items: ['1813 : Centre de Prévention du Suicide (24h/24)', '106 : Télé-Accueil (écoute, 24h/24)'] },
+  { country: 'Suisse', items: ['143 : La Main Tendue (24h/24)'] },
+  { country: 'Canada / Québec', items: ['1-866-277-3553 : Ligne québécoise de prévention du suicide (24h/24)'] }
 ]
 
 export default function PharmacyWidget() {

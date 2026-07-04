@@ -238,7 +238,7 @@ export default function SynthesisCard({
           emoji="🧭"
           title="Mes valeurs"
           items={data.mes_valeurs}
-          emptyLabel="Tes valeurs seront révélées dans l'Acte 3 — Réappropriation."
+          emptyLabel="Tes valeurs seront révélées dans l'Acte 3, Réappropriation."
           color="bg-[#f5f0e8]"
           isNew={newSections.includes('mes_valeurs')}
         />

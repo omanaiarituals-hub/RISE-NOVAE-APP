@@ -203,6 +203,10 @@ export default function CommunityPage() {
 
   const loadPosts = async () => {
     if (!user) return
+    // CORRECTIF SÉCURITÉ (audit 04/07/2026) : le pseudo des AUTRES utilisatrices
+    // est lu via la vue community_profiles (user_id, pseudo uniquement), pas
+    // via la table ai_personality_profile qui contient aussi les réponses
+    // d'onboarding et le résumé psychologique. Voir SQL-A-EXECUTER.sql.
     const { data: postsData } = await supabase
       .from('community_posts').select('*')
       .order('created_at', { ascending: false }).limit(50)
@@ -228,7 +232,7 @@ export default function CommunityPage() {
     }
 
     const userIds = Array.from(new Set(postsData.map(p => p.user_id)))
-    const { data: profiles } = await supabase.from('ai_personality_profile').select('user_id, pseudo').in('user_id', userIds)
+    const { data: profiles } = await supabase.from('community_profiles').select('user_id, pseudo').in('user_id', userIds)
     const pseudoMap: Record<string, string> = {}
     profiles?.forEach(p => { if (p.pseudo) pseudoMap[p.user_id] = p.pseudo })
     const { data: myLikes } = await supabase.from('community_likes').select('post_id').eq('user_id', user.id)
@@ -265,7 +269,7 @@ export default function CommunityPage() {
     data.forEach(p => { counts[p.user_id] = (counts[p.user_id] || 0) + 1 })
     const sorted = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 10)
     const userIds = sorted.map(([id]) => id)
-    const { data: profiles } = await supabase.from('ai_personality_profile').select('user_id, pseudo').in('user_id', userIds)
+    const { data: profiles } = await supabase.from('community_profiles').select('user_id, pseudo').in('user_id', userIds)
     const pseudoMap: Record<string, string> = {}
     profiles?.forEach(p => { pseudoMap[p.user_id] = p.pseudo })
     setRanking(sorted.map(([userId, count], index) => ({
@@ -285,7 +289,7 @@ export default function CommunityPage() {
     const { data } = await supabase.from('community_comments').select('*').eq('post_id', postId).order('created_at', { ascending: true })
     if (!data) return
     const userIds = Array.from(new Set(data.map(c => c.user_id)))
-    const { data: profiles } = await supabase.from('ai_personality_profile').select('user_id, pseudo').in('user_id', userIds)
+    const { data: profiles } = await supabase.from('community_profiles').select('user_id, pseudo').in('user_id', userIds)
     const pseudoMap: Record<string, string> = {}
     profiles?.forEach(p => { pseudoMap[p.user_id] = p.pseudo })
     setComments(prev => ({

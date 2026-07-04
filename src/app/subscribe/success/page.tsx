@@ -108,7 +108,7 @@ export default function SuccessPage() {
                 ? 'Activation de ton accès en cours…'
                 : isPremium
                   ? 'Ton paiement est confirmé. Tu accèdes à tout, dès maintenant. ✦'
-                  : "Ton paiement a été reçu. Ton accès s'active dans quelques instants — rafraîchis la page dans 30 secondes si rien ne s'affiche."}
+                  : "Ton paiement a été reçu. Ton accès s'active dans quelques instants, rafraîchis la page dans 30 secondes si rien ne s'affiche."}
             </p>
           </div>
 

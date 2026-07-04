@@ -546,7 +546,7 @@ function MonthView({ currentDate, events, onDayClick }: {
           const dayEvs = events.filter(e => e.date === ds);
           const tod = isToday(d);
           return (
-            <div key={i} onClick={() => onDayClick(d)} style={{ minHeight: 72, border: `1px solid ${tod ? C.roseDark : C.grisClair}`, borderRadius: 8, padding: 4, cursor: "pointer", background: tod ? C.roseLight : C.blanc }}>
+            <div key={i} onClick={() => onDayClick(d)} style={{ minWidth: 0, overflow: "hidden", minHeight: 72, border: `1px solid ${tod ? C.roseDark : C.grisClair}`, borderRadius: 8, padding: 4, cursor: "pointer", background: tod ? C.roseLight : C.blanc }}>
               <div style={{ fontSize: 13, fontWeight: tod ? 700 : 400, color: tod ? C.roseDark : C.noir, fontFamily: "'Cormorant Garamond',serif", marginBottom: 3 }}>{d.getDate()}</div>
               {dayEvs.slice(0, 3).map(ev => {
                 const cat = CATEGORIES[ev.cat];

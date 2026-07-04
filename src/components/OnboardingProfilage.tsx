@@ -100,7 +100,7 @@ export default function OnboardingProfilage({ onComplete }: { onComplete: (data:
       <div style={block}>
         <label style={label}>💼 Ton secteur d'activité</label>
         <select value={d.secteur_activite} onChange={e => setD({ ...d, secteur_activite: e.target.value })} style={input}>
-          <option value="">— Choisir —</option>
+          <option value="">Choisir</option>
           {SECTEURS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
@@ -148,7 +148,7 @@ export default function OnboardingProfilage({ onComplete }: { onComplete: (data:
       <div style={block}>
         <label style={label}>🌟 Ton plus grand rêve en ce moment</label>
         <textarea value={d.reve} onChange={e => setD({ ...d, reve: e.target.value })}
-          placeholder="Celui qui te fait vibrer. Écris-le sans filtre — NOVA s'en souviendra pour te le rappeler quand tu en auras besoin."
+          placeholder="Celui qui te fait vibrer. Écris-le sans filtre, NOVA s'en souviendra pour te le rappeler quand tu en auras besoin."
           rows={4} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }} />
       </div>
 

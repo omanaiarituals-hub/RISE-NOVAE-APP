@@ -14,7 +14,7 @@ const SETUP_STEPS = [
     href: '/family',
     color: '#E8A87C',
     duration: '10 min',
-    tips: 'Les allergies sont cruciales — l\'agent les croise avec tes recettes automatiquement.',
+    tips: 'Les allergies sont cruciales, l\'agent les croise avec tes recettes automatiquement.',
   },
   {
     id: 1,
@@ -24,7 +24,7 @@ const SETUP_STEPS = [
     href: '/routines',
     color: '#C4956A',
     duration: '10 min',
-    tips: 'Ajoute une heure à chaque routine — elles s\'intègrent automatiquement dans le Planner.',
+    tips: 'Ajoute une heure à chaque routine, elles s\'intègrent automatiquement dans le Planner.',
   },
   {
     id: 2,
@@ -34,7 +34,7 @@ const SETUP_STEPS = [
     href: '/planner',
     color: '#4A90D9',
     duration: '10 min',
-    tips: 'Pas besoin d\'être exhaustive — juste les grands blocs de ta semaine type.',
+    tips: 'Pas besoin d\'être exhaustive, juste les grands blocs de ta semaine type.',
   },
   {
     id: 3,
@@ -54,7 +54,7 @@ const SETUP_STEPS = [
     href: '/program',
     color: '#7B6FA0',
     duration: '15 min',
-    tips: 'Sois honnête avec toi-même — c\'est ta boussole pour les 90 prochains jours.',
+    tips: 'Sois honnête avec toi-même, c\'est ta boussole pour les 90 prochains jours.',
   },
 ]
 
@@ -234,7 +234,7 @@ export function SetupGuide() {
         <span style={{ fontSize: 18 }}>{step.emoji}</span>
         <div style={{ flex: 1 }}>
           <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: 'white' }}>
-            Installation en cours — Étape {currentStep + 1}/{SETUP_STEPS.length}
+            Installation en cours, étape {currentStep + 1}/{SETUP_STEPS.length}
           </p>
           <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>
             {step.title} · {progressPercent}% complété

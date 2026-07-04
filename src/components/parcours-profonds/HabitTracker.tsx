@@ -65,7 +65,7 @@ export default function HabitTracker({ slots, fields, durationWeeks, value, onCh
       {slots.map((slotLabel, slotIndex) => (
         <div key={slotIndex} className="rounded-2xl bg-white/60 border border-[rgba(127,160,134,0.2)] p-4">
           <p className="text-[12px] uppercase tracking-wide text-[#7FA086] font-medium mb-3">
-            Habitude {slotIndex + 1} — {slotLabel}
+            Habitude {slotIndex + 1} : {slotLabel}
           </p>
           <div className="space-y-2.5">
             <div>
