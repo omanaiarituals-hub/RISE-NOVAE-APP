@@ -1,6 +1,21 @@
+// src/app/api/chat/route.ts
+// CORRECTIFS (audit 04/07/2026, seconde passe) :
+//  1. SYSTEM PROMPT VERROUILLE : l'ancienne version acceptait n'importe quel
+//     systemPrompt envoye par le client. Toute utilisatrice authentifiee
+//     pouvait transformer cette route en proxy Claude generaliste paye par
+//     NOVAE (rediger n'importe quoi, contourner la personnalite de Nova).
+//     Desormais, seuls deux prompts serveur sont acceptes, correspondant aux
+//     deux usages reels (onboarding et regeneration du profil). Les chaines
+//     exactes envoyees par les pages actuelles sont reconnues, donc AUCUNE
+//     modification cote client n'est necessaire : zero regression.
+//  2. RATE LIMITING : meme protection que /api/agent (le quota 5/mois ne
+//     protegeait que les comptes free, une Premium pouvait marteler la route).
+// Le reste (auth Bearer, quota canAccess, historique, increment) est inchange.
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { canAccess, incrementAiChatCount } from '@/lib/permissions'
+import { rateLimit } from '@/lib/rateLimit'
 
 type AnthropicMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -8,6 +23,16 @@ const FALLBACK_SYSTEM_PROMPT = `Tu es NOVAÉ, l'agent IA de l'app NOVAÉ by OMAN
 Tu tutoies l'utilisatrice. Tes réponses sont concises (3-4 phrases sauf pour les bilans).
 Pas de listes à 6+ points, pas de ### ou ##. Utilise uniquement **gras** pour les titres.
 ⚠️ Disclaimer : tu es un guide IA, pas un médecin/psy/coach diplômé. En cas de détresse sérieuse, oriente vers un professionnel.`
+
+// Prompts systeme autorises, cote serveur uniquement.
+// Les cles "legacy" sont les chaines exactes que les pages onboarding et
+// profil envoient aujourd'hui : on les reconnait pour ne rien casser.
+const PROMPT_ONBOARDING =
+  'Tu es une experte en psychologie positive, neurosciences et coaching de vie. Tu génères des analyses personnalisées précises, chaleureuses et scientifiquement fondées. Réponds toujours en français, en tutoyant.'
+const PROMPT_PROFIL =
+  'Tu es une experte en psychologie positive, neurosciences et coaching de vie. Réponds en français, en tutoyant.'
+
+const ALLOWED_SYSTEM_PROMPTS = new Set([PROMPT_ONBOARDING, PROMPT_PROFIL])
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,7 +56,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Client service-role : lecture du tier + gestion du quota de façon fiable
-    // (même pattern que tes webhooks ; on ne touche que la ligne de l'utilisatrice authentifiée)
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -56,7 +80,18 @@ export async function POST(request: NextRequest) {
 
     const isQuotaUser = access.quota_remaining !== undefined
 
-    // ─── 3) Logique existante (inchangée) ───
+    // ─── 2bis) Rate limiting par utilisatrice (protection coût API) ───
+    // Même modèle que /api/agent : 20 appels / heure, fail-open si la table
+    // api_rate_limits est absente (jamais bloquant pour l'utilisatrice).
+    const rl = await rateLimit(supabaseAdmin, user.id, 'chat')
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'too_many_requests', message: 'Trop de messages en peu de temps. Attends une minute. ✦' },
+        { status: 429 }
+      )
+    }
+
+    // ─── 3) Logique existante ───
     const { message, systemPrompt, history, missionTitle, missionGuide, missionQuestion } =
       await request.json()
 
@@ -69,10 +104,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Clé API manquante côté serveur.' }, { status: 500 })
     }
 
-    const finalSystemPrompt = systemPrompt || FALLBACK_SYSTEM_PROMPT
+    // CORRECTIF 1 : le systemPrompt du client n'est utilisé QUE s'il figure
+    // dans la liste blanche serveur. Tout autre contenu est ignoré et
+    // remplacé par le prompt Nova par défaut.
+    const clientPromptIsAllowed =
+      typeof systemPrompt === 'string' && ALLOWED_SYSTEM_PROMPTS.has(systemPrompt)
+    const finalSystemPrompt = clientPromptIsAllowed ? systemPrompt : FALLBACK_SYSTEM_PROMPT
 
+    if (systemPrompt && !clientPromptIsAllowed) {
+      console.warn('[api/chat] systemPrompt non autorisé ignoré. user:', user.id)
+    }
+
+    // Contexte mission : uniquement quand aucun prompt liste blanche n'est
+    // utilisé (même sémantique qu'avant : missionContext si pas de systemPrompt).
     const missionContext =
-      missionTitle && missionGuide && !systemPrompt
+      missionTitle && missionGuide && !clientPromptIsAllowed
         ? `\n\nMission du jour : ${missionTitle}\nGuide : ${missionGuide}\nQuestion : ${missionQuestion || ''}\n\nL'utilisatrice travaille sur cette mission aujourd'hui.`
         : ''
 
