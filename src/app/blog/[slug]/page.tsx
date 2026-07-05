@@ -212,7 +212,7 @@ export default async function BlogArticlePage({
           <a className="nb-back" href="https://novae-by-omanaia.com/#blog">
             ← Le blog
           </a>
-          <a className="nb-cta-top" href="https://app.novae-by-omanaia.com/signup">
+          <a className="nb-cta-top" href="https://app.novae-by-omanaia.com/auth">
             Essaie 14 jours
           </a>
         </div>

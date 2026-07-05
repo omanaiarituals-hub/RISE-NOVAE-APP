@@ -1,10 +1,11 @@
 // src/app/blog/page.tsx
+// Page vitrine du blog : pensée pour une lectrice qui arrive depuis Google
+// sans connaître NOVAÉ (pas seulement pour une utilisatrice déjà dans l'app).
+// Server Component + ISR (voir revalidate plus bas) : rendu HTML complet à
+// chaque régénération, aucun contenu ajouté en client-side.
 import Link from 'next/link'
 import { getPublishedArticles } from '@/lib/articles'
 
-// ISR : la page est mise en cache et régénérée au plus toutes les 60s,
-// pour que la publication/dépublication d'un article dans /admin/blog
-// se reflète en public sans redéploiement.
 export const revalidate = 60
 
 export default async function BlogPage() {
@@ -20,19 +21,31 @@ export default async function BlogPage() {
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #FBF4EC 0%, #F8F1E5 100%)', fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* HEADER */}
-      <div style={{ background: 'linear-gradient(180deg, rgba(240,201,208,0.97), rgba(233,186,196,0.92))', borderBottom: '1px solid rgba(225,170,180,0.45)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <Link href="/" style={{ textDecoration: 'none', fontSize: 20, color: '#5B3821' }}>←</Link>
-        <div>
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 500, color: '#5B3821' }}>Blog bien-être</div>
-          <div style={{ fontSize: 10, color: '#A86B78', letterSpacing: '2px', textTransform: 'uppercase' }}>by NOVAÉ · OMANAÏA</div>
+      {/* HERO VITRINE : logo, pitch produit, CTA */}
+      <div style={{ background: 'linear-gradient(180deg, rgba(240,201,208,0.97), rgba(233,186,196,0.92))', borderBottom: '1px solid rgba(225,170,180,0.45)', padding: '28px 20px 32px' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto' }}>
+          <Link href="/" style={{ textDecoration: 'none', fontSize: 13, color: '#5B3821', opacity: 0.6 }}>← Retour</Link>
+          <div style={{ margin: '14px 0 18px' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="NOVAÉ by OMANAÏA" style={{ height: 40, objectFit: 'contain' }} />
+          </div>
+          <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontStyle: 'italic', color: '#3d2618', margin: '0 0 18px', lineHeight: 1.5, maxWidth: 520 }}>
+            J'ai créé NOVAÉ pour les femmes qui portent trop, tout le temps, sans jamais poser leur charge mentale. 90 jours de programme, une coach IA qui apprend à te connaître, des outils inspirés des neurosciences. Pas un journal de plus. Un système qui s'adapte à toi.
+          </p>
+          <Link href="/auth" style={{
+            display: 'inline-block', background: '#B06A7C', color: '#fff', textDecoration: 'none',
+            fontWeight: 600, fontSize: 14, padding: '12px 26px', borderRadius: 999,
+          }}>
+            Essayer 14 jours gratuitement
+          </Link>
         </div>
       </div>
 
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 80px' }}>
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '28px 16px 80px' }}>
 
-        {/* INTRO */}
+        {/* INTRO BLOG */}
         <div style={{ marginBottom: 24, padding: '16px 18px', background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(196,149,106,0.2)', borderRadius: 16 }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 500, color: '#5B3821', marginBottom: 8 }}>Blog bien-être</div>
           <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 17, fontStyle: 'italic', color: '#3d2618', margin: 0, lineHeight: 1.6 }}>
             Des articles que j'écris pour démystifier ce qui se passe dans ta tête — et te donner des outils concrets, pas des injonctions.
           </p>
@@ -71,6 +84,28 @@ export default async function BlogPage() {
             <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontStyle: 'italic' }}>Les premiers articles arrivent bientôt.</p>
           </div>
         )}
+
+        {/* BLOC DE CONVERSION FIN DE LISTE */}
+        <div style={{
+          marginTop: 32, padding: '30px 26px', borderRadius: 20, textAlign: 'center',
+          background: 'linear-gradient(135deg, rgba(201,160,180,.22), rgba(192,133,82,.14))',
+          border: '1px solid rgba(255,255,255,.7)',
+        }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="NOVAÉ by OMANAÏA" style={{ height: 30, objectFit: 'contain', margin: '0 auto 14px' }} />
+          <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 600, color: '#3d2618', margin: '0 0 10px' }}>
+            Tu es arrivée jusqu'ici. C'est peut-être le bon moment.
+          </p>
+          <p style={{ fontSize: 14, color: '#564c4f', lineHeight: 1.6, margin: '0 0 20px', maxWidth: 440, marginLeft: 'auto', marginRight: 'auto' }}>
+            NOVAÉ t'accompagne 90 jours pour poser ta charge mentale, avec une coach IA qui te connaît et des outils construits à partir des neurosciences.
+          </p>
+          <Link href="/auth" style={{
+            display: 'inline-block', background: '#B06A7C', color: '#fff', textDecoration: 'none',
+            fontWeight: 600, fontSize: 15, padding: '13px 28px', borderRadius: 999,
+          }}>
+            Essayer 14 jours gratuitement
+          </Link>
+        </div>
       </div>
     </div>
   )

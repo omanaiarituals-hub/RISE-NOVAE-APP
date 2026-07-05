@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const articles = await getPublishedArticles()
-  const urls = articles
+  const articleUrls = articles
     .map(
       (article) => `  <url>
     <loc>https://novae-by-omanaia.com/blog/${article.slug}</loc>
@@ -33,9 +33,17 @@ export async function GET() {
     )
     .join('\n')
 
+  // La page /blog elle-même (liste + vitrine) : point d'entrée SEO du blog.
+  const blogIndexUrl = `  <url>
+    <loc>https://novae-by-omanaia.com/blog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>`
+
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls}
+${blogIndexUrl}
+${articleUrls}
 </urlset>`
 
   return new NextResponse(xml, {

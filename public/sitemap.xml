@@ -1,23 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Les articles de blog ne sont plus listés ici : ils vivent dans
+     sitemap-app.xml (généré depuis Supabase, domaine novae-by-omanaia.com).
+     Avant, ce fichier statique dupliquait la liste avec le mauvais domaine
+     (app.novae-by-omanaia.com), ce qui contredisait la balise canonique de
+     chaque article. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://novae-by-omanaia.com/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://app.novae-by-omanaia.com/blog/charge-mentale-femmes</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://app.novae-by-omanaia.com/blog/motivation-neurosciences</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://app.novae-by-omanaia.com/blog/ruminations-vider-sa-tete</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
   </url>
 </urlset>
