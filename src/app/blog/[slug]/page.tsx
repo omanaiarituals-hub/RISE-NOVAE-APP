@@ -1,11 +1,23 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { getArticle, getAllSlugs, blogArticles } from '@/data/blog-articles'
+import { getPublishedArticle, getPublishedArticles } from '@/lib/articles'
 
-export const dynamicParams = false
+// ISR : les articles publiés au moment du build sont pré-générés ci-dessous
+// (generateStaticParams). dynamicParams reste ouvert (comportement par défaut)
+// pour qu'un article publié après coup dans /admin/blog (ex: signes-surcharge-mentale)
+// soit rendu côté serveur dès la première visite, puis mis en cache — sans
+// attendre un redéploiement. revalidate rafraîchit ensuite le cache toutes les 60s.
+export const revalidate = 60
 
-export function generateStaticParams() {
-  return getAllSlugs().map((slug) => ({ slug }))
+export async function generateStaticParams() {
+  try {
+    const articles = await getPublishedArticles()
+    return articles.map((a) => ({ slug: a.slug }))
+  } catch {
+    // Si Supabase est injoignable au build, on ne pré-génère rien :
+    // dynamicParams (ouvert par défaut) prendra le relais à la demande.
+    return []
+  }
 }
 
 export async function generateMetadata({
@@ -14,13 +26,15 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const article = getArticle(slug)
+  const article = await getPublishedArticle(slug)
   if (!article) return { title: 'Article introuvable | NOVAÉ', robots: { index: false, follow: false } }
 
   const url = `https://novae-by-omanaia.com/blog/${article.slug}`
+  const metaTitle = article.meta_title || article.title
+  const metaDescription = article.meta_description || article.excerpt || ''
   return {
-    title: article.metaTitle,
-    description: article.metaDescription,
+    title: metaTitle,
+    description: metaDescription,
     alternates: { canonical: url },
     // Le layout racine met l'app en noindex par défaut (espace privé).
     // Le blog est public : on indique explicitement à Google de l'indexer.
@@ -29,19 +43,19 @@ export async function generateMetadata({
       follow: true,
     },
     openGraph: {
-      title: article.metaTitle,
-      description: article.metaDescription,
+      title: metaTitle,
+      description: metaDescription,
       url,
       type: 'article',
       siteName: 'NOVAÉ by OMANAÏA',
-      images: [{ url: article.image, alt: article.imageAlt }],
+      images: article.cover_image ? [{ url: article.cover_image, alt: article.image_alt ?? '' }] : undefined,
       locale: 'fr_FR',
     },
     twitter: {
       card: 'summary_large_image',
-      title: article.metaTitle,
-      description: article.metaDescription,
-      images: [article.image],
+      title: metaTitle,
+      description: metaDescription,
+      images: article.cover_image ? [article.cover_image] : undefined,
     },
   }
 }
@@ -61,19 +75,20 @@ export default async function BlogArticlePage({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const article = getArticle(slug)
+  const article = await getPublishedArticle(slug)
   if (!article) notFound()
 
   const url = `https://novae-by-omanaia.com/blog/${article.slug}`
+  const metaDescription = article.meta_description || article.excerpt || ''
 
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Article',
     headline: article.title,
-    description: article.metaDescription,
-    image: article.image,
-    datePublished: article.date,
-    dateModified: article.date,
+    description: metaDescription,
+    image: article.cover_image,
+    datePublished: article.display_date,
+    dateModified: article.display_date,
     author: { '@type': 'Person', name: 'Ness Sediri', url: 'https://novae-by-omanaia.com' },
     publisher: {
       '@type': 'Organization',
@@ -93,7 +108,8 @@ export default async function BlogArticlePage({
     })),
   }
 
-  const others = blogArticles.filter((a) => a.slug !== article.slug).slice(0, 2)
+  const allArticles = await getPublishedArticles()
+  const others = allArticles.filter((a) => a.slug !== article.slug).slice(0, 2)
 
   return (
     <div className="novae-blog">
@@ -181,10 +197,12 @@ export default async function BlogArticlePage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
       />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
+      {article.faq.length > 0 && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        />
+      )}
 
       <header className="nb-topbar">
         <a className="nb-logo" href="https://novae-by-omanaia.com">
@@ -202,32 +220,36 @@ export default async function BlogArticlePage({
 
       <article className="nb-article">
         <div className="nb-eyebrow">
-          {article.tag} · {article.readTime}
+          {article.category} · {article.read_time}
         </div>
         <h1 className="nb-h1">{article.title}</h1>
         <div className="nb-meta">
-          Par <b>Ness</b>, fondatrice de NOVAÉ · {formatDateFr(article.date)}
+          Par <b>Ness</b>, fondatrice de NOVAÉ · {article.display_date ? formatDateFr(article.display_date) : ''}
         </div>
-        <div className="nb-cover">
-          {/* image distante volontaire : page marketing publique */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={article.image} alt={article.imageAlt} />
-        </div>
+        {article.cover_image && (
+          <div className="nb-cover">
+            {/* image distante volontaire : page marketing publique */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={article.cover_image} alt={article.image_alt ?? ''} />
+          </div>
+        )}
 
         <div
           className="article-body"
-          dangerouslySetInnerHTML={{ __html: article.bodyHtml }}
+          dangerouslySetInnerHTML={{ __html: article.body_html }}
         />
 
-        <section className="nb-faq">
-          <h2>Questions fréquentes</h2>
-          {article.faq.map((f, i) => (
-            <div className="nb-faq-item" key={i}>
-              <p className="nb-faq-q">{f.q}</p>
-              <p className="nb-faq-a">{f.a}</p>
-            </div>
-          ))}
-        </section>
+        {article.faq.length > 0 && (
+          <section className="nb-faq">
+            <h2>Questions fréquentes</h2>
+            {article.faq.map((f, i) => (
+              <div className="nb-faq-item" key={i}>
+                <p className="nb-faq-q">{f.q}</p>
+                <p className="nb-faq-a">{f.a}</p>
+              </div>
+            ))}
+          </section>
+        )}
 
         {others.length > 0 && (
           <section className="nb-more">
@@ -236,7 +258,7 @@ export default async function BlogArticlePage({
               {others.map((a) => (
                 <a className="nb-more-card" key={a.slug} href={`/blog/${a.slug}`}>
                   <div className="nb-more-tag">
-                    {a.tag} · {a.readTime}
+                    {a.category} · {a.read_time}
                   </div>
                   <div className="nb-more-h">{a.title}</div>
                 </a>

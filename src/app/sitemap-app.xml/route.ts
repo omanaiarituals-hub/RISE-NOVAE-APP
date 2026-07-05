@@ -2,8 +2,8 @@
 // CORRECTIF SEO (audit 04/07/2026) : remplace le fichier statique
 // public/sitemap-app.xml, qu'il fallait éditer à la main à chaque nouvel
 // article (un oubli = l'article jamais soumis à Google). Ici, la liste est
-// générée automatiquement depuis blogArticles à chaque requête : ajouter un
-// article dans src/data/blog-articles.ts suffit, rien d'autre à toucher.
+// générée automatiquement à chaque requête depuis la table Supabase "articles" :
+// publier un article dans /admin/blog suffit, rien d'autre à toucher.
 // Garde exactement la même URL (/sitemap-app.xml) que robots.ts référence déjà.
 //
 // CORRECTIF DOMAINE (05/07/2026) : les URL pointaient vers app.novae-by-omanaia.com,
@@ -11,17 +11,22 @@
 // lieu de la vitrine. C'était la cause de l'invisibilité : les articles étaient
 // déclarés sur le mauvais domaine. On génère désormais des URL sur la vitrine
 // (novae-by-omanaia.com), cohérentes avec la balise canonique de chaque article.
+//
+// MIGRATION SUPABASE (05/07/2026) : la liste ne vient plus de
+// src/data/blog-articles.ts (fichier statique) mais de la table Supabase
+// "articles" (published = true), pour rester synchronisée avec /blog.
 import { NextResponse } from 'next/server'
-import { blogArticles } from '@/data/blog-articles'
+import { getPublishedArticles } from '@/lib/articles'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const urls = blogArticles
+  const articles = await getPublishedArticles()
+  const urls = articles
     .map(
       (article) => `  <url>
     <loc>https://novae-by-omanaia.com/blog/${article.slug}</loc>
-    <lastmod>${article.date}</lastmod>
+    <lastmod>${article.display_date}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>`

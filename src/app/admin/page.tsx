@@ -780,6 +780,13 @@ const loadAuthUserCount = async () => {
             }}>
               ↻ Actualiser
             </button>
+            <Link href="/admin/blog" style={{
+              background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(212,165,116,0.3)',
+              borderRadius: 8, padding: '6px 12px', color: C.brownLight, fontSize: 12,
+              textDecoration: 'none',
+            }}>
+              Blog
+            </Link>
             <Link href="/" style={{
               background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(212,165,116,0.3)',
               borderRadius: 8, padding: '6px 12px', color: C.brownLight, fontSize: 12,

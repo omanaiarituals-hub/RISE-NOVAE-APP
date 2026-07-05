@@ -1,11 +1,14 @@
 // src/app/blog/page.tsx
-'use client'
-
 import Link from 'next/link'
-import { blogArticles } from '@/data/blog-articles'
+import { getPublishedArticles } from '@/lib/articles'
 
-export default function BlogPage() {
-  const sorted = [...blogArticles].sort((a, b) => b.date.localeCompare(a.date))
+// ISR : la page est mise en cache et régénérée au plus toutes les 60s,
+// pour que la publication/dépublication d'un article dans /admin/blog
+// se reflète en public sans redéploiement.
+export const revalidate = 60
+
+export default async function BlogPage() {
+  const articles = await getPublishedArticles()
 
   const TAG_COLORS: Record<string, { bg: string; color: string }> = {
     'Neurosciences': { bg: 'rgba(212,196,226,0.35)', color: '#7E63A8' },
@@ -38,20 +41,20 @@ export default function BlogPage() {
 
         {/* ARTICLES */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {sorted.map((article) => {
-            const tagStyle = TAG_COLORS[article.tag] ?? { bg: 'rgba(245,216,155,0.35)', color: '#A8852E' }
+          {articles.map((article) => {
+            const tagStyle = TAG_COLORS[article.category ?? ''] ?? { bg: 'rgba(245,216,155,0.35)', color: '#A8852E' }
             return (
               <Link key={article.slug} href={`/blog/${article.slug}`} style={{ textDecoration: 'none' }}>
                 <div style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(196,149,106,0.18)', borderRadius: 16, overflow: 'hidden', display: 'flex' }}>
-                  {article.image && (
+                  {article.cover_image && (
                     <div style={{ width: 100, flexShrink: 0 }}>
-                      <img src={article.image} alt={article.imageAlt} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      <img src={article.cover_image} alt={article.image_alt ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                     </div>
                   )}
                   <div style={{ flex: 1, padding: '12px 14px', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: tagStyle.color, background: tagStyle.bg, borderRadius: 999, padding: '2px 8px' }}>{article.tag}</span>
-                      <span style={{ fontSize: 10, color: '#a08770' }}>{article.readTime}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: tagStyle.color, background: tagStyle.bg, borderRadius: 999, padding: '2px 8px' }}>{article.category}</span>
+                      <span style={{ fontSize: 10, color: '#a08770' }}>{article.read_time}</span>
                     </div>
                     <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, fontWeight: 600, color: '#3d2618', lineHeight: 1.25, marginBottom: 6 }}>{article.title}</div>
                     <div style={{ fontSize: 12, color: '#6b5340', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{article.excerpt}</div>
@@ -62,7 +65,7 @@ export default function BlogPage() {
           })}
         </div>
 
-        {sorted.length === 0 && (
+        {articles.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8b6f55' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>📖</div>
             <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, fontStyle: 'italic' }}>Les premiers articles arrivent bientôt.</p>
