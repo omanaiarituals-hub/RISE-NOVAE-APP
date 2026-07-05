@@ -351,19 +351,29 @@ export default function HomePageClient() {
               <p style={{ margin: '6px 0 0', fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontStyle: 'italic', color: '#6b5340', lineHeight: 1.4, borderLeft: '2px solid #c4956a', paddingLeft: 9 }}>« {proverbeDuJour} »</p>
             </div>
 
-            {/* NOVA PENDING */}
-            {novaPending && (
-              <Link href={`/agent?nova_thread=${novaPending.thread_id}`} style={{ textDecoration: 'none', display: 'block', marginBottom: 10 }}>
-                <div style={{ background: 'linear-gradient(135deg, rgba(212,196,226,0.55), rgba(138,111,176,0.18))', border: '1px solid rgba(138,111,176,0.35)', borderRadius: 14, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 9 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #D4C4E2, #8A6FB0)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>N</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 8.5, fontWeight: 700, color: '#5b4b7a', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Nova t'a laissé un message</p>
-                    <p style={{ fontSize: 12, color: '#3d2618', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}>Appuie pour lire 💜</p>
-                  </div>
-                  <span style={{ color: '#8A6FB0', flexShrink: 0 }}>→</span>
+            {/* NOVA, ENTRÉE PRINCIPALE (toujours visible, s'adapte au message en attente) */}
+            <Link
+              href={novaPending ? `/agent?nova_thread=${novaPending.thread_id}` : '/agent'}
+              style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}
+            >
+              <div style={{ background: 'linear-gradient(135deg, rgba(212,196,226,0.65), rgba(138,111,176,0.28))', border: '1px solid rgba(138,111,176,0.40)', borderRadius: 18, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, position: 'relative', overflow: 'hidden', boxShadow: '0 6px 20px rgba(138,111,176,0.18)' }}>
+                <div style={{ position: 'absolute', top: -24, right: -24, width: 90, height: 90, borderRadius: '50%', background: 'rgba(138,111,176,0.16)', pointerEvents: 'none' }} />
+                {/* Orbe Nova */}
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg, #D4C4E2, #8A6FB0)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', fontWeight: 700, fontSize: 24, flexShrink: 0, boxShadow: '0 4px 12px rgba(138,111,176,0.35)' }}>N</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: '#5b4b7a', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.18em' }}>
+                    {novaPending ? "Nova t'a laissé un message" : 'Ton assistante IA'}
+                  </p>
+                  <p style={{ fontSize: 17, color: '#3d2618', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontWeight: 500, lineHeight: 1.2 }}>
+                    {novaPending ? 'Appuie pour lire 💜' : 'Parle à Nova'}
+                  </p>
+                  <p style={{ fontSize: 11.5, color: '#6b5340', margin: '3px 0 0', lineHeight: 1.35 }}>
+                    {novaPending ? 'Elle a pensé à toi.' : 'Elle organise, planifie et agit sur ta journée. Dis-lui ce que tu as en tête.'}
+                  </p>
                 </div>
-              </Link>
-            )}
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, #8A6FB0, #6f57a0)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 15, flexShrink: 0 }}>→</div>
+              </div>
+            </Link>
 
             {/* STRUGGLE */}
             {struggle.active && (
