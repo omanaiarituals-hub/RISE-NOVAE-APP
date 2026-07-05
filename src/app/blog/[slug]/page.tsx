@@ -17,7 +17,7 @@ export async function generateMetadata({
   const article = getArticle(slug)
   if (!article) return { title: 'Article introuvable | NOVAÉ', robots: { index: false, follow: false } }
 
-  const url = `https://app.novae-by-omanaia.com/blog/${article.slug}`
+  const url = `https://novae-by-omanaia.com/blog/${article.slug}`
   return {
     title: article.metaTitle,
     description: article.metaDescription,
@@ -64,7 +64,7 @@ export default async function BlogArticlePage({
   const article = getArticle(slug)
   if (!article) notFound()
 
-  const url = `https://app.novae-by-omanaia.com/blog/${article.slug}`
+  const url = `https://novae-by-omanaia.com/blog/${article.slug}`
 
   const articleSchema = {
     '@context': 'https://schema.org',

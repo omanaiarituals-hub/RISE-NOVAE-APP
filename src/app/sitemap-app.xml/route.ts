@@ -5,6 +5,12 @@
 // générée automatiquement depuis blogArticles à chaque requête : ajouter un
 // article dans src/data/blog-articles.ts suffit, rien d'autre à toucher.
 // Garde exactement la même URL (/sitemap-app.xml) que robots.ts référence déjà.
+//
+// CORRECTIF DOMAINE (05/07/2026) : les URL pointaient vers app.novae-by-omanaia.com,
+// ce qui envoyait Google indexer le blog sur le sous-domaine de l'application au
+// lieu de la vitrine. C'était la cause de l'invisibilité : les articles étaient
+// déclarés sur le mauvais domaine. On génère désormais des URL sur la vitrine
+// (novae-by-omanaia.com), cohérentes avec la balise canonique de chaque article.
 import { NextResponse } from 'next/server'
 import { blogArticles } from '@/data/blog-articles'
 
@@ -14,7 +20,7 @@ export async function GET() {
   const urls = blogArticles
     .map(
       (article) => `  <url>
-    <loc>https://app.novae-by-omanaia.com/blog/${article.slug}</loc>
+    <loc>https://novae-by-omanaia.com/blog/${article.slug}</loc>
     <lastmod>${article.date}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
