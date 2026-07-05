@@ -42,7 +42,7 @@ interface AppContext {
   plannerEvents: any[]
 }
 
-const OWNER_ID = 'cce02eb0-53a1-49c0-82bc-1851a92f1e3c'
+const OWNER_ID = '5d512f46-accf-46c8-9fa5-43f9b4d39fd7'
 
 const LAV = '#8A6FB0'
 const LAV_SOFT = '#D4C4E2'
@@ -57,6 +57,10 @@ export default function AgentPage() {
   const [showHome, setShowHome] = useState(true)
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [novaBadge, setNovaBadge] = useState(false) // badge message Nova en attente
+  // Quota d'échanges gratuits (comptes free uniquement). Renseigné par la
+  // réponse de /api/agent. Reste null pour les comptes Premium/trial (pas de
+  // limite), donc la pastille ne s'affiche jamais pour elles.
+  const [quota, setQuota] = useState<{ remaining: number; max: number } | null>(null)
 
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
@@ -845,12 +849,20 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
 
       if (response.status === 403) {
         const errorData = await response.json().catch(() => ({}))
+        // Comptes free ayant épuisé leur quota : on met la pastille à 0.
+        if (typeof errorData.quota_max === 'number') {
+          setQuota({ remaining: 0, max: errorData.quota_max })
+        }
         setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: `🔒 **L'Agent IA est réservé aux membres Premium**\n\n${errorData.message || "Souscris pour échanger sans limite avec ton coach NOVA."}\n\n[**✦ Découvrir Premium →**](/subscribe)`, timestamp: new Date() }])
         setIsLoading(false)
         return
       }
 
       const data = await response.json()
+      // Met à jour la pastille de quota pour les comptes free (Premium : absent).
+      if (typeof data.quota_remaining === 'number') {
+        setQuota({ remaining: data.quota_remaining, max: data.quota_max ?? 5 })
+      }
       const rawContent = data.response || "Je n'ai pas pu traiter ta demande."
       const { cleanContent, actions } = parseActions(rawContent)
 
@@ -940,6 +952,21 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {/* Pastille quota : comptes free uniquement (quota != null). Vire au rose quand il reste 1 échange ou moins, pour inciter en douceur. */}
+          {quota && (
+            <span
+              title="Échanges gratuits restants ce mois-ci"
+              className="text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap mr-1"
+              style={{
+                background: quota.remaining <= 1 ? 'rgba(244,114,182,0.15)' : 'rgba(138,111,176,0.12)',
+                color: quota.remaining <= 1 ? '#be5a8a' : '#6f57a0',
+              }}
+            >
+              {quota.remaining > 0
+                ? `${quota.remaining}/${quota.max} gratuits`
+                : 'Limite atteinte'}
+            </span>
+          )}
           {user?.id === OWNER_ID && (
             <Link href="/presentation" title="Page presentation (toi seule)" className="text-novae-anthracite/30 hover:text-[#8A6FB0] transition-colors p-1 text-base leading-none">🎬</Link>
           )}
@@ -986,7 +1013,7 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
             </button>
 
             <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
-              {/* COLONNE 1 — répertoire + saisie */}
+              {/* COLONNE 1 : répertoire + saisie */}
               <div className="mb-6 lg:mb-0">
                 <p className="text-xs text-novae-anthracite/40 mb-2 font-medium uppercase tracking-wide">Tes conversations</p>
                 {threads.length === 0 ? (
@@ -1022,7 +1049,7 @@ ADAPTE TON TON ET TES CONSEILS a ce profil. Cale tes propositions sur le temps d
                 </div>
               </div>
 
-              {/* COLONNE 2 — suggestions proactives */}
+              {/* COLONNE 2 : suggestions proactives */}
               <div>
                 {proactiveSuggestions.length > 0 && (
                   <>

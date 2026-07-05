@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 
 // ⚠️ Ton compte uniquement. Remplace par ton user_id si besoin.
-const OWNER_ID = 'cce02eb0-53a1-49c0-82bc-1851a92f1e3c'
+const OWNER_ID = '5d512f46-accf-46c8-9fa5-43f9b4d39fd7'
 
 const STORAGE_KEY = 'novae-presentation-scripts'
 
