@@ -206,10 +206,11 @@ export default async function BlogArticlePage({
 
       <header className="nb-topbar">
         <a className="nb-logo" href="https://novae-by-omanaia.com">
-          Novaé<small>BY OMANAÏA</small>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="NOVAÉ by OMANAÏA" style={{ height: 32, objectFit: 'contain' }} />
         </a>
         <div className="nb-top-actions">
-          <a className="nb-back" href="https://novae-by-omanaia.com/#blog">
+          <a className="nb-back" href="/blog">
             ← Le blog
           </a>
           <a className="nb-cta-top" href="https://app.novae-by-omanaia.com/auth">

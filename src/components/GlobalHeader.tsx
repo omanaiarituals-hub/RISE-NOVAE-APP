@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 
 /**
- * Header global affiché sur toutes les pages SAUF l'accueil ('/').
- * Sur l'accueil, c'est le composant HomeHeader qui prend le relais.
+ * Header global affiché sur toutes les pages SAUF l'accueil ('/') et,
+ * pour une visiteuse anonyme, SAUF /blog (contenu éditorial public — voir
+ * plus bas). Sur l'accueil, c'est le composant HomeHeader qui prend le relais.
  * Affiche le bouton "Passer Premium" pour les utilisatrices en trial/expired.
  */
 export default function GlobalHeader() {
@@ -14,6 +15,7 @@ export default function GlobalHeader() {
   const [tier, setTier] = useState<string | null>(null)
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -24,6 +26,7 @@ export default function GlobalHeader() {
           setLoaded(true)
           return
         }
+        setIsLoggedIn(true)
         const { data } = await supabase
           .from('users')
           .select('subscription_tier, trial_ends_at')
@@ -49,6 +52,14 @@ export default function GlobalHeader() {
 
   // Pages où on cache complètement le header
   if (pathname === '/') return null
+
+  // Le blog est un contenu éditorial public, pas un écran de l'app : une
+  // lectrice anonyme ne doit voir aucun bandeau d'app (ni logo générique,
+  // ni CTA Premium) — chaque page du blog a son propre header. Une
+  // utilisatrice déjà connectée garde en revanche le header habituel,
+  // Premium compris, comme sur le reste de l'app.
+  const isBlog = pathname?.startsWith('/blog') ?? false
+  if (isBlog && (!loaded || !isLoggedIn)) return null
 
   // Pages publiques : header simplifié sans CTA Premium
   const minimalPaths = ['/auth', '/onboarding', '/subscribe', '/cgu', '/privacy']
