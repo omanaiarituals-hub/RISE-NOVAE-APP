@@ -111,7 +111,22 @@ export default function AdminBlogPage() {
   }
 
   function editArticle(a: Article) {
-    setForm({ ...EMPTY, ...a, faq: Array.isArray(a.faq) ? a.faq : [] })
+    // Supabase renvoie `null` (pas '') pour tout champ optionnel jamais
+    // rempli. Sans ce garde-fou, ce `null` écrase le '' par défaut de EMPTY
+    // et fait planter le .trim() de save() au moment d'enregistrer.
+    setForm({
+      ...EMPTY,
+      ...a,
+      excerpt: a.excerpt ?? '',
+      cover_image: a.cover_image ?? '',
+      image_alt: a.image_alt ?? '',
+      category: a.category ?? '',
+      read_time: a.read_time ?? '',
+      display_date: a.display_date ?? EMPTY.display_date,
+      meta_title: a.meta_title ?? '',
+      meta_description: a.meta_description ?? '',
+      faq: Array.isArray(a.faq) ? a.faq : [],
+    })
     setEditingId(a.id || null)
     setSlugTouched(true)
     setMessage(null)
@@ -125,17 +140,19 @@ export default function AdminBlogPage() {
     if (!form.body_html.trim()) { setMessage({ type: 'err', text: 'Le contenu HTML est obligatoire.' }); return }
 
     setSaving(true)
+    // (form.x || '') : filet de sécurité si un champ optionnel arrive à null
+    // (ex: donnée existante en base jamais remplie) au lieu de planter .trim().
     const payload = {
       slug: form.slug.trim(),
       title: form.title.trim(),
-      excerpt: form.excerpt.trim() || null,
-      cover_image: form.cover_image.trim() || null,
-      image_alt: form.image_alt.trim() || null,
-      category: form.category.trim() || null,
-      read_time: form.read_time.trim() || null,
+      excerpt: (form.excerpt || '').trim() || null,
+      cover_image: (form.cover_image || '').trim() || null,
+      image_alt: (form.image_alt || '').trim() || null,
+      category: (form.category || '').trim() || null,
+      read_time: (form.read_time || '').trim() || null,
       display_date: form.display_date || null,
-      meta_title: form.meta_title.trim() || form.title.trim(),
-      meta_description: form.meta_description.trim() || form.excerpt.trim() || null,
+      meta_title: (form.meta_title || '').trim() || form.title.trim(),
+      meta_description: (form.meta_description || '').trim() || (form.excerpt || '').trim() || null,
       body_html: form.body_html,
       faq: form.faq.filter(f => f.q.trim() && f.a.trim()),
       published: form.published,
