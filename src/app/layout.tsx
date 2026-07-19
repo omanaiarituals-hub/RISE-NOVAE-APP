@@ -25,6 +25,28 @@ export const metadata: Metadata = {
   verification: {
     google: 'hjmuYuyMOLOIQDTVwmHabKyghViwFTAWTEqt1o1kFgU',
   },
+  openGraph: {
+    title: 'NOVAÉ · Ton assistante contre la charge mentale',
+    description: "NOVAÉ, l'application qui t'accompagne au quotidien avec NOVA, ta coach IA : programme de 90 jours, planner, routines, journaling et communauté.",
+    url: 'https://app.novae-by-omanaia.com',
+    siteName: 'NOVAÉ by OMANAÏA',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'NOVAÉ by OMANAÏA',
+      },
+    ],
+    locale: 'fr_FR',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'NOVAÉ · Ton assistante contre la charge mentale',
+    description: "NOVAÉ, l'application qui t'accompagne au quotidien avec NOVA, ta coach IA.",
+    images: ['/og-image.png'],
+  },
   // Par défaut, l'espace applicatif (derrière connexion) n'est pas indexé.
   // Les pages publiques (ex: le blog) redéfinissent leurs propres
   // métadonnées, y compris `robots`, via generateMetadata.
