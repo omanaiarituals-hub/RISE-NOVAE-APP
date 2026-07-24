@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { PDFParse } from 'pdf-parse'
 import {
   ADMINISTRATIVE_DOCUMENT_EXTRACTION_SYSTEM_PROMPT,
   type AdministrativeDocumentExtractedData,
@@ -157,19 +156,30 @@ function isImageFile(file: File): boolean {
 }
 
 async function extractTextFromPdf(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer()
-  const buffer = Buffer.from(arrayBuffer)
-
-  const parser = new PDFParse({ data: buffer })
-
   try {
-    const result = await parser.getText()
-    return result.text
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, MAX_PDF_TEXT_LENGTH)
-  } finally {
-    await parser.destroy()
+    const { PDFParse } = await import('pdf-parse')
+
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    const parser = new PDFParse({ data: buffer })
+
+    try {
+      const result = await parser.getText()
+
+      return result.text
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, MAX_PDF_TEXT_LENGTH)
+    } finally {
+      await parser.destroy()
+    }
+  } catch (error) {
+    console.error('[admin documents extract] pdf parse failed', error)
+
+    throw new Error(
+      'Impossible de lire le texte de ce PDF. Pour cette version, utilise un PDF texte simple ou une image du document.'
+    )
   }
 }
 
