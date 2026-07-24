@@ -17,7 +17,13 @@ import { logEvent } from '@/lib/events'
 const ADMIN_EMAILS = ['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com']
 const TESTER_EMAILS = ['nesserinesediri@gmail.com']
 
-type ModuleItem = { href: string; title: string; badge?: string; tester?: boolean }
+type ModuleItem = {
+  href: string
+  title: string
+  badge?: string
+  tester?: boolean
+  adminDocumentsTester?: boolean
+}
 type Univers = {
   key: string; title: string; subtitle: string; icon: string
   tint: string; border: string; ink: string; modules: ModuleItem[]
@@ -28,9 +34,12 @@ const UNIVERS_LIST: Univers[] = [
     key: 'quotidien', title: 'Mon quotidien', subtitle: 'Organise tes journées avec sérénité.',
     icon: '/icon-quotidien.png', tint: 'rgba(197,211,180,0.25)', border: 'rgba(167,189,144,0.40)', ink: '#5C7044',
     modules: [
-      { href: '/planner', title: 'Planner' }, { href: '/routines', title: 'Routines' },
-      { href: '/recipes', title: 'Repas' }, { href: '/notes', title: 'Notes' },
-    ],
+  { href: '/planner', title: 'Planner' },
+  { href: '/routines', title: 'Routines' },
+  { href: '/recipes', title: 'Repas' },
+  { href: '/notes', title: 'Notes' },
+  { href: '/admin-documents', title: 'Documents', badge: 'TEST', adminDocumentsTester: true },
+],
   },
   {
     key: 'transformation', title: 'Ma transformation', subtitle: "Change ta vie un pas après l'autre.",
@@ -215,10 +224,17 @@ export default function HomePageClient() {
     setObjectifLoading(false)
   }
 
-  const visibleModules = (u: Univers) => {
-    if (loading) return u.modules.filter(m => !m.tester)
-    return u.modules.filter(m => !m.tester || isTester)
+const visibleModules = (u: Univers) => {
+  if (loading) {
+    return u.modules.filter(m => !m.tester && !m.adminDocumentsTester)
   }
+
+  return u.modules.filter((m) => {
+    if (m.adminDocumentsTester) return isTester
+    if (m.tester) return isTester
+    return true
+  })
+}
 
   const phaseInfo = PHASE_MESSAGES[getPhase(currentDay)]
 
