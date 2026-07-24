@@ -39,6 +39,17 @@ type ViewDocumentApiResponse = {
   error?: string
 }
 
+type StatusApiResponse = {
+  success?: boolean
+  error?: string
+}
+
+type DeleteApiResponse = {
+  success?: boolean
+  message?: string
+  error?: string
+}
+
 type SavedAdministrativeDocument = {
   id: string
   title: string | null
@@ -49,6 +60,11 @@ type SavedAdministrativeDocument = {
   amount: number | null
   currency: string | null
   created_at: string
+  summary: string | null
+  action_required: string | null
+  recommended_next_step: string | null
+  processing_status: 'todo' | 'in_progress' | 'done'
+  processed_at: string | null
 }
 
 async function compressImageForAdminDocument(file: File): Promise<File> {
@@ -195,6 +211,8 @@ function getEventTitleForExtraction(extraction: AdministrativeDocumentExtractedD
 
 export default function AdminDocumentsTestPage() {
   const [activeView, setActiveView] = useState<ActiveView>('add')
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true)
+const [hasAccess, setHasAccess] = useState(false)
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [compressedSize, setCompressedSize] = useState<string | null>(null)
@@ -219,6 +237,10 @@ export default function AdminDocumentsTestPage() {
   const [savedDocumentsError, setSavedDocumentsError] = useState<string | null>(null)
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null)
 
+  const [managingDocumentId, setManagingDocumentId] = useState<string | null>(null)
+const [updatingDocumentId, setUpdatingDocumentId] = useState<string | null>(null)
+const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null)
+
   const loadSavedDocuments = async () => {
     setIsLoadingSavedDocuments(true)
     setSavedDocumentsError(null)
@@ -233,8 +255,7 @@ export default function AdminDocumentsTestPage() {
 
       const { data, error: queryError } = await supabase
         .from('administrative_documents')
-        .select('id, title, document_type, sender, due_date, due_date_status, amount, currency, created_at')
-        .eq('user_id', user.id)
+.select('id, title, document_type, sender, due_date, due_date_status, amount, currency, created_at, summary, action_required, recommended_next_step, processing_status, processed_at')        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20)
 
@@ -255,8 +276,22 @@ export default function AdminDocumentsTestPage() {
   }
 
   useEffect(() => {
-    loadSavedDocuments()
-  }, [])
+  const checkAccess = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user || !canAccessAdminDocuments(user.email)) {
+      setHasAccess(false)
+      setIsCheckingAccess(false)
+      return
+    }
+
+    setHasAccess(true)
+    setIsCheckingAccess(false)
+    await loadSavedDocuments()
+  }
+
+  checkAccess()
+}, [])
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
@@ -602,6 +637,100 @@ export default function AdminDocumentsTestPage() {
     }
   }
 
+  const handleUpdateProcessingStatus = async (
+  documentId: string,
+  processingStatus: 'todo' | 'in_progress' | 'done'
+) => {
+  setUpdatingDocumentId(documentId)
+  setSavedDocumentsError(null)
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData.session?.access_token
+
+    if (!accessToken) {
+      throw new Error('Session introuvable. Reconnecte-toi avant de modifier le document.')
+    }
+
+    const response = await fetch('/api/admin-documents/status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        documentId,
+        processingStatus,
+      }),
+    })
+
+    const payload = await response.json().catch(() => null) as StatusApiResponse | null
+
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Impossible de mettre à jour le statut.')
+    }
+
+    await loadSavedDocuments()
+  } catch (statusError) {
+    setSavedDocumentsError(
+      statusError instanceof Error
+        ? statusError.message
+        : 'Impossible de mettre à jour le statut.'
+    )
+  } finally {
+    setUpdatingDocumentId(null)
+  }
+}
+
+const handleDeleteSavedDocument = async (documentId: string) => {
+  const confirmed = window.confirm(
+    'Supprimer ce document ? Le fichier et sa fiche seront supprimés définitivement.'
+  )
+
+  if (!confirmed) return
+
+  setDeletingDocumentId(documentId)
+  setSavedDocumentsError(null)
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData.session?.access_token
+
+    if (!accessToken) {
+      throw new Error('Session introuvable. Reconnecte-toi avant de supprimer le document.')
+    }
+
+    const response = await fetch('/api/admin-documents/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ documentId }),
+    })
+
+    const payload = await response.json().catch(() => null) as DeleteApiResponse | null
+
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Impossible de supprimer ce document.')
+    }
+
+    if (managingDocumentId === documentId) {
+      setManagingDocumentId(null)
+    }
+
+    await loadSavedDocuments()
+  } catch (deleteError) {
+    setSavedDocumentsError(
+      deleteError instanceof Error
+        ? deleteError.message
+        : 'Impossible de supprimer ce document.'
+    )
+  } finally {
+    setDeletingDocumentId(null)
+  }
+}
+
   const eventButtonLabel = (() => {
     if (createdEventId) return 'Échéance créée'
     if (isCreatingEvent) return 'Création...'
@@ -621,6 +750,55 @@ export default function AdminDocumentsTestPage() {
   })()
 
   const eventDatePreview = extraction ? getEventDateForExtraction(extraction) : null
+
+  if (isCheckingAccess) {
+  return (
+    <main style={{
+      minHeight: '100vh',
+      background: '#FBF7F2',
+      padding: '32px 16px',
+      color: '#2B2320',
+    }}>
+      <section style={{
+        maxWidth: 720,
+        margin: '0 auto',
+        background: '#FFFFFF',
+        border: '1px solid #EADDD2',
+        borderRadius: 24,
+        padding: 24,
+      }}>
+        Chargement...
+      </section>
+    </main>
+  )
+}
+
+if (!hasAccess) {
+  return (
+    <main style={{
+      minHeight: '100vh',
+      background: '#FBF7F2',
+      padding: '32px 16px',
+      color: '#2B2320',
+    }}>
+      <section style={{
+        maxWidth: 720,
+        margin: '0 auto',
+        background: '#FFFFFF',
+        border: '1px solid #EADDD2',
+        borderRadius: 24,
+        padding: 24,
+      }}>
+        <h1 style={{ margin: '0 0 12px', color: '#4A1F1B' }}>
+          Module en test privé
+        </h1>
+        <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.6 }}>
+          Le module administratif est en cours de test et n’est pas encore disponible pour tous les comptes.
+        </p>
+      </section>
+    </main>
+  )
+}
 
   return (
     <main style={{
@@ -970,17 +1148,35 @@ export default function AdminDocumentsTestPage() {
 
         {activeView === 'archives' && (
           <SavedDocumentsSection
-            documents={savedDocuments}
-            isLoading={isLoadingSavedDocuments}
-            error={savedDocumentsError}
-            openingDocumentId={openingDocumentId}
-            onRefresh={loadSavedDocuments}
-            onOpenDocument={handleOpenSavedDocument}
-          />
+  documents={savedDocuments}
+  isLoading={isLoadingSavedDocuments}
+  error={savedDocumentsError}
+  openingDocumentId={openingDocumentId}
+  managingDocumentId={managingDocumentId}
+  updatingDocumentId={updatingDocumentId}
+  deletingDocumentId={deletingDocumentId}
+  onRefresh={loadSavedDocuments}
+  onOpenDocument={handleOpenSavedDocument}
+  onManageDocument={setManagingDocumentId}
+  onUpdateProcessingStatus={handleUpdateProcessingStatus}
+  onDeleteDocument={handleDeleteSavedDocument}
+/>
         )}
       </section>
     </main>
   )
+}
+
+function processingStatusLabel(status: SavedAdministrativeDocument['processing_status']) {
+  if (status === 'done') return 'Traité'
+  if (status === 'in_progress') return 'En cours'
+  return 'À traiter'
+}
+
+function processingStatusColor(status: SavedAdministrativeDocument['processing_status']) {
+  if (status === 'done') return '#2F7A4F'
+  if (status === 'in_progress') return '#A65E12'
+  return '#8A2525'
 }
 
 function SavedDocumentsSection({
@@ -988,15 +1184,30 @@ function SavedDocumentsSection({
   isLoading,
   error,
   openingDocumentId,
+  managingDocumentId,
+  updatingDocumentId,
+  deletingDocumentId,
   onRefresh,
   onOpenDocument,
+  onManageDocument,
+  onUpdateProcessingStatus,
+  onDeleteDocument,
 }: {
   documents: SavedAdministrativeDocument[]
   isLoading: boolean
   error: string | null
   openingDocumentId: string | null
+  managingDocumentId: string | null
+  updatingDocumentId: string | null
+  deletingDocumentId: string | null
   onRefresh: () => void
   onOpenDocument: (documentId: string) => void
+  onManageDocument: (documentId: string | null) => void
+  onUpdateProcessingStatus: (
+    documentId: string,
+    status: SavedAdministrativeDocument['processing_status']
+  ) => void
+  onDeleteDocument: (documentId: string) => void
 }) {
   return (
     <section style={{
@@ -1060,83 +1271,209 @@ function SavedDocumentsSection({
 
       {documents.length > 0 && (
         <div style={{ display: 'grid', gap: 10 }}>
-          {documents.map((document) => (
-            <div
-              key={document.id}
-              style={{
-                border: '1px solid #EFE2D8',
-                borderRadius: 14,
-                padding: 14,
-                background: '#FFFCFA',
-              }}
-            >
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 12,
-                alignItems: 'flex-start',
-              }}>
-                <div>
-                  <h3 style={{ margin: '0 0 6px', color: '#4A1F1B', fontSize: 16 }}>
-                    {document.title || 'Document administratif'}
-                  </h3>
+          {documents.map((document) => {
+            const isManaging = managingDocumentId === document.id
+            const isUpdating = updatingDocumentId === document.id
+            const isDeleting = deletingDocumentId === document.id
 
-                  <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
-                    {document.sender ? `${document.sender} · ` : ''}
-                    {document.document_type || 'type non détecté'}
-                  </p>
+            return (
+              <div
+                key={document.id}
+                style={{
+                  border: '1px solid #EFE2D8',
+                  borderRadius: 14,
+                  padding: 14,
+                  background: '#FFFCFA',
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                }}>
+                  <div>
+                    <h3 style={{ margin: '0 0 6px', color: '#4A1F1B', fontSize: 16 }}>
+                      {document.title || 'Document administratif'}
+                    </h3>
 
-                  <p style={{ margin: '6px 0 0', color: '#6F625C', lineHeight: 1.5 }}>
-                    {document.due_date
-                      ? `Date limite : ${document.due_date}`
-                      : 'Aucune date limite détectée'}
-                  </p>
-                </div>
-
-                <div style={{ textAlign: 'right', minWidth: 130 }}>
-                  <p style={{
-                    margin: '0 0 6px',
-                    color: dueDateStatusColor(
-                      (document.due_date_status || 'none') as AdministrativeDocumentExtractedData['due_date_status']
-                    ),
-                    fontWeight: 700,
-                  }}>
-                    {dueDateStatusLabel(
-                      (document.due_date_status || 'none') as AdministrativeDocumentExtractedData['due_date_status']
-                    )}
-                  </p>
-
-                  <p style={{ margin: 0, color: '#6F625C', fontSize: 13 }}>
-                    {new Date(document.created_at).toLocaleDateString('fr-FR')}
-                  </p>
-
-                  {document.amount !== null && (
-                    <p style={{ margin: '6px 0 0', color: '#4A1F1B', fontWeight: 700 }}>
-                      {document.amount} {document.currency || 'EUR'}
+                    <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
+                      {document.sender ? `${document.sender} · ` : ''}
+                      {document.document_type || 'type non détecté'}
                     </p>
-                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => onOpenDocument(document.id)}
-                    disabled={openingDocumentId === document.id}
-                    style={{
-                      marginTop: 10,
-                      border: '1px solid #D7C8BE',
-                      borderRadius: 999,
-                      padding: '8px 12px',
-                      background: openingDocumentId === document.id ? '#F0E7DF' : '#FFFFFF',
-                      color: openingDocumentId === document.id ? '#9A6A5B' : '#7A2E2A',
+                    <p style={{ margin: '6px 0 0', color: '#6F625C', lineHeight: 1.5 }}>
+                      {document.due_date
+                        ? `Date limite : ${document.due_date}`
+                        : 'Aucune date limite détectée'}
+                    </p>
+
+                    <p style={{
+                      margin: '8px 0 0',
+                      color: processingStatusColor(document.processing_status),
                       fontWeight: 700,
-                      cursor: openingDocumentId === document.id ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {openingDocumentId === document.id ? 'Ouverture...' : 'Voir'}
-                  </button>
+                    }}>
+                      Statut : {processingStatusLabel(document.processing_status)}
+                    </p>
+                  </div>
+
+                  <div style={{ textAlign: 'right', minWidth: 140 }}>
+                    <p style={{
+                      margin: '0 0 6px',
+                      color: dueDateStatusColor(
+                        (document.due_date_status || 'none') as AdministrativeDocumentExtractedData['due_date_status']
+                      ),
+                      fontWeight: 700,
+                    }}>
+                      {dueDateStatusLabel(
+                        (document.due_date_status || 'none') as AdministrativeDocumentExtractedData['due_date_status']
+                      )}
+                    </p>
+
+                    <p style={{ margin: 0, color: '#6F625C', fontSize: 13 }}>
+                      {new Date(document.created_at).toLocaleDateString('fr-FR')}
+                    </p>
+
+                    {document.amount !== null && (
+                      <p style={{ margin: '6px 0 0', color: '#4A1F1B', fontWeight: 700 }}>
+                        {document.amount} {document.currency || 'EUR'}
+                      </p>
+                    )}
+
+                    <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenDocument(document.id)}
+                        disabled={openingDocumentId === document.id}
+                        style={{
+                          border: '1px solid #D7C8BE',
+                          borderRadius: 999,
+                          padding: '8px 12px',
+                          background: openingDocumentId === document.id ? '#F0E7DF' : '#FFFFFF',
+                          color: openingDocumentId === document.id ? '#9A6A5B' : '#7A2E2A',
+                          fontWeight: 700,
+                          cursor: openingDocumentId === document.id ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {openingDocumentId === document.id ? 'Ouverture...' : 'Voir'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onManageDocument(isManaging ? null : document.id)}
+                        style={{
+                          border: '1px solid #D7C8BE',
+                          borderRadius: 999,
+                          padding: '8px 12px',
+                          background: isManaging ? '#7A2E2A' : '#FFFFFF',
+                          color: isManaging ? '#FFFFFF' : '#7A2E2A',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isManaging ? 'Fermer' : 'Gérer'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
+
+                {isManaging && (
+                  <div style={{
+                    marginTop: 14,
+                    borderTop: '1px solid #EFE2D8',
+                    paddingTop: 14,
+                  }}>
+                    {document.summary && (
+                      <Block title="Résumé" value={document.summary} />
+                    )}
+
+                    {document.action_required && (
+                      <Block title="Action à faire" value={document.action_required} />
+                    )}
+
+                    {document.recommended_next_step && (
+                      <Block title="Prochaine action recommandée" value={document.recommended_next_step} />
+                    )}
+
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 8,
+                      marginTop: 14,
+                    }}>
+                      <button
+                        type="button"
+                        onClick={() => onUpdateProcessingStatus(document.id, 'in_progress')}
+                        disabled={isUpdating || document.processing_status === 'in_progress'}
+                        style={{
+                          border: '1px solid #D7C8BE',
+                          borderRadius: 999,
+                          padding: '8px 12px',
+                          background: '#FFFFFF',
+                          color: '#7A2E2A',
+                          fontWeight: 700,
+                          cursor: isUpdating ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        En cours
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onUpdateProcessingStatus(document.id, 'done')}
+                        disabled={isUpdating || document.processing_status === 'done'}
+                        style={{
+                          border: 'none',
+                          borderRadius: 999,
+                          padding: '8px 12px',
+                          background: '#2F7A4F',
+                          color: '#FFFFFF',
+                          fontWeight: 700,
+                          cursor: isUpdating ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        Marquer comme traité
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onUpdateProcessingStatus(document.id, 'todo')}
+                        disabled={isUpdating || document.processing_status === 'todo'}
+                        style={{
+                          border: '1px solid #D7C8BE',
+                          borderRadius: 999,
+                          padding: '8px 12px',
+                          background: '#FFFFFF',
+                          color: '#7A2E2A',
+                          fontWeight: 700,
+                          cursor: isUpdating ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        Remettre à traiter
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onDeleteDocument(document.id)}
+                        disabled={isDeleting}
+                        style={{
+                          border: '1px solid #E7A5A5',
+                          borderRadius: 999,
+                          padding: '8px 12px',
+                          background: '#FFF1F1',
+                          color: '#8A2525',
+                          fontWeight: 700,
+                          cursor: isDeleting ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {isDeleting ? 'Suppression...' : 'Supprimer'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </section>
