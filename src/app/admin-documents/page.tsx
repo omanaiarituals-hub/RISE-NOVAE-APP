@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client'
 import type { AdministrativeDocumentExtractedData } from '@/lib/admin-documents/types'
 
 const MAX_ORIGINAL_DOCUMENT_BYTES = 15 * 1024 * 1024
+const MAX_ORIGINAL_PDF_BYTES = 5 * 1024 * 1024
 const MAX_COMPRESSED_DOCUMENT_BYTES = 3 * 1024 * 1024
 const DOCUMENT_IMAGE_MAX_DIMENSION = 1800
 
@@ -80,6 +81,14 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`
 }
 
+function isPdfFile(file: File): boolean {
+  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+}
+
+function isImageFile(file: File): boolean {
+  return file.type.startsWith('image/')
+}
+
 function urgencyToPriority(urgency: AdministrativeDocumentExtractedData['urgency']) {
   if (urgency === 'critical' || urgency === 'high') return 'high'
   if (urgency === 'medium') return 'medium'
@@ -123,15 +132,20 @@ export default function AdminDocumentsTestPage() {
 
     if (!file) return
 
-    if (!file.type.startsWith('image/')) {
-      setError('Pour cette première version, choisis une image.')
-      return
-    }
+   if (!isImageFile(file) && !isPdfFile(file)) {
+  setError('Pour cette version, choisis une image ou un PDF texte.')
+  return
+}
 
-    if (file.size > MAX_ORIGINAL_DOCUMENT_BYTES) {
-      setError('Image trop lourde. Choisis une photo de moins de 15 MB.')
-      return
-    }
+if (isImageFile(file) && file.size > MAX_ORIGINAL_DOCUMENT_BYTES) {
+  setError('Image trop lourde. Choisis une photo de moins de 15 MB.')
+  return
+}
+
+if (isPdfFile(file) && file.size > MAX_ORIGINAL_PDF_BYTES) {
+  setError('PDF trop lourd. Choisis un PDF de moins de 5 MB.')
+  return
+}
   }
 
   const handleExtract = async () => {
@@ -155,8 +169,15 @@ export default function AdminDocumentsTestPage() {
         throw new Error('Session introuvable. Déconnecte-toi puis reconnecte-toi avant de relancer le scan.')
       }
 
-      const documentForExtraction = await compressImageForAdminDocument(selectedFile)
-      setCompressedSize(formatBytes(documentForExtraction.size))
+      const documentForExtraction = isPdfFile(selectedFile)
+  ? selectedFile
+  : await compressImageForAdminDocument(selectedFile)
+
+setCompressedSize(
+  isPdfFile(documentForExtraction)
+    ? null
+    : formatBytes(documentForExtraction.size)
+)
 
       const formData = new FormData()
       formData.append('document', documentForExtraction)
@@ -296,12 +317,12 @@ Rien n’est ajouté sans ta validation.
             marginBottom: 10,
             color: '#4A1F1B',
           }}>
-Photo du document à analyser
+Photo ou PDF du document à analyser
           </label>
 
           <input
             type="file"
-            accept="image/*"
+accept="image/*,.pdf,application/pdf"
             onChange={handleFileChange}
             disabled={isScanning}
           />

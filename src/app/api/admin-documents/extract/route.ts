@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { PDFParse } from 'pdf-parse'
 import {
   ADMINISTRATIVE_DOCUMENT_EXTRACTION_SYSTEM_PROMPT,
   type AdministrativeDocumentExtractedData,
@@ -11,6 +12,8 @@ export const runtime = 'nodejs'
 export const maxDuration = 30
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
+const MIN_PDF_TEXT_LENGTH = 80
+const MAX_PDF_TEXT_LENGTH = 12000
 
 async function getSupabaseServerClient() {
   const cookieStore = await cookies()
@@ -145,6 +148,31 @@ function stringArrayOrEmpty(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
 }
 
+function isPdfFile(file: File): boolean {
+  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+}
+
+function isImageFile(file: File): boolean {
+  return file.type.startsWith('image/')
+}
+
+async function extractTextFromPdf(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  const parser = new PDFParse({ data: buffer })
+
+  try {
+    const result = await parser.getText()
+    return result.text
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, MAX_PDF_TEXT_LENGTH)
+  } finally {
+    await parser.destroy()
+  }
+}
+
 function safeParseExtraction(rawText: string): AdministrativeDocumentExtractedData {
   const cleaned = rawText
     .trim()
@@ -192,96 +220,104 @@ function safeParseExtraction(rawText: string): AdministrativeDocumentExtractedDa
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const bearerToken = getBearerToken(request)
-    const supabase = bearerToken
-      ? getSupabaseBearerClient(bearerToken)
-      : await getSupabaseServerClient()
-
-    const { data: { user }, error: authError } = bearerToken
-      ? await supabase.auth.getUser(bearerToken)
-      : await supabase.auth.getUser()
-
-    if (authError || !user) {
-      console.error('[admin documents extract] auth failed', {
-        hasBearerToken: Boolean(bearerToken),
-        authError: authError?.message,
-      })
-
-      return NextResponse.json(
-        { error: 'Session expiree. Reconnecte-toi puis reessaie.' },
-        { status: 401 }
-      )
-    }
-
-    const formData = await request.formData()
-    const file = formData.get('document')
-
-    if (!file || !(file instanceof File)) {
-      return NextResponse.json(
-        { error: 'Aucun document fourni.' },
-        { status: 400 }
-      )
-    }
-
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json(
-        { error: 'Le fichier doit etre une image pour cette premiere version.' },
-        { status: 400 }
-      )
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: 'Document trop lourd. Choisis une image de moins de 5 MB.' },
-        { status: 413 }
-      )
-    }
-
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      console.error('[admin documents extract] missing ANTHROPIC_API_KEY')
-      return NextResponse.json(
-        { error: 'Configuration IA manquante.' },
-        { status: 500 }
-      )
-    }
-
-    const todayISO = getTodayISODate()
-    const arrayBuffer = await file.arrayBuffer()
-    const base64 = Buffer.from(arrayBuffer).toString('base64')
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1800,
-        temperature: 0,
-        system: ADMINISTRATIVE_DOCUMENT_EXTRACTION_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: file.type,
-                  data: base64,
-                },
+async function callAnthropicForImage({
+  apiKey,
+  file,
+  base64,
+  todayISO,
+}: {
+  apiKey: string
+  file: File
+  base64: string
+  todayISO: string
+}) {
+  return fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1800,
+      temperature: 0,
+      system: ADMINISTRATIVE_DOCUMENT_EXTRACTION_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: file.type,
+                data: base64,
               },
-              {
-                type: 'text',
-                text: `
+            },
+            {
+              type: 'text',
+              text: buildExtractionPrompt(todayISO, null),
+            },
+          ],
+        },
+      ],
+    }),
+  })
+}
+
+async function callAnthropicForPdfText({
+  apiKey,
+  pdfText,
+  todayISO,
+}: {
+  apiKey: string
+  pdfText: string
+  todayISO: string
+}) {
+  return fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1800,
+      temperature: 0,
+      system: ADMINISTRATIVE_DOCUMENT_EXTRACTION_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: buildExtractionPrompt(todayISO, pdfText),
+            },
+          ],
+        },
+      ],
+    }),
+  })
+}
+
+function buildExtractionPrompt(todayISO: string, pdfText: string | null): string {
+  const pdfSection = pdfText
+    ? `
+Texte extrait du PDF :
+"""
+${pdfText}
+"""
+`
+    : ''
+
+  return `
 Analyse ce document administratif.
 
 La date du jour est ${todayISO}.
+
+${pdfSection}
 
 Retourne uniquement un JSON valide avec exactement ces champs :
 {
@@ -320,13 +356,96 @@ Rappel :
 - Si ce n'est pas clairement lisible, mets null.
 - Toute action doit etre une proposition a valider.
 - Ne donne pas de conseil juridique, fiscal, medical ou financier.
-`,
-              },
-            ],
+`
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const bearerToken = getBearerToken(request)
+    const supabase = bearerToken
+      ? getSupabaseBearerClient(bearerToken)
+      : await getSupabaseServerClient()
+
+    const { data: { user }, error: authError } = bearerToken
+      ? await supabase.auth.getUser(bearerToken)
+      : await supabase.auth.getUser()
+
+    if (authError || !user) {
+      console.error('[admin documents extract] auth failed', {
+        hasBearerToken: Boolean(bearerToken),
+        authError: authError?.message,
+      })
+
+      return NextResponse.json(
+        { error: 'Session expiree. Reconnecte-toi puis reessaie.' },
+        { status: 401 }
+      )
+    }
+
+    const formData = await request.formData()
+    const file = formData.get('document')
+
+    if (!file || !(file instanceof File)) {
+      return NextResponse.json(
+        { error: 'Aucun document fourni.' },
+        { status: 400 }
+      )
+    }
+
+    if (!isImageFile(file) && !isPdfFile(file)) {
+      return NextResponse.json(
+        { error: 'Le fichier doit etre une image ou un PDF texte.' },
+        { status: 400 }
+      )
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: 'Document trop lourd. Choisis une image ou un PDF de moins de 5 MB.' },
+        { status: 413 }
+      )
+    }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      console.error('[admin documents extract] missing ANTHROPIC_API_KEY')
+      return NextResponse.json(
+        { error: 'Configuration IA manquante.' },
+        { status: 500 }
+      )
+    }
+
+    const todayISO = getTodayISODate()
+    let response: Response
+
+    if (isPdfFile(file)) {
+      const pdfText = await extractTextFromPdf(file)
+
+      if (pdfText.length < MIN_PDF_TEXT_LENGTH) {
+        return NextResponse.json(
+          {
+            error: 'Ce PDF ne contient pas assez de texte lisible. Il s’agit peut-être d’un scan. Pour cette version, envoie une photo du document ou une capture lisible.',
           },
-        ],
-      }),
-    })
+          { status: 422 }
+        )
+      }
+
+      response = await callAnthropicForPdfText({
+        apiKey,
+        pdfText,
+        todayISO,
+      })
+    } else {
+      const arrayBuffer = await file.arrayBuffer()
+      const base64 = Buffer.from(arrayBuffer).toString('base64')
+
+      response = await callAnthropicForImage({
+        apiKey,
+        file,
+        base64,
+        todayISO,
+      })
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -336,7 +455,7 @@ Rappel :
       })
 
       return NextResponse.json(
-        { error: "L'analyse IA a echoue. Reessaie avec une photo plus nette." },
+        { error: "L'analyse IA a echoue. Reessaie avec un document plus lisible." },
         { status: 502 }
       )
     }
