@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import type { AdministrativeDocumentExtractedData } from '@/lib/admin-documents/types'
+import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
 
 const MAX_ORIGINAL_DOCUMENT_BYTES = 15 * 1024 * 1024
 const MAX_ORIGINAL_PDF_BYTES = 5 * 1024 * 1024
