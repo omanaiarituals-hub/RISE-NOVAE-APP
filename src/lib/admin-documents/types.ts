@@ -1,0 +1,123 @@
+export type AdministrativeDocumentType =
+  | 'tax'
+  | 'caf'
+  | 'health_insurance'
+  | 'insurance'
+  | 'school'
+  | 'fine'
+  | 'invoice'
+  | 'bank'
+  | 'employment'
+  | 'housing'
+  | 'other'
+
+export type AdministrativeDocumentStatus =
+  | 'draft'
+  | 'extracted'
+  | 'validated'
+  | 'archived'
+  | 'deleted'
+
+export type AdministrativeDocumentValidationStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'rejected'
+
+export type AdministrativeDocumentUrgency =
+  | 'none'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'critical'
+
+export type AdministrativeDocumentExtractedData = {
+  title: string | null
+  document_type: AdministrativeDocumentType
+  sender: string | null
+  received_date: string | null
+  due_date: string | null
+  amount: number | null
+  currency: 'EUR'
+  action_required: string | null
+  summary: string
+  urgency: AdministrativeDocumentUrgency
+  confidence: number
+  suggested_task_title: string | null
+  suggested_task_description: string | null
+  suggested_event_title: string | null
+  suggested_event_date: string | null
+  missing_information: string[]
+  warnings: string[]
+}
+
+export type AdministrativeDocumentRecord = {
+  id: string
+  user_id: string
+  title: string | null
+  document_type: AdministrativeDocumentType | null
+  sender: string | null
+  received_date: string | null
+  due_date: string | null
+  amount: number | null
+  currency: string | null
+  action_required: string | null
+  summary: string | null
+  extracted_json: AdministrativeDocumentExtractedData | null
+  user_corrections: Record<string, unknown> | null
+  status: AdministrativeDocumentStatus
+  validation_status: AdministrativeDocumentValidationStatus
+  storage_bucket: string
+  storage_path: string | null
+  linked_todo_id: string | null
+  linked_planner_event_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const ADMINISTRATIVE_DOCUMENT_BUCKET = 'administrative-documents'
+
+export const ADMINISTRATIVE_DOCUMENT_EXTRACTION_SYSTEM_PROMPT = `
+Tu es Nova, l'assistante administrative de NOVAE.
+
+Tu analyses une photo ou un document administratif transmis par l'utilisateur.
+
+Objectif :
+- identifier la nature du document
+- identifier l'expediteur
+- detecter une date limite si elle existe
+- detecter un montant si present
+- resumer clairement le contenu
+- proposer une action concrete
+- proposer une tache et/ou une echeance
+- signaler les incertitudes
+
+Regles strictes :
+- Tu ne dois jamais inventer une information absente du document.
+- Si une date, un montant ou une action est incertaine, tu mets null et tu expliques dans warnings.
+- Tu ne donnes pas de conseil juridique, fiscal, medical ou financier.
+- Tu peux expliquer ce que le document semble demander.
+- Toute action doit rester une proposition a valider par l'utilisateur.
+- Tu reponds uniquement en JSON valide.
+`
+
+export const ADMINISTRATIVE_DOCUMENT_EXTRACTION_JSON_EXAMPLE: AdministrativeDocumentExtractedData = {
+  title: 'Courrier administratif a verifier',
+  document_type: 'other',
+  sender: null,
+  received_date: null,
+  due_date: null,
+  amount: null,
+  currency: 'EUR',
+  action_required: null,
+  summary: 'Document administratif detecte. Les informations principales doivent etre verifiees.',
+  urgency: 'medium',
+  confidence: 0.5,
+  suggested_task_title: null,
+  suggested_task_description: null,
+  suggested_event_title: null,
+  suggested_event_date: null,
+  missing_information: [],
+  warnings: [
+    'Extraction automatique a verifier avant toute action.'
+  ],
+}
