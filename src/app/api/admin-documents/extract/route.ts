@@ -6,6 +6,7 @@ import {
   ADMINISTRATIVE_DOCUMENT_EXTRACTION_SYSTEM_PROMPT,
   type AdministrativeDocumentExtractedData,
 } from '@/lib/admin-documents/types'
+import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -391,6 +392,13 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    if (!canAccessAdminDocuments(user.email)) {
+  return NextResponse.json(
+    { error: 'Module administratif réservé à la phase de test.' },
+    { status: 403 }
+  )
+}
 
     const formData = await request.formData()
     const file = formData.get('document')

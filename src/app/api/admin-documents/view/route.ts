@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -87,6 +88,13 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    if (!canAccessAdminDocuments(user.email)) {
+  return NextResponse.json(
+    { error: 'Module administratif réservé à la phase de test.' },
+    { status: 403 }
+  )
+}
 
     const { data: document, error: documentError } = await supabase
       .from('administrative_documents')
