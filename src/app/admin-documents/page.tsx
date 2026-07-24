@@ -303,22 +303,62 @@ export default function AdminDocumentsTestPage() {
               <ListBlock title="Points à vérifier" items={extraction.warnings} />
             )}
 
-            <details style={{ marginTop: 18 }}>
-              <summary style={{ cursor: 'pointer', fontWeight: 700, color: '#4A1F1B' }}>
-                Voir le JSON brut
-              </summary>
-              <pre style={{
-                whiteSpace: 'pre-wrap',
-                background: '#2B2320',
-                color: '#FFF9F5',
-                borderRadius: 14,
-                padding: 14,
-                overflowX: 'auto',
-                fontSize: 12,
-              }}>
-                {JSON.stringify(extraction, null, 2)}
-              </pre>
-            </details>
+      <div style={{
+  marginTop: 22,
+  border: '1px solid #D8B9A8',
+  background: '#FFF9F5',
+  borderRadius: 18,
+  padding: 18,
+}}>
+  <h3 style={{ margin: '0 0 8px', fontSize: 17, color: '#4A1F1B' }}>
+    Validation utilisateur requise
+  </h3>
+
+  <p style={{ margin: '0 0 14px', color: '#5D504B', lineHeight: 1.55 }}>
+    Pour l’instant, Nova a seulement analysé le document. Rien n’a été ajouté automatiquement.
+  </p>
+
+  <ul style={{ margin: '0 0 16px', paddingLeft: 20, color: '#5D504B', lineHeight: 1.6 }}>
+    <li>Aucune tâche créée</li>
+    <li>Aucune échéance ajoutée au planner</li>
+    <li>Aucun rappel programmé</li>
+    <li>Aucun document enregistré en base</li>
+  </ul>
+
+  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+    <button
+      type="button"
+      disabled
+      style={{
+        border: 'none',
+        borderRadius: 999,
+        padding: '11px 16px',
+        background: '#D7C8BE',
+        color: 'white',
+        fontWeight: 700,
+        cursor: 'not-allowed',
+      }}
+    >
+      Créer la tâche — bientôt
+    </button>
+
+    <button
+      type="button"
+      disabled
+      style={{
+        border: '1px solid #D7C8BE',
+        borderRadius: 999,
+        padding: '11px 16px',
+        background: 'white',
+        color: '#9A6A5B',
+        fontWeight: 700,
+        cursor: 'not-allowed',
+      }}
+    >
+      Ajouter l’échéance — bientôt
+    </button>
+  </div>
+</div>
           </section>
         )}
       </section>
