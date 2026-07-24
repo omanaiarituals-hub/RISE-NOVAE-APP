@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import type { AdministrativeDocumentExtractedData } from '@/lib/admin-documents/types'
 
@@ -25,6 +25,18 @@ type SaveApiResponse = {
   storagePath?: string
   message?: string
   error?: string
+}
+
+type SavedAdministrativeDocument = {
+  id: string
+  title: string | null
+  document_type: string | null
+  sender: string | null
+  due_date: string | null
+  due_date_status: string | null
+  amount: number | null
+  currency: string | null
+  created_at: string
 }
 
 async function compressImageForAdminDocument(file: File): Promise<File> {
@@ -188,6 +200,10 @@ export default function AdminDocumentsTestPage() {
   const [savedDocumentId, setSavedDocumentId] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
+  const [savedDocuments, setSavedDocuments] = useState<SavedAdministrativeDocument[]>([])
+const [isLoadingSavedDocuments, setIsLoadingSavedDocuments] = useState(false)
+const [savedDocumentsError, setSavedDocumentsError] = useState<string | null>(null)
+
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
 
@@ -222,6 +238,45 @@ export default function AdminDocumentsTestPage() {
       return
     }
   }
+
+  const loadSavedDocuments = async () => {
+  setIsLoadingSavedDocuments(true)
+  setSavedDocumentsError(null)
+
+  useEffect(() => {
+  loadSavedDocuments()
+}, [])
+
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      setSavedDocuments([])
+      return
+    }
+
+    const { data, error: queryError } = await supabase
+      .from('administrative_documents')
+      .select('id, title, document_type, sender, due_date, due_date_status, amount, currency, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (queryError) {
+      throw new Error(queryError.message)
+    }
+
+    setSavedDocuments((data || []) as SavedAdministrativeDocument[])
+  } catch (loadError) {
+    setSavedDocumentsError(
+      loadError instanceof Error
+        ? loadError.message
+        : 'Impossible de charger les documents enregistrés.'
+    )
+  } finally {
+    setIsLoadingSavedDocuments(false)
+  }
+}
 
   const handleExtract = async () => {
     if (!selectedFile) {
@@ -475,7 +530,8 @@ export default function AdminDocumentsTestPage() {
       }
 
       setSavedDocumentId(payload.documentId)
-      setSaveMessage(payload.message || 'Document enregistré dans ton espace sécurisé.')
+setSaveMessage(payload.message || 'Document enregistré dans ton espace sécurisé.')
+await loadSavedDocuments()
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Impossible d'enregistrer le document.")
     } finally {
@@ -619,6 +675,130 @@ export default function AdminDocumentsTestPage() {
             padding: 20,
             background: '#FFFFFF',
           }}>
+            <section style={{
+  marginTop: 24,
+  border: '1px solid #EADDD2',
+  borderRadius: 18,
+  padding: 20,
+  background: '#FFFFFF',
+}}>
+  <div style={{
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 12,
+    alignItems: 'center',
+    marginBottom: 14,
+  }}>
+    <div>
+      <h2 style={{ margin: 0, color: '#4A1F1B', fontSize: 22 }}>
+        Mes documents enregistrés
+      </h2>
+      <p style={{ margin: '6px 0 0', color: '#6F625C', lineHeight: 1.5 }}>
+        Historique sécurisé des documents que tu as choisi d’enregistrer.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      onClick={loadSavedDocuments}
+      disabled={isLoadingSavedDocuments}
+      style={{
+        border: '1px solid #D7C8BE',
+        borderRadius: 999,
+        padding: '9px 13px',
+        background: '#FFFFFF',
+        color: '#7A2E2A',
+        fontWeight: 700,
+        cursor: isLoadingSavedDocuments ? 'not-allowed' : 'pointer',
+      }}
+    >
+      {isLoadingSavedDocuments ? 'Chargement...' : 'Actualiser'}
+    </button>
+  </div>
+
+  {savedDocumentsError && (
+    <div style={{
+      border: '1px solid #F1B5B5',
+      background: '#FFF1F1',
+      color: '#8A2525',
+      borderRadius: 14,
+      padding: 12,
+      marginBottom: 14,
+    }}>
+      {savedDocumentsError}
+    </div>
+  )}
+
+  {!isLoadingSavedDocuments && savedDocuments.length === 0 && (
+    <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
+      Aucun document enregistré pour l’instant.
+    </p>
+  )}
+
+  {savedDocuments.length > 0 && (
+    <div style={{ display: 'grid', gap: 10 }}>
+      {savedDocuments.map((document) => (
+        <div
+          key={document.id}
+          style={{
+            border: '1px solid #EFE2D8',
+            borderRadius: 14,
+            padding: 14,
+            background: '#FFFCFA',
+          }}
+        >
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+            alignItems: 'flex-start',
+          }}>
+            <div>
+              <h3 style={{ margin: '0 0 6px', color: '#4A1F1B', fontSize: 16 }}>
+                {document.title || 'Document administratif'}
+              </h3>
+
+              <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
+                {document.sender ? `${document.sender} · ` : ''}
+                {document.document_type || 'type non détecté'}
+              </p>
+
+              <p style={{ margin: '6px 0 0', color: '#6F625C', lineHeight: 1.5 }}>
+                {document.due_date
+                  ? `Date limite : ${document.due_date}`
+                  : 'Aucune date limite détectée'}
+              </p>
+            </div>
+
+            <div style={{ textAlign: 'right', minWidth: 120 }}>
+              <p style={{
+                margin: '0 0 6px',
+                color: dueDateStatusColor(
+                  (document.due_date_status || 'none') as AdministrativeDocumentExtractedData['due_date_status']
+                ),
+                fontWeight: 700,
+              }}>
+                {dueDateStatusLabel(
+                  (document.due_date_status || 'none') as AdministrativeDocumentExtractedData['due_date_status']
+                )}
+              </p>
+
+              <p style={{ margin: 0, color: '#6F625C', fontSize: 13 }}>
+                {new Date(document.created_at).toLocaleDateString('fr-FR')}
+              </p>
+
+              {document.amount !== null && (
+                <p style={{ margin: '6px 0 0', color: '#4A1F1B', fontWeight: 700 }}>
+                  {document.amount} {document.currency || 'EUR'}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</section>
             <h2 style={{ margin: '0 0 16px', color: '#4A1F1B', fontSize: 22 }}>
               Analyse du document
             </h2>
