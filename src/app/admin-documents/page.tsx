@@ -80,20 +80,31 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`
 }
 
+function urgencyToPriority(urgency: AdministrativeDocumentExtractedData['urgency']) {
+  if (urgency === 'critical' || urgency === 'high') return 'high'
+  if (urgency === 'medium') return 'medium'
+  return 'low'
+}
+
 export default function AdminDocumentsTestPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [compressedSize, setCompressedSize] = useState<string | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [extraction, setExtraction] = useState<AdministrativeDocumentExtractedData | null>(null)
+const [isCreatingTask, setIsCreatingTask] = useState(false)
+const [createdTaskId, setCreatedTaskId] = useState<string | null>(null)
+const [taskMessage, setTaskMessage] = useState<string | null>(null)
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
 
     setSelectedFile(file)
-    setCompressedSize(null)
-    setError(null)
-    setExtraction(null)
+setCompressedSize(null)
+setError(null)
+setExtraction(null)
+setCreatedTaskId(null)
+setTaskMessage(null)
 
     if (!file) return
 
@@ -115,9 +126,11 @@ export default function AdminDocumentsTestPage() {
     }
 
     setIsScanning(true)
-    setError(null)
-    setExtraction(null)
-    setCompressedSize(null)
+setError(null)
+setExtraction(null)
+setCompressedSize(null)
+setCreatedTaskId(null)
+setTaskMessage(null)
 
     try {
       const { data: sessionData } = await supabase.auth.getSession()
@@ -154,6 +167,53 @@ export default function AdminDocumentsTestPage() {
       setIsScanning(false)
     }
   }
+
+  const handleCreateTask = async () => {
+  if (!extraction) {
+    setError('Aucune extraction disponible pour créer une tâche.')
+    return
+  }
+
+  const title =
+    extraction.suggested_task_title ||
+    extraction.action_required ||
+    extraction.title ||
+    'Traiter un document administratif'
+
+  setIsCreatingTask(true)
+  setError(null)
+  setTaskMessage(null)
+
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      throw new Error('Session introuvable. Reconnecte-toi avant de créer la tâche.')
+    }
+
+    const { data, error: insertError } = await supabase
+      .from('todo_list')
+      .insert({
+        user_id: user.id,
+        title,
+        priority: urgencyToPriority(extraction.urgency),
+        status: 'pending',
+      })
+      .select('id')
+      .single()
+
+    if (insertError) {
+      throw new Error(insertError.message)
+    }
+
+    setCreatedTaskId(data.id)
+    setTaskMessage('Tâche créée dans ta to-do. Tu peux la retrouver dans le planner.')
+  } catch (createError) {
+    setError(createError instanceof Error ? createError.message : 'Impossible de créer la tâche.')
+  } finally {
+    setIsCreatingTask(false)
+  }
+}
 
   return (
     <main style={{
@@ -319,28 +379,33 @@ export default function AdminDocumentsTestPage() {
   </p>
 
   <ul style={{ margin: '0 0 16px', paddingLeft: 20, color: '#5D504B', lineHeight: 1.6 }}>
-    <li>Aucune tâche créée</li>
+    <li>{createdTaskId ? 'Une tâche a été créée après validation' : 'Aucune tâche créée'}</li>
     <li>Aucune échéance ajoutée au planner</li>
     <li>Aucun rappel programmé</li>
     <li>Aucun document enregistré en base</li>
   </ul>
 
   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-    <button
-      type="button"
-      disabled
-      style={{
-        border: 'none',
-        borderRadius: 999,
-        padding: '11px 16px',
-        background: '#D7C8BE',
-        color: 'white',
-        fontWeight: 700,
-        cursor: 'not-allowed',
-      }}
-    >
-      Créer la tâche — bientôt
-    </button>
+<button
+  type="button"
+  onClick={handleCreateTask}
+  disabled={isCreatingTask || Boolean(createdTaskId)}
+  style={{
+    border: 'none',
+    borderRadius: 999,
+    padding: '11px 16px',
+    background: isCreatingTask || createdTaskId ? '#D7C8BE' : '#7A2E2A',
+    color: 'white',
+    fontWeight: 700,
+    cursor: isCreatingTask || createdTaskId ? 'not-allowed' : 'pointer',
+  }}
+>
+  {createdTaskId
+    ? 'Tâche créée'
+    : isCreatingTask
+      ? 'Création...'
+      : 'Créer la tâche'}
+</button>
 
     <button
       type="button"
@@ -359,6 +424,16 @@ export default function AdminDocumentsTestPage() {
     </button>
   </div>
 </div>
+{taskMessage && (
+  <p style={{
+    margin: '14px 0 0',
+    color: '#2F7A4F',
+    fontWeight: 700,
+    lineHeight: 1.5,
+  }}>
+    {taskMessage}
+  </p>
+)}
           </section>
         )}
       </section>
