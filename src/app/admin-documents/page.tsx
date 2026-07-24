@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import type { AdministrativeDocumentExtractedData } from '@/lib/admin-documents/types'
 import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
+import Link from 'next/link'
 
 const MAX_ORIGINAL_DOCUMENT_BYTES = 15 * 1024 * 1024
 const MAX_ORIGINAL_PDF_BYTES = 5 * 1024 * 1024
@@ -824,6 +825,21 @@ if (!hasAccess) {
           letterSpacing: 0.5,
           textTransform: 'uppercase',
         }}>
+            <Link
+  href="/"
+  style={{
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 18,
+    color: '#7A2E2A',
+    textDecoration: 'none',
+    fontWeight: 700,
+    fontSize: 14,
+  }}
+>
+  ← Retour à l’accueil
+</Link>
           Assistant administratif
         </p>
 
