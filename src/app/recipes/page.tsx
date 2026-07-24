@@ -900,10 +900,20 @@ try {
   const formData = new FormData()
   formData.append('image', imageForExtraction)
 
-      const response = await fetch('/api/recipes/extract', {
-        method: 'POST',
-        body: formData,
-      })
+      const { data: sessionData } = await supabase.auth.getSession()
+const accessToken = sessionData.session?.access_token
+
+if (!accessToken) {
+  throw new Error('Session introuvable. Déconnecte-toi puis reconnecte-toi avant de relancer le scan.')
+}
+
+const response = await fetch('/api/recipes/extract', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${accessToken}`,
+  },
+  body: formData,
+})
 
       const data = await response.json()
 

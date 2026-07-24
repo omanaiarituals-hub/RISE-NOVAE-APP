@@ -1,6 +1,7 @@
 // src/app/api/recipes/extract/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { canAccess, incrementScanCount } from '@/lib/permissions'
 
@@ -52,18 +53,57 @@ async function getSupabaseServerClient() {
   )
 }
 
+function getBearerToken(request: NextRequest): string | null {
+  const header = request.headers.get('authorization')
+  if (!header) return null
+
+  const [type, token] = header.split(' ')
+  if (type?.toLowerCase() !== 'bearer' || !token) return null
+
+  return token
+}
+
+function getSupabaseBearerClient(token: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    }
+  )
+}
+
 export async function POST(request: NextRequest) {
   try {
     // 1. AUTH CHECK
-    const supabase = await getSupabaseServerClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const bearerToken = getBearerToken(request)
+const supabase = bearerToken
+  ? getSupabaseBearerClient(bearerToken)
+  : await getSupabaseServerClient()
 
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized. Tu dois être connectée pour scanner une recette.' },
-        { status: 401 }
-      )
-    }
+const { data: { user }, error: authError } = bearerToken
+  ? await supabase.auth.getUser(bearerToken)
+  : await supabase.auth.getUser()
+
+if (authError || !user) {
+  console.error('[recipe extract] auth failed', {
+    hasBearerToken: Boolean(bearerToken),
+    authError: authError?.message,
+  })
+
+  return NextResponse.json(
+    { error: 'Session expirée. Reconnecte-toi puis réessaie le scan.' },
+    { status: 401 }
+  )
+}
 
     // 2. QUOTA CHECK (canAccess)
     const access = await canAccess(supabase as any, 'scan_recipe', user.id)
