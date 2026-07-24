@@ -8,9 +8,6 @@ const MAX_ORIGINAL_DOCUMENT_BYTES = 15 * 1024 * 1024
 const MAX_COMPRESSED_DOCUMENT_BYTES = 3 * 1024 * 1024
 const DOCUMENT_IMAGE_MAX_DIMENSION = 1800
 
-const DEFAULT_EVENT_START_MINUTES = 9 * 60
-const DEFAULT_EVENT_END_MINUTES = 10 * 60
-
 async function compressImageForAdminDocument(file: File): Promise<File> {
   if (file.size <= MAX_COMPRESSED_DOCUMENT_BYTES) {
     return file
@@ -83,20 +80,6 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`
 }
 
-function getTodayLocalISODate(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function minutesToTimeValue(minutes: number): string {
-  const hours = String(Math.floor(minutes / 60)).padStart(2, '0')
-  const mins = String(minutes % 60).padStart(2, '0')
-  return `${hours}:${mins}`
-}
-
 function urgencyToPriority(urgency: AdministrativeDocumentExtractedData['urgency']) {
   if (urgency === 'critical' || urgency === 'high') return 'high'
   if (urgency === 'medium') return 'medium'
@@ -118,47 +101,15 @@ function dueDateStatusColor(status: AdministrativeDocumentExtractedData['due_dat
   return '#6F625C'
 }
 
-function getEventDateForExtraction(extraction: AdministrativeDocumentExtractedData): string | null {
-  if (extraction.due_date_status === 'overdue') {
-    return getTodayLocalISODate()
-  }
-
-  return extraction.due_date || extraction.suggested_event_date
-}
-
-function getEventTitleForExtraction(extraction: AdministrativeDocumentExtractedData): string {
-  const baseTitle =
-    extraction.suggested_event_title ||
-    extraction.suggested_task_title ||
-    extraction.action_required ||
-    extraction.title ||
-    'Traiter un document administratif'
-
-  if (extraction.due_date_status === 'overdue') {
-    return `URGENT - traiter échéance dépassée : ${baseTitle}`
-  }
-
-  if (extraction.due_date_status === 'today') {
-    return `URGENT - échéance aujourd’hui : ${baseTitle}`
-  }
-
-  return `Échéance administrative : ${baseTitle}`
-}
-
 export default function AdminDocumentsTestPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [compressedSize, setCompressedSize] = useState<string | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [extraction, setExtraction] = useState<AdministrativeDocumentExtractedData | null>(null)
-
   const [isCreatingTask, setIsCreatingTask] = useState(false)
   const [createdTaskId, setCreatedTaskId] = useState<string | null>(null)
   const [taskMessage, setTaskMessage] = useState<string | null>(null)
-
-  const [isCreatingEvent, setIsCreatingEvent] = useState(false)
-  const [createdEventId, setCreatedEventId] = useState<string | null>(null)
-  const [eventMessage, setEventMessage] = useState<string | null>(null)
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
@@ -169,8 +120,6 @@ export default function AdminDocumentsTestPage() {
     setExtraction(null)
     setCreatedTaskId(null)
     setTaskMessage(null)
-    setCreatedEventId(null)
-    setEventMessage(null)
 
     if (!file) return
 
@@ -197,8 +146,6 @@ export default function AdminDocumentsTestPage() {
     setCompressedSize(null)
     setCreatedTaskId(null)
     setTaskMessage(null)
-    setCreatedEventId(null)
-    setEventMessage(null)
 
     try {
       const { data: sessionData } = await supabase.auth.getSession()
@@ -289,83 +236,6 @@ export default function AdminDocumentsTestPage() {
     }
   }
 
-  const handleCreateEvent = async () => {
-    if (!extraction) {
-      setError('Aucune extraction disponible pour créer une échéance.')
-      return
-    }
-
-    const eventDate = getEventDateForExtraction(extraction)
-
-    if (!eventDate) {
-      setError("Aucune date fiable n'a été détectée. Crée d'abord une tâche, puis ajoute une échéance manuellement.")
-      return
-    }
-
-    const eventTitle = getEventTitleForExtraction(extraction)
-    const startTime = minutesToTimeValue(DEFAULT_EVENT_START_MINUTES)
-    const endTime = minutesToTimeValue(DEFAULT_EVENT_END_MINUTES)
-
-    setIsCreatingEvent(true)
-    setError(null)
-    setEventMessage(null)
-
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-
-      if (userError || !user) {
-        throw new Error('Session introuvable. Reconnecte-toi avant de créer l’échéance.')
-      }
-
-      const { data, error: insertError } = await supabase
-        .from('planner_events')
-        .insert({
-          user_id: user.id,
-          title: eventTitle,
-          start_date: `${eventDate}T${startTime}:00`,
-          end_date: `${eventDate}T${endTime}:00`,
-          start_minutes: DEFAULT_EVENT_START_MINUTES,
-          end_minutes: DEFAULT_EVENT_END_MINUTES,
-          category: 'pro',
-          recurrence_days: [],
-          reminder_minutes_before: [],
-          reminder_sent: false,
-        })
-        .select('id')
-        .single()
-
-      if (insertError) {
-        throw new Error(insertError.message)
-      }
-
-      setCreatedEventId(data.id)
-
-      if (extraction.due_date_status === 'overdue') {
-        setEventMessage("Rappel créé aujourd’hui dans le planner pour traiter cette échéance dépassée.")
-      } else {
-        setEventMessage('Échéance ajoutée dans le planner.')
-      }
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "Impossible de créer l’échéance.")
-    } finally {
-      setIsCreatingEvent(false)
-    }
-  }
-
-  const eventButtonLabel = (() => {
-    if (createdEventId) return 'Échéance créée'
-    if (isCreatingEvent) return 'Création...'
-    if (!extraction) return 'Ajouter l’échéance'
-
-    if (extraction.due_date_status === 'overdue') {
-      return 'Créer un rappel aujourd’hui'
-    }
-
-    return 'Ajouter l’échéance'
-  })()
-
-  const eventDatePreview = extraction ? getEventDateForExtraction(extraction) : null
-
   return (
     <main style={{
       minHeight: '100vh',
@@ -390,7 +260,7 @@ export default function AdminDocumentsTestPage() {
           letterSpacing: 0.5,
           textTransform: 'uppercase',
         }}>
-          Test interne NOVAÉ
+Assistant administratif
         </p>
 
         <h1 style={{
@@ -399,7 +269,7 @@ export default function AdminDocumentsTestPage() {
           lineHeight: 1.15,
           color: '#4A1F1B',
         }}>
-          Scan administratif
+Mes documents administratifs
         </h1>
 
         <p style={{
@@ -408,8 +278,9 @@ export default function AdminDocumentsTestPage() {
           fontSize: 15,
           lineHeight: 1.6,
         }}>
-          Cette page teste l’extraction IA. Le document n’est pas enregistré.
-          Une tâche ou une échéance peut être créée seulement après validation manuelle.
+          Ajoute une photo de courrier, d’amende, de facture ou de document important.
+Nova analyse le contenu, repère les dates limites et te propose une action.
+Rien n’est ajouté sans ta validation.
         </p>
 
         <div style={{
@@ -425,7 +296,7 @@ export default function AdminDocumentsTestPage() {
             marginBottom: 10,
             color: '#4A1F1B',
           }}>
-            Photo du document administratif
+Photo du document à analyser
           </label>
 
           <input
@@ -457,7 +328,7 @@ export default function AdminDocumentsTestPage() {
               cursor: isScanning || !selectedFile ? 'not-allowed' : 'pointer',
             }}
           >
-            {isScanning ? 'Analyse en cours...' : 'Tester l’extraction'}
+            {isScanning ? 'Analyse en cours...' : 'Analyser le document'}
           </button>
         </div>
 
@@ -482,7 +353,7 @@ export default function AdminDocumentsTestPage() {
             background: '#FFFFFF',
           }}>
             <h2 style={{ margin: '0 0 16px', color: '#4A1F1B', fontSize: 22 }}>
-              Résultat détecté
+Analyse du document
             </h2>
 
             {extraction.due_date_status === 'overdue' && (
@@ -518,7 +389,6 @@ export default function AdminDocumentsTestPage() {
                 value={dueDateStatusLabel(extraction.due_date_status)}
                 color={dueDateStatusColor(extraction.due_date_status)}
               />
-              <Info label="Date proposée planner" value={eventDatePreview} />
               <Info label="Montant" value={extraction.amount === null ? null : `${extraction.amount} €`} />
               <Info label="Urgence" value={extraction.urgency} />
               <Info label="Confiance IA" value={`${Math.round(extraction.confidence * 100)} %`} />
@@ -551,27 +421,15 @@ export default function AdminDocumentsTestPage() {
               </h3>
 
               <p style={{ margin: '0 0 14px', color: '#5D504B', lineHeight: 1.55 }}>
-                Nova a analysé le document. Rien n’est ajouté sans ton action.
+Nova a analysé le document. À toi de choisir ce que tu veux ajouter.
               </p>
 
               <ul style={{ margin: '0 0 16px', paddingLeft: 20, color: '#5D504B', lineHeight: 1.6 }}>
                 <li>{createdTaskId ? 'Une tâche a été créée après validation' : 'Aucune tâche créée'}</li>
-                <li>{createdEventId ? 'Une échéance a été ajoutée au planner après validation' : 'Aucune échéance ajoutée au planner'}</li>
-                <li>Aucun rappel automatique programmé</li>
+                <li>Aucune échéance ajoutée au planner</li>
+                <li>Aucun rappel programmé</li>
                 <li>Aucun document enregistré en base</li>
               </ul>
-
-              {extraction.due_date_status === 'overdue' && !createdEventId && (
-                <p style={{
-                  margin: '0 0 14px',
-                  color: '#8A2525',
-                  fontWeight: 700,
-                  lineHeight: 1.5,
-                }}>
-                  L’échéance détectée est déjà dépassée : Nova ne va pas créer un événement dans le passé.
-                  Le bouton va créer un rappel aujourd’hui pour traiter ce dossier.
-                </p>
-              )}
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 <button
@@ -597,19 +455,18 @@ export default function AdminDocumentsTestPage() {
 
                 <button
                   type="button"
-                  onClick={handleCreateEvent}
-                  disabled={isCreatingEvent || Boolean(createdEventId)}
+                  disabled
                   style={{
                     border: '1px solid #D7C8BE',
                     borderRadius: 999,
                     padding: '11px 16px',
-                    background: isCreatingEvent || createdEventId ? '#F0E7DF' : 'white',
-                    color: isCreatingEvent || createdEventId ? '#9A6A5B' : '#7A2E2A',
+                    background: 'white',
+                    color: '#9A6A5B',
                     fontWeight: 700,
-                    cursor: isCreatingEvent || createdEventId ? 'not-allowed' : 'pointer',
+                    cursor: 'not-allowed',
                   }}
                 >
-                  {eventButtonLabel}
+                  Ajouter l’échéance — bientôt
                 </button>
               </div>
 
@@ -621,17 +478,6 @@ export default function AdminDocumentsTestPage() {
                   lineHeight: 1.5,
                 }}>
                   {taskMessage}
-                </p>
-              )}
-
-              {eventMessage && (
-                <p style={{
-                  margin: '10px 0 0',
-                  color: '#2F7A4F',
-                  fontWeight: 700,
-                  lineHeight: 1.5,
-                }}>
-                  {eventMessage}
                 </p>
               )}
             </div>
