@@ -1,4 +1,6 @@
 "use client";
+"use client";
+import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
 import Navigation from "@/components/Navigation";
@@ -1039,7 +1041,7 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
       <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 120px)", background: C.cream, fontFamily: "'DM Sans',sans-serif", overflow: "hidden" }}>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: `1px solid ${C.grisClair}`, background: C.blanc, flexShrink: 0 }}>
-          <a href="/" style={{ fontSize: 12, color: C.gris, textDecoration: "none", display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 20, border: `1px solid ${C.grisClair}`, background: C.cream }}>← Accueil</a>
+          <Link href="/" style={{ fontSize: 12, color: C.gris, textDecoration: "none", display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 20, border: `1px solid ${C.grisClair}`, background: C.cream }}>← Accueil</Link>
           <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, fontWeight: 700, color: C.noir, marginLeft: 4 }}>Planner</span>
           {isMobile && mobileTab === "planner" && (
             <button onClick={() => openNewEvent()} style={{ ...btnStyle(C.roseDark), marginLeft: "auto", padding: "5px 12px", fontSize: 11 }}>+ Évén.</button>
