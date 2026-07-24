@@ -29,6 +29,15 @@ type SaveApiResponse = {
   error?: string
 }
 
+type ViewDocumentApiResponse = {
+  success?: boolean
+  signedUrl?: string
+  expiresIn?: number
+  filename?: string | null
+  mimeType?: string | null
+  error?: string
+}
+
 type SavedAdministrativeDocument = {
   id: string
   title: string | null
@@ -207,6 +216,7 @@ export default function AdminDocumentsTestPage() {
   const [savedDocuments, setSavedDocuments] = useState<SavedAdministrativeDocument[]>([])
   const [isLoadingSavedDocuments, setIsLoadingSavedDocuments] = useState(false)
   const [savedDocumentsError, setSavedDocumentsError] = useState<string | null>(null)
+  const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null)
 
   const loadSavedDocuments = async () => {
     setIsLoadingSavedDocuments(true)
@@ -540,6 +550,54 @@ export default function AdminDocumentsTestPage() {
       setError(saveError instanceof Error ? saveError.message : "Impossible d'enregistrer le document.")
     } finally {
       setIsSavingDocument(false)
+    }
+  }
+
+  const handleOpenSavedDocument = async (documentId: string) => {
+    setOpeningDocumentId(documentId)
+    setSavedDocumentsError(null)
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+
+      if (!accessToken) {
+        throw new Error('Session introuvable. Reconnecte-toi avant d’ouvrir le document.')
+      }
+
+      const response = await fetch(`/api/admin-documents/view?documentId=${encodeURIComponent(documentId)}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      const responseText = await response.text()
+
+      let payload: ViewDocumentApiResponse
+      try {
+        payload = JSON.parse(responseText) as ViewDocumentApiResponse
+      } catch {
+        throw new Error("Le serveur n'a pas retourné une réponse lisible.")
+      }
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Impossible d'ouvrir ce document.")
+      }
+
+      if (!payload.signedUrl) {
+        throw new Error("Lien temporaire manquant pour ce document.")
+      }
+
+      window.open(payload.signedUrl, '_blank', 'noopener,noreferrer')
+    } catch (openError) {
+      setSavedDocumentsError(
+        openError instanceof Error
+          ? openError.message
+          : "Impossible d'ouvrir ce document."
+      )
+    } finally {
+      setOpeningDocumentId(null)
     }
   }
 
@@ -914,7 +972,9 @@ export default function AdminDocumentsTestPage() {
             documents={savedDocuments}
             isLoading={isLoadingSavedDocuments}
             error={savedDocumentsError}
+            openingDocumentId={openingDocumentId}
             onRefresh={loadSavedDocuments}
+            onOpenDocument={handleOpenSavedDocument}
           />
         )}
       </section>
@@ -926,12 +986,16 @@ function SavedDocumentsSection({
   documents,
   isLoading,
   error,
+  openingDocumentId,
   onRefresh,
+  onOpenDocument,
 }: {
   documents: SavedAdministrativeDocument[]
   isLoading: boolean
   error: string | null
+  openingDocumentId: string | null
   onRefresh: () => void
+  onOpenDocument: (documentId: string) => void
 }) {
   return (
     <section style={{
@@ -1028,7 +1092,7 @@ function SavedDocumentsSection({
                   </p>
                 </div>
 
-                <div style={{ textAlign: 'right', minWidth: 120 }}>
+                <div style={{ textAlign: 'right', minWidth: 130 }}>
                   <p style={{
                     margin: '0 0 6px',
                     color: dueDateStatusColor(
@@ -1050,6 +1114,24 @@ function SavedDocumentsSection({
                       {document.amount} {document.currency || 'EUR'}
                     </p>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenDocument(document.id)}
+                    disabled={openingDocumentId === document.id}
+                    style={{
+                      marginTop: 10,
+                      border: '1px solid #D7C8BE',
+                      borderRadius: 999,
+                      padding: '8px 12px',
+                      background: openingDocumentId === document.id ? '#F0E7DF' : '#FFFFFF',
+                      color: openingDocumentId === document.id ? '#9A6A5B' : '#7A2E2A',
+                      fontWeight: 700,
+                      cursor: openingDocumentId === document.id ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {openingDocumentId === document.id ? 'Ouverture...' : 'Voir'}
+                  </button>
                 </div>
               </div>
             </div>
