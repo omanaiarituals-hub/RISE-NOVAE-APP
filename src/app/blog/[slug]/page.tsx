@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getPublishedArticle, getPublishedArticles } from '@/lib/articles'
 
@@ -210,9 +211,9 @@ export default async function BlogArticlePage({
           <img src="/logo.png" alt="NOVAÉ by OMANAÏA" style={{ height: 32, objectFit: 'contain' }} />
         </a>
         <div className="nb-top-actions">
-          <a className="nb-back" href="/blog">
-            ← Le blog
-          </a>
+       <Link className="nb-back" href="/blog">
+  ← Le blog
+</Link>
           <a className="nb-cta-top" href="https://app.novae-by-omanaia.com/auth">
             Essaie 14 jours
           </a>
