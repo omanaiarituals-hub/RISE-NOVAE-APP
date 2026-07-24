@@ -86,25 +86,40 @@ function urgencyToPriority(urgency: AdministrativeDocumentExtractedData['urgency
   return 'low'
 }
 
+function dueDateStatusLabel(status: AdministrativeDocumentExtractedData['due_date_status']) {
+  if (status === 'overdue') return 'Échéance dépassée'
+  if (status === 'today') return 'Échéance aujourd’hui'
+  if (status === 'upcoming') return 'À venir'
+  if (status === 'unknown') return 'Date incertaine'
+  return 'Non détecté'
+}
+
+function dueDateStatusColor(status: AdministrativeDocumentExtractedData['due_date_status']) {
+  if (status === 'overdue') return '#9F2525'
+  if (status === 'today') return '#A65E12'
+  if (status === 'upcoming') return '#2F7A4F'
+  return '#6F625C'
+}
+
 export default function AdminDocumentsTestPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [compressedSize, setCompressedSize] = useState<string | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [extraction, setExtraction] = useState<AdministrativeDocumentExtractedData | null>(null)
-const [isCreatingTask, setIsCreatingTask] = useState(false)
-const [createdTaskId, setCreatedTaskId] = useState<string | null>(null)
-const [taskMessage, setTaskMessage] = useState<string | null>(null)
+  const [isCreatingTask, setIsCreatingTask] = useState(false)
+  const [createdTaskId, setCreatedTaskId] = useState<string | null>(null)
+  const [taskMessage, setTaskMessage] = useState<string | null>(null)
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
 
     setSelectedFile(file)
-setCompressedSize(null)
-setError(null)
-setExtraction(null)
-setCreatedTaskId(null)
-setTaskMessage(null)
+    setCompressedSize(null)
+    setError(null)
+    setExtraction(null)
+    setCreatedTaskId(null)
+    setTaskMessage(null)
 
     if (!file) return
 
@@ -126,11 +141,11 @@ setTaskMessage(null)
     }
 
     setIsScanning(true)
-setError(null)
-setExtraction(null)
-setCompressedSize(null)
-setCreatedTaskId(null)
-setTaskMessage(null)
+    setError(null)
+    setExtraction(null)
+    setCompressedSize(null)
+    setCreatedTaskId(null)
+    setTaskMessage(null)
 
     try {
       const { data: sessionData } = await supabase.auth.getSession()
@@ -169,51 +184,57 @@ setTaskMessage(null)
   }
 
   const handleCreateTask = async () => {
-  if (!extraction) {
-    setError('Aucune extraction disponible pour créer une tâche.')
-    return
-  }
-
-  const title =
-    extraction.suggested_task_title ||
-    extraction.action_required ||
-    extraction.title ||
-    'Traiter un document administratif'
-
-  setIsCreatingTask(true)
-  setError(null)
-  setTaskMessage(null)
-
-  try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      throw new Error('Session introuvable. Reconnecte-toi avant de créer la tâche.')
+    if (!extraction) {
+      setError('Aucune extraction disponible pour créer une tâche.')
+      return
     }
 
-    const { data, error: insertError } = await supabase
-      .from('todo_list')
-      .insert({
-        user_id: user.id,
-        title,
-        priority: urgencyToPriority(extraction.urgency),
-        status: 'pending',
-      })
-      .select('id')
-      .single()
+    const baseTitle =
+      extraction.suggested_task_title ||
+      extraction.action_required ||
+      extraction.title ||
+      'Traiter un document administratif'
 
-    if (insertError) {
-      throw new Error(insertError.message)
+    const title = extraction.due_date_status === 'overdue'
+      ? `URGENT - échéance dépassée : ${baseTitle}`
+      : baseTitle
+
+    setIsCreatingTask(true)
+    setError(null)
+    setTaskMessage(null)
+
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+      if (userError || !user) {
+        throw new Error('Session introuvable. Reconnecte-toi avant de créer la tâche.')
+      }
+
+      const { data, error: insertError } = await supabase
+        .from('todo_list')
+        .insert({
+          user_id: user.id,
+          title,
+          priority: extraction.due_date_status === 'overdue'
+            ? 'high'
+            : urgencyToPriority(extraction.urgency),
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+
+      if (insertError) {
+        throw new Error(insertError.message)
+      }
+
+      setCreatedTaskId(data.id)
+      setTaskMessage('Tâche créée dans ta to-do. Tu peux la retrouver dans le planner.')
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : 'Impossible de créer la tâche.')
+    } finally {
+      setIsCreatingTask(false)
     }
-
-    setCreatedTaskId(data.id)
-    setTaskMessage('Tâche créée dans ta to-do. Tu peux la retrouver dans le planner.')
-  } catch (createError) {
-    setError(createError instanceof Error ? createError.message : 'Impossible de créer la tâche.')
-  } finally {
-    setIsCreatingTask(false)
   }
-}
 
   return (
     <main style={{
@@ -257,8 +278,8 @@ setTaskMessage(null)
           fontSize: 15,
           lineHeight: 1.6,
         }}>
-          Cette page teste seulement l’extraction IA. Aucun document n’est enregistré,
-          aucune tâche n’est créée, aucune échéance n’est ajoutée au planner.
+          Cette page teste l’extraction IA. Le document n’est pas enregistré.
+          Une tâche peut être créée seulement après validation manuelle.
         </p>
 
         <div style={{
@@ -334,6 +355,24 @@ setTaskMessage(null)
               Résultat détecté
             </h2>
 
+            {extraction.due_date_status === 'overdue' && (
+              <div style={{
+                border: '1px solid #E7A5A5',
+                background: '#FFF1F1',
+                color: '#8A2525',
+                borderRadius: 16,
+                padding: 16,
+                marginBottom: 18,
+              }}>
+                <strong>Échéance dépassée détectée.</strong>
+                <p style={{ margin: '8px 0 0', lineHeight: 1.55 }}>
+                  Nova a repéré une date limite antérieure à aujourd’hui. Il faut vérifier rapidement
+                  la situation officielle du dossier. Si le document concerne une amende, une facture
+                  ou une pénalité, un montant majoré peut être possible selon le dossier.
+                </p>
+              </div>
+            )}
+
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -344,6 +383,11 @@ setTaskMessage(null)
               <Info label="Type" value={extraction.document_type} />
               <Info label="Expéditeur" value={extraction.sender} />
               <Info label="Date limite" value={extraction.due_date} />
+              <Info
+                label="Statut échéance"
+                value={dueDateStatusLabel(extraction.due_date_status)}
+                color={dueDateStatusColor(extraction.due_date_status)}
+              />
               <Info label="Montant" value={extraction.amount === null ? null : `${extraction.amount} €`} />
               <Info label="Urgence" value={extraction.urgency} />
               <Info label="Confiance IA" value={`${Math.round(extraction.confidence * 100)} %`} />
@@ -351,6 +395,7 @@ setTaskMessage(null)
 
             <Block title="Résumé" value={extraction.summary} />
             <Block title="Action proposée" value={extraction.action_required} />
+            <Block title="Prochaine action recommandée" value={extraction.recommended_next_step} />
             <Block title="Tâche suggérée" value={extraction.suggested_task_title} />
             <Block title="Description de tâche" value={extraction.suggested_task_description} />
             <Block title="Échéance suggérée" value={extraction.suggested_event_date} />
@@ -363,77 +408,78 @@ setTaskMessage(null)
               <ListBlock title="Points à vérifier" items={extraction.warnings} />
             )}
 
-      <div style={{
-  marginTop: 22,
-  border: '1px solid #D8B9A8',
-  background: '#FFF9F5',
-  borderRadius: 18,
-  padding: 18,
-}}>
-  <h3 style={{ margin: '0 0 8px', fontSize: 17, color: '#4A1F1B' }}>
-    Validation utilisateur requise
-  </h3>
+            <div style={{
+              marginTop: 22,
+              border: '1px solid #D8B9A8',
+              background: '#FFF9F5',
+              borderRadius: 18,
+              padding: 18,
+            }}>
+              <h3 style={{ margin: '0 0 8px', fontSize: 17, color: '#4A1F1B' }}>
+                Validation utilisateur requise
+              </h3>
 
-  <p style={{ margin: '0 0 14px', color: '#5D504B', lineHeight: 1.55 }}>
-    Pour l’instant, Nova a seulement analysé le document. Rien n’a été ajouté automatiquement.
-  </p>
+              <p style={{ margin: '0 0 14px', color: '#5D504B', lineHeight: 1.55 }}>
+                Nova a analysé le document. Rien n’est ajouté sans ton action.
+              </p>
 
-  <ul style={{ margin: '0 0 16px', paddingLeft: 20, color: '#5D504B', lineHeight: 1.6 }}>
-    <li>{createdTaskId ? 'Une tâche a été créée après validation' : 'Aucune tâche créée'}</li>
-    <li>Aucune échéance ajoutée au planner</li>
-    <li>Aucun rappel programmé</li>
-    <li>Aucun document enregistré en base</li>
-  </ul>
+              <ul style={{ margin: '0 0 16px', paddingLeft: 20, color: '#5D504B', lineHeight: 1.6 }}>
+                <li>{createdTaskId ? 'Une tâche a été créée après validation' : 'Aucune tâche créée'}</li>
+                <li>Aucune échéance ajoutée au planner</li>
+                <li>Aucun rappel programmé</li>
+                <li>Aucun document enregistré en base</li>
+              </ul>
 
-  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-<button
-  type="button"
-  onClick={handleCreateTask}
-  disabled={isCreatingTask || Boolean(createdTaskId)}
-  style={{
-    border: 'none',
-    borderRadius: 999,
-    padding: '11px 16px',
-    background: isCreatingTask || createdTaskId ? '#D7C8BE' : '#7A2E2A',
-    color: 'white',
-    fontWeight: 700,
-    cursor: isCreatingTask || createdTaskId ? 'not-allowed' : 'pointer',
-  }}
->
-  {createdTaskId
-    ? 'Tâche créée'
-    : isCreatingTask
-      ? 'Création...'
-      : 'Créer la tâche'}
-</button>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={handleCreateTask}
+                  disabled={isCreatingTask || Boolean(createdTaskId)}
+                  style={{
+                    border: 'none',
+                    borderRadius: 999,
+                    padding: '11px 16px',
+                    background: isCreatingTask || createdTaskId ? '#D7C8BE' : '#7A2E2A',
+                    color: 'white',
+                    fontWeight: 700,
+                    cursor: isCreatingTask || createdTaskId ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {createdTaskId
+                    ? 'Tâche créée'
+                    : isCreatingTask
+                      ? 'Création...'
+                      : 'Créer la tâche'}
+                </button>
 
-    <button
-      type="button"
-      disabled
-      style={{
-        border: '1px solid #D7C8BE',
-        borderRadius: 999,
-        padding: '11px 16px',
-        background: 'white',
-        color: '#9A6A5B',
-        fontWeight: 700,
-        cursor: 'not-allowed',
-      }}
-    >
-      Ajouter l’échéance — bientôt
-    </button>
-  </div>
-</div>
-{taskMessage && (
-  <p style={{
-    margin: '14px 0 0',
-    color: '#2F7A4F',
-    fontWeight: 700,
-    lineHeight: 1.5,
-  }}>
-    {taskMessage}
-  </p>
-)}
+                <button
+                  type="button"
+                  disabled
+                  style={{
+                    border: '1px solid #D7C8BE',
+                    borderRadius: 999,
+                    padding: '11px 16px',
+                    background: 'white',
+                    color: '#9A6A5B',
+                    fontWeight: 700,
+                    cursor: 'not-allowed',
+                  }}
+                >
+                  Ajouter l’échéance — bientôt
+                </button>
+              </div>
+
+              {taskMessage && (
+                <p style={{
+                  margin: '14px 0 0',
+                  color: '#2F7A4F',
+                  fontWeight: 700,
+                  lineHeight: 1.5,
+                }}>
+                  {taskMessage}
+                </p>
+              )}
+            </div>
           </section>
         )}
       </section>
@@ -441,7 +487,15 @@ setTaskMessage(null)
   )
 }
 
-function Info({ label, value }: { label: string; value: string | number | null }) {
+function Info({
+  label,
+  value,
+  color,
+}: {
+  label: string
+  value: string | number | null
+  color?: string
+}) {
   return (
     <div style={{
       border: '1px solid #EFE2D8',
@@ -452,7 +506,7 @@ function Info({ label, value }: { label: string; value: string | number | null }
       <p style={{ margin: '0 0 4px', fontSize: 12, color: '#9A6A5B', fontWeight: 700 }}>
         {label}
       </p>
-      <p style={{ margin: 0, color: '#2B2320' }}>
+      <p style={{ margin: 0, color: color || '#2B2320', fontWeight: color ? 700 : 400 }}>
         {value || 'Non détecté'}
       </p>
     </div>

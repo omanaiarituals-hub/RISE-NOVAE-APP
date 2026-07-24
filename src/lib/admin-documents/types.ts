@@ -30,12 +30,21 @@ export type AdministrativeDocumentUrgency =
   | 'high'
   | 'critical'
 
+export type AdministrativeDocumentDueDateStatus =
+  | 'none'
+  | 'upcoming'
+  | 'today'
+  | 'overdue'
+  | 'unknown'
+
 export type AdministrativeDocumentExtractedData = {
   title: string | null
   document_type: AdministrativeDocumentType
   sender: string | null
   received_date: string | null
   due_date: string | null
+  due_date_status: AdministrativeDocumentDueDateStatus
+  recommended_next_step: string | null
   amount: number | null
   currency: 'EUR'
   action_required: string | null
@@ -58,6 +67,8 @@ export type AdministrativeDocumentRecord = {
   sender: string | null
   received_date: string | null
   due_date: string | null
+  due_date_status: AdministrativeDocumentDueDateStatus | null
+  recommended_next_step: string | null
   amount: number | null
   currency: string | null
   action_required: string | null
@@ -94,6 +105,9 @@ Objectif :
 Regles strictes :
 - Tu ne dois jamais inventer une information absente du document.
 - Si une date, un montant ou une action est incertaine, tu mets null et tu expliques dans warnings.
+- Tu dois tenir compte de la date du jour fournie dans la demande utilisateur.
+- Si la date limite est depassee, tu dois le dire clairement.
+- Si une amende ou facture semble majoree apres depassement, tu dois signaler le risque sans affirmer ce qui n'est pas visible.
 - Tu ne donnes pas de conseil juridique, fiscal, medical ou financier.
 - Tu peux expliquer ce que le document semble demander.
 - Toute action doit rester une proposition a valider par l'utilisateur.
@@ -106,6 +120,8 @@ export const ADMINISTRATIVE_DOCUMENT_EXTRACTION_JSON_EXAMPLE: AdministrativeDocu
   sender: null,
   received_date: null,
   due_date: null,
+  due_date_status: 'unknown',
+  recommended_next_step: null,
   amount: null,
   currency: 'EUR',
   action_required: null,
@@ -118,6 +134,6 @@ export const ADMINISTRATIVE_DOCUMENT_EXTRACTION_JSON_EXAMPLE: AdministrativeDocu
   suggested_event_date: null,
   missing_information: [],
   warnings: [
-    'Extraction automatique a verifier avant toute action.'
+    'Extraction automatique a verifier avant toute action.',
   ],
 }

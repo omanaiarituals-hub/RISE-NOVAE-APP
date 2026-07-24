@@ -65,6 +65,86 @@ function getSupabaseBearerClient(token: string) {
   )
 }
 
+function getTodayISODate(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function computeDueDateStatus(
+  dueDate: string | null,
+  todayISO: string
+): AdministrativeDocumentExtractedData['due_date_status'] {
+  if (!dueDate) return 'none'
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+    return 'unknown'
+  }
+
+  if (dueDate < todayISO) return 'overdue'
+  if (dueDate === todayISO) return 'today'
+  return 'upcoming'
+}
+
+function normalizeUrgency(
+  urgency: unknown,
+  dueDateStatus: AdministrativeDocumentExtractedData['due_date_status']
+): AdministrativeDocumentExtractedData['urgency'] {
+  if (
+    urgency === 'none' ||
+    urgency === 'low' ||
+    urgency === 'medium' ||
+    urgency === 'high' ||
+    urgency === 'critical'
+  ) {
+    if (dueDateStatus === 'overdue' && (urgency === 'none' || urgency === 'low' || urgency === 'medium')) {
+      return 'high'
+    }
+
+    return urgency
+  }
+
+  return dueDateStatus === 'overdue' ? 'high' : 'medium'
+}
+
+function normalizeDocumentType(value: unknown): AdministrativeDocumentExtractedData['document_type'] {
+  if (
+    value === 'tax' ||
+    value === 'caf' ||
+    value === 'health_insurance' ||
+    value === 'insurance' ||
+    value === 'school' ||
+    value === 'fine' ||
+    value === 'invoice' ||
+    value === 'bank' ||
+    value === 'employment' ||
+    value === 'housing' ||
+    value === 'other'
+  ) {
+    return value
+  }
+
+  return 'other'
+}
+
+function normalizeConfidence(value: unknown): number {
+  if (typeof value !== 'number') return 0.5
+  if (value < 0) return 0
+  if (value > 1) return 1
+  return value
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function stringArrayOrEmpty(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+}
+
 function safeParseExtraction(rawText: string): AdministrativeDocumentExtractedData {
   const cleaned = rawText
     .trim()
@@ -75,37 +155,39 @@ function safeParseExtraction(rawText: string): AdministrativeDocumentExtractedDa
 
   const parsed = JSON.parse(cleaned)
 
+  const todayISO = getTodayISODate()
+  const dueDate = stringOrNull(parsed.due_date)
+  const dueDateStatus = computeDueDateStatus(dueDate, todayISO)
+  const urgency = normalizeUrgency(parsed.urgency, dueDateStatus)
+
+  const fallbackOverdueNextStep =
+    'Cette échéance semble dépassée. Vérifie rapidement la situation officielle du dossier et les conséquences possibles, notamment une majoration ou une procédure déjà engagée.'
+
+  const warnings = stringArrayOrEmpty(parsed.warnings)
+
   return {
-    title: typeof parsed.title === 'string' ? parsed.title : null,
-    document_type: parsed.document_type || 'other',
-    sender: typeof parsed.sender === 'string' ? parsed.sender : null,
-    received_date: typeof parsed.received_date === 'string' ? parsed.received_date : null,
-    due_date: typeof parsed.due_date === 'string' ? parsed.due_date : null,
-    amount: typeof parsed.amount === 'number' ? parsed.amount : null,
+    title: stringOrNull(parsed.title),
+    document_type: normalizeDocumentType(parsed.document_type),
+    sender: stringOrNull(parsed.sender),
+    received_date: stringOrNull(parsed.received_date),
+    due_date: dueDate,
+    due_date_status: dueDateStatus,
+    recommended_next_step: stringOrNull(parsed.recommended_next_step) ||
+      (dueDateStatus === 'overdue' ? fallbackOverdueNextStep : null),
+    amount: numberOrNull(parsed.amount),
     currency: 'EUR',
-    action_required: typeof parsed.action_required === 'string' ? parsed.action_required : null,
-    summary: typeof parsed.summary === 'string'
-      ? parsed.summary
-      : 'Document administratif analyse. Verification utilisateur requise.',
-    urgency: parsed.urgency || 'medium',
-    confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
-    suggested_task_title: typeof parsed.suggested_task_title === 'string'
-      ? parsed.suggested_task_title
-      : null,
-    suggested_task_description: typeof parsed.suggested_task_description === 'string'
-      ? parsed.suggested_task_description
-      : null,
-    suggested_event_title: typeof parsed.suggested_event_title === 'string'
-      ? parsed.suggested_event_title
-      : null,
-    suggested_event_date: typeof parsed.suggested_event_date === 'string'
-      ? parsed.suggested_event_date
-      : null,
-    missing_information: Array.isArray(parsed.missing_information)
-      ? parsed.missing_information.filter((item: unknown) => typeof item === 'string')
-      : [],
-    warnings: Array.isArray(parsed.warnings)
-      ? parsed.warnings.filter((item: unknown) => typeof item === 'string')
+    action_required: stringOrNull(parsed.action_required),
+    summary: stringOrNull(parsed.summary) ||
+      'Document administratif analyse. Verification utilisateur requise.',
+    urgency,
+    confidence: normalizeConfidence(parsed.confidence),
+    suggested_task_title: stringOrNull(parsed.suggested_task_title),
+    suggested_task_description: stringOrNull(parsed.suggested_task_description),
+    suggested_event_title: stringOrNull(parsed.suggested_event_title),
+    suggested_event_date: stringOrNull(parsed.suggested_event_date),
+    missing_information: stringArrayOrEmpty(parsed.missing_information),
+    warnings: warnings.length > 0
+      ? warnings
       : ['Extraction automatique a verifier avant toute action.'],
   }
 }
@@ -166,6 +248,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const todayISO = getTodayISODate()
     const arrayBuffer = await file.arrayBuffer()
     const base64 = Buffer.from(arrayBuffer).toString('base64')
 
@@ -198,6 +281,8 @@ export async function POST(request: NextRequest) {
                 text: `
 Analyse ce document administratif.
 
+La date du jour est ${todayISO}.
+
 Retourne uniquement un JSON valide avec exactement ces champs :
 {
   "title": string | null,
@@ -205,6 +290,8 @@ Retourne uniquement un JSON valide avec exactement ces champs :
   "sender": string | null,
   "received_date": "YYYY-MM-DD" | null,
   "due_date": "YYYY-MM-DD" | null,
+  "due_date_status": "none" | "upcoming" | "today" | "overdue" | "unknown",
+  "recommended_next_step": string | null,
   "amount": number | null,
   "currency": "EUR",
   "action_required": string | null,
@@ -219,10 +306,20 @@ Retourne uniquement un JSON valide avec exactement ces champs :
   "warnings": string[]
 }
 
+Regles de raisonnement sur les dates :
+- Si la date limite est avant la date du jour, indique due_date_status = "overdue".
+- Si la date limite est egale a la date du jour, indique due_date_status = "today".
+- Si la date limite est apres la date du jour, indique due_date_status = "upcoming".
+- Si aucune date limite n'est visible, indique due_date_status = "none".
+- Si la date est illisible ou ambigue, indique due_date_status = "unknown".
+- Si l'echeance est depassee, explique clairement que le delai semble depasse et propose une action urgente de verification.
+- Si une amende, facture ou penalite semble pouvoir etre majoree apres depassement, signale le risque sans affirmer une consequence qui n'est pas visible.
+
 Rappel :
 - N'invente jamais une date, un montant ou un expediteur.
 - Si ce n'est pas clairement lisible, mets null.
 - Toute action doit etre une proposition a valider.
+- Ne donne pas de conseil juridique, fiscal, medical ou financier.
 `,
               },
             ],
