@@ -12,6 +12,8 @@ const DOCUMENT_IMAGE_MAX_DIMENSION = 1800
 const DEFAULT_EVENT_START_MINUTES = 9 * 60
 const DEFAULT_EVENT_END_MINUTES = 10 * 60
 
+type ActiveView = 'add' | 'archives'
+
 type ExtractionApiResponse = {
   success?: boolean
   extraction?: AdministrativeDocumentExtractedData
@@ -182,6 +184,8 @@ function getEventTitleForExtraction(extraction: AdministrativeDocumentExtractedD
 }
 
 export default function AdminDocumentsTestPage() {
+  const [activeView, setActiveView] = useState<ActiveView>('add')
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [compressedSize, setCompressedSize] = useState<string | null>(null)
   const [isScanning, setIsScanning] = useState(false)
@@ -201,8 +205,47 @@ export default function AdminDocumentsTestPage() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
   const [savedDocuments, setSavedDocuments] = useState<SavedAdministrativeDocument[]>([])
-const [isLoadingSavedDocuments, setIsLoadingSavedDocuments] = useState(false)
-const [savedDocumentsError, setSavedDocumentsError] = useState<string | null>(null)
+  const [isLoadingSavedDocuments, setIsLoadingSavedDocuments] = useState(false)
+  const [savedDocumentsError, setSavedDocumentsError] = useState<string | null>(null)
+
+  const loadSavedDocuments = async () => {
+    setIsLoadingSavedDocuments(true)
+    setSavedDocumentsError(null)
+
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+      if (userError || !user) {
+        setSavedDocuments([])
+        return
+      }
+
+      const { data, error: queryError } = await supabase
+        .from('administrative_documents')
+        .select('id, title, document_type, sender, due_date, due_date_status, amount, currency, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      if (queryError) {
+        throw new Error(queryError.message)
+      }
+
+      setSavedDocuments((data || []) as SavedAdministrativeDocument[])
+    } catch (loadError) {
+      setSavedDocumentsError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Impossible de charger les documents enregistrés.'
+      )
+    } finally {
+      setIsLoadingSavedDocuments(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSavedDocuments()
+  }, [])
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
@@ -238,45 +281,6 @@ const [savedDocumentsError, setSavedDocumentsError] = useState<string | null>(nu
       return
     }
   }
-
-  const loadSavedDocuments = async () => {
-  setIsLoadingSavedDocuments(true)
-  setSavedDocumentsError(null)
-
-  useEffect(() => {
-  loadSavedDocuments()
-}, [])
-
-  try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      setSavedDocuments([])
-      return
-    }
-
-    const { data, error: queryError } = await supabase
-      .from('administrative_documents')
-      .select('id, title, document_type, sender, due_date, due_date_status, amount, currency, created_at')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(20)
-
-    if (queryError) {
-      throw new Error(queryError.message)
-    }
-
-    setSavedDocuments((data || []) as SavedAdministrativeDocument[])
-  } catch (loadError) {
-    setSavedDocumentsError(
-      loadError instanceof Error
-        ? loadError.message
-        : 'Impossible de charger les documents enregistrés.'
-    )
-  } finally {
-    setIsLoadingSavedDocuments(false)
-  }
-}
 
   const handleExtract = async () => {
     if (!selectedFile) {
@@ -334,7 +338,7 @@ const [savedDocumentsError, setSavedDocumentsError] = useState<string | null>(nu
         payload = JSON.parse(responseText) as ExtractionApiResponse
       } catch {
         throw new Error(
-          "Le serveur n'a pas retourné une réponse lisible. Le PDF a peut-être provoqué une erreur d'analyse. Réessaie avec un PDF texte simple ou une image du document."
+          "Le serveur n'a pas retourné une réponse lisible. Le document a peut-être provoqué une erreur d'analyse. Réessaie avec une image nette ou un PDF texte simple."
         )
       }
 
@@ -530,8 +534,8 @@ const [savedDocumentsError, setSavedDocumentsError] = useState<string | null>(nu
       }
 
       setSavedDocumentId(payload.documentId)
-setSaveMessage(payload.message || 'Document enregistré dans ton espace sécurisé.')
-await loadSavedDocuments()
+      setSaveMessage(payload.message || 'Document enregistré dans ton espace sécurisé.')
+      await loadSavedDocuments()
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Impossible d'enregistrer le document.")
     } finally {
@@ -596,395 +600,463 @@ await loadSavedDocuments()
         </h1>
 
         <p style={{
-          margin: '0 0 24px',
+          margin: '0 0 22px',
           color: '#6F625C',
           fontSize: 15,
           lineHeight: 1.6,
         }}>
-          Ajoute une photo de courrier, d’amende, de facture ou de document important.
-          Nova analyse le contenu, repère les dates limites et te propose une action.
-          Rien n’est ajouté sans ta validation.
+          Ajoute un courrier, une facture, une amende ou retrouve les documents que tu as déjà enregistrés.
+          Nova t’aide à repérer les dates limites et à transformer les papiers en actions concrètes.
         </p>
 
         <div style={{
-          border: '1px dashed #D8B9A8',
-          borderRadius: 18,
-          padding: 20,
-          background: '#FFF9F5',
-          marginBottom: 20,
+          display: 'flex',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 22,
         }}>
-          <label style={{
-            display: 'block',
-            fontWeight: 700,
-            marginBottom: 10,
-            color: '#4A1F1B',
-          }}>
-            Photo ou PDF du document à analyser
-          </label>
-
-          <input
-            type="file"
-            accept="image/*,.pdf,application/pdf"
-            onChange={handleFileChange}
-            disabled={isScanning}
-          />
-
-          {selectedFile && (
-            <p style={{ margin: '12px 0 0', fontSize: 13, color: '#6F625C' }}>
-              Fichier sélectionné : {selectedFile.name} — {formatBytes(selectedFile.size)}
-              {compressedSize ? ` — compressé à ${compressedSize}` : ''}
-            </p>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveView('add')}
+            style={{
+              border: activeView === 'add' ? '1px solid #7A2E2A' : '1px solid #D7C8BE',
+              borderRadius: 999,
+              padding: '11px 16px',
+              background: activeView === 'add' ? '#7A2E2A' : '#FFFFFF',
+              color: activeView === 'add' ? '#FFFFFF' : '#7A2E2A',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Ajouter un document
+          </button>
 
           <button
             type="button"
-            onClick={handleExtract}
-            disabled={!selectedFile || isScanning}
+            onClick={() => {
+              setActiveView('archives')
+              loadSavedDocuments()
+            }}
             style={{
-              marginTop: 18,
-              border: 'none',
+              border: activeView === 'archives' ? '1px solid #7A2E2A' : '1px solid #D7C8BE',
               borderRadius: 999,
-              padding: '12px 18px',
-              background: isScanning || !selectedFile ? '#D7C8BE' : '#7A2E2A',
-              color: 'white',
+              padding: '11px 16px',
+              background: activeView === 'archives' ? '#7A2E2A' : '#FFFFFF',
+              color: activeView === 'archives' ? '#FFFFFF' : '#7A2E2A',
               fontWeight: 700,
-              cursor: isScanning || !selectedFile ? 'not-allowed' : 'pointer',
+              cursor: 'pointer',
             }}
           >
-            {isScanning ? 'Analyse en cours...' : 'Analyser le document'}
+            Mes documents archivés
           </button>
         </div>
 
-        {error && (
-          <div style={{
-            border: '1px solid #F1B5B5',
-            background: '#FFF1F1',
-            color: '#8A2525',
-            borderRadius: 16,
-            padding: 16,
-            marginBottom: 20,
-          }}>
-            {error}
-          </div>
-        )}
-
-        {extraction && (
-          <section style={{
-            border: '1px solid #EADDD2',
-            borderRadius: 18,
-            padding: 20,
-            background: '#FFFFFF',
-          }}>
-            <section style={{
-  marginTop: 24,
-  border: '1px solid #EADDD2',
-  borderRadius: 18,
-  padding: 20,
-  background: '#FFFFFF',
-}}>
-  <div style={{
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: 12,
-    alignItems: 'center',
-    marginBottom: 14,
-  }}>
-    <div>
-      <h2 style={{ margin: 0, color: '#4A1F1B', fontSize: 22 }}>
-        Mes documents enregistrés
-      </h2>
-      <p style={{ margin: '6px 0 0', color: '#6F625C', lineHeight: 1.5 }}>
-        Historique sécurisé des documents que tu as choisi d’enregistrer.
-      </p>
-    </div>
-
-    <button
-      type="button"
-      onClick={loadSavedDocuments}
-      disabled={isLoadingSavedDocuments}
-      style={{
-        border: '1px solid #D7C8BE',
-        borderRadius: 999,
-        padding: '9px 13px',
-        background: '#FFFFFF',
-        color: '#7A2E2A',
-        fontWeight: 700,
-        cursor: isLoadingSavedDocuments ? 'not-allowed' : 'pointer',
-      }}
-    >
-      {isLoadingSavedDocuments ? 'Chargement...' : 'Actualiser'}
-    </button>
-  </div>
-
-  {savedDocumentsError && (
-    <div style={{
-      border: '1px solid #F1B5B5',
-      background: '#FFF1F1',
-      color: '#8A2525',
-      borderRadius: 14,
-      padding: 12,
-      marginBottom: 14,
-    }}>
-      {savedDocumentsError}
-    </div>
-  )}
-
-  {!isLoadingSavedDocuments && savedDocuments.length === 0 && (
-    <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
-      Aucun document enregistré pour l’instant.
-    </p>
-  )}
-
-  {savedDocuments.length > 0 && (
-    <div style={{ display: 'grid', gap: 10 }}>
-      {savedDocuments.map((document) => (
-        <div
-          key={document.id}
-          style={{
-            border: '1px solid #EFE2D8',
-            borderRadius: 14,
-            padding: 14,
-            background: '#FFFCFA',
-          }}
-        >
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 12,
-            alignItems: 'flex-start',
-          }}>
-            <div>
-              <h3 style={{ margin: '0 0 6px', color: '#4A1F1B', fontSize: 16 }}>
-                {document.title || 'Document administratif'}
-              </h3>
-
-              <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
-                {document.sender ? `${document.sender} · ` : ''}
-                {document.document_type || 'type non détecté'}
-              </p>
-
-              <p style={{ margin: '6px 0 0', color: '#6F625C', lineHeight: 1.5 }}>
-                {document.due_date
-                  ? `Date limite : ${document.due_date}`
-                  : 'Aucune date limite détectée'}
-              </p>
-            </div>
-
-            <div style={{ textAlign: 'right', minWidth: 120 }}>
-              <p style={{
-                margin: '0 0 6px',
-                color: dueDateStatusColor(
-                  (document.due_date_status || 'none') as AdministrativeDocumentExtractedData['due_date_status']
-                ),
+        {activeView === 'add' && (
+          <>
+            <div style={{
+              border: '1px dashed #D8B9A8',
+              borderRadius: 18,
+              padding: 20,
+              background: '#FFF9F5',
+              marginBottom: 20,
+            }}>
+              <label style={{
+                display: 'block',
                 fontWeight: 700,
+                marginBottom: 10,
+                color: '#4A1F1B',
               }}>
-                {dueDateStatusLabel(
-                  (document.due_date_status || 'none') as AdministrativeDocumentExtractedData['due_date_status']
-                )}
-              </p>
+                Photo ou PDF du document à analyser
+              </label>
 
-              <p style={{ margin: 0, color: '#6F625C', fontSize: 13 }}>
-                {new Date(document.created_at).toLocaleDateString('fr-FR')}
-              </p>
+              <input
+                type="file"
+                accept="image/*,.pdf,application/pdf"
+                onChange={handleFileChange}
+                disabled={isScanning}
+              />
 
-              {document.amount !== null && (
-                <p style={{ margin: '6px 0 0', color: '#4A1F1B', fontWeight: 700 }}>
-                  {document.amount} {document.currency || 'EUR'}
+              {selectedFile && (
+                <p style={{ margin: '12px 0 0', fontSize: 13, color: '#6F625C' }}>
+                  Fichier sélectionné : {selectedFile.name} — {formatBytes(selectedFile.size)}
+                  {compressedSize ? ` — compressé à ${compressedSize}` : ''}
                 </p>
               )}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  )}
-</section>
-            <h2 style={{ margin: '0 0 16px', color: '#4A1F1B', fontSize: 22 }}>
-              Analyse du document
-            </h2>
 
-            {extraction.due_date_status === 'overdue' && (
+              <button
+                type="button"
+                onClick={handleExtract}
+                disabled={!selectedFile || isScanning}
+                style={{
+                  marginTop: 18,
+                  border: 'none',
+                  borderRadius: 999,
+                  padding: '12px 18px',
+                  background: isScanning || !selectedFile ? '#D7C8BE' : '#7A2E2A',
+                  color: 'white',
+                  fontWeight: 700,
+                  cursor: isScanning || !selectedFile ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isScanning ? 'Analyse en cours...' : 'Analyser le document'}
+              </button>
+            </div>
+
+            {error && (
               <div style={{
-                border: '1px solid #E7A5A5',
+                border: '1px solid #F1B5B5',
                 background: '#FFF1F1',
                 color: '#8A2525',
                 borderRadius: 16,
                 padding: 16,
-                marginBottom: 18,
+                marginBottom: 20,
               }}>
-                <strong>Échéance dépassée détectée.</strong>
-                <p style={{ margin: '8px 0 0', lineHeight: 1.55 }}>
-                  Nova a repéré une date limite antérieure à aujourd’hui. Il faut vérifier rapidement
-                  la situation officielle du dossier. Si le document concerne une amende, une facture
-                  ou une pénalité, un montant majoré peut être possible selon le dossier.
-                </p>
+                {error}
               </div>
             )}
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: 12,
-              marginBottom: 18,
-            }}>
-              <Info label="Titre" value={extraction.title} />
-              <Info label="Type" value={extraction.document_type} />
-              <Info label="Expéditeur" value={extraction.sender} />
-              <Info label="Date limite" value={extraction.due_date} />
-              <Info
-                label="Statut échéance"
-                value={dueDateStatusLabel(extraction.due_date_status)}
-                color={dueDateStatusColor(extraction.due_date_status)}
-              />
-              <Info label="Date proposée planner" value={eventDatePreview} />
-              <Info label="Montant" value={extraction.amount === null ? null : `${extraction.amount} €`} />
-              <Info label="Urgence" value={extraction.urgency} />
-              <Info label="Confiance IA" value={`${Math.round(extraction.confidence * 100)} %`} />
-            </div>
+            {extraction && (
+              <section style={{
+                border: '1px solid #EADDD2',
+                borderRadius: 18,
+                padding: 20,
+                background: '#FFFFFF',
+              }}>
+                <h2 style={{ margin: '0 0 16px', color: '#4A1F1B', fontSize: 22 }}>
+                  Analyse du document
+                </h2>
 
-            <Block title="Résumé" value={extraction.summary} />
-            <Block title="Action proposée" value={extraction.action_required} />
-            <Block title="Prochaine action recommandée" value={extraction.recommended_next_step} />
-            <Block title="Tâche suggérée" value={extraction.suggested_task_title} />
-            <Block title="Description de tâche" value={extraction.suggested_task_description} />
-            <Block title="Échéance suggérée" value={extraction.suggested_event_date} />
+                {extraction.due_date_status === 'overdue' && (
+                  <div style={{
+                    border: '1px solid #E7A5A5',
+                    background: '#FFF1F1',
+                    color: '#8A2525',
+                    borderRadius: 16,
+                    padding: 16,
+                    marginBottom: 18,
+                  }}>
+                    <strong>Échéance dépassée détectée.</strong>
+                    <p style={{ margin: '8px 0 0', lineHeight: 1.55 }}>
+                      Nova a repéré une date limite antérieure à aujourd’hui. Il faut vérifier rapidement
+                      la situation officielle du dossier. Si le document concerne une amende, une facture
+                      ou une pénalité, un montant majoré peut être possible selon le dossier.
+                    </p>
+                  </div>
+                )}
 
-            {extraction.missing_information.length > 0 && (
-              <ListBlock title="Informations manquantes" items={extraction.missing_information} />
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: 12,
+                  marginBottom: 18,
+                }}>
+                  <Info label="Titre" value={extraction.title} />
+                  <Info label="Type" value={extraction.document_type} />
+                  <Info label="Expéditeur" value={extraction.sender} />
+                  <Info label="Date limite" value={extraction.due_date} />
+                  <Info
+                    label="Statut échéance"
+                    value={dueDateStatusLabel(extraction.due_date_status)}
+                    color={dueDateStatusColor(extraction.due_date_status)}
+                  />
+                  <Info label="Date proposée planner" value={eventDatePreview} />
+                  <Info label="Montant" value={extraction.amount === null ? null : `${extraction.amount} €`} />
+                  <Info label="Urgence" value={extraction.urgency} />
+                  <Info label="Confiance IA" value={`${Math.round(extraction.confidence * 100)} %`} />
+                </div>
+
+                <Block title="Résumé" value={extraction.summary} />
+                <Block title="Action proposée" value={extraction.action_required} />
+                <Block title="Prochaine action recommandée" value={extraction.recommended_next_step} />
+                <Block title="Tâche suggérée" value={extraction.suggested_task_title} />
+                <Block title="Description de tâche" value={extraction.suggested_task_description} />
+                <Block title="Échéance suggérée" value={extraction.suggested_event_date} />
+
+                {extraction.missing_information.length > 0 && (
+                  <ListBlock title="Informations manquantes" items={extraction.missing_information} />
+                )}
+
+                {extraction.warnings.length > 0 && (
+                  <ListBlock title="Points à vérifier" items={extraction.warnings} />
+                )}
+
+                <div style={{
+                  marginTop: 22,
+                  border: '1px solid #D8B9A8',
+                  background: '#FFF9F5',
+                  borderRadius: 18,
+                  padding: 18,
+                }}>
+                  <h3 style={{ margin: '0 0 8px', fontSize: 17, color: '#4A1F1B' }}>
+                    Validation utilisateur requise
+                  </h3>
+
+                  <p style={{ margin: '0 0 14px', color: '#5D504B', lineHeight: 1.55 }}>
+                    Nova a analysé le document. À toi de choisir ce que tu veux ajouter.
+                  </p>
+
+                  <ul style={{ margin: '0 0 16px', paddingLeft: 20, color: '#5D504B', lineHeight: 1.6 }}>
+                    <li>{createdTaskId ? 'Une tâche a été créée après validation' : 'Aucune tâche créée'}</li>
+                    <li>{createdEventId ? 'Une échéance a été ajoutée au planner après validation' : 'Aucune échéance ajoutée au planner'}</li>
+                    <li>Aucun rappel automatique programmé</li>
+                    <li>{savedDocumentId ? 'Document enregistré dans ton espace sécurisé' : 'Aucun document enregistré en base'}</li>
+                  </ul>
+
+                  {extraction.due_date_status === 'overdue' && !createdEventId && (
+                    <p style={{
+                      margin: '0 0 14px',
+                      color: '#8A2525',
+                      fontWeight: 700,
+                      lineHeight: 1.5,
+                    }}>
+                      L’échéance détectée est déjà dépassée : Nova ne va pas créer un événement dans le passé.
+                      Le bouton va créer un rappel aujourd’hui pour traiter ce dossier.
+                    </p>
+                  )}
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={handleCreateTask}
+                      disabled={isCreatingTask || Boolean(createdTaskId)}
+                      style={{
+                        border: 'none',
+                        borderRadius: 999,
+                        padding: '11px 16px',
+                        background: isCreatingTask || createdTaskId ? '#D7C8BE' : '#7A2E2A',
+                        color: 'white',
+                        fontWeight: 700,
+                        cursor: isCreatingTask || createdTaskId ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {createdTaskId
+                        ? 'Tâche créée'
+                        : isCreatingTask
+                          ? 'Création...'
+                          : 'Créer la tâche'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCreateEvent}
+                      disabled={isCreatingEvent || Boolean(createdEventId)}
+                      style={{
+                        border: '1px solid #D7C8BE',
+                        borderRadius: 999,
+                        padding: '11px 16px',
+                        background: isCreatingEvent || createdEventId ? '#F0E7DF' : 'white',
+                        color: isCreatingEvent || createdEventId ? '#9A6A5B' : '#7A2E2A',
+                        fontWeight: 700,
+                        cursor: isCreatingEvent || createdEventId ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {eventButtonLabel}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveDocument}
+                      disabled={isSavingDocument || Boolean(savedDocumentId)}
+                      style={{
+                        border: '1px solid #B8895E',
+                        borderRadius: 999,
+                        padding: '11px 16px',
+                        background: isSavingDocument || savedDocumentId ? '#F0E7DF' : '#FFFFFF',
+                        color: isSavingDocument || savedDocumentId ? '#9A6A5B' : '#7A2E2A',
+                        fontWeight: 700,
+                        cursor: isSavingDocument || savedDocumentId ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {saveButtonLabel}
+                    </button>
+                  </div>
+
+                  {taskMessage && (
+                    <p style={{
+                      margin: '14px 0 0',
+                      color: '#2F7A4F',
+                      fontWeight: 700,
+                      lineHeight: 1.5,
+                    }}>
+                      {taskMessage}
+                    </p>
+                  )}
+
+                  {eventMessage && (
+                    <p style={{
+                      margin: '10px 0 0',
+                      color: '#2F7A4F',
+                      fontWeight: 700,
+                      lineHeight: 1.5,
+                    }}>
+                      {eventMessage}
+                    </p>
+                  )}
+
+                  {saveMessage && (
+                    <p style={{
+                      margin: '10px 0 0',
+                      color: '#2F7A4F',
+                      fontWeight: 700,
+                      lineHeight: 1.5,
+                    }}>
+                      {saveMessage}
+                    </p>
+                  )}
+                </div>
+              </section>
             )}
+          </>
+        )}
 
-            {extraction.warnings.length > 0 && (
-              <ListBlock title="Points à vérifier" items={extraction.warnings} />
-            )}
-
-            <div style={{
-              marginTop: 22,
-              border: '1px solid #D8B9A8',
-              background: '#FFF9F5',
-              borderRadius: 18,
-              padding: 18,
-            }}>
-              <h3 style={{ margin: '0 0 8px', fontSize: 17, color: '#4A1F1B' }}>
-                Validation utilisateur requise
-              </h3>
-
-              <p style={{ margin: '0 0 14px', color: '#5D504B', lineHeight: 1.55 }}>
-                Nova a analysé le document. À toi de choisir ce que tu veux ajouter.
-              </p>
-
-              <ul style={{ margin: '0 0 16px', paddingLeft: 20, color: '#5D504B', lineHeight: 1.6 }}>
-                <li>{createdTaskId ? 'Une tâche a été créée après validation' : 'Aucune tâche créée'}</li>
-                <li>{createdEventId ? 'Une échéance a été ajoutée au planner après validation' : 'Aucune échéance ajoutée au planner'}</li>
-                <li>Aucun rappel automatique programmé</li>
-                <li>{savedDocumentId ? 'Document enregistré dans ton espace sécurisé' : 'Aucun document enregistré en base'}</li>
-              </ul>
-
-              {extraction.due_date_status === 'overdue' && !createdEventId && (
-                <p style={{
-                  margin: '0 0 14px',
-                  color: '#8A2525',
-                  fontWeight: 700,
-                  lineHeight: 1.5,
-                }}>
-                  L’échéance détectée est déjà dépassée : Nova ne va pas créer un événement dans le passé.
-                  Le bouton va créer un rappel aujourd’hui pour traiter ce dossier.
-                </p>
-              )}
-
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={handleCreateTask}
-                  disabled={isCreatingTask || Boolean(createdTaskId)}
-                  style={{
-                    border: 'none',
-                    borderRadius: 999,
-                    padding: '11px 16px',
-                    background: isCreatingTask || createdTaskId ? '#D7C8BE' : '#7A2E2A',
-                    color: 'white',
-                    fontWeight: 700,
-                    cursor: isCreatingTask || createdTaskId ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {createdTaskId
-                    ? 'Tâche créée'
-                    : isCreatingTask
-                      ? 'Création...'
-                      : 'Créer la tâche'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleCreateEvent}
-                  disabled={isCreatingEvent || Boolean(createdEventId)}
-                  style={{
-                    border: '1px solid #D7C8BE',
-                    borderRadius: 999,
-                    padding: '11px 16px',
-                    background: isCreatingEvent || createdEventId ? '#F0E7DF' : 'white',
-                    color: isCreatingEvent || createdEventId ? '#9A6A5B' : '#7A2E2A',
-                    fontWeight: 700,
-                    cursor: isCreatingEvent || createdEventId ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {eventButtonLabel}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveDocument}
-                  disabled={isSavingDocument || Boolean(savedDocumentId)}
-                  style={{
-                    border: '1px solid #B8895E',
-                    borderRadius: 999,
-                    padding: '11px 16px',
-                    background: isSavingDocument || savedDocumentId ? '#F0E7DF' : '#FFFFFF',
-                    color: isSavingDocument || savedDocumentId ? '#9A6A5B' : '#7A2E2A',
-                    fontWeight: 700,
-                    cursor: isSavingDocument || savedDocumentId ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {saveButtonLabel}
-                </button>
-              </div>
-
-              {taskMessage && (
-                <p style={{
-                  margin: '14px 0 0',
-                  color: '#2F7A4F',
-                  fontWeight: 700,
-                  lineHeight: 1.5,
-                }}>
-                  {taskMessage}
-                </p>
-              )}
-
-              {eventMessage && (
-                <p style={{
-                  margin: '10px 0 0',
-                  color: '#2F7A4F',
-                  fontWeight: 700,
-                  lineHeight: 1.5,
-                }}>
-                  {eventMessage}
-                </p>
-              )}
-
-              {saveMessage && (
-                <p style={{
-                  margin: '10px 0 0',
-                  color: '#2F7A4F',
-                  fontWeight: 700,
-                  lineHeight: 1.5,
-                }}>
-                  {saveMessage}
-                </p>
-              )}
-            </div>
-          </section>
+        {activeView === 'archives' && (
+          <SavedDocumentsSection
+            documents={savedDocuments}
+            isLoading={isLoadingSavedDocuments}
+            error={savedDocumentsError}
+            onRefresh={loadSavedDocuments}
+          />
         )}
       </section>
     </main>
+  )
+}
+
+function SavedDocumentsSection({
+  documents,
+  isLoading,
+  error,
+  onRefresh,
+}: {
+  documents: SavedAdministrativeDocument[]
+  isLoading: boolean
+  error: string | null
+  onRefresh: () => void
+}) {
+  return (
+    <section style={{
+      border: '1px solid #EADDD2',
+      borderRadius: 18,
+      padding: 20,
+      background: '#FFFFFF',
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 12,
+        alignItems: 'center',
+        marginBottom: 14,
+      }}>
+        <div>
+          <h2 style={{ margin: 0, color: '#4A1F1B', fontSize: 22 }}>
+            Mes documents archivés
+          </h2>
+          <p style={{ margin: '6px 0 0', color: '#6F625C', lineHeight: 1.5 }}>
+            Historique sécurisé des documents que tu as choisi d’enregistrer.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={isLoading}
+          style={{
+            border: '1px solid #D7C8BE',
+            borderRadius: 999,
+            padding: '9px 13px',
+            background: '#FFFFFF',
+            color: '#7A2E2A',
+            fontWeight: 700,
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {isLoading ? 'Chargement...' : 'Actualiser'}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{
+          border: '1px solid #F1B5B5',
+          background: '#FFF1F1',
+          color: '#8A2525',
+          borderRadius: 14,
+          padding: 12,
+          marginBottom: 14,
+        }}>
+          {error}
+        </div>
+      )}
+
+      {!isLoading && documents.length === 0 && (
+        <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
+          Aucun document enregistré pour l’instant.
+        </p>
+      )}
+
+      {documents.length > 0 && (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {documents.map((document) => (
+            <div
+              key={document.id}
+              style={{
+                border: '1px solid #EFE2D8',
+                borderRadius: 14,
+                padding: 14,
+                background: '#FFFCFA',
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 12,
+                alignItems: 'flex-start',
+              }}>
+                <div>
+                  <h3 style={{ margin: '0 0 6px', color: '#4A1F1B', fontSize: 16 }}>
+                    {document.title || 'Document administratif'}
+                  </h3>
+
+                  <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
+                    {document.sender ? `${document.sender} · ` : ''}
+                    {document.document_type || 'type non détecté'}
+                  </p>
+
+                  <p style={{ margin: '6px 0 0', color: '#6F625C', lineHeight: 1.5 }}>
+                    {document.due_date
+                      ? `Date limite : ${document.due_date}`
+                      : 'Aucune date limite détectée'}
+                  </p>
+                </div>
+
+                <div style={{ textAlign: 'right', minWidth: 120 }}>
+                  <p style={{
+                    margin: '0 0 6px',
+                    color: dueDateStatusColor(
+                      (document.due_date_status || 'none') as AdministrativeDocumentExtractedData['due_date_status']
+                    ),
+                    fontWeight: 700,
+                  }}>
+                    {dueDateStatusLabel(
+                      (document.due_date_status || 'none') as AdministrativeDocumentExtractedData['due_date_status']
+                    )}
+                  </p>
+
+                  <p style={{ margin: 0, color: '#6F625C', fontSize: 13 }}>
+                    {new Date(document.created_at).toLocaleDateString('fr-FR')}
+                  </p>
+
+                  {document.amount !== null && (
+                    <p style={{ margin: '6px 0 0', color: '#4A1F1B', fontWeight: 700 }}>
+                      {document.amount} {document.currency || 'EUR'}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
