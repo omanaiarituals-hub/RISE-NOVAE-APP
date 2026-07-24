@@ -19,6 +19,14 @@ type ExtractionApiResponse = {
   notice?: string
 }
 
+type SaveApiResponse = {
+  success?: boolean
+  documentId?: string
+  storagePath?: string
+  message?: string
+  error?: string
+}
+
 async function compressImageForAdminDocument(file: File): Promise<File> {
   if (file.size <= MAX_COMPRESSED_DOCUMENT_BYTES) {
     return file
@@ -176,6 +184,10 @@ export default function AdminDocumentsTestPage() {
   const [createdEventId, setCreatedEventId] = useState<string | null>(null)
   const [eventMessage, setEventMessage] = useState<string | null>(null)
 
+  const [isSavingDocument, setIsSavingDocument] = useState(false)
+  const [savedDocumentId, setSavedDocumentId] = useState<string | null>(null)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
 
@@ -183,10 +195,15 @@ export default function AdminDocumentsTestPage() {
     setCompressedSize(null)
     setError(null)
     setExtraction(null)
+
     setCreatedTaskId(null)
     setTaskMessage(null)
+
     setCreatedEventId(null)
     setEventMessage(null)
+
+    setSavedDocumentId(null)
+    setSaveMessage(null)
 
     if (!file) return
 
@@ -216,10 +233,15 @@ export default function AdminDocumentsTestPage() {
     setError(null)
     setExtraction(null)
     setCompressedSize(null)
+
     setCreatedTaskId(null)
     setTaskMessage(null)
+
     setCreatedEventId(null)
     setEventMessage(null)
+
+    setSavedDocumentId(null)
+    setSaveMessage(null)
 
     try {
       const { data: sessionData } = await supabase.auth.getSession()
@@ -393,6 +415,74 @@ export default function AdminDocumentsTestPage() {
     }
   }
 
+  const handleSaveDocument = async () => {
+    if (!selectedFile || !extraction) {
+      setError('Analyse un document avant de l’enregistrer.')
+      return
+    }
+
+    setIsSavingDocument(true)
+    setError(null)
+    setSaveMessage(null)
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+
+      if (!accessToken) {
+        throw new Error('Session introuvable. Reconnecte-toi avant d’enregistrer le document.')
+      }
+
+      const documentForSave = isPdfFile(selectedFile)
+        ? selectedFile
+        : await compressImageForAdminDocument(selectedFile)
+
+      const formData = new FormData()
+      formData.append('document', documentForSave)
+      formData.append('extraction', JSON.stringify(extraction))
+
+      if (createdTaskId) {
+        formData.append('linkedTodoId', createdTaskId)
+      }
+
+      if (createdEventId) {
+        formData.append('linkedPlannerEventId', createdEventId)
+      }
+
+      const response = await fetch('/api/admin-documents/save', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      })
+
+      const responseText = await response.text()
+
+      let payload: SaveApiResponse
+      try {
+        payload = JSON.parse(responseText) as SaveApiResponse
+      } catch {
+        throw new Error("Le serveur n'a pas retourné une réponse lisible pendant l'enregistrement.")
+      }
+
+      if (!response.ok) {
+        throw new Error(payload.error || "L'enregistrement du document a échoué.")
+      }
+
+      if (!payload.documentId) {
+        throw new Error("Le document semble enregistré, mais l'identifiant est manquant.")
+      }
+
+      setSavedDocumentId(payload.documentId)
+      setSaveMessage(payload.message || 'Document enregistré dans ton espace sécurisé.')
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Impossible d'enregistrer le document.")
+    } finally {
+      setIsSavingDocument(false)
+    }
+  }
+
   const eventButtonLabel = (() => {
     if (createdEventId) return 'Échéance créée'
     if (isCreatingEvent) return 'Création...'
@@ -403,6 +493,12 @@ export default function AdminDocumentsTestPage() {
     }
 
     return 'Ajouter l’échéance'
+  })()
+
+  const saveButtonLabel = (() => {
+    if (savedDocumentId) return 'Document enregistré'
+    if (isSavingDocument) return 'Enregistrement...'
+    return 'Enregistrer ce document'
   })()
 
   const eventDatePreview = extraction ? getEventDateForExtraction(extraction) : null
@@ -600,7 +696,7 @@ export default function AdminDocumentsTestPage() {
                 <li>{createdTaskId ? 'Une tâche a été créée après validation' : 'Aucune tâche créée'}</li>
                 <li>{createdEventId ? 'Une échéance a été ajoutée au planner après validation' : 'Aucune échéance ajoutée au planner'}</li>
                 <li>Aucun rappel automatique programmé</li>
-                <li>Aucun document enregistré en base</li>
+                <li>{savedDocumentId ? 'Document enregistré dans ton espace sécurisé' : 'Aucun document enregistré en base'}</li>
               </ul>
 
               {extraction.due_date_status === 'overdue' && !createdEventId && (
@@ -653,6 +749,23 @@ export default function AdminDocumentsTestPage() {
                 >
                   {eventButtonLabel}
                 </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveDocument}
+                  disabled={isSavingDocument || Boolean(savedDocumentId)}
+                  style={{
+                    border: '1px solid #B8895E',
+                    borderRadius: 999,
+                    padding: '11px 16px',
+                    background: isSavingDocument || savedDocumentId ? '#F0E7DF' : '#FFFFFF',
+                    color: isSavingDocument || savedDocumentId ? '#9A6A5B' : '#7A2E2A',
+                    fontWeight: 700,
+                    cursor: isSavingDocument || savedDocumentId ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {saveButtonLabel}
+                </button>
               </div>
 
               {taskMessage && (
@@ -674,6 +787,17 @@ export default function AdminDocumentsTestPage() {
                   lineHeight: 1.5,
                 }}>
                   {eventMessage}
+                </p>
+              )}
+
+              {saveMessage && (
+                <p style={{
+                  margin: '10px 0 0',
+                  color: '#2F7A4F',
+                  fontWeight: 700,
+                  lineHeight: 1.5,
+                }}>
+                  {saveMessage}
                 </p>
               )}
             </div>
