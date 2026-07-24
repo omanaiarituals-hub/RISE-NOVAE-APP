@@ -174,15 +174,86 @@ function scaleQty(q: string, factor: number): string {
 function mergeQuantities(quantities: string[]): string {
   if (quantities.length === 0) return ''
   if (quantities.length === 1) return quantities[0]
+
   const parsed = quantities.map(parseQty)
   if (!parsed.every(p => p !== null)) return quantities.join(' + ')
+
   const units = new Set(parsed.map(p => p!.unit))
   if (units.size === 1) {
     const total = parsed.reduce((acc, p) => acc + p!.value, 0)
     const unit = parsed[0]!.unit
     return unit ? `${total % 1 === 0 ? total : total.toFixed(1)}${unit}` : String(total)
   }
+
   return quantities.join(' + ')
+}
+
+const MAX_ORIGINAL_SCAN_IMAGE_BYTES = 15 * 1024 * 1024
+const MAX_COMPRESSED_SCAN_IMAGE_BYTES = 3 * 1024 * 1024
+const SCAN_IMAGE_MAX_DIMENSION = 1800
+
+async function compressImageForScan(file: File): Promise<File> {
+  if (file.size <= MAX_COMPRESSED_SCAN_IMAGE_BYTES) {
+    return file
+  }
+
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Le fichier sélectionné doit être une image.')
+  }
+
+  const imageUrl = URL.createObjectURL(file)
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve(img)
+      img.onerror = () => reject(new Error("Impossible de lire l'image sélectionnée."))
+      img.src = imageUrl
+    })
+
+    const ratio = Math.min(
+      1,
+      SCAN_IMAGE_MAX_DIMENSION / Math.max(image.width, image.height)
+    )
+
+    const width = Math.max(1, Math.round(image.width * ratio))
+    const height = Math.max(1, Math.round(image.height * ratio))
+
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      throw new Error("Impossible de préparer l'image pour l'analyse.")
+    }
+
+    ctx.drawImage(image, 0, 0, width, height)
+
+    const qualities = [0.82, 0.72, 0.62, 0.52]
+
+    for (const quality of qualities) {
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, 'image/jpeg', quality)
+      })
+
+      if (!blob) continue
+
+      const compressedFile = new File(
+        [blob],
+        file.name.replace(/\.[^.]+$/, '') + '-novae-scan.jpg',
+        { type: 'image/jpeg', lastModified: Date.now() }
+      )
+
+      if (compressedFile.size <= MAX_COMPRESSED_SCAN_IMAGE_BYTES) {
+        return compressedFile
+      }
+    }
+
+    throw new Error("L'image reste trop lourde après compression. Essaie de recadrer la photo autour de la recette.")
+  } finally {
+    URL.revokeObjectURL(imageUrl)
+  }
 }
 
 // ─── HELPER UPLOAD PHOTO ──────────────────────────────────────────────────────
@@ -815,22 +886,34 @@ export default function RecipesPage() {
     // Reset input so the same file can be re-selected later
     e.target.value = ''
 
-    if (file.size > 5 * 1024 * 1024) {
-      setScanError('Image trop lourde (max 5 MB)')
-      return
-    }
+ if (file.size > MAX_ORIGINAL_SCAN_IMAGE_BYTES) {
+  setScanError('Image trop lourde. Choisis une photo de moins de 15 MB.')
+  return
+}
 
-    setScanning(true)
-    setScanError(null)
+setScanning(true)
+setScanError(null)
 
-    try {
-      const formData = new FormData()
-      formData.append('image', file)
+try {
+  const imageForExtraction = await compressImageForScan(file)
 
-      const response = await fetch('/api/recipes/extract', {
-        method: 'POST',
-        body: formData,
-      })
+  const formData = new FormData()
+  formData.append('image', imageForExtraction)
+
+      const { data: sessionData } = await supabase.auth.getSession()
+const accessToken = sessionData.session?.access_token
+
+if (!accessToken) {
+  throw new Error('Session introuvable. Déconnecte-toi puis reconnecte-toi avant de relancer le scan.')
+}
+
+const response = await fetch('/api/recipes/extract', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${accessToken}`,
+  },
+  body: formData,
+})
 
       const data = await response.json()
 
@@ -856,7 +939,7 @@ export default function RecipesPage() {
         cook_time: extracted.cooking_time_minutes != null ? String(extracted.cooking_time_minutes) : '0',
         prep_time: '0',
         // Type / Catégorie / Difficulté → laissées au défaut, à choisir par la user
-        _photoFile: file,
+        _photoFile: imageForExtraction,
       }
 
       setScanPrefill(prefill)
