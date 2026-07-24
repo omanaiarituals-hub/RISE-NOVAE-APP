@@ -9,6 +9,16 @@ const MAX_ORIGINAL_PDF_BYTES = 5 * 1024 * 1024
 const MAX_COMPRESSED_DOCUMENT_BYTES = 3 * 1024 * 1024
 const DOCUMENT_IMAGE_MAX_DIMENSION = 1800
 
+const DEFAULT_EVENT_START_MINUTES = 9 * 60
+const DEFAULT_EVENT_END_MINUTES = 10 * 60
+
+type ExtractionApiResponse = {
+  success?: boolean
+  extraction?: AdministrativeDocumentExtractedData
+  error?: string
+  notice?: string
+}
+
 async function compressImageForAdminDocument(file: File): Promise<File> {
   if (file.size <= MAX_COMPRESSED_DOCUMENT_BYTES) {
     return file
@@ -89,6 +99,20 @@ function isImageFile(file: File): boolean {
   return file.type.startsWith('image/')
 }
 
+function getTodayLocalISODate(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function minutesToTimeValue(minutes: number): string {
+  const hours = String(Math.floor(minutes / 60)).padStart(2, '0')
+  const mins = String(minutes % 60).padStart(2, '0')
+  return `${hours}:${mins}`
+}
+
 function urgencyToPriority(urgency: AdministrativeDocumentExtractedData['urgency']) {
   if (urgency === 'critical' || urgency === 'high') return 'high'
   if (urgency === 'medium') return 'medium'
@@ -110,15 +134,47 @@ function dueDateStatusColor(status: AdministrativeDocumentExtractedData['due_dat
   return '#6F625C'
 }
 
+function getEventDateForExtraction(extraction: AdministrativeDocumentExtractedData): string | null {
+  if (extraction.due_date_status === 'overdue') {
+    return getTodayLocalISODate()
+  }
+
+  return extraction.due_date || extraction.suggested_event_date
+}
+
+function getEventTitleForExtraction(extraction: AdministrativeDocumentExtractedData): string {
+  const baseTitle =
+    extraction.suggested_event_title ||
+    extraction.suggested_task_title ||
+    extraction.action_required ||
+    extraction.title ||
+    'Traiter un document administratif'
+
+  if (extraction.due_date_status === 'overdue') {
+    return `URGENT - traiter échéance dépassée : ${baseTitle}`
+  }
+
+  if (extraction.due_date_status === 'today') {
+    return `URGENT - échéance aujourd’hui : ${baseTitle}`
+  }
+
+  return `Échéance administrative : ${baseTitle}`
+}
+
 export default function AdminDocumentsTestPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [compressedSize, setCompressedSize] = useState<string | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [extraction, setExtraction] = useState<AdministrativeDocumentExtractedData | null>(null)
+
   const [isCreatingTask, setIsCreatingTask] = useState(false)
   const [createdTaskId, setCreatedTaskId] = useState<string | null>(null)
   const [taskMessage, setTaskMessage] = useState<string | null>(null)
+
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false)
+  const [createdEventId, setCreatedEventId] = useState<string | null>(null)
+  const [eventMessage, setEventMessage] = useState<string | null>(null)
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
@@ -129,28 +185,30 @@ export default function AdminDocumentsTestPage() {
     setExtraction(null)
     setCreatedTaskId(null)
     setTaskMessage(null)
+    setCreatedEventId(null)
+    setEventMessage(null)
 
     if (!file) return
 
-   if (!isImageFile(file) && !isPdfFile(file)) {
-  setError('Pour cette version, choisis une image ou un PDF texte.')
-  return
-}
+    if (!isImageFile(file) && !isPdfFile(file)) {
+      setError('Pour cette version, choisis une image ou un PDF texte.')
+      return
+    }
 
-if (isImageFile(file) && file.size > MAX_ORIGINAL_DOCUMENT_BYTES) {
-  setError('Image trop lourde. Choisis une photo de moins de 15 MB.')
-  return
-}
+    if (isImageFile(file) && file.size > MAX_ORIGINAL_DOCUMENT_BYTES) {
+      setError('Image trop lourde. Choisis une photo de moins de 15 MB.')
+      return
+    }
 
-if (isPdfFile(file) && file.size > MAX_ORIGINAL_PDF_BYTES) {
-  setError('PDF trop lourd. Choisis un PDF de moins de 5 MB.')
-  return
-}
+    if (isPdfFile(file) && file.size > MAX_ORIGINAL_PDF_BYTES) {
+      setError('PDF trop lourd. Choisis un PDF de moins de 5 MB.')
+      return
+    }
   }
 
   const handleExtract = async () => {
     if (!selectedFile) {
-      setError('Ajoute une photo de courrier avant de lancer le test.')
+      setError('Ajoute une photo ou un PDF avant de lancer l’analyse.')
       return
     }
 
@@ -160,6 +218,8 @@ if (isPdfFile(file) && file.size > MAX_ORIGINAL_PDF_BYTES) {
     setCompressedSize(null)
     setCreatedTaskId(null)
     setTaskMessage(null)
+    setCreatedEventId(null)
+    setEventMessage(null)
 
     try {
       const { data: sessionData } = await supabase.auth.getSession()
@@ -170,14 +230,14 @@ if (isPdfFile(file) && file.size > MAX_ORIGINAL_PDF_BYTES) {
       }
 
       const documentForExtraction = isPdfFile(selectedFile)
-  ? selectedFile
-  : await compressImageForAdminDocument(selectedFile)
+        ? selectedFile
+        : await compressImageForAdminDocument(selectedFile)
 
-setCompressedSize(
-  isPdfFile(documentForExtraction)
-    ? null
-    : formatBytes(documentForExtraction.size)
-)
+      setCompressedSize(
+        isPdfFile(documentForExtraction)
+          ? null
+          : formatBytes(documentForExtraction.size)
+      )
 
       const formData = new FormData()
       formData.append('document', documentForExtraction)
@@ -190,10 +250,23 @@ setCompressedSize(
         body: formData,
       })
 
-      const payload = await response.json()
+      const responseText = await response.text()
+
+      let payload: ExtractionApiResponse
+      try {
+        payload = JSON.parse(responseText) as ExtractionApiResponse
+      } catch {
+        throw new Error(
+          "Le serveur n'a pas retourné une réponse lisible. Le PDF a peut-être provoqué une erreur d'analyse. Réessaie avec un PDF texte simple ou une image du document."
+        )
+      }
 
       if (!response.ok) {
-        throw new Error(payload?.error || "L'extraction a échoué.")
+        throw new Error(payload.error || "L'extraction a échoué.")
+      }
+
+      if (!payload.extraction) {
+        throw new Error("L'analyse n'a pas retourné de résultat exploitable.")
       }
 
       setExtraction(payload.extraction)
@@ -257,6 +330,83 @@ setCompressedSize(
     }
   }
 
+  const handleCreateEvent = async () => {
+    if (!extraction) {
+      setError('Aucune extraction disponible pour créer une échéance.')
+      return
+    }
+
+    const eventDate = getEventDateForExtraction(extraction)
+
+    if (!eventDate) {
+      setError("Aucune date fiable n'a été détectée. Crée d'abord une tâche, puis ajoute une échéance manuellement.")
+      return
+    }
+
+    const eventTitle = getEventTitleForExtraction(extraction)
+    const startTime = minutesToTimeValue(DEFAULT_EVENT_START_MINUTES)
+    const endTime = minutesToTimeValue(DEFAULT_EVENT_END_MINUTES)
+
+    setIsCreatingEvent(true)
+    setError(null)
+    setEventMessage(null)
+
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+      if (userError || !user) {
+        throw new Error('Session introuvable. Reconnecte-toi avant de créer l’échéance.')
+      }
+
+      const { data, error: insertError } = await supabase
+        .from('planner_events')
+        .insert({
+          user_id: user.id,
+          title: eventTitle,
+          start_date: `${eventDate}T${startTime}:00`,
+          end_date: `${eventDate}T${endTime}:00`,
+          start_minutes: DEFAULT_EVENT_START_MINUTES,
+          end_minutes: DEFAULT_EVENT_END_MINUTES,
+          category: 'pro',
+          recurrence_days: [],
+          reminder_minutes_before: [],
+          reminder_sent: false,
+        })
+        .select('id')
+        .single()
+
+      if (insertError) {
+        throw new Error(insertError.message)
+      }
+
+      setCreatedEventId(data.id)
+
+      if (extraction.due_date_status === 'overdue') {
+        setEventMessage("Rappel créé aujourd’hui dans le planner pour traiter cette échéance dépassée.")
+      } else {
+        setEventMessage('Échéance ajoutée dans le planner.')
+      }
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : "Impossible de créer l’échéance.")
+    } finally {
+      setIsCreatingEvent(false)
+    }
+  }
+
+  const eventButtonLabel = (() => {
+    if (createdEventId) return 'Échéance créée'
+    if (isCreatingEvent) return 'Création...'
+    if (!extraction) return 'Ajouter l’échéance'
+
+    if (extraction.due_date_status === 'overdue') {
+      return 'Créer un rappel aujourd’hui'
+    }
+
+    return 'Ajouter l’échéance'
+  })()
+
+  const eventDatePreview = extraction ? getEventDateForExtraction(extraction) : null
+
   return (
     <main style={{
       minHeight: '100vh',
@@ -281,7 +431,7 @@ setCompressedSize(
           letterSpacing: 0.5,
           textTransform: 'uppercase',
         }}>
-Assistant administratif
+          Assistant administratif
         </p>
 
         <h1 style={{
@@ -290,7 +440,7 @@ Assistant administratif
           lineHeight: 1.15,
           color: '#4A1F1B',
         }}>
-Mes documents administratifs
+          Mes documents administratifs
         </h1>
 
         <p style={{
@@ -300,8 +450,8 @@ Mes documents administratifs
           lineHeight: 1.6,
         }}>
           Ajoute une photo de courrier, d’amende, de facture ou de document important.
-Nova analyse le contenu, repère les dates limites et te propose une action.
-Rien n’est ajouté sans ta validation.
+          Nova analyse le contenu, repère les dates limites et te propose une action.
+          Rien n’est ajouté sans ta validation.
         </p>
 
         <div style={{
@@ -317,12 +467,12 @@ Rien n’est ajouté sans ta validation.
             marginBottom: 10,
             color: '#4A1F1B',
           }}>
-Photo ou PDF du document à analyser
+            Photo ou PDF du document à analyser
           </label>
 
           <input
             type="file"
-accept="image/*,.pdf,application/pdf"
+            accept="image/*,.pdf,application/pdf"
             onChange={handleFileChange}
             disabled={isScanning}
           />
@@ -374,7 +524,7 @@ accept="image/*,.pdf,application/pdf"
             background: '#FFFFFF',
           }}>
             <h2 style={{ margin: '0 0 16px', color: '#4A1F1B', fontSize: 22 }}>
-Analyse du document
+              Analyse du document
             </h2>
 
             {extraction.due_date_status === 'overdue' && (
@@ -410,6 +560,7 @@ Analyse du document
                 value={dueDateStatusLabel(extraction.due_date_status)}
                 color={dueDateStatusColor(extraction.due_date_status)}
               />
+              <Info label="Date proposée planner" value={eventDatePreview} />
               <Info label="Montant" value={extraction.amount === null ? null : `${extraction.amount} €`} />
               <Info label="Urgence" value={extraction.urgency} />
               <Info label="Confiance IA" value={`${Math.round(extraction.confidence * 100)} %`} />
@@ -442,15 +593,27 @@ Analyse du document
               </h3>
 
               <p style={{ margin: '0 0 14px', color: '#5D504B', lineHeight: 1.55 }}>
-Nova a analysé le document. À toi de choisir ce que tu veux ajouter.
+                Nova a analysé le document. À toi de choisir ce que tu veux ajouter.
               </p>
 
               <ul style={{ margin: '0 0 16px', paddingLeft: 20, color: '#5D504B', lineHeight: 1.6 }}>
                 <li>{createdTaskId ? 'Une tâche a été créée après validation' : 'Aucune tâche créée'}</li>
-                <li>Aucune échéance ajoutée au planner</li>
-                <li>Aucun rappel programmé</li>
+                <li>{createdEventId ? 'Une échéance a été ajoutée au planner après validation' : 'Aucune échéance ajoutée au planner'}</li>
+                <li>Aucun rappel automatique programmé</li>
                 <li>Aucun document enregistré en base</li>
               </ul>
+
+              {extraction.due_date_status === 'overdue' && !createdEventId && (
+                <p style={{
+                  margin: '0 0 14px',
+                  color: '#8A2525',
+                  fontWeight: 700,
+                  lineHeight: 1.5,
+                }}>
+                  L’échéance détectée est déjà dépassée : Nova ne va pas créer un événement dans le passé.
+                  Le bouton va créer un rappel aujourd’hui pour traiter ce dossier.
+                </p>
+              )}
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 <button
@@ -476,18 +639,19 @@ Nova a analysé le document. À toi de choisir ce que tu veux ajouter.
 
                 <button
                   type="button"
-                  disabled
+                  onClick={handleCreateEvent}
+                  disabled={isCreatingEvent || Boolean(createdEventId)}
                   style={{
                     border: '1px solid #D7C8BE',
                     borderRadius: 999,
                     padding: '11px 16px',
-                    background: 'white',
-                    color: '#9A6A5B',
+                    background: isCreatingEvent || createdEventId ? '#F0E7DF' : 'white',
+                    color: isCreatingEvent || createdEventId ? '#9A6A5B' : '#7A2E2A',
                     fontWeight: 700,
-                    cursor: 'not-allowed',
+                    cursor: isCreatingEvent || createdEventId ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  Ajouter l’échéance — bientôt
+                  {eventButtonLabel}
                 </button>
               </div>
 
@@ -499,6 +663,17 @@ Nova a analysé le document. À toi de choisir ce que tu veux ajouter.
                   lineHeight: 1.5,
                 }}>
                   {taskMessage}
+                </p>
+              )}
+
+              {eventMessage && (
+                <p style={{
+                  margin: '10px 0 0',
+                  color: '#2F7A4F',
+                  fontWeight: 700,
+                  lineHeight: 1.5,
+                }}>
+                  {eventMessage}
                 </p>
               )}
             </div>
