@@ -166,6 +166,16 @@ export async function POST(request: NextRequest) {
     const extractionRaw = formData.get('extraction')
     const linkedTodoId = formData.get('linkedTodoId')
     const linkedPlannerEventId = formData.get('linkedPlannerEventId')
+    const vaultProtectedRaw = formData.get('vaultProtected')
+const sensitivityLevelRaw = formData.get('sensitivityLevel')
+
+const vaultProtected = vaultProtectedRaw === 'true'
+const sensitivityLevel =
+  sensitivityLevelRaw === 'sensitive' || sensitivityLevelRaw === 'very_sensitive'
+    ? sensitivityLevelRaw
+    : vaultProtected
+      ? 'sensitive'
+      : 'standard'
 
     if (!file || !(file instanceof File)) {
       return NextResponse.json(
@@ -270,6 +280,9 @@ export async function POST(request: NextRequest) {
         linked_planner_event_id: typeof linkedPlannerEventId === 'string' && linkedPlannerEventId.length > 0
           ? linkedPlannerEventId
           : null,
+          vault_protected: vaultProtected,
+sensitivity_level: sensitivityLevel,
+added_to_vault_at: vaultProtected ? new Date().toISOString() : null,
       })
       .select('id, storage_path')
       .single()
