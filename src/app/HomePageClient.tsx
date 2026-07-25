@@ -32,7 +32,7 @@ type Univers = {
 const UNIVERS_LIST: Univers[] = [
   {
     key: 'quotidien', title: 'Mon quotidien', subtitle: 'Organise tes journées avec sérénité.',
-    icon: '/icon-quotidien.png', tint: 'rgba(197,211,180,0.25)', border: 'rgba(167,189,144,0.40)', ink: '#5C7044',
+    icon: '/icon-quotidien.png', tint: 'var(--novae-tile-daily, rgba(197,211,180,0.25))', border: 'var(--novae-border, rgba(167,189,144,0.40))', ink: 'var(--novae-primary, #5C7044)',
     modules: [
   { href: '/planner', title: 'Planner' },
   { href: '/routines', title: 'Routines' },
@@ -43,7 +43,7 @@ const UNIVERS_LIST: Univers[] = [
   },
   {
     key: 'transformation', title: 'Ma transformation', subtitle: "Change ta vie un pas après l'autre.",
-    icon: '/icon-transformation.png', tint: 'rgba(242,194,182,0.25)', border: 'rgba(223,160,143,0.40)', ink: '#B5654A',
+    icon: '/icon-transformation.png', tint: 'var(--novae-tile-transformation, rgba(242,194,182,0.25))', border: 'var(--novae-border, rgba(223,160,143,0.40))', ink: 'var(--novae-primary, #B5654A)',
     modules: [
       { href: '/program', title: 'Reset 90j' },
       { href: '/parcours-profonds/reclaim-myself', title: 'Reclaim', badge: 'TEST', tester: true },
@@ -52,7 +52,7 @@ const UNIVERS_LIST: Univers[] = [
   },
   {
     key: 'equilibre', title: 'Mon équilibre', subtitle: 'Observe, ajuste et prends soin de toi.',
-    icon: '/icon-equilibre.png', tint: 'rgba(212,196,226,0.25)', border: 'rgba(185,162,212,0.40)', ink: '#7E63A8',
+    icon: '/icon-equilibre.png', tint: 'var(--novae-primary-soft, rgba(212,196,226,0.25))', border: 'var(--novae-border, rgba(185,162,212,0.40))', ink: 'var(--novae-primary, #7E63A8)',
     modules: [
       { href: '/tracker', title: 'Tracker' }, { href: '/family', title: 'Famille' },
       { href: '/community', title: 'Commu.' },
@@ -60,7 +60,7 @@ const UNIVERS_LIST: Univers[] = [
   },
   {
     key: 'accompagnement', title: 'Mon accompagnement', subtitle: "Tu n'avances jamais seule.",
-    icon: '/icon-accompagnement.png', tint: 'rgba(245,216,155,0.25)', border: 'rgba(231,192,111,0.40)', ink: '#A8852E',
+    icon: '/icon-accompagnement.png', tint: 'var(--novae-tile-learning, rgba(245,216,155,0.25))', border: 'var(--novae-border, rgba(231,192,111,0.40))', ink: 'var(--novae-primary, #A8852E)',
     modules: [
       { href: '/agent', title: 'Nova', badge: 'IA' },
       { href: '/astuces', title: 'Astuces' },
@@ -242,20 +242,20 @@ const visibleModules = (u: Univers) => {
     const mods = visibleModules(u)
     return (
       <div style={{ background: u.tint, border: `1px solid ${u.border}`, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'row', height: '100%' }}>
-        <div style={{ width: 76, flexShrink: 0, background: u.tint.replace('0.25', '0.45'), display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 6px', borderRight: `1px solid ${u.border}` }}>
+        <div style={{ width: 76, flexShrink: 0, background: u.tint, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 6px', borderRight: `1px solid ${u.border}` }}>
           <img src={u.icon} alt={u.title} style={{ width: 60, height: 60, objectFit: 'contain', borderRadius: 12, mixBlendMode: 'multiply' }} />
         </div>
         <div style={{ flex: 1, minWidth: 0, padding: '10px 10px 10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 15, fontWeight: 600, color: u.ink, lineHeight: 1.1, marginBottom: 2 }}>{u.title}</div>
-            <div style={{ fontSize: 9.5, color: '#6b5340', lineHeight: 1.25, marginBottom: 8 }}>{u.subtitle}</div>
+            <div style={{ fontSize: 9.5, color: 'var(--novae-text-muted, #6b5340)', lineHeight: 1.25, marginBottom: 8 }}>{u.subtitle}</div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${mods.length}, 1fr)`, gap: 5 }}>
             {mods.map((m) => (
               <Link key={m.href} href={m.href} style={{ textDecoration: 'none' }}>
                 <div style={{ background: 'rgba(255,255,255,0.72)', border: '1px solid rgba(255,255,255,0.9)', borderRadius: 9, padding: '7px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 34 }}>
                   {m.badge && <span style={{ position: 'absolute', top: 2, right: 2, fontSize: 5.5, fontWeight: 700, color: u.ink, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '1px 3px' }}>{m.badge}</span>}
-                  <span style={{ fontSize: 10.5, color: '#3d2618', fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{m.title}</span>
+                  <span style={{ fontSize: 10.5, color: 'var(--novae-text-main, #3d2618)', fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{m.title}</span>
                 </div>
               </Link>
             ))}
@@ -268,7 +268,7 @@ const visibleModules = (u: Univers) => {
   return (
     <>
       <OnboardingTour forceShow={showTour} onClose={() => setShowTour(false)} />
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: 'radial-gradient(ellipse at 20% 0%, #F8E6DB 0%, transparent 55%),radial-gradient(ellipse at 80% 100%, #EBD7E0 0%, transparent 60%),linear-gradient(180deg, #FBF4EC 0%, #F8F1E5 55%, #F3E9DF 100%)' }} />
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: 'radial-gradient(ellipse at 20% 0%, #F8E6DB 0%, transparent 55%),radial-gradient(ellipse at 80% 100%, #EBD7E0 0%, transparent 60%),linear-gradient(180deg, var(--novae-background, #FBF4EC) 0%, var(--novae-background, #F8F1E5) 55%, var(--novae-surface-alt, #F3E9DF) 100%)' }} />
 
       {/* MODAL OBJECTIF DU JOUR */}
       {showObjectifForm && (
@@ -276,24 +276,24 @@ const visibleModules = (u: Univers) => {
           style={{ position: 'fixed', inset: 0, zIndex: 99998, background: 'rgba(61,38,24,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 20px' }}
           onClick={(e) => { if (e.target === e.currentTarget) setShowObjectifForm(false) }}
         >
-          <div style={{ background: '#FAF7F2', borderRadius: '20px 20px 16px 16px', padding: '24px 20px 20px', width: '100%', maxWidth: 480, boxShadow: '0 -8px 32px rgba(61,38,24,0.18)', fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ background: 'var(--novae-surface, #FAF7F2)', borderRadius: '20px 20px 16px 16px', padding: '24px 20px 20px', width: '100%', maxWidth: 480, boxShadow: '0 -8px 32px rgba(61,38,24,0.18)', fontFamily: "'DM Sans', sans-serif" }}>
             {objectifSaved ? (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
                 <div style={{ fontSize: 40, marginBottom: 10 }}>✨</div>
-                <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, color: '#3d2618', margin: 0 }}>Objectif enregistré !</p>
-                <p style={{ fontSize: 13, color: '#8b6f55', marginTop: 6 }}>Il s'affiche maintenant sur ton accueil.</p>
+                <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, color: 'var(--novae-text-main, #3d2618)', margin: 0 }}>Objectif enregistré !</p>
+                <p style={{ fontSize: 13, color: 'var(--novae-secondary, #8b6f55)', marginTop: 6 }}>Il s'affiche maintenant sur ton accueil.</p>
               </div>
             ) : (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                  <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: '#3d2618', margin: 0, fontWeight: 500 }}>
+                  <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: 'var(--novae-text-main, #3d2618)', margin: 0, fontWeight: 500 }}>
                     {objectifDuJour ? 'Modifier mon objectif' : 'Mon objectif du jour'}
                   </h3>
-                  <button onClick={() => setShowObjectifForm(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: '#8b6f55', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
+                  <button onClick={() => setShowObjectifForm(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--novae-secondary, #8b6f55)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
                 </div>
 
                 <div style={{ marginBottom: 14 }}>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--novae-secondary, #8b6f55)', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: 6 }}>
                     Mon intention du jour
                   </label>
                   <input
@@ -301,14 +301,14 @@ const visibleModules = (u: Univers) => {
                     value={intention}
                     onChange={e => setIntention(e.target.value)}
                     placeholder={objectifDuJour?.intention || "Ex : rester calme et centrée malgré l'agenda chargé"}
-                    style={{ width: '100%', border: '1.5px solid #E8E4DF', borderRadius: 10, padding: '11px 13px', fontSize: 14, color: '#1A1A1A', background: '#FFFFFF', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none' }}
-                    onFocus={e => e.target.style.borderColor = '#c4956a'}
-                    onBlur={e => e.target.style.borderColor = '#E8E4DF'}
+                    style={{ width: '100%', border: '1.5px solid var(--novae-border, #E8E4DF)', borderRadius: 10, padding: '11px 13px', fontSize: 14, color: '#1A1A1A', background: '#FFFFFF', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none' }}
+                    onFocus={e => e.target.style.borderColor = 'var(--novae-accent, #c4956a)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--novae-border, #E8E4DF)'}
                   />
                 </div>
 
                 <div style={{ marginBottom: 20 }}>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--novae-secondary, #8b6f55)', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: 6 }}>
                     Ma priorité n°1
                   </label>
                   <input
@@ -316,9 +316,9 @@ const visibleModules = (u: Univers) => {
                     value={priorite}
                     onChange={e => setPriorite(e.target.value)}
                     placeholder={objectifDuJour?.priorite || "Ex : finir le rapport avant 14h"}
-                    style={{ width: '100%', border: '1.5px solid #E8E4DF', borderRadius: 10, padding: '11px 13px', fontSize: 14, color: '#1A1A1A', background: '#FFFFFF', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none' }}
-                    onFocus={e => e.target.style.borderColor = '#c4956a'}
-                    onBlur={e => e.target.style.borderColor = '#E8E4DF'}
+                    style={{ width: '100%', border: '1.5px solid var(--novae-border, #E8E4DF)', borderRadius: 10, padding: '11px 13px', fontSize: 14, color: '#1A1A1A', background: '#FFFFFF', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none' }}
+                    onFocus={e => e.target.style.borderColor = 'var(--novae-accent, #c4956a)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--novae-border, #E8E4DF)'}
                     onKeyDown={e => { if (e.key === 'Enter') handleObjectifSubmit() }}
                   />
                   <p style={{ fontSize: 11, color: '#a08770', margin: '6px 0 0', fontStyle: 'italic' }}>
@@ -329,7 +329,7 @@ const visibleModules = (u: Univers) => {
                 <button
                   onClick={handleObjectifSubmit}
                   disabled={objectifLoading || (!intention.trim() && !priorite.trim())}
-                  style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: (!intention.trim() && !priorite.trim()) ? '#E8E4DF' : 'linear-gradient(135deg, #c4956a, #b07d5a)', color: (!intention.trim() && !priorite.trim()) ? '#aaa' : '#fff', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, cursor: (!intention.trim() && !priorite.trim()) ? 'not-allowed' : 'pointer' }}>
+                  style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: (!intention.trim() && !priorite.trim()) ? 'var(--novae-border, #E8E4DF)' : 'linear-gradient(135deg, var(--novae-accent, #c4956a), var(--novae-secondary, #b07d5a))', color: (!intention.trim() && !priorite.trim()) ? '#aaa' : '#fff', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, cursor: (!intention.trim() && !priorite.trim()) ? 'not-allowed' : 'pointer' }}>
                   {objectifLoading ? 'Enregistrement...' : 'Valider mon objectif →'}
                 </button>
               </>
@@ -345,7 +345,7 @@ const visibleModules = (u: Univers) => {
           <img src="/logo.png" alt="NOVAÉ by OMANAÏA" style={{ height: 42, objectFit: 'contain', maxWidth: 140 }} />
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <Link href="/agent?voice=1" aria-label="Parler à Nova" style={{ textDecoration: 'none' }}>
-              <div className="mic-cta" style={{ width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'linear-gradient(135deg, #c4956a, #b07d5a 55%, #c98b86)', cursor: 'pointer' }}>🎙️</div>
+              <div className="mic-cta" style={{ width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'linear-gradient(135deg, var(--novae-accent, #c4956a), var(--novae-secondary, #b07d5a) 55%, #c98b86)', cursor: 'pointer' }}>🎙️</div>
             </Link>
             <NotificationBell />
             {!loading && (user ? <UserMenu /> : (
@@ -360,11 +360,11 @@ const visibleModules = (u: Univers) => {
 
             {/* BONJOUR */}
             <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: 9.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2px', margin: '0 0 3px', fontWeight: 600 }} suppressHydrationWarning>{dateLabel}</p>
-              <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 400, color: '#3d2618', margin: 0, lineHeight: 1.1 }} suppressHydrationWarning>
-                {greeting}{pseudo && (<>, <span style={{ color: '#8b5a3c', fontStyle: 'italic' }}>{pseudo}</span></>)}{' '}👋
+              <p style={{ fontSize: 9.5, color: 'var(--novae-secondary, #8b6f55)', textTransform: 'uppercase', letterSpacing: '2px', margin: '0 0 3px', fontWeight: 600 }} suppressHydrationWarning>{dateLabel}</p>
+              <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 400, color: 'var(--novae-text-main, #3d2618)', margin: 0, lineHeight: 1.1 }} suppressHydrationWarning>
+                {greeting}{pseudo && (<>, <span style={{ color: 'var(--novae-primary, #8b5a3c)', fontStyle: 'italic' }}>{pseudo}</span></>)}{' '}👋
               </h1>
-              <p style={{ margin: '6px 0 0', fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontStyle: 'italic', color: '#6b5340', lineHeight: 1.4, borderLeft: '2px solid #c4956a', paddingLeft: 9 }}>« {proverbeDuJour} »</p>
+              <p style={{ margin: '6px 0 0', fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontStyle: 'italic', color: 'var(--novae-text-muted, #6b5340)', lineHeight: 1.4, borderLeft: '2px solid var(--novae-accent, #c4956a)', paddingLeft: 9 }}>« {proverbeDuJour} »</p>
             </div>
 
             {/* NOVA, ENTRÉE PRINCIPALE (toujours visible, s'adapte au message en attente) */}
@@ -380,10 +380,10 @@ const visibleModules = (u: Univers) => {
                   <p style={{ fontSize: 9, fontWeight: 700, color: '#5b4b7a', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.18em' }}>
                     {novaPending ? "Nova t'a laissé un message" : 'Ton assistante IA'}
                   </p>
-                  <p style={{ fontSize: 17, color: '#3d2618', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontWeight: 500, lineHeight: 1.2 }}>
+                  <p style={{ fontSize: 17, color: 'var(--novae-text-main, #3d2618)', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontWeight: 500, lineHeight: 1.2 }}>
                     {novaPending ? 'Appuie pour lire 💜' : 'Parle à Nova'}
                   </p>
-                  <p style={{ fontSize: 11.5, color: '#6b5340', margin: '3px 0 0', lineHeight: 1.35 }}>
+                  <p style={{ fontSize: 11.5, color: 'var(--novae-text-muted, #6b5340)', margin: '3px 0 0', lineHeight: 1.35 }}>
                     {novaPending ? 'Elle a pensé à toi.' : 'Elle organise, planifie et agit sur ta journée. Dis-lui ce que tu as en tête.'}
                   </p>
                 </div>
@@ -397,10 +397,10 @@ const visibleModules = (u: Univers) => {
                 <div style={{ background: 'linear-gradient(135deg, rgba(196,149,106,0.20), rgba(123,111,160,0.18))', border: '1px solid rgba(196,149,106,0.35)', borderRadius: 14, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 9 }}>
                   <span style={{ fontSize: 18, flexShrink: 0 }}>🌙</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 8.5, fontWeight: 700, color: '#8b5a3c', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Une période plus calme ?</p>
-                    <p style={{ fontSize: 12, color: '#3d2618', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}>Je suis là si tu veux juste échanger.</p>
+                    <p style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--novae-primary, #8b5a3c)', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Une période plus calme ?</p>
+                    <p style={{ fontSize: 12, color: 'var(--novae-text-main, #3d2618)', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}>Je suis là si tu veux juste échanger.</p>
                   </div>
-                  <span style={{ color: '#8b5a3c', flexShrink: 0 }}>→</span>
+                  <span style={{ color: 'var(--novae-primary, #8b5a3c)', flexShrink: 0 }}>→</span>
                 </div>
               </Link>
             )}
@@ -421,33 +421,33 @@ const visibleModules = (u: Univers) => {
               >
                 <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: 'rgba(196,149,106,0.15)', pointerEvents: 'none' }} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 8.5, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 5 }}>Objectif du jour</div>
+                  <div style={{ fontSize: 8.5, color: 'var(--novae-secondary, #8b6f55)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 5 }}>Objectif du jour</div>
                   {objectifDuJour ? (
                     <div>
                       {objectifDuJour.intention && (
-                        <div style={{ fontSize: 11, color: '#3d2618', lineHeight: 1.4, marginBottom: 4, display: 'flex', gap: 4 }}>
-                          <span style={{ color: '#c4956a', fontWeight: 700, flexShrink: 0 }}>✦</span>
+                        <div style={{ fontSize: 11, color: 'var(--novae-text-main, #3d2618)', lineHeight: 1.4, marginBottom: 4, display: 'flex', gap: 4 }}>
+                          <span style={{ color: 'var(--novae-accent, #c4956a)', fontWeight: 700, flexShrink: 0 }}>✦</span>
                           <span style={{ fontStyle: 'italic' }}>{objectifDuJour.intention}</span>
                         </div>
                       )}
                       {objectifDuJour.priorite && (
-                        <div style={{ fontSize: 11, color: '#3d2618', lineHeight: 1.4, display: 'flex', gap: 4 }}>
+                        <div style={{ fontSize: 11, color: 'var(--novae-text-main, #3d2618)', lineHeight: 1.4, display: 'flex', gap: 4 }}>
                           <span style={{ color: '#B5654A', fontWeight: 700, flexShrink: 0 }}>①</span>
                           <span style={{ fontWeight: 600 }}>{objectifDuJour.priorite}</span>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: '#6b5340', lineHeight: 1.3 }}>
+                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: 'var(--novae-text-muted, #6b5340)', lineHeight: 1.3 }}>
                       Définis ton intention et ta priorité
                     </div>
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                  <span style={{ fontSize: 10, color: '#c4956a', fontWeight: 600 }}>
+                  <span style={{ fontSize: 10, color: 'var(--novae-accent, #c4956a)', fontWeight: 600 }}>
                     {objectifDuJour ? 'Modifier →' : 'Avec Nova →'}
                   </span>
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, #c4956a, #b07d5a)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: objectifDuJour ? 13 : 17, flexShrink: 0 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, var(--novae-accent, #c4956a), var(--novae-secondary, #b07d5a))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: objectifDuJour ? 13 : 17, flexShrink: 0 }}>
                     {objectifDuJour ? '✎' : '+'}
                   </div>
                 </div>
@@ -464,7 +464,7 @@ const visibleModules = (u: Univers) => {
                   )}
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 8.5, color: '#7E63A8', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 5 }}>Communauté</div>
-                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: '#6b5340', lineHeight: 1.3 }}>Tu ne reconstruis pas seule</div>
+                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: 'var(--novae-text-muted, #6b5340)', lineHeight: 1.3 }}>Tu ne reconstruis pas seule</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
                     <span style={{ fontSize: 10, color: '#7E63A8', fontWeight: 600 }}>
@@ -477,7 +477,7 @@ const visibleModules = (u: Univers) => {
             </div>
 
             {/* LABEL UNIVERS */}
-            <div style={{ fontSize: 9, color: '#8b6f55', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600, marginBottom: 8, paddingLeft: 2 }}>Mes univers</div>
+            <div style={{ fontSize: 9, color: 'var(--novae-secondary, #8b6f55)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600, marginBottom: 8, paddingLeft: 2 }}>Mes univers</div>
 
             {/* 4 UNIVERS */}
             <div className="univers-grid">
