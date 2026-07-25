@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
+import { verifyVaultAccessToken } from '@/lib/vault/tokens'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
 
     const { data: document, error: documentError } = await supabase
       .from('administrative_documents')
-      .select('id, user_id, storage_bucket, storage_path, original_filename, file_mime_type')
+      .select('id, user_id, storage_bucket, storage_path, original_filename, file_mime_type, vault_protected, sensitivity_level')
       .eq('id', documentId)
       .eq('user_id', user.id)
       .single()
@@ -117,6 +118,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    if (document.vault_protected) {
+  const vaultAccessToken = request.headers.get('x-vault-access-token')
+
+  if (!verifyVaultAccessToken(vaultAccessToken, user.id)) {
+    return NextResponse.json(
+      {
+        error: 'Code PIN coffre requis pour ouvrir ce document.',
+        requiresVaultPin: true,
+      },
+      { status: 403 }
+    )
+  }
+}
+
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from(document.storage_bucket)
       .createSignedUrl(document.storage_path, SIGNED_URL_DURATION_SECONDS)
@@ -131,12 +146,14 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
-      signedUrl: signedUrlData.signedUrl,
-      expiresIn: SIGNED_URL_DURATION_SECONDS,
-      filename: document.original_filename,
-      mimeType: document.file_mime_type,
-    })
+  success: true,
+  signedUrl: signedUrlData.signedUrl,
+  expiresIn: SIGNED_URL_DURATION_SECONDS,
+  filename: document.original_filename,
+  mimeType: document.file_mime_type,
+  vaultProtected: document.vault_protected,
+  sensitivityLevel: document.sensitivity_level,
+})
   } catch (error) {
     console.error('[admin documents view] unexpected error', error)
 
