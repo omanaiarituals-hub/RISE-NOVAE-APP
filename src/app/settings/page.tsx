@@ -8,13 +8,16 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import CancelSubscription from '@/components/CancelSubscription'
 
 const C = {
-  cream: '#f3dcc6',
-  brown: '#3d2618',
-  brownLight: '#6b5340',
-  brownMid: '#8b6f55',
-  copper: '#c4956a',
-  copperLight: '#d4a574',
-  copperDark: '#8b5a3c',
+  cream: 'var(--novae-background, #f3dcc6)',
+  surface: 'var(--novae-surface, #ffffff)',
+  surfaceAlt: 'var(--novae-surface-alt, #fff9f5)',
+  brown: 'var(--novae-text-main, #3d2618)',
+  brownLight: 'var(--novae-text-muted, #6b5340)',
+  brownMid: 'var(--novae-secondary, #8b6f55)',
+  copper: 'var(--novae-accent, #c4956a)',
+  copperLight: 'var(--novae-primary-soft, #d4a574)',
+  copperDark: 'var(--novae-primary, #8b5a3c)',
+  border: 'var(--novae-border, var(--novae-border, rgba(212, 165, 116, 0.3)))',
 }
 
 interface NotifPrefs {
@@ -164,7 +167,7 @@ export default function SettingsPage() {
 
   if (authLoading || loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3dcc6' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.cream }}>
         <p style={{ color: C.brownLight, fontFamily: "'DM Sans', sans-serif" }}>Chargement…</p>
       </div>
     )
@@ -172,7 +175,7 @@ export default function SettingsPage() {
 
   if (!user) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3dcc6', flexDirection: 'column', gap: 12 }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.cream, flexDirection: 'column', gap: 12 }}>
         <p style={{ color: C.brown, fontFamily: "'DM Sans', sans-serif" }}>Tu dois être connectée</p>
         <Link href="/auth" style={{ color: C.copperDark, fontWeight: 600 }}>Se connecter</Link>
       </div>
@@ -184,9 +187,9 @@ export default function SettingsPage() {
       <div style={{
         position: 'fixed', inset: 0, zIndex: 0,
         background:
-          'radial-gradient(ellipse at 20% 0%, #e8c4a8 0%, transparent 55%),' +
-          'radial-gradient(ellipse at 80% 100%, #d4a574 0%, transparent 55%),' +
-          'linear-gradient(180deg, #f3dcc6 0%, #ead0b5 50%, #e0c4a3 100%)',
+          'radial-gradient(ellipse at 20% 0%, var(--novae-primary-soft, #e8c4a8) 0%, transparent 55%),' +
+          'radial-gradient(ellipse at 80% 100%, var(--novae-accent, #d4a574) 0%, transparent 55%),' +
+          'linear-gradient(180deg, var(--novae-background, #f3dcc6) 0%, var(--novae-surface-alt, #ead0b5) 50%, var(--novae-primary-soft, #e0c4a3) 100%)',
       }} />
 
       <div style={{
@@ -199,7 +202,7 @@ export default function SettingsPage() {
             fontSize: 12, color: C.brownLight, textDecoration: 'none',
             padding: '6px 12px', borderRadius: 16,
             background: 'rgba(255, 255, 255, 0.5)',
-            border: '1px solid rgba(212, 165, 116, 0.3)',
+            border: '1px solid var(--novae-border, rgba(212, 165, 116, 0.3))',
             backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
             display: 'inline-block', marginBottom: 12,
           }}>← Accueil</Link>
@@ -256,14 +259,14 @@ export default function SettingsPage() {
                 width: 42,
                 height: 42,
                 borderRadius: 16,
-                background: 'linear-gradient(135deg, #c4956a, #8b5a3c)',
+                background: 'linear-gradient(135deg, var(--novae-accent, #c4956a), var(--novae-primary, #8b5a3c))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'white',
+                color: '#FFFFFF',
                 fontSize: 20,
                 flexShrink: 0,
-                boxShadow: '0 4px 12px rgba(139, 90, 60, 0.18)',
+                boxShadow: '0 4px 12px var(--novae-primary-soft, rgba(139, 90, 60, 0.18))',
               }}>
                 ✦
               </div>
@@ -318,11 +321,11 @@ export default function SettingsPage() {
               width: '100%', padding: '14px 20px', borderRadius: 16, border: 'none',
               background: savedFlash
                 ? 'linear-gradient(135deg, #90c8a8, #6ab089)'
-                : 'linear-gradient(135deg, #c4956a, #8b5a3c)',
-              color: 'white', fontSize: 15, fontWeight: 700,
+                : 'linear-gradient(135deg, var(--novae-accent, #c4956a), var(--novae-primary, #8b5a3c))',
+              color: '#FFFFFF', fontSize: 15, fontWeight: 700,
               cursor: saving ? 'wait' : 'pointer',
               fontFamily: 'inherit',
-              boxShadow: '0 4px 12px rgba(139, 90, 60, 0.2)',
+              boxShadow: '0 4px 12px rgba(55, 35, 25, 0.16)',
               transition: 'background 0.3s',
               opacity: saving ? 0.7 : 1,
               marginBottom: 32,
@@ -389,7 +392,7 @@ export default function SettingsPage() {
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              background: '#ffffff', borderRadius: 20,
+              background: C.surface, borderRadius: 20,
               maxWidth: 420, width: '100%', padding: 28,
               boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
               fontFamily: "'DM Sans', sans-serif",
@@ -402,10 +405,10 @@ export default function SettingsPage() {
             }}>
               Supprimer ton compte ?
             </h3>
-            <p style={{ fontSize: 14, color: '#3d2618', lineHeight: 1.6, margin: '0 0 16px' }}>
+            <p style={{ fontSize: 14, color: C.brown, lineHeight: 1.6, margin: '0 0 16px' }}>
               Cette action est <strong>irréversible</strong>. Tu vas perdre :
             </p>
-            <ul style={{ fontSize: 13, color: '#6b5340', lineHeight: 1.7, margin: '0 0 20px', paddingLeft: 20 }}>
+            <ul style={{ fontSize: 13, color: C.brownLight, lineHeight: 1.7, margin: '0 0 20px', paddingLeft: 20 }}>
               <li>Ta progression du Reset 90 jours</li>
               <li>Tes missions complétées et tes réflexions</li>
               <li>Toutes tes conversations avec NOVAÉ</li>
@@ -413,7 +416,7 @@ export default function SettingsPage() {
               <li>Tes routines, recettes, planner, notes, famille</li>
               <li>Ton profil et ton inscription Brevo</li>
             </ul>
-            <p style={{ fontSize: 13, color: '#3d2618', margin: '0 0 8px' }}>
+            <p style={{ fontSize: 13, color: C.brown, margin: '0 0 8px' }}>
               Pour confirmer, écris <strong>SUPPRIMER</strong> :
             </p>
             <input
@@ -424,8 +427,8 @@ export default function SettingsPage() {
               disabled={deleting}
               style={{
                 width: '100%', padding: '12px 14px', fontSize: 14,
-                fontFamily: 'inherit', color: '#3d2618',
-                background: '#fafafa',
+                fontFamily: 'inherit', color: C.brown,
+                background: C.surfaceAlt,
                 border: '1px solid rgba(180, 80, 80, 0.3)',
                 borderRadius: 12, outline: 'none', boxSizing: 'border-box',
                 marginBottom: 20,
@@ -447,8 +450,8 @@ export default function SettingsPage() {
                 disabled={deleting}
                 style={{
                   flex: 1, padding: '12px', borderRadius: 12,
-                  border: '1px solid #e5e5e5', background: '#ffffff',
-                  color: '#3d2618', fontSize: 14, fontWeight: 600,
+                  border: '1px solid #e5e5e5', background: C.surface,
+                  color: C.brown, fontSize: 14, fontWeight: 600,
                   cursor: deleting ? 'wait' : 'pointer', fontFamily: 'inherit',
                   opacity: deleting ? 0.5 : 1,
                 }}
@@ -463,7 +466,7 @@ export default function SettingsPage() {
                   background: deleteConfirmText === 'SUPPRIMER' && !deleting
                     ? 'linear-gradient(135deg, #c44a4a, #8b3a3a)'
                     : 'rgba(180, 80, 80, 0.2)',
-                  color: deleteConfirmText === 'SUPPRIMER' && !deleting ? '#ffffff' : 'rgba(180, 80, 80, 0.5)',
+                  color: deleteConfirmText === 'SUPPRIMER' && !deleting ? C.surface : 'rgba(180, 80, 80, 0.5)',
                   fontSize: 14, fontWeight: 700,
                   cursor: deleteConfirmText === 'SUPPRIMER' && !deleting ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit',
@@ -484,7 +487,7 @@ function TimeInput({ label, value, onChange }: { label: string; value: string; o
     <div>
       <label style={{
         display: 'block', fontSize: 11, fontWeight: 600,
-        color: '#6b5340', textTransform: 'uppercase',
+        color: C.brownLight, textTransform: 'uppercase',
         letterSpacing: '0.1em', marginBottom: 6,
       }}>{label}</label>
       <input
@@ -493,9 +496,9 @@ function TimeInput({ label, value, onChange }: { label: string; value: string; o
         onChange={e => onChange(e.target.value)}
         style={{
           width: '100%', padding: '10px 14px', fontSize: 15,
-          fontFamily: 'inherit', color: '#3d2618',
+          fontFamily: 'inherit', color: C.brown,
           background: 'rgba(255, 255, 255, 0.55)',
-          border: '1px solid rgba(212, 165, 116, 0.3)',
+          border: '1px solid var(--novae-border, rgba(212, 165, 116, 0.3))',
           borderRadius: 12, outline: 'none', boxSizing: 'border-box',
         }}
       />
@@ -512,8 +515,8 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
       style={{
         width: 48, height: 28, borderRadius: 14, border: 'none',
         background: checked
-          ? 'linear-gradient(135deg, #c4956a, #8b5a3c)'
-          : 'rgba(139, 90, 60, 0.18)',
+          ? 'linear-gradient(135deg, var(--novae-accent, #c4956a), var(--novae-primary, #8b5a3c))'
+          : 'var(--novae-primary-soft, rgba(139, 90, 60, 0.18))',
         position: 'relative', cursor: 'pointer',
         transition: 'background 0.2s', flexShrink: 0, padding: 0,
       }}
@@ -522,7 +525,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
         position: 'absolute', top: 3,
         left: checked ? 23 : 3,
         width: 22, height: 22, borderRadius: '50%',
-        background: 'white',
+        background: '#FFFFFF',
         boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
         transition: 'left 0.2s',
       }} />
@@ -536,24 +539,24 @@ const glassCard: React.CSSProperties = {
   WebkitBackdropFilter: 'blur(18px)',
   border: '1px solid rgba(255, 255, 255, 0.5)',
   borderRadius: 20, padding: 22, marginBottom: 16,
-  boxShadow: '0 4px 16px rgba(139, 90, 60, 0.06)',
+  boxShadow: '0 4px 16px rgba(55, 35, 25, 0.06)',
 }
 
 const sectionTitle: React.CSSProperties = {
   fontFamily: "'Cormorant Garamond', serif",
-  fontSize: 20, color: '#3d2618',
+  fontSize: 20, color: C.brown,
   margin: '0 0 4px', fontWeight: 500,
 }
 
 const sectionDesc: React.CSSProperties = {
-  fontSize: 12, color: '#6b5340',
+  fontSize: 12, color: C.brownLight,
   margin: '0 0 18px', opacity: 0.85,
 }
 
 const notifRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12,
   padding: '12px 14px',
-  background: 'rgba(255, 255, 255, 0.4)',
-  border: '1px solid rgba(212, 165, 116, 0.18)',
+  background: 'color-mix(in srgb, var(--novae-surface, #FFFFFF) 68%, transparent)',
+  border: '1px solid var(--novae-border, rgba(212, 165, 116, 0.18))',
   borderRadius: 14,
 }

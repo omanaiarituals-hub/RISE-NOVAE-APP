@@ -226,7 +226,7 @@ function dueDateStatusColor(status: AdministrativeDocumentExtractedData['due_dat
   if (status === 'overdue') return '#9F2525'
   if (status === 'today') return '#A65E12'
   if (status === 'upcoming') return '#2F7A4F'
-  return '#6F625C'
+  return 'var(--novae-text-muted, #6F625C)'
 }
 
 function processingStatusLabel(status: SavedAdministrativeDocument['processing_status']) {
@@ -265,7 +265,7 @@ function reminderStatusLabel(reminder: AdministrativeDocumentReminder) {
 
 function reminderStatusColor(reminder: AdministrativeDocumentReminder) {
   if (reminder.sent_at) return '#2F7A4F'
-  if (reminder.skipped_at) return '#9A6A5B'
+  if (reminder.skipped_at) return 'var(--novae-secondary, #9A6A5B)'
   return '#A65E12'
 }
 
@@ -1156,15 +1156,15 @@ setDocumentReminders(remindersByDocument)
     return (
       <main style={{
         minHeight: '100vh',
-        background: '#FBF7F2',
+        background: 'var(--novae-background, #FBF7F2)',
         padding: '32px 16px',
-        color: '#2B2320',
+        color: 'var(--novae-text-main, #2B2320)',
       }}>
         <section style={{
           maxWidth: 720,
           margin: '0 auto',
-          background: '#FFFFFF',
-          border: '1px solid #EADDD2',
+          background: 'var(--novae-surface, #FFFFFF)',
+          border: '1px solid var(--novae-border, #EADDD2)',
           borderRadius: 24,
           padding: 24,
         }}>
@@ -1178,22 +1178,22 @@ setDocumentReminders(remindersByDocument)
     return (
       <main style={{
         minHeight: '100vh',
-        background: '#FBF7F2',
+        background: 'var(--novae-background, #FBF7F2)',
         padding: '32px 16px',
-        color: '#2B2320',
+        color: 'var(--novae-text-main, #2B2320)',
       }}>
         <section style={{
           maxWidth: 720,
           margin: '0 auto',
-          background: '#FFFFFF',
-          border: '1px solid #EADDD2',
+          background: 'var(--novae-surface, #FFFFFF)',
+          border: '1px solid var(--novae-border, #EADDD2)',
           borderRadius: 24,
           padding: 24,
         }}>
-          <h1 style={{ margin: '0 0 12px', color: '#4A1F1B' }}>
+          <h1 style={{ margin: '0 0 12px', color: 'var(--novae-primary, #4A1F1B)' }}>
             Module en test privé
           </h1>
-          <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.6 }}>
+          <p style={{ margin: 0, color: 'var(--novae-text-muted, #6F625C)', lineHeight: 1.6 }}>
             Le module administratif est en cours de test et n’est pas encore disponible pour tous les comptes.
           </p>
         </section>
@@ -1204,15 +1204,15 @@ setDocumentReminders(remindersByDocument)
   return (
     <main style={{
       minHeight: '100vh',
-      background: '#FBF7F2',
+      background: 'var(--novae-background, #FBF7F2)',
       padding: '32px 16px',
-      color: '#2B2320',
+      color: 'var(--novae-text-main, #2B2320)',
     }}>
       <section style={{
         maxWidth: 880,
         margin: '0 auto',
-        background: '#FFFFFF',
-        border: '1px solid #EADDD2',
+        background: 'var(--novae-surface, #FFFFFF)',
+        border: '1px solid var(--novae-border, #EADDD2)',
         borderRadius: 24,
         padding: 24,
         boxShadow: '0 18px 45px rgba(55, 35, 25, 0.08)',
@@ -1224,7 +1224,7 @@ setDocumentReminders(remindersByDocument)
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              color: '#7A2E2A',
+              color: 'var(--novae-primary, #7A2E2A)',
               textDecoration: 'none',
               fontWeight: 700,
               fontSize: 14,
@@ -1239,7 +1239,7 @@ setDocumentReminders(remindersByDocument)
           clear: 'both',
           margin: '0 0 8px',
           fontSize: 13,
-          color: '#9A6A5B',
+          color: 'var(--novae-secondary, #9A6A5B)',
           fontWeight: 700,
           letterSpacing: 0.5,
           textTransform: 'uppercase',
@@ -1251,14 +1251,14 @@ setDocumentReminders(remindersByDocument)
           margin: '0 0 12px',
           fontSize: 30,
           lineHeight: 1.15,
-          color: '#4A1F1B',
+          color: 'var(--novae-primary, #4A1F1B)',
         }}>
           Mes documents administratifs
         </h1>
 
         <p style={{
           margin: '0 0 22px',
-          color: '#6F625C',
+          color: 'var(--novae-text-muted, #6F625C)',
           fontSize: 15,
           lineHeight: 1.6,
         }}>
@@ -1276,11 +1276,11 @@ setDocumentReminders(remindersByDocument)
             type="button"
             onClick={() => setActiveView('add')}
             style={{
-              border: activeView === 'add' ? '1px solid #7A2E2A' : '1px solid #D7C8BE',
+              border: activeView === 'add' ? '1px solid var(--novae-primary, #7A2E2A)' : '1px solid var(--novae-border, #D7C8BE)',
               borderRadius: 999,
               padding: '11px 16px',
-              background: activeView === 'add' ? '#7A2E2A' : '#FFFFFF',
-              color: activeView === 'add' ? '#FFFFFF' : '#7A2E2A',
+              background: activeView === 'add' ? 'var(--novae-primary, #7A2E2A)' : 'var(--novae-surface, #FFFFFF)',
+              color: activeView === 'add' ? 'var(--novae-surface, #FFFFFF)' : 'var(--novae-primary, #7A2E2A)',
               fontWeight: 700,
               cursor: 'pointer',
             }}
@@ -1295,11 +1295,11 @@ setDocumentReminders(remindersByDocument)
               loadSavedDocuments()
             }}
             style={{
-              border: activeView === 'archives' ? '1px solid #7A2E2A' : '1px solid #D7C8BE',
+              border: activeView === 'archives' ? '1px solid var(--novae-primary, #7A2E2A)' : '1px solid var(--novae-border, #D7C8BE)',
               borderRadius: 999,
               padding: '11px 16px',
-              background: activeView === 'archives' ? '#7A2E2A' : '#FFFFFF',
-              color: activeView === 'archives' ? '#FFFFFF' : '#7A2E2A',
+              background: activeView === 'archives' ? 'var(--novae-primary, #7A2E2A)' : 'var(--novae-surface, #FFFFFF)',
+              color: activeView === 'archives' ? 'var(--novae-surface, #FFFFFF)' : 'var(--novae-primary, #7A2E2A)',
               fontWeight: 700,
               cursor: 'pointer',
             }}
@@ -1314,11 +1314,11 @@ Mes documents archivés ({archivedDocuments.length})
               loadSavedDocuments()
             }}
             style={{
-              border: activeView === 'vault' ? '1px solid #7A2E2A' : '1px solid #D7C8BE',
+              border: activeView === 'vault' ? '1px solid var(--novae-primary, #7A2E2A)' : '1px solid var(--novae-border, #D7C8BE)',
               borderRadius: 999,
               padding: '11px 16px',
-              background: activeView === 'vault' ? '#7A2E2A' : '#FFFFFF',
-              color: activeView === 'vault' ? '#FFFFFF' : '#7A2E2A',
+              background: activeView === 'vault' ? 'var(--novae-primary, #7A2E2A)' : 'var(--novae-surface, #FFFFFF)',
+              color: activeView === 'vault' ? 'var(--novae-surface, #FFFFFF)' : 'var(--novae-primary, #7A2E2A)',
               fontWeight: 700,
               cursor: 'pointer',
             }}
@@ -1330,17 +1330,17 @@ Mes documents archivés ({archivedDocuments.length})
         {activeView === 'add' && (
           <>
             <div style={{
-              border: '1px dashed #D8B9A8',
+              border: '1px dashed var(--novae-border, #D8B9A8)',
               borderRadius: 18,
               padding: 20,
-              background: '#FFF9F5',
+              background: 'var(--novae-surface-alt, #FFF9F5)',
               marginBottom: 20,
             }}>
               <label style={{
                 display: 'block',
                 fontWeight: 700,
                 marginBottom: 10,
-                color: '#4A1F1B',
+                color: 'var(--novae-primary, #4A1F1B)',
               }}>
                 Photo ou PDF du document à analyser
               </label>
@@ -1353,7 +1353,7 @@ Mes documents archivés ({archivedDocuments.length})
               />
 
               {selectedFile && (
-                <p style={{ margin: '12px 0 0', fontSize: 13, color: '#6F625C' }}>
+                <p style={{ margin: '12px 0 0', fontSize: 13, color: 'var(--novae-text-muted, #6F625C)' }}>
                   Fichier sélectionné : {selectedFile.name} — {formatBytes(selectedFile.size)}
                   {compressedSize ? ` — compressé à ${compressedSize}` : ''}
                 </p>
@@ -1368,7 +1368,7 @@ Mes documents archivés ({archivedDocuments.length})
                   border: 'none',
                   borderRadius: 999,
                   padding: '12px 18px',
-                  background: isScanning || !selectedFile ? '#D7C8BE' : '#7A2E2A',
+                  background: isScanning || !selectedFile ? 'var(--novae-border, #D7C8BE)' : 'var(--novae-primary, #7A2E2A)',
                   color: 'white',
                   fontWeight: 700,
                   cursor: isScanning || !selectedFile ? 'not-allowed' : 'pointer',
@@ -1393,12 +1393,12 @@ Mes documents archivés ({archivedDocuments.length})
 
             {extraction && (
               <section style={{
-                border: '1px solid #EADDD2',
+                border: '1px solid var(--novae-border, #EADDD2)',
                 borderRadius: 18,
                 padding: 20,
-                background: '#FFFFFF',
+                background: 'var(--novae-surface, #FFFFFF)',
               }}>
-                <h2 style={{ margin: '0 0 16px', color: '#4A1F1B', fontSize: 22 }}>
+                <h2 style={{ margin: '0 0 16px', color: 'var(--novae-primary, #4A1F1B)', fontSize: 22 }}>
                   Analyse du document
                 </h2>
 
@@ -1458,20 +1458,20 @@ Mes documents archivés ({archivedDocuments.length})
 
                 <div style={{
                   marginTop: 22,
-                  border: '1px solid #D8B9A8',
-                  background: '#FFF9F5',
+                  border: '1px solid var(--novae-border, #D8B9A8)',
+                  background: 'var(--novae-surface-alt, #FFF9F5)',
                   borderRadius: 18,
                   padding: 18,
                 }}>
-                  <h3 style={{ margin: '0 0 8px', fontSize: 17, color: '#4A1F1B' }}>
+                  <h3 style={{ margin: '0 0 8px', fontSize: 17, color: 'var(--novae-primary, #4A1F1B)' }}>
                     Validation utilisateur requise
                   </h3>
 
-                  <p style={{ margin: '0 0 14px', color: '#5D504B', lineHeight: 1.55 }}>
+                  <p style={{ margin: '0 0 14px', color: 'var(--novae-text-muted, #5D504B)', lineHeight: 1.55 }}>
                     Nova a analysé le document. À toi de choisir ce que tu veux ajouter.
                   </p>
 
-                  <ul style={{ margin: '0 0 16px', paddingLeft: 20, color: '#5D504B', lineHeight: 1.6 }}>
+                  <ul style={{ margin: '0 0 16px', paddingLeft: 20, color: 'var(--novae-text-muted, #5D504B)', lineHeight: 1.6 }}>
                     <li>{createdTaskId ? 'Une tâche a été créée après validation' : 'Aucune tâche créée'}</li>
                     <li>{createdEventId ? 'Une échéance a été ajoutée au planner après validation' : 'Aucune échéance ajoutée au planner'}</li>
                     <li>Aucun rappel automatique programmé</li>
@@ -1499,7 +1499,7 @@ Mes documents archivés ({archivedDocuments.length})
                         border: 'none',
                         borderRadius: 999,
                         padding: '11px 16px',
-                        background: isCreatingTask || createdTaskId ? '#D7C8BE' : '#7A2E2A',
+                        background: isCreatingTask || createdTaskId ? 'var(--novae-border, #D7C8BE)' : 'var(--novae-primary, #7A2E2A)',
                         color: 'white',
                         fontWeight: 700,
                         cursor: isCreatingTask || createdTaskId ? 'not-allowed' : 'pointer',
@@ -1517,11 +1517,11 @@ Mes documents archivés ({archivedDocuments.length})
                       onClick={handleCreateEvent}
                       disabled={isCreatingEvent || Boolean(createdEventId)}
                       style={{
-                        border: '1px solid #D7C8BE',
+                        border: '1px solid var(--novae-border, #D7C8BE)',
                         borderRadius: 999,
                         padding: '11px 16px',
-                        background: isCreatingEvent || createdEventId ? '#F0E7DF' : 'white',
-                        color: isCreatingEvent || createdEventId ? '#9A6A5B' : '#7A2E2A',
+                        background: isCreatingEvent || createdEventId ? 'var(--novae-primary-soft, #F0E7DF)' : 'white',
+                        color: isCreatingEvent || createdEventId ? 'var(--novae-secondary, #9A6A5B)' : 'var(--novae-primary, #7A2E2A)',
                         fontWeight: 700,
                         cursor: isCreatingEvent || createdEventId ? 'not-allowed' : 'pointer',
                       }}
@@ -1534,11 +1534,11 @@ Mes documents archivés ({archivedDocuments.length})
                       onClick={handleSaveDocument}
                       disabled={isSavingDocument || Boolean(savedDocumentId)}
                       style={{
-                        border: '1px solid #B8895E',
+                        border: '1px solid var(--novae-secondary, #B8895E)',
                         borderRadius: 999,
                         padding: '11px 16px',
-                        background: isSavingDocument || savedDocumentId ? '#F0E7DF' : '#FFFFFF',
-                        color: isSavingDocument || savedDocumentId ? '#9A6A5B' : '#7A2E2A',
+                        background: isSavingDocument || savedDocumentId ? 'var(--novae-primary-soft, #F0E7DF)' : 'var(--novae-surface, #FFFFFF)',
+                        color: isSavingDocument || savedDocumentId ? 'var(--novae-secondary, #9A6A5B)' : 'var(--novae-primary, #7A2E2A)',
                         fontWeight: 700,
                         cursor: isSavingDocument || savedDocumentId ? 'not-allowed' : 'pointer',
                       }}
@@ -1551,11 +1551,11 @@ Mes documents archivés ({archivedDocuments.length})
                       onClick={handleSaveDocumentToVault}
                       disabled={isSavingDocument || Boolean(savedDocumentId)}
                       style={{
-                        border: '1px solid #7A2E2A',
+                        border: '1px solid var(--novae-primary, #7A2E2A)',
                         borderRadius: 999,
                         padding: '11px 16px',
-                        background: isSavingDocument || savedDocumentId ? '#F0E7DF' : '#FFF9F5',
-                        color: isSavingDocument || savedDocumentId ? '#9A6A5B' : '#7A2E2A',
+                        background: isSavingDocument || savedDocumentId ? 'var(--novae-primary-soft, #F0E7DF)' : 'var(--novae-surface-alt, #FFF9F5)',
+                        color: isSavingDocument || savedDocumentId ? 'var(--novae-secondary, #9A6A5B)' : 'var(--novae-primary, #7A2E2A)',
                         fontWeight: 800,
                         cursor: isSavingDocument || savedDocumentId ? 'not-allowed' : 'pointer',
                       }}
@@ -1564,7 +1564,7 @@ Mes documents archivés ({archivedDocuments.length})
                     </button>
                   </div>
 
-                  <p style={{ margin: '12px 0 0', color: '#6F625C', fontSize: 13, lineHeight: 1.45 }}>
+                  <p style={{ margin: '12px 0 0', color: 'var(--novae-text-muted, #6F625C)', fontSize: 13, lineHeight: 1.45 }}>
                     Le coffre demande un code PIN et utilise un accès temporaire. À utiliser pour les documents sensibles.
                   </p>
 
@@ -1667,17 +1667,17 @@ Mes documents archivés ({archivedDocuments.length})
           <div style={{
             width: '100%',
             maxWidth: 420,
-            background: '#FFFFFF',
+            background: 'var(--novae-surface, #FFFFFF)',
             borderRadius: 22,
             padding: 22,
-            border: '1px solid #EADDD2',
+            border: '1px solid var(--novae-border, #EADDD2)',
             boxShadow: '0 18px 45px rgba(55, 35, 25, 0.18)',
           }}>
-            <h2 style={{ margin: '0 0 8px', color: '#4A1F1B', fontSize: 22 }}>
+            <h2 style={{ margin: '0 0 8px', color: 'var(--novae-primary, #4A1F1B)', fontSize: 22 }}>
               {vaultModalMode === 'setup' ? 'Créer ton code coffre' : 'Déverrouiller le coffre'}
             </h2>
 
-            <p style={{ margin: '0 0 16px', color: '#6F625C', lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 16px', color: 'var(--novae-text-muted, #6F625C)', lineHeight: 1.5 }}>
               {vaultModalMode === 'setup'
                 ? 'Choisis un code PIN de 4 à 8 chiffres. Il ne sera jamais stocké en clair.'
                 : 'Entre ton code PIN pour accéder au coffre sécurisé pendant quelques minutes.'}
@@ -1692,7 +1692,7 @@ Mes documents archivés ({archivedDocuments.length})
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
-                border: '1px solid #D7C8BE',
+                border: '1px solid var(--novae-border, #D7C8BE)',
                 borderRadius: 12,
                 padding: '12px 14px',
                 fontSize: 16,
@@ -1710,7 +1710,7 @@ Mes documents archivés ({archivedDocuments.length})
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  border: '1px solid #D7C8BE',
+                  border: '1px solid var(--novae-border, #D7C8BE)',
                   borderRadius: 12,
                   padding: '12px 14px',
                   fontSize: 16,
@@ -1742,11 +1742,11 @@ Mes documents archivés ({archivedDocuments.length})
                 }}
                 disabled={isVaultBusy}
                 style={{
-                  border: '1px solid #D7C8BE',
+                  border: '1px solid var(--novae-border, #D7C8BE)',
                   borderRadius: 999,
                   padding: '10px 14px',
-                  background: '#FFFFFF',
-                  color: '#7A2E2A',
+                  background: 'var(--novae-surface, #FFFFFF)',
+                  color: 'var(--novae-primary, #7A2E2A)',
                   fontWeight: 700,
                   cursor: isVaultBusy ? 'not-allowed' : 'pointer',
                 }}
@@ -1762,8 +1762,8 @@ Mes documents archivés ({archivedDocuments.length})
                   border: 'none',
                   borderRadius: 999,
                   padding: '10px 14px',
-                  background: '#7A2E2A',
-                  color: '#FFFFFF',
+                  background: 'var(--novae-primary, #7A2E2A)',
+                  color: 'var(--novae-surface, #FFFFFF)',
                   fontWeight: 700,
                   cursor: isVaultBusy ? 'not-allowed' : 'pointer',
                 }}
@@ -1830,10 +1830,10 @@ function SavedDocumentsSection({
 }) {
   return (
     <section style={{
-      border: '1px solid #EADDD2',
+      border: '1px solid var(--novae-border, #EADDD2)',
       borderRadius: 18,
       padding: 20,
-      background: '#FFFFFF',
+      background: 'var(--novae-surface, #FFFFFF)',
     }}>
       <div style={{
         display: 'flex',
@@ -1843,10 +1843,10 @@ function SavedDocumentsSection({
         marginBottom: 14,
       }}>
         <div>
-          <h2 style={{ margin: 0, color: '#4A1F1B', fontSize: 22 }}>
+          <h2 style={{ margin: 0, color: 'var(--novae-primary, #4A1F1B)', fontSize: 22 }}>
             {title}
           </h2>
-          <p style={{ margin: '6px 0 0', color: '#6F625C', lineHeight: 1.5 }}>
+          <p style={{ margin: '6px 0 0', color: 'var(--novae-text-muted, #6F625C)', lineHeight: 1.5 }}>
             {description}
           </p>
         </div>
@@ -1856,11 +1856,11 @@ function SavedDocumentsSection({
           onClick={onRefresh}
           disabled={isLoading}
           style={{
-            border: '1px solid #D7C8BE',
+            border: '1px solid var(--novae-border, #D7C8BE)',
             borderRadius: 999,
             padding: '9px 13px',
-            background: '#FFFFFF',
-            color: '#7A2E2A',
+            background: 'var(--novae-surface, #FFFFFF)',
+            color: 'var(--novae-primary, #7A2E2A)',
             fontWeight: 700,
             cursor: isLoading ? 'not-allowed' : 'pointer',
           }}
@@ -1883,7 +1883,7 @@ function SavedDocumentsSection({
       )}
 
       {!isLoading && documents.length === 0 && (
-        <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
+        <p style={{ margin: 0, color: 'var(--novae-text-muted, #6F625C)', lineHeight: 1.5 }}>
           {emptyMessage}
         </p>
       )}
@@ -1900,10 +1900,10 @@ function SavedDocumentsSection({
               <div
                 key={document.id}
                 style={{
-                  border: '1px solid #EFE2D8',
+                  border: '1px solid var(--novae-border, #EFE2D8)',
                   borderRadius: 14,
                   padding: 14,
-                  background: '#FFFCFA',
+                  background: 'var(--novae-surface-alt, #FFFCFA)',
                 }}
               >
                 <div style={{
@@ -1913,16 +1913,16 @@ function SavedDocumentsSection({
                   alignItems: 'flex-start',
                 }}>
                   <div>
-                    <h3 style={{ margin: '0 0 6px', color: '#4A1F1B', fontSize: 16 }}>
+                    <h3 style={{ margin: '0 0 6px', color: 'var(--novae-primary, #4A1F1B)', fontSize: 16 }}>
                       {document.title || 'Document administratif'}
                     </h3>
 
-                    <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
+                    <p style={{ margin: 0, color: 'var(--novae-text-muted, #6F625C)', lineHeight: 1.5 }}>
                       {document.sender ? `${document.sender} · ` : ''}
                       {document.document_type || 'type non détecté'}
                     </p>
 
-                    <p style={{ margin: '6px 0 0', color: '#6F625C', lineHeight: 1.5 }}>
+                    <p style={{ margin: '6px 0 0', color: 'var(--novae-text-muted, #6F625C)', lineHeight: 1.5 }}>
                       {document.due_date
                         ? `Date limite : ${document.due_date}`
                         : 'Aucune date limite détectée'}
@@ -1939,7 +1939,7 @@ function SavedDocumentsSection({
                     {document.vault_protected && (
                       <p style={{
                         margin: '6px 0 0',
-                        color: '#7A2E2A',
+                        color: 'var(--novae-primary, #7A2E2A)',
                         fontWeight: 800,
                         fontSize: 13,
                       }}>
@@ -1961,12 +1961,12 @@ function SavedDocumentsSection({
                       )}
                     </p>
 
-                    <p style={{ margin: 0, color: '#6F625C', fontSize: 13 }}>
+                    <p style={{ margin: 0, color: 'var(--novae-text-muted, #6F625C)', fontSize: 13 }}>
                       {new Date(document.created_at).toLocaleDateString('fr-FR')}
                     </p>
 
                     {document.amount !== null && (
-                      <p style={{ margin: '6px 0 0', color: '#4A1F1B', fontWeight: 700 }}>
+                      <p style={{ margin: '6px 0 0', color: 'var(--novae-primary, #4A1F1B)', fontWeight: 700 }}>
                         {document.amount} {document.currency || 'EUR'}
                       </p>
                     )}
@@ -1977,11 +1977,11 @@ function SavedDocumentsSection({
                         onClick={() => onOpenDocument(document)}
                         disabled={openingDocumentId === document.id}
                         style={{
-                          border: '1px solid #D7C8BE',
+                          border: '1px solid var(--novae-border, #D7C8BE)',
                           borderRadius: 999,
                           padding: '8px 12px',
-                          background: openingDocumentId === document.id ? '#F0E7DF' : '#FFFFFF',
-                          color: openingDocumentId === document.id ? '#9A6A5B' : '#7A2E2A',
+                          background: openingDocumentId === document.id ? 'var(--novae-primary-soft, #F0E7DF)' : 'var(--novae-surface, #FFFFFF)',
+                          color: openingDocumentId === document.id ? 'var(--novae-secondary, #9A6A5B)' : 'var(--novae-primary, #7A2E2A)',
                           fontWeight: 700,
                           cursor: openingDocumentId === document.id ? 'not-allowed' : 'pointer',
                         }}
@@ -1993,11 +1993,11 @@ function SavedDocumentsSection({
                         type="button"
                         onClick={() => onManageDocument(isManaging ? null : document.id)}
                         style={{
-                          border: '1px solid #D7C8BE',
+                          border: '1px solid var(--novae-border, #D7C8BE)',
                           borderRadius: 999,
                           padding: '8px 12px',
-                          background: isManaging ? '#7A2E2A' : '#FFFFFF',
-                          color: isManaging ? '#FFFFFF' : '#7A2E2A',
+                          background: isManaging ? 'var(--novae-primary, #7A2E2A)' : 'var(--novae-surface, #FFFFFF)',
+                          color: isManaging ? 'var(--novae-surface, #FFFFFF)' : 'var(--novae-primary, #7A2E2A)',
                           fontWeight: 700,
                           cursor: 'pointer',
                         }}
@@ -2011,7 +2011,7 @@ function SavedDocumentsSection({
                 {isManaging && (
                   <div style={{
                     marginTop: 14,
-                    borderTop: '1px solid #EFE2D8',
+                    borderTop: '1px solid var(--novae-border, #EFE2D8)',
                     paddingTop: 14,
                   }}>
                     {document.summary && (
@@ -2039,11 +2039,11 @@ function SavedDocumentsSection({
                         onClick={() => onUpdateProcessingStatus(document.id, 'in_progress')}
                         disabled={isUpdating || document.processing_status === 'in_progress'}
                         style={{
-                          border: '1px solid #D7C8BE',
+                          border: '1px solid var(--novae-border, #D7C8BE)',
                           borderRadius: 999,
                           padding: '8px 12px',
-                          background: '#FFFFFF',
-                          color: '#7A2E2A',
+                          background: 'var(--novae-surface, #FFFFFF)',
+                          color: 'var(--novae-primary, #7A2E2A)',
                           fontWeight: 700,
                           cursor: isUpdating ? 'not-allowed' : 'pointer',
                         }}
@@ -2060,7 +2060,7 @@ function SavedDocumentsSection({
                           borderRadius: 999,
                           padding: '8px 12px',
                           background: '#2F7A4F',
-                          color: '#FFFFFF',
+                          color: 'var(--novae-surface, #FFFFFF)',
                           fontWeight: 700,
                           cursor: isUpdating ? 'not-allowed' : 'pointer',
                         }}
@@ -2073,11 +2073,11 @@ function SavedDocumentsSection({
                         onClick={() => onUpdateProcessingStatus(document.id, 'todo')}
                         disabled={isUpdating || document.processing_status === 'todo'}
                         style={{
-                          border: '1px solid #D7C8BE',
+                          border: '1px solid var(--novae-border, #D7C8BE)',
                           borderRadius: 999,
                           padding: '8px 12px',
-                          background: '#FFFFFF',
-                          color: '#7A2E2A',
+                          background: 'var(--novae-surface, #FFFFFF)',
+                          color: 'var(--novae-primary, #7A2E2A)',
                           fontWeight: 700,
                           cursor: isUpdating ? 'not-allowed' : 'pointer',
                         }}
@@ -2091,11 +2091,11 @@ function SavedDocumentsSection({
                           onClick={() => onToggleVaultProtection(document, false)}
                           disabled={isVaultUpdating}
                           style={{
-                            border: '1px solid #D7C8BE',
+                            border: '1px solid var(--novae-border, #D7C8BE)',
                             borderRadius: 999,
                             padding: '8px 12px',
-                            background: '#FFFFFF',
-                            color: '#7A2E2A',
+                            background: 'var(--novae-surface, #FFFFFF)',
+                            color: 'var(--novae-primary, #7A2E2A)',
                             fontWeight: 700,
                             cursor: isVaultUpdating ? 'not-allowed' : 'pointer',
                           }}
@@ -2108,11 +2108,11 @@ function SavedDocumentsSection({
                           onClick={() => onToggleVaultProtection(document, true, 'sensitive')}
                           disabled={isVaultUpdating}
                           style={{
-                            border: '1px solid #B8895E',
+                            border: '1px solid var(--novae-secondary, #B8895E)',
                             borderRadius: 999,
                             padding: '8px 12px',
-                            background: '#FFF9F5',
-                            color: '#7A2E2A',
+                            background: 'var(--novae-surface-alt, #FFF9F5)',
+                            color: 'var(--novae-primary, #7A2E2A)',
                             fontWeight: 800,
                             cursor: isVaultUpdating ? 'not-allowed' : 'pointer',
                           }}
@@ -2160,15 +2160,15 @@ function Info({
 }) {
   return (
     <div style={{
-      border: '1px solid #EFE2D8',
+      border: '1px solid var(--novae-border, #EFE2D8)',
       borderRadius: 14,
       padding: 12,
-      background: '#FFFCFA',
+      background: 'var(--novae-surface-alt, #FFFCFA)',
     }}>
-      <p style={{ margin: '0 0 4px', fontSize: 12, color: '#9A6A5B', fontWeight: 700 }}>
+      <p style={{ margin: '0 0 4px', fontSize: 12, color: 'var(--novae-secondary, #9A6A5B)', fontWeight: 700 }}>
         {label}
       </p>
-      <p style={{ margin: 0, color: color || '#2B2320', fontWeight: color ? 700 : 400 }}>
+      <p style={{ margin: 0, color: color || 'var(--novae-text-main, #2B2320)', fontWeight: color ? 700 : 400 }}>
         {value || 'Non détecté'}
       </p>
     </div>
@@ -2180,10 +2180,10 @@ function Block({ title, value }: { title: string; value: string | null }) {
 
   return (
     <div style={{ marginTop: 14 }}>
-      <h3 style={{ margin: '0 0 6px', fontSize: 15, color: '#4A1F1B' }}>
+      <h3 style={{ margin: '0 0 6px', fontSize: 15, color: 'var(--novae-primary, #4A1F1B)' }}>
         {title}
       </h3>
-      <p style={{ margin: 0, color: '#5D504B', lineHeight: 1.55 }}>
+      <p style={{ margin: 0, color: 'var(--novae-text-muted, #5D504B)', lineHeight: 1.55 }}>
         {value}
       </p>
     </div>
@@ -2193,10 +2193,10 @@ function Block({ title, value }: { title: string; value: string | null }) {
 function ListBlock({ title, items }: { title: string; items: string[] }) {
   return (
     <div style={{ marginTop: 14 }}>
-      <h3 style={{ margin: '0 0 6px', fontSize: 15, color: '#4A1F1B' }}>
+      <h3 style={{ margin: '0 0 6px', fontSize: 15, color: 'var(--novae-primary, #4A1F1B)' }}>
         {title}
       </h3>
-      <ul style={{ margin: 0, paddingLeft: 20, color: '#5D504B', lineHeight: 1.55 }}>
+      <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--novae-text-muted, #5D504B)', lineHeight: 1.55 }}>
         {items.map((item) => (
           <li key={item}>{item}</li>
         ))}
@@ -2210,15 +2210,15 @@ function ReminderBlock({ reminders }: { reminders: AdministrativeDocumentReminde
     return (
       <div style={{
         marginTop: 14,
-        border: '1px solid #EFE2D8',
+        border: '1px solid var(--novae-border, #EFE2D8)',
         borderRadius: 14,
         padding: 12,
-        background: '#FFFCFA',
+        background: 'var(--novae-surface-alt, #FFFCFA)',
       }}>
-        <h3 style={{ margin: '0 0 6px', fontSize: 15, color: '#4A1F1B' }}>
+        <h3 style={{ margin: '0 0 6px', fontSize: 15, color: 'var(--novae-primary, #4A1F1B)' }}>
           Rappels programmés
         </h3>
-        <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
+        <p style={{ margin: 0, color: 'var(--novae-text-muted, #6F625C)', lineHeight: 1.5 }}>
           Aucun rappel automatique programmé pour ce document.
         </p>
       </div>
@@ -2228,12 +2228,12 @@ function ReminderBlock({ reminders }: { reminders: AdministrativeDocumentReminde
   return (
     <div style={{
       marginTop: 14,
-      border: '1px solid #EFE2D8',
+      border: '1px solid var(--novae-border, #EFE2D8)',
       borderRadius: 14,
       padding: 12,
-      background: '#FFFCFA',
+      background: 'var(--novae-surface-alt, #FFFCFA)',
     }}>
-      <h3 style={{ margin: '0 0 10px', fontSize: 15, color: '#4A1F1B' }}>
+      <h3 style={{ margin: '0 0 10px', fontSize: 15, color: 'var(--novae-primary, #4A1F1B)' }}>
         Rappels programmés
       </h3>
 
@@ -2242,17 +2242,17 @@ function ReminderBlock({ reminders }: { reminders: AdministrativeDocumentReminde
           <div
             key={reminder.id}
             style={{
-              border: '1px solid #EFE2D8',
+              border: '1px solid var(--novae-border, #EFE2D8)',
               borderRadius: 12,
               padding: 10,
-              background: '#FFFFFF',
+              background: 'var(--novae-surface, #FFFFFF)',
             }}
           >
-            <p style={{ margin: '0 0 4px', color: '#4A1F1B', fontWeight: 700 }}>
+            <p style={{ margin: '0 0 4px', color: 'var(--novae-primary, #4A1F1B)', fontWeight: 700 }}>
               {reminderTypeLabel(reminder.reminder_type)}
             </p>
 
-            <p style={{ margin: '0 0 4px', color: '#6F625C', fontSize: 13 }}>
+            <p style={{ margin: '0 0 4px', color: 'var(--novae-text-muted, #6F625C)', fontSize: 13 }}>
               Prévu le {new Date(reminder.scheduled_for).toLocaleString('fr-FR')}
             </p>
 
@@ -2266,7 +2266,7 @@ function ReminderBlock({ reminders }: { reminders: AdministrativeDocumentReminde
             </p>
 
             {reminder.skip_reason && (
-              <p style={{ margin: '4px 0 0', color: '#9A6A5B', fontSize: 12 }}>
+              <p style={{ margin: '4px 0 0', color: 'var(--novae-secondary, #9A6A5B)', fontSize: 12 }}>
                 Raison : {reminder.skip_reason}
               </p>
             )}

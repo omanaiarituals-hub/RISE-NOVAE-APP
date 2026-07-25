@@ -478,16 +478,16 @@ export default function PersonnalisationPage() {
       }
 
       window.localStorage.setItem(
-  'novae-interface-preferences',
-  JSON.stringify({
-    theme_key: interfacePreferences.theme_key,
-    interface_density: interfacePreferences.interface_density,
-    reduced_motion: interfacePreferences.reduced_motion,
-    high_contrast: interfacePreferences.high_contrast,
-  })
-)
+        'novae-interface-preferences',
+        JSON.stringify({
+          theme_key: interfacePreferences.theme_key,
+          interface_density: interfacePreferences.interface_density,
+          reduced_motion: interfacePreferences.reduced_motion,
+          high_contrast: interfacePreferences.high_contrast,
+        })
+      )
 
-window.dispatchEvent(new Event('novae-theme-updated'))
+      window.dispatchEvent(new Event('novae-theme-updated'))
 
       setSuccessMessage('Personnalisation enregistrée. Nova pourra utiliser ces préférences progressivement.')
     } catch (saveError) {
@@ -505,15 +505,15 @@ window.dispatchEvent(new Event('novae-theme-updated'))
     return (
       <main style={{
         minHeight: '100vh',
-        background: '#FBF7F2',
+        background: 'var(--novae-background, #FBF7F2)',
         padding: '32px 16px',
-        color: '#2B2320',
+        color: 'var(--novae-text-main, #2B2320)',
       }}>
         <section style={{
           maxWidth: 920,
           margin: '0 auto',
-          background: '#FFFFFF',
-          border: '1px solid #EADDD2',
+          background: 'var(--novae-surface, #FFFFFF)',
+          border: '1px solid var(--novae-border, #EADDD2)',
           borderRadius: 24,
           padding: 24,
         }}>
@@ -1251,7 +1251,7 @@ function MessageBox({
   return (
     <div style={{
       border: `1px solid ${type === 'success' ? theme.success : theme.danger}`,
-      background: type === 'success' ? '#F1FAF4' : '#FFF1F1',
+      background: type === 'success' ? 'rgba(47, 122, 79, 0.10)' : 'rgba(159, 37, 37, 0.10)',
       color: type === 'success' ? theme.success : theme.danger,
       borderRadius: 16,
       padding: 14,
