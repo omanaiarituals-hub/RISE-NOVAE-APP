@@ -236,6 +236,58 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* SECTION PERSONNALISATION */}
+          <Link
+            href="/personnalisation"
+            style={{
+              ...glassCard,
+              display: 'block',
+              textDecoration: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 14,
+            }}>
+              <div style={{
+                width: 42,
+                height: 42,
+                borderRadius: 16,
+                background: 'linear-gradient(135deg, #c4956a, #8b5a3c)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: 20,
+                flexShrink: 0,
+                boxShadow: '0 4px 12px rgba(139, 90, 60, 0.18)',
+              }}>
+                ✦
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <h2 style={sectionTitle}>Personnalisation de Nova</h2>
+                <p style={sectionDesc}>
+                  Adapte le ton de Nova, tes priorités, tes rappels, les couleurs, la typographie et l’ambiance de ton application.
+                </p>
+
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: C.copperDark,
+                }}>
+                  Ouvrir la personnalisation →
+                </span>
+              </div>
+            </div>
+          </Link>
+          
           {/* SECTION NOTIFS */}
           <div style={glassCard}>
             <h2 style={sectionTitle}>Notifications</h2>
