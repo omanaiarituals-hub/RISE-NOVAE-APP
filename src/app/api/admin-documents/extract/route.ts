@@ -12,8 +12,6 @@ export const runtime = 'nodejs'
 export const maxDuration = 30
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
-const MIN_PDF_TEXT_LENGTH = 80
-const MAX_PDF_TEXT_LENGTH = 12000
 
 async function getSupabaseServerClient() {
   const cookieStore = await cookies()
@@ -98,7 +96,10 @@ function normalizeUrgency(
     urgency === 'high' ||
     urgency === 'critical'
   ) {
-    if (dueDateStatus === 'overdue' && (urgency === 'none' || urgency === 'low' || urgency === 'medium')) {
+    if (
+      dueDateStatus === 'overdue' &&
+      (urgency === 'none' || urgency === 'low' || urgency === 'medium')
+    ) {
       return 'high'
     }
 
@@ -156,34 +157,6 @@ function isImageFile(file: File): boolean {
   return file.type.startsWith('image/')
 }
 
-async function extractTextFromPdf(file: File): Promise<string> {
-  try {
-    const { PDFParse } = await import('pdf-parse')
-
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    const parser = new PDFParse({ data: buffer })
-
-    try {
-      const result = await parser.getText()
-
-      return result.text
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, MAX_PDF_TEXT_LENGTH)
-    } finally {
-      await parser.destroy()
-    }
-  } catch (error) {
-    console.error('[admin documents extract] pdf parse failed', error)
-
-    throw new Error(
-      'Impossible de lire le texte de ce PDF. Pour cette version, utilise un PDF texte simple ou une image du document.'
-    )
-  }
-}
-
 function safeParseExtraction(rawText: string): AdministrativeDocumentExtractedData {
   const cleaned = rawText
     .trim()
@@ -211,13 +184,15 @@ function safeParseExtraction(rawText: string): AdministrativeDocumentExtractedDa
     received_date: stringOrNull(parsed.received_date),
     due_date: dueDate,
     due_date_status: dueDateStatus,
-    recommended_next_step: stringOrNull(parsed.recommended_next_step) ||
+    recommended_next_step:
+      stringOrNull(parsed.recommended_next_step) ||
       (dueDateStatus === 'overdue' ? fallbackOverdueNextStep : null),
     amount: numberOrNull(parsed.amount),
     currency: 'EUR',
     action_required: stringOrNull(parsed.action_required),
-    summary: stringOrNull(parsed.summary) ||
-      'Document administratif analyse. Verification utilisateur requise.',
+    summary:
+      stringOrNull(parsed.summary) ||
+      'Document administratif analysé. Vérification utilisateur requise.',
     urgency,
     confidence: normalizeConfidence(parsed.confidence),
     suggested_task_title: stringOrNull(parsed.suggested_task_title),
@@ -225,10 +200,57 @@ function safeParseExtraction(rawText: string): AdministrativeDocumentExtractedDa
     suggested_event_title: stringOrNull(parsed.suggested_event_title),
     suggested_event_date: stringOrNull(parsed.suggested_event_date),
     missing_information: stringArrayOrEmpty(parsed.missing_information),
-    warnings: warnings.length > 0
-      ? warnings
-      : ['Extraction automatique a verifier avant toute action.'],
+    warnings:
+      warnings.length > 0
+        ? warnings
+        : ['Extraction automatique à vérifier avant toute action.'],
   }
+}
+
+function buildExtractionPrompt(todayISO: string): string {
+  return `
+Analyse ce document administratif.
+
+La date du jour est ${todayISO}.
+
+Retourne uniquement un JSON valide avec exactement ces champs :
+{
+  "title": string | null,
+  "document_type": "tax" | "caf" | "health_insurance" | "insurance" | "school" | "fine" | "invoice" | "bank" | "employment" | "housing" | "other",
+  "sender": string | null,
+  "received_date": "YYYY-MM-DD" | null,
+  "due_date": "YYYY-MM-DD" | null,
+  "due_date_status": "none" | "upcoming" | "today" | "overdue" | "unknown",
+  "recommended_next_step": string | null,
+  "amount": number | null,
+  "currency": "EUR",
+  "action_required": string | null,
+  "summary": string,
+  "urgency": "none" | "low" | "medium" | "high" | "critical",
+  "confidence": number,
+  "suggested_task_title": string | null,
+  "suggested_task_description": string | null,
+  "suggested_event_title": string | null,
+  "suggested_event_date": "YYYY-MM-DD" | null,
+  "missing_information": string[],
+  "warnings": string[]
+}
+
+Règles de raisonnement sur les dates :
+- Si la date limite est avant la date du jour, indique due_date_status = "overdue".
+- Si la date limite est égale à la date du jour, indique due_date_status = "today".
+- Si la date limite est après la date du jour, indique due_date_status = "upcoming".
+- Si aucune date limite n'est visible, indique due_date_status = "none".
+- Si la date est illisible ou ambiguë, indique due_date_status = "unknown".
+- Si l'échéance est dépassée, explique clairement que le délai semble dépassé et propose une action urgente de vérification.
+- Si une amende, facture ou pénalité semble pouvoir être majorée après dépassement, signale le risque sans affirmer une conséquence qui n'est pas visible.
+
+Rappel :
+- N'invente jamais une date, un montant ou un expéditeur.
+- Si ce n'est pas clairement lisible, mets null.
+- Toute action doit être une proposition à valider.
+- Ne donne pas de conseil juridique, fiscal, médical ou financier.
+`
 }
 
 async function callAnthropicForImage({
@@ -268,7 +290,7 @@ async function callAnthropicForImage({
             },
             {
               type: 'text',
-              text: buildExtractionPrompt(todayISO, null),
+              text: buildExtractionPrompt(todayISO),
             },
           ],
         },
@@ -277,13 +299,13 @@ async function callAnthropicForImage({
   })
 }
 
-async function callAnthropicForPdfText({
+async function callAnthropicForPdfDocument({
   apiKey,
-  pdfText,
+  base64,
   todayISO,
 }: {
   apiKey: string
-  pdfText: string
+  base64: string
   todayISO: string
 }) {
   return fetch('https://api.anthropic.com/v1/messages', {
@@ -303,71 +325,22 @@ async function callAnthropicForPdfText({
           role: 'user',
           content: [
             {
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: base64,
+              },
+            },
+            {
               type: 'text',
-              text: buildExtractionPrompt(todayISO, pdfText),
+              text: buildExtractionPrompt(todayISO),
             },
           ],
         },
       ],
     }),
   })
-}
-
-function buildExtractionPrompt(todayISO: string, pdfText: string | null): string {
-  const pdfSection = pdfText
-    ? `
-Texte extrait du PDF :
-"""
-${pdfText}
-"""
-`
-    : ''
-
-  return `
-Analyse ce document administratif.
-
-La date du jour est ${todayISO}.
-
-${pdfSection}
-
-Retourne uniquement un JSON valide avec exactement ces champs :
-{
-  "title": string | null,
-  "document_type": "tax" | "caf" | "health_insurance" | "insurance" | "school" | "fine" | "invoice" | "bank" | "employment" | "housing" | "other",
-  "sender": string | null,
-  "received_date": "YYYY-MM-DD" | null,
-  "due_date": "YYYY-MM-DD" | null,
-  "due_date_status": "none" | "upcoming" | "today" | "overdue" | "unknown",
-  "recommended_next_step": string | null,
-  "amount": number | null,
-  "currency": "EUR",
-  "action_required": string | null,
-  "summary": string,
-  "urgency": "none" | "low" | "medium" | "high" | "critical",
-  "confidence": number,
-  "suggested_task_title": string | null,
-  "suggested_task_description": string | null,
-  "suggested_event_title": string | null,
-  "suggested_event_date": "YYYY-MM-DD" | null,
-  "missing_information": string[],
-  "warnings": string[]
-}
-
-Regles de raisonnement sur les dates :
-- Si la date limite est avant la date du jour, indique due_date_status = "overdue".
-- Si la date limite est egale a la date du jour, indique due_date_status = "today".
-- Si la date limite est apres la date du jour, indique due_date_status = "upcoming".
-- Si aucune date limite n'est visible, indique due_date_status = "none".
-- Si la date est illisible ou ambigue, indique due_date_status = "unknown".
-- Si l'echeance est depassee, explique clairement que le delai semble depasse et propose une action urgente de verification.
-- Si une amende, facture ou penalite semble pouvoir etre majoree apres depassement, signale le risque sans affirmer une consequence qui n'est pas visible.
-
-Rappel :
-- N'invente jamais une date, un montant ou un expediteur.
-- Si ce n'est pas clairement lisible, mets null.
-- Toute action doit etre une proposition a valider.
-- Ne donne pas de conseil juridique, fiscal, medical ou financier.
-`
 }
 
 export async function POST(request: NextRequest) {
@@ -388,17 +361,17 @@ export async function POST(request: NextRequest) {
       })
 
       return NextResponse.json(
-        { error: 'Session expiree. Reconnecte-toi puis reessaie.' },
+        { error: 'Session expirée. Reconnecte-toi puis réessaie.' },
         { status: 401 }
       )
     }
 
     if (!canAccessAdminDocuments(user.email)) {
-  return NextResponse.json(
-    { error: 'Module administratif réservé à la phase de test.' },
-    { status: 403 }
-  )
-}
+      return NextResponse.json(
+        { error: 'Module administratif réservé à la phase de test.' },
+        { status: 403 }
+      )
+    }
 
     const formData = await request.formData()
     const file = formData.get('document')
@@ -412,14 +385,17 @@ export async function POST(request: NextRequest) {
 
     if (!isImageFile(file) && !isPdfFile(file)) {
       return NextResponse.json(
-        { error: 'Le fichier doit etre une image ou un PDF texte.' },
+        { error: 'Le fichier doit être une image ou un PDF.' },
         { status: 400 }
       )
     }
 
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: 'Document trop lourd. Choisis une image ou un PDF de moins de 5 MB.' },
+        {
+          error:
+            'Document trop lourd. Pour cette version, choisis une image ou un PDF de moins de 5 MB, ou prends une photo/capture du document.',
+        },
         { status: 413 }
       )
     }
@@ -427,6 +403,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
       console.error('[admin documents extract] missing ANTHROPIC_API_KEY')
+
       return NextResponse.json(
         { error: 'Configuration IA manquante.' },
         { status: 500 }
@@ -434,59 +411,39 @@ export async function POST(request: NextRequest) {
     }
 
     const todayISO = getTodayISODate()
-    let response: Response
+    const arrayBuffer = await file.arrayBuffer()
+    const base64 = Buffer.from(arrayBuffer).toString('base64')
 
-if (isPdfFile(file)) {
-  let pdfText = ''
-
-  try {
-    pdfText = await extractTextFromPdf(file)
-  } catch (pdfError) {
-    console.error('[admin documents extract] pdf extraction failed before AI call', pdfError)
-
-    return NextResponse.json(
-      {
-        error: 'Nova n’arrive pas à lire ce PDF. Pour cette version, prends une photo du document ou une capture lisible, puis relance l’analyse.',
-      },
-      { status: 422 }
-    )
-  }
-
-  if (pdfText.length < MIN_PDF_TEXT_LENGTH) {
-    return NextResponse.json(
-      {
-        error: 'Ce PDF ne contient pas assez de texte lisible. Il s’agit peut-être d’un scan. Pour cette version, prends une photo du document ou une capture lisible.',
-      },
-      { status: 422 }
-    )
-  }
-
-  response = await callAnthropicForPdfText({
-    apiKey,
-    pdfText,
-    todayISO,
-  })
-} else {
-      const arrayBuffer = await file.arrayBuffer()
-      const base64 = Buffer.from(arrayBuffer).toString('base64')
-
-      response = await callAnthropicForImage({
-        apiKey,
-        file,
-        base64,
-        todayISO,
-      })
-    }
+    const response = isPdfFile(file)
+      ? await callAnthropicForPdfDocument({
+          apiKey,
+          base64,
+          todayISO,
+        })
+      : await callAnthropicForImage({
+          apiKey,
+          file,
+          base64,
+          todayISO,
+        })
 
     if (!response.ok) {
       const errorText = await response.text()
+
       console.error('[admin documents extract] anthropic failed', {
         status: response.status,
         errorText,
+        fileType: file.type,
+        fileName: file.name,
+        isPdf: isPdfFile(file),
       })
 
       return NextResponse.json(
-        { error: "L'analyse IA a echoue. Reessaie avec un document plus lisible." },
+        {
+          error: isPdfFile(file)
+            ? "Nova n'arrive pas encore à analyser ce PDF. Pour cette version, prends une photo ou une capture lisible du document, puis relance l'analyse."
+            : "L'analyse IA a échoué. Réessaie avec une image plus lisible.",
+        },
         { status: 502 }
       )
     }
@@ -495,18 +452,38 @@ if (isPdfFile(file)) {
     const rawText = data?.content?.[0]?.text
 
     if (!rawText || typeof rawText !== 'string') {
+      console.error('[admin documents extract] no readable AI content', {
+        fileType: file.type,
+        fileName: file.name,
+        isPdf: isPdfFile(file),
+      })
+
       return NextResponse.json(
-        { error: "L'IA n'a pas retourne de resultat lisible." },
+        { error: "L'IA n'a pas retourné de résultat lisible." },
         { status: 502 }
       )
     }
 
-    const extraction = safeParseExtraction(rawText)
+    let extraction: AdministrativeDocumentExtractedData
+
+    try {
+      extraction = safeParseExtraction(rawText)
+    } catch (parseError) {
+      console.error('[admin documents extract] JSON parse failed', {
+        parseError,
+        rawText,
+      })
+
+      return NextResponse.json(
+        { error: "Nova a lu le document, mais n'a pas retourné un format exploitable. Réessaie avec une photo plus nette." },
+        { status: 502 }
+      )
+    }
 
     return NextResponse.json({
       success: true,
       extraction,
-      notice: 'Extraction automatique a verifier avant validation.',
+      notice: 'Extraction automatique à vérifier avant validation.',
     })
   } catch (error) {
     console.error('[admin documents extract] unexpected error', error)
