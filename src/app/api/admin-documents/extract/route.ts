@@ -436,24 +436,37 @@ export async function POST(request: NextRequest) {
     const todayISO = getTodayISODate()
     let response: Response
 
-    if (isPdfFile(file)) {
-      const pdfText = await extractTextFromPdf(file)
+if (isPdfFile(file)) {
+  let pdfText = ''
 
-      if (pdfText.length < MIN_PDF_TEXT_LENGTH) {
-        return NextResponse.json(
-          {
-            error: 'Ce PDF ne contient pas assez de texte lisible. Il s’agit peut-être d’un scan. Pour cette version, envoie une photo du document ou une capture lisible.',
-          },
-          { status: 422 }
-        )
-      }
+  try {
+    pdfText = await extractTextFromPdf(file)
+  } catch (pdfError) {
+    console.error('[admin documents extract] pdf extraction failed before AI call', pdfError)
 
-      response = await callAnthropicForPdfText({
-        apiKey,
-        pdfText,
-        todayISO,
-      })
-    } else {
+    return NextResponse.json(
+      {
+        error: 'Nova n’arrive pas à lire ce PDF. Pour cette version, prends une photo du document ou une capture lisible, puis relance l’analyse.',
+      },
+      { status: 422 }
+    )
+  }
+
+  if (pdfText.length < MIN_PDF_TEXT_LENGTH) {
+    return NextResponse.json(
+      {
+        error: 'Ce PDF ne contient pas assez de texte lisible. Il s’agit peut-être d’un scan. Pour cette version, prends une photo du document ou une capture lisible.',
+      },
+      { status: 422 }
+    )
+  }
+
+  response = await callAnthropicForPdfText({
+    apiKey,
+    pdfText,
+    todayISO,
+  })
+} else {
       const arrayBuffer = await file.arrayBuffer()
       const base64 = Buffer.from(arrayBuffer).toString('base64')
 

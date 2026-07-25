@@ -334,6 +334,15 @@ const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null
       setError('Ajoute une photo ou un PDF avant de lancer l’analyse.')
       return
     }
+if (isPdfFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_PDF_BYTES) {
+  setError('PDF trop lourd. Pour cette version, choisis un PDF de moins de 5 MB ou prends une photo/capture du document.')
+  return
+}
+
+if (isImageFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_DOCUMENT_BYTES) {
+  setError('Image trop lourde. Choisis une photo de moins de 15 MB.')
+  return
+}
 
     setIsScanning(true)
     setError(null)
@@ -840,6 +849,7 @@ if (!hasAccess) {
 >
   ← Retour à l’accueil
 </Link>
+
           Assistant administratif
         </p>
 
