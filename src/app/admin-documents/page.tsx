@@ -14,7 +14,7 @@ const DOCUMENT_IMAGE_MAX_DIMENSION = 1800
 const DEFAULT_EVENT_START_MINUTES = 9 * 60
 const DEFAULT_EVENT_END_MINUTES = 10 * 60
 
-type ActiveView = 'add' | 'archives'
+type ActiveView = 'add' | 'archives' | 'vault'
 type SensitivityLevel = 'standard' | 'sensitive' | 'very_sensitive'
 
 type ExtractionApiResponse = {
@@ -410,7 +410,7 @@ export default function AdminDocumentsTestPage() {
           ? vaultError.message
           : 'Impossible d’ouvrir le coffre.'
 
-      if (activeView === 'archives') {
+      if (activeView === 'archives' || activeView === 'vault') {
         setSavedDocumentsError(message)
       } else {
         setError(message)
@@ -1084,6 +1084,8 @@ export default function AdminDocumentsTestPage() {
   })()
 
   const eventDatePreview = extraction ? getEventDateForExtraction(extraction) : null
+  const archivedDocuments = savedDocuments.filter((document) => !document.vault_protected)
+  const vaultDocuments = savedDocuments.filter((document) => document.vault_protected)
 
   if (isCheckingAccess) {
     return (
@@ -1238,6 +1240,25 @@ export default function AdminDocumentsTestPage() {
             }}
           >
             Mes documents archivés
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveView('vault')
+              loadSavedDocuments()
+            }}
+            style={{
+              border: activeView === 'vault' ? '1px solid #7A2E2A' : '1px solid #D7C8BE',
+              borderRadius: 999,
+              padding: '11px 16px',
+              background: activeView === 'vault' ? '#7A2E2A' : '#FFFFFF',
+              color: activeView === 'vault' ? '#FFFFFF' : '#7A2E2A',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            🔐 Coffre
           </button>
         </div>
 
@@ -1522,7 +1543,7 @@ export default function AdminDocumentsTestPage() {
 
         {activeView === 'archives' && (
           <SavedDocumentsSection
-            documents={savedDocuments}
+            documents={archivedDocuments}
             isLoading={isLoadingSavedDocuments}
             error={savedDocumentsError}
             openingDocumentId={openingDocumentId}
@@ -1536,6 +1557,31 @@ export default function AdminDocumentsTestPage() {
             onUpdateProcessingStatus={handleUpdateProcessingStatus}
             onDeleteDocument={handleDeleteSavedDocument}
             onToggleVaultProtection={handleToggleVaultProtection}
+            title="Mes documents archivés"
+            description="Documents enregistrés normalement, sans protection coffre."
+            emptyMessage="Aucun document classique enregistré pour l’instant."
+          />
+        )}
+
+        {activeView === 'vault' && (
+          <SavedDocumentsSection
+            documents={vaultDocuments}
+            isLoading={isLoadingSavedDocuments}
+            error={savedDocumentsError}
+            openingDocumentId={openingDocumentId}
+            managingDocumentId={managingDocumentId}
+            updatingDocumentId={updatingDocumentId}
+            deletingDocumentId={deletingDocumentId}
+            vaultUpdatingDocumentId={vaultUpdatingDocumentId}
+            onRefresh={loadSavedDocuments}
+            onOpenDocument={handleOpenSavedDocument}
+            onManageDocument={setManagingDocumentId}
+            onUpdateProcessingStatus={handleUpdateProcessingStatus}
+            onDeleteDocument={handleDeleteSavedDocument}
+            onToggleVaultProtection={handleToggleVaultProtection}
+            title="Coffre sécurisé"
+            description="Documents sensibles protégés par code PIN et accès temporaire."
+            emptyMessage="Aucun document dans le coffre pour l’instant."
           />
         )}
       </section>
@@ -1684,6 +1730,9 @@ function SavedDocumentsSection({
   onUpdateProcessingStatus,
   onDeleteDocument,
   onToggleVaultProtection,
+  title = 'Mes documents archivés',
+  description = 'Historique sécurisé des documents que tu as choisi d’enregistrer.',
+  emptyMessage = 'Aucun document enregistré pour l’instant.',
 }: {
   documents: SavedAdministrativeDocument[]
   isLoading: boolean
@@ -1706,6 +1755,9 @@ function SavedDocumentsSection({
     vaultProtected: boolean,
     sensitivityLevel?: Exclude<SensitivityLevel, 'standard'>
   ) => void
+  title?: string
+  description?: string
+  emptyMessage?: string
 }) {
   return (
     <section style={{
@@ -1723,10 +1775,10 @@ function SavedDocumentsSection({
       }}>
         <div>
           <h2 style={{ margin: 0, color: '#4A1F1B', fontSize: 22 }}>
-            Mes documents archivés
+            {title}
           </h2>
           <p style={{ margin: '6px 0 0', color: '#6F625C', lineHeight: 1.5 }}>
-            Historique sécurisé des documents que tu as choisi d’enregistrer.
+            {description}
           </p>
         </div>
 
@@ -1763,7 +1815,7 @@ function SavedDocumentsSection({
 
       {!isLoading && documents.length === 0 && (
         <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
-          Aucun document enregistré pour l’instant.
+          {emptyMessage}
         </p>
       )}
 
