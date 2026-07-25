@@ -2,14 +2,29 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import type { AdministrativeDocumentExtractedData } from '@/lib/admin-documents/types'
 import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
+import { verifyVaultAccessToken } from '@/lib/vault/tokens'
+import { createAdministrativeDocumentReminders } from '@/lib/admin-documents/reminders'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
-const ADMINISTRATIVE_DOCUMENT_BUCKET = 'administrative-documents'
 const MAX_FILE_SIZE = 5 * 1024 * 1024
+const STORAGE_BUCKET = 'administrative-documents'
+
+type ExtractionPayload = {
+  title?: string | null
+  document_type?: string | null
+  sender?: string | null
+  received_date?: string | null
+  due_date?: string | null
+  due_date_status?: string | null
+  recommended_next_step?: string | null
+  amount?: number | null
+  currency?: string | null
+  action_required?: string | null
+  summary?: string | null
+}
 
 async function getSupabaseServerClient() {
   const cookieStore = await cookies()
@@ -28,7 +43,7 @@ async function getSupabaseServerClient() {
               cookieStore.set(name, value, options)
             })
           } catch {
-            // Server Component context: safe to ignore.
+            // Safe to ignore in route handlers.
           }
         },
       },
@@ -64,16 +79,16 @@ function getSupabaseBearerClient(token: string) {
   )
 }
 
-function isPdfFile(file: File): boolean {
-  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+function isAcceptedFile(file: File): boolean {
+  return (
+    file.type.startsWith('image/') ||
+    file.type === 'application/pdf' ||
+    file.name.toLowerCase().endsWith('.pdf')
+  )
 }
 
-function isImageFile(file: File): boolean {
-  return file.type.startsWith('image/')
-}
-
-function sanitizeFileName(name: string): string {
-  const cleaned = name
+function sanitizeFilename(filename: string): string {
+  const cleaned = filename
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9._-]/g, '-')
@@ -83,65 +98,62 @@ function sanitizeFileName(name: string): string {
   return cleaned || 'document'
 }
 
+function parseExtraction(value: FormDataEntryValue | null): ExtractionPayload {
+  if (typeof value !== 'string') {
+    throw new Error('Extraction manquante.')
+  }
+
+  try {
+    const parsed = JSON.parse(value) as ExtractionPayload
+    return parsed
+  } catch {
+    throw new Error('Extraction illisible.')
+  }
+}
+
 function stringOrNull(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
 }
 
 function numberOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-function normalizeExtraction(value: unknown): AdministrativeDocumentExtractedData {
-  if (!value || typeof value !== 'object') {
-    throw new Error('Données extraites invalides.')
-  }
-
-  const extraction = value as Partial<AdministrativeDocumentExtractedData>
-
-  return {
-    title: stringOrNull(extraction.title),
-    document_type: extraction.document_type || 'other',
-    sender: stringOrNull(extraction.sender),
-    received_date: stringOrNull(extraction.received_date),
-    due_date: stringOrNull(extraction.due_date),
-    due_date_status: extraction.due_date_status || 'unknown',
-    recommended_next_step: stringOrNull(extraction.recommended_next_step),
-    amount: numberOrNull(extraction.amount),
-    currency: 'EUR',
-    action_required: stringOrNull(extraction.action_required),
-    summary: stringOrNull(extraction.summary) || 'Document administratif enregistré.',
-    urgency: extraction.urgency || 'medium',
-    confidence: typeof extraction.confidence === 'number' ? extraction.confidence : 0.5,
-    suggested_task_title: stringOrNull(extraction.suggested_task_title),
-    suggested_task_description: stringOrNull(extraction.suggested_task_description),
-    suggested_event_title: stringOrNull(extraction.suggested_event_title),
-    suggested_event_date: stringOrNull(extraction.suggested_event_date),
-    missing_information: Array.isArray(extraction.missing_information)
-      ? extraction.missing_information.filter((item): item is string => typeof item === 'string')
-      : [],
-    warnings: Array.isArray(extraction.warnings)
-      ? extraction.warnings.filter((item): item is string => typeof item === 'string')
-      : [],
-  }
-}
-
-function toDateOrNull(value: string | null): string | null {
-  if (!value) return null
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  if (typeof value !== 'number') return null
+  if (!Number.isFinite(value)) return null
   return value
 }
 
+function normalizeDueDateStatus(value: unknown): string {
+  if (
+    value === 'none' ||
+    value === 'upcoming' ||
+    value === 'today' ||
+    value === 'overdue' ||
+    value === 'unknown'
+  ) {
+    return value
+  }
+
+  return 'unknown'
+}
+
+function normalizeSensitivityLevel(
+  value: FormDataEntryValue | null,
+  vaultProtected: boolean
+): 'standard' | 'sensitive' | 'very_sensitive' {
+  if (value === 'very_sensitive') return 'very_sensitive'
+  if (value === 'sensitive') return 'sensitive'
+  return vaultProtected ? 'sensitive' : 'standard'
+}
+
 export async function POST(request: NextRequest) {
-  let uploadedPath: string | null = null
-  let supabaseForCleanup: ReturnType<typeof createClient> | null = null
+  let uploadedStoragePath: string | null = null
 
   try {
     const bearerToken = getBearerToken(request)
     const supabase = bearerToken
       ? getSupabaseBearerClient(bearerToken)
       : await getSupabaseServerClient()
-
-    supabaseForCleanup = supabase as ReturnType<typeof createClient>
 
     const { data: { user }, error: authError } = bearerToken
       ? await supabase.auth.getUser(bearerToken)
@@ -155,77 +167,77 @@ export async function POST(request: NextRequest) {
     }
 
     if (!canAccessAdminDocuments(user.email)) {
-  return NextResponse.json(
-    { error: 'Module administratif réservé à la phase de test.' },
-    { status: 403 }
-  )
-}
+      return NextResponse.json(
+        { error: 'Module administratif réservé à la phase de test.' },
+        { status: 403 }
+      )
+    }
 
     const formData = await request.formData()
     const file = formData.get('document')
-    const extractionRaw = formData.get('extraction')
-    const linkedTodoId = formData.get('linkedTodoId')
-    const linkedPlannerEventId = formData.get('linkedPlannerEventId')
-    const vaultProtectedRaw = formData.get('vaultProtected')
-const sensitivityLevelRaw = formData.get('sensitivityLevel')
+    const extraction = parseExtraction(formData.get('extraction'))
 
-const vaultProtected = vaultProtectedRaw === 'true'
-const sensitivityLevel =
-  sensitivityLevelRaw === 'sensitive' || sensitivityLevelRaw === 'very_sensitive'
-    ? sensitivityLevelRaw
-    : vaultProtected
-      ? 'sensitive'
-      : 'standard'
-
-    if (!file || !(file instanceof File)) {
+    if (!(file instanceof File)) {
       return NextResponse.json(
-        { error: 'Aucun document fourni.' },
+        { error: 'Document manquant.' },
         { status: 400 }
       )
     }
 
-    if (!isImageFile(file) && !isPdfFile(file)) {
+    if (!isAcceptedFile(file)) {
       return NextResponse.json(
-        { error: 'Le fichier doit être une image ou un PDF.' },
+        { error: 'Format non accepté. Utilise une image ou un PDF.' },
         { status: 400 }
       )
     }
 
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: 'Document trop lourd. Choisis une image ou un PDF de moins de 5 MB.' },
-        { status: 413 }
-      )
-    }
-
-    if (typeof extractionRaw !== 'string') {
-      return NextResponse.json(
-        { error: 'Données d’analyse manquantes.' },
+        { error: 'Document trop lourd. Taille maximale : 5 MB.' },
         { status: 400 }
       )
     }
 
-    let extraction: AdministrativeDocumentExtractedData
+    const vaultProtectedRaw = formData.get('vaultProtected')
+    const sensitivityLevelRaw = formData.get('sensitivityLevel')
 
-    try {
-      extraction = normalizeExtraction(JSON.parse(extractionRaw))
-    } catch {
-      return NextResponse.json(
-        { error: 'Données d’analyse invalides.' },
-        { status: 400 }
-      )
+    const vaultProtected = vaultProtectedRaw === 'true'
+    const sensitivityLevel = normalizeSensitivityLevel(sensitivityLevelRaw, vaultProtected)
+
+    if (vaultProtected) {
+      const vaultAccessToken = request.headers.get('x-vault-access-token')
+
+      if (!verifyVaultAccessToken(vaultAccessToken, user.id)) {
+        return NextResponse.json(
+          {
+            error: 'Code PIN coffre requis pour enregistrer ce document dans le coffre.',
+            requiresVaultPin: true,
+          },
+          { status: 403 }
+        )
+      }
     }
+
+    const linkedTodoIdRaw = formData.get('linkedTodoId')
+    const linkedPlannerEventIdRaw = formData.get('linkedPlannerEventId')
+
+    const linkedTodoId =
+      typeof linkedTodoIdRaw === 'string' && linkedTodoIdRaw.trim()
+        ? linkedTodoIdRaw.trim()
+        : null
+
+    const linkedPlannerEventId =
+      typeof linkedPlannerEventIdRaw === 'string' && linkedPlannerEventIdRaw.trim()
+        ? linkedPlannerEventIdRaw.trim()
+        : null
 
     const documentId = crypto.randomUUID()
-    const safeName = sanitizeFileName(file.name)
-    const storagePath = `${user.id}/${documentId}/${Date.now()}-${safeName}`
-
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const safeFilename = sanitizeFilename(file.name)
+    const storagePath = `${user.id}/${documentId}/${Date.now()}-${safeFilename}`
 
     const { error: uploadError } = await supabase.storage
-      .from(ADMINISTRATIVE_DOCUMENT_BUCKET)
-      .upload(storagePath, buffer, {
+      .from(STORAGE_BUCKET)
+      .upload(storagePath, file, {
         contentType: file.type || 'application/octet-stream',
         upsert: false,
       })
@@ -234,91 +246,99 @@ const sensitivityLevel =
       console.error('[admin documents save] upload failed', uploadError)
 
       return NextResponse.json(
-        { error: "Impossible d'enregistrer le fichier dans l'espace sécurisé." },
+        { error: 'Impossible d’enregistrer le fichier du document.' },
         { status: 500 }
       )
     }
 
-    uploadedPath = storagePath
+    uploadedStoragePath = storagePath
 
-    const { data: insertedDocument, error: insertError } = await supabase
+    const { data, error: insertError } = await supabase
       .from('administrative_documents')
       .insert({
         id: documentId,
         user_id: user.id,
 
-        title: extraction.title,
-        document_type: extraction.document_type,
-        sender: extraction.sender,
-        received_date: toDateOrNull(extraction.received_date),
-        due_date: toDateOrNull(extraction.due_date),
-        due_date_status: extraction.due_date_status,
-        recommended_next_step: extraction.recommended_next_step,
+        title: stringOrNull(extraction.title) || 'Document administratif',
+        document_type: stringOrNull(extraction.document_type) || 'other',
+        sender: stringOrNull(extraction.sender),
+        received_date: stringOrNull(extraction.received_date),
+        due_date: stringOrNull(extraction.due_date),
+        due_date_status: normalizeDueDateStatus(extraction.due_date_status),
+        recommended_next_step: stringOrNull(extraction.recommended_next_step),
 
-        amount: extraction.amount,
-        currency: extraction.currency,
-
-        action_required: extraction.action_required,
-        summary: extraction.summary,
+        amount: numberOrNull(extraction.amount),
+        currency: stringOrNull(extraction.currency) || 'EUR',
+        action_required: stringOrNull(extraction.action_required),
+        summary: stringOrNull(extraction.summary),
 
         extracted_json: extraction,
         user_corrections: null,
 
         status: 'validated',
         validation_status: 'confirmed',
+        processing_status: 'todo',
 
-        storage_bucket: ADMINISTRATIVE_DOCUMENT_BUCKET,
+        vault_protected: vaultProtected,
+        sensitivity_level: sensitivityLevel,
+        added_to_vault_at: vaultProtected ? new Date().toISOString() : null,
+
+        storage_bucket: STORAGE_BUCKET,
         storage_path: storagePath,
-
         original_filename: file.name,
         file_mime_type: file.type || null,
         file_size_bytes: file.size,
 
-        linked_todo_id: typeof linkedTodoId === 'string' && linkedTodoId.length > 0
-          ? linkedTodoId
-          : null,
-        linked_planner_event_id: typeof linkedPlannerEventId === 'string' && linkedPlannerEventId.length > 0
-          ? linkedPlannerEventId
-          : null,
-          vault_protected: vaultProtected,
-sensitivity_level: sensitivityLevel,
-added_to_vault_at: vaultProtected ? new Date().toISOString() : null,
+        linked_todo_id: linkedTodoId,
+        linked_planner_event_id: linkedPlannerEventId,
       })
       .select('id, storage_path')
       .single()
 
-    if (insertError) {
+    if (insertError || !data) {
       console.error('[admin documents save] insert failed', insertError)
 
-      if (uploadedPath) {
-        await supabase.storage
-          .from(ADMINISTRATIVE_DOCUMENT_BUCKET)
-          .remove([uploadedPath])
-      }
+      await supabase.storage
+        .from(STORAGE_BUCKET)
+        .remove([storagePath])
+
+      uploadedStoragePath = null
 
       return NextResponse.json(
-        { error: "Le fichier a été envoyé, mais l'enregistrement en base a échoué." },
+        { error: 'Impossible d’enregistrer la fiche du document.' },
         { status: 500 }
       )
     }
 
+    try {
+      await createAdministrativeDocumentReminders({
+        supabase,
+        userId: user.id,
+        documentId: data.id,
+        dueDate: stringOrNull(extraction.due_date),
+        dueDateStatus: normalizeDueDateStatus(extraction.due_date_status),
+      })
+    } catch (reminderError) {
+      console.error('[admin documents save] reminder creation failed', reminderError)
+    }
+
     return NextResponse.json({
       success: true,
-      documentId: insertedDocument.id,
-      storagePath: insertedDocument.storage_path,
-      message: 'Document enregistré dans ton espace sécurisé.',
+      documentId: data.id,
+      storagePath: data.storage_path,
+      message: vaultProtected
+        ? 'Document enregistré dans le coffre sécurisé.'
+        : 'Document enregistré dans ton espace sécurisé.',
     })
   } catch (error) {
     console.error('[admin documents save] unexpected error', error)
 
-    if (uploadedPath && supabaseForCleanup) {
-      await supabaseForCleanup.storage
-        .from(ADMINISTRATIVE_DOCUMENT_BUCKET)
-        .remove([uploadedPath])
-    }
-
     return NextResponse.json(
-      { error: "Erreur inattendue pendant l'enregistrement sécurisé." },
+      {
+        error: error instanceof Error
+          ? error.message
+          : 'Erreur inattendue pendant l’enregistrement du document.',
+      },
       { status: 500 }
     )
   }
