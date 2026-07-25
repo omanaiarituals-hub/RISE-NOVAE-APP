@@ -17,6 +17,27 @@ import { logEvent } from '@/lib/events'
 const ADMIN_EMAILS = ['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com']
 const TESTER_EMAILS = ['nesserinesediri@gmail.com']
 
+
+const THEME_CACHE_KEY = 'novae-interface-preferences'
+
+type CachedInterfacePreferences = {
+  theme_key?: string | null
+}
+
+function readActiveThemeKey(): string {
+  if (typeof window === 'undefined') return 'novae_bordeaux'
+
+  try {
+    const raw = window.localStorage.getItem(THEME_CACHE_KEY)
+    if (!raw) return 'novae_bordeaux'
+
+    const parsed = JSON.parse(raw) as CachedInterfacePreferences
+    return parsed.theme_key || 'novae_bordeaux'
+  } catch {
+    return 'novae_bordeaux'
+  }
+}
+
 type ModuleItem = {
   href: string
   title: string
@@ -32,7 +53,7 @@ type Univers = {
 const UNIVERS_LIST: Univers[] = [
   {
     key: 'quotidien', title: 'Mon quotidien', subtitle: 'Organise tes journées avec sérénité.',
-    icon: '/icon-quotidien.png', tint: 'var(--novae-tile-daily, rgba(197,211,180,0.25))', border: 'var(--novae-border, rgba(167,189,144,0.40))', ink: 'var(--novae-primary, #5C7044)',
+    icon: '/icon-quotidien.png', tint: 'rgba(197,211,180,0.25)', border: 'rgba(167,189,144,0.40)', ink: '#5C7044',
     modules: [
   { href: '/planner', title: 'Planner' },
   { href: '/routines', title: 'Routines' },
@@ -43,7 +64,7 @@ const UNIVERS_LIST: Univers[] = [
   },
   {
     key: 'transformation', title: 'Ma transformation', subtitle: "Change ta vie un pas après l'autre.",
-    icon: '/icon-transformation.png', tint: 'var(--novae-tile-transformation, rgba(242,194,182,0.25))', border: 'var(--novae-border, rgba(223,160,143,0.40))', ink: 'var(--novae-primary, #B5654A)',
+    icon: '/icon-transformation.png', tint: 'rgba(242,194,182,0.25)', border: 'rgba(223,160,143,0.40)', ink: '#B5654A',
     modules: [
       { href: '/program', title: 'Reset 90j' },
       { href: '/parcours-profonds/reclaim-myself', title: 'Reclaim', badge: 'TEST', tester: true },
@@ -52,7 +73,7 @@ const UNIVERS_LIST: Univers[] = [
   },
   {
     key: 'equilibre', title: 'Mon équilibre', subtitle: 'Observe, ajuste et prends soin de toi.',
-    icon: '/icon-equilibre.png', tint: 'var(--novae-primary-soft, rgba(212,196,226,0.25))', border: 'var(--novae-border, rgba(185,162,212,0.40))', ink: 'var(--novae-primary, #7E63A8)',
+    icon: '/icon-equilibre.png', tint: 'rgba(212,196,226,0.25)', border: 'rgba(185,162,212,0.40)', ink: '#7E63A8',
     modules: [
       { href: '/tracker', title: 'Tracker' }, { href: '/family', title: 'Famille' },
       { href: '/community', title: 'Commu.' },
@@ -60,7 +81,7 @@ const UNIVERS_LIST: Univers[] = [
   },
   {
     key: 'accompagnement', title: 'Mon accompagnement', subtitle: "Tu n'avances jamais seule.",
-    icon: '/icon-accompagnement.png', tint: 'var(--novae-tile-learning, rgba(245,216,155,0.25))', border: 'var(--novae-border, rgba(231,192,111,0.40))', ink: 'var(--novae-primary, #A8852E)',
+    icon: '/icon-accompagnement.png', tint: 'rgba(245,216,155,0.25)', border: 'rgba(231,192,111,0.40)', ink: '#A8852E',
     modules: [
       { href: '/agent', title: 'Nova', badge: 'IA' },
       { href: '/astuces', title: 'Astuces' },
@@ -102,6 +123,7 @@ export default function HomePageClient() {
   const [greeting, setGreeting] = useState('Bonjour')
   const [dateLabel, setDateLabel] = useState('')
   const [newCommunityPosts, setNewCommunityPosts] = useState<number | null>(null)
+  const [activeThemeKey, setActiveThemeKey] = useState('novae_bordeaux')
 
   // Objectif du jour
   const [showObjectifForm, setShowObjectifForm] = useState(false)
@@ -130,6 +152,23 @@ export default function HomePageClient() {
     const h = new Date().getHours()
     setGreeting(h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Bonne après-midi' : 'Bonsoir')
     setDateLabel(new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))
+  }, [])
+
+
+  useEffect(() => {
+    const updateActiveTheme = () => {
+      setActiveThemeKey(readActiveThemeKey())
+    }
+
+    updateActiveTheme()
+
+    window.addEventListener('novae-theme-updated', updateActiveTheme)
+    window.addEventListener('storage', updateActiveTheme)
+
+    return () => {
+      window.removeEventListener('novae-theme-updated', updateActiveTheme)
+      window.removeEventListener('storage', updateActiveTheme)
+    }
   }, [])
 
   useEffect(() => {
@@ -238,23 +277,69 @@ const visibleModules = (u: Univers) => {
 
   const phaseInfo = PHASE_MESSAGES[getPhase(currentDay)]
 
+  const isClassicTheme = activeThemeKey === 'novae_bordeaux'
+
+  const themedPageBackground = isClassicTheme
+    ? 'radial-gradient(ellipse at 20% 0%, #F8E6DB 0%, transparent 55%),radial-gradient(ellipse at 80% 100%, #EBD7E0 0%, transparent 60%),linear-gradient(180deg, #FBF4EC 0%, #F8F1E5 55%, #F3E9DF 100%)'
+    : 'radial-gradient(ellipse at 20% 0%, var(--novae-primary-soft, #E7DFF4) 0%, transparent 55%),radial-gradient(ellipse at 80% 100%, var(--novae-accent, #CBB7E8) 0%, transparent 60%),linear-gradient(180deg, var(--novae-background, #F8F1E5) 0%, var(--novae-surface-alt, #F3E9DF) 55%, var(--novae-background, #F8F1E5) 100%)'
+
+  const themedHeaderBackground = isClassicTheme
+    ? 'linear-gradient(180deg, rgba(240,201,208,0.97) 0%, rgba(233,186,196,0.92) 100%)'
+    : 'linear-gradient(180deg, var(--novae-primary, #7A2E2A) 0%, var(--novae-secondary, #B8895E) 100%)'
+
+  const themedHeaderBorder = isClassicTheme
+    ? '1px solid rgba(225,170,180,0.45)'
+    : '1px solid var(--novae-border, #EADDD2)'
+
+  const themedNovaCardBackground = isClassicTheme
+    ? 'linear-gradient(135deg, rgba(212,196,226,0.65), rgba(138,111,176,0.28))'
+    : 'linear-gradient(135deg, var(--novae-primary-soft, #E7DFF4), var(--novae-surface-alt, #F5F0FA))'
+
+  const themedNovaCardBorder = isClassicTheme
+    ? '1px solid rgba(138,111,176,0.40)'
+    : '1px solid var(--novae-border, #EADDD2)'
+
+  const themedNovaOrbBackground = isClassicTheme
+    ? 'linear-gradient(135deg, #D4C4E2, #8A6FB0)'
+    : 'linear-gradient(135deg, var(--novae-primary, #7A2E2A), var(--novae-secondary, #B8895E))'
+
+  const themedObjectiveBackground = isClassicTheme
+    ? 'rgba(243,205,182,0.35)'
+    : 'var(--novae-surface-alt, #FFF9F5)'
+
+  const themedCommunityBackground = isClassicTheme
+    ? 'rgba(212,196,226,0.30)'
+    : 'var(--novae-primary-soft, #F3D8CF)'
+
+
   const UniversCard = ({ u }: { u: Univers }) => {
     const mods = visibleModules(u)
+    const themedTileByKey: Record<string, string> = {
+      quotidien: 'var(--novae-tile-daily, rgba(197,211,180,0.25))',
+      transformation: 'var(--novae-tile-transformation, rgba(242,194,182,0.25))',
+      equilibre: 'var(--novae-tile-family, rgba(212,196,226,0.25))',
+      accompagnement: 'var(--novae-tile-learning, rgba(245,216,155,0.25))',
+    }
+    const cardBackground = isClassicTheme ? u.tint : themedTileByKey[u.key]
+    const cardBorder = isClassicTheme ? u.border : 'var(--novae-border, rgba(167,189,144,0.40))'
+    const cardInk = isClassicTheme ? u.ink : 'var(--novae-primary, #5C7044)'
+    const moduleBackground = isClassicTheme ? 'rgba(255,255,255,0.72)' : 'var(--novae-surface, #FFFFFF)'
+    const moduleBorder = isClassicTheme ? '1px solid rgba(255,255,255,0.9)' : '1px solid var(--novae-border, #EADDD2)'
     return (
-      <div style={{ background: u.tint, border: `1px solid ${u.border}`, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'row', height: '100%' }}>
-        <div style={{ width: 76, flexShrink: 0, background: u.tint, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 6px', borderRight: `1px solid ${u.border}` }}>
+      <div style={{ background: cardBackground, border: `1px solid ${cardBorder}`, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'row', height: '100%' }}>
+        <div style={{ width: 76, flexShrink: 0, background: cardBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 6px', borderRight: `1px solid ${cardBorder}` }}>
           <img src={u.icon} alt={u.title} style={{ width: 60, height: 60, objectFit: 'contain', borderRadius: 12, mixBlendMode: 'multiply' }} />
         </div>
         <div style={{ flex: 1, minWidth: 0, padding: '10px 10px 10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 15, fontWeight: 600, color: u.ink, lineHeight: 1.1, marginBottom: 2 }}>{u.title}</div>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 15, fontWeight: 600, color: cardInk, lineHeight: 1.1, marginBottom: 2 }}>{u.title}</div>
             <div style={{ fontSize: 9.5, color: 'var(--novae-text-muted, #6b5340)', lineHeight: 1.25, marginBottom: 8 }}>{u.subtitle}</div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${mods.length}, 1fr)`, gap: 5 }}>
             {mods.map((m) => (
               <Link key={m.href} href={m.href} style={{ textDecoration: 'none' }}>
-                <div style={{ background: 'rgba(255,255,255,0.72)', border: '1px solid rgba(255,255,255,0.9)', borderRadius: 9, padding: '7px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 34 }}>
-                  {m.badge && <span style={{ position: 'absolute', top: 2, right: 2, fontSize: 5.5, fontWeight: 700, color: u.ink, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '1px 3px' }}>{m.badge}</span>}
+                <div style={{ background: moduleBackground, border: moduleBorder, borderRadius: 9, padding: '7px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 34 }}>
+                  {m.badge && <span style={{ position: 'absolute', top: 2, right: 2, fontSize: 5.5, fontWeight: 700, color: cardInk, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '1px 3px' }}>{m.badge}</span>}
                   <span style={{ fontSize: 10.5, color: 'var(--novae-text-main, #3d2618)', fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{m.title}</span>
                 </div>
               </Link>
@@ -268,7 +353,7 @@ const visibleModules = (u: Univers) => {
   return (
     <>
       <OnboardingTour forceShow={showTour} onClose={() => setShowTour(false)} />
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: 'radial-gradient(ellipse at 20% 0%, #F8E6DB 0%, transparent 55%),radial-gradient(ellipse at 80% 100%, #EBD7E0 0%, transparent 60%),linear-gradient(180deg, var(--novae-background, #FBF4EC) 0%, var(--novae-background, #F8F1E5) 55%, var(--novae-surface-alt, #F3E9DF) 100%)' }} />
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: themedPageBackground }} />
 
       {/* MODAL OBJECTIF DU JOUR */}
       {showObjectifForm && (
@@ -341,7 +426,7 @@ const visibleModules = (u: Univers) => {
       <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', sans-serif", position: 'relative', zIndex: 2 }}>
 
         {/* HEADER */}
-        <div style={{ flexShrink: 0, background: 'linear-gradient(180deg, rgba(240,201,208,0.97) 0%, rgba(233,186,196,0.92) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(225,170,180,0.45)', boxShadow: '0 4px 18px rgba(160,110,120,0.12)', padding: '10px 16px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ flexShrink: 0, background: themedHeaderBackground, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: themedHeaderBorder, boxShadow: '0 4px 18px rgba(20,20,20,0.10)', padding: '10px 16px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <img src="/logo.png" alt="NOVAÉ by OMANAÏA" style={{ height: 42, objectFit: 'contain', maxWidth: 140 }} />
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <Link href="/agent?voice=1" aria-label="Parler à Nova" style={{ textDecoration: 'none' }}>
@@ -349,7 +434,7 @@ const visibleModules = (u: Univers) => {
             </Link>
             <NotificationBell />
             {!loading && (user ? <UserMenu /> : (
-              <Link href="/auth" style={{ padding: '6px 12px', borderRadius: 16, background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(123,57,71,0.22)', color: '#7A3F4A', textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>Se connecter</Link>
+              <Link href="/auth" style={{ padding: '6px 12px', borderRadius: 16, background: isClassicTheme ? 'rgba(255,255,255,0.45)' : 'var(--novae-surface, #FFFFFF)', border: isClassicTheme ? '1px solid rgba(123,57,71,0.22)' : '1px solid var(--novae-border, #EADDD2)', color: isClassicTheme ? '#7A3F4A' : 'var(--novae-primary, #7A2E2A)', textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>Se connecter</Link>
             ))}
           </div>
         </div>
@@ -372,12 +457,12 @@ const visibleModules = (u: Univers) => {
               href={novaPending ? `/agent?nova_thread=${novaPending.thread_id}` : '/agent'}
               style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}
             >
-              <div style={{ background: 'linear-gradient(135deg, rgba(212,196,226,0.65), rgba(138,111,176,0.28))', border: '1px solid rgba(138,111,176,0.40)', borderRadius: 18, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, position: 'relative', overflow: 'hidden', boxShadow: '0 6px 20px rgba(138,111,176,0.18)' }}>
-                <div style={{ position: 'absolute', top: -24, right: -24, width: 90, height: 90, borderRadius: '50%', background: 'rgba(138,111,176,0.16)', pointerEvents: 'none' }} />
+              <div style={{ background: themedNovaCardBackground, border: themedNovaCardBorder, borderRadius: 18, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, position: 'relative', overflow: 'hidden', boxShadow: '0 6px 20px rgba(138,111,176,0.18)' }}>
+                <div style={{ position: 'absolute', top: -24, right: -24, width: 90, height: 90, borderRadius: '50%', background: isClassicTheme ? 'rgba(138,111,176,0.16)' : 'var(--novae-primary-soft, rgba(138,111,176,0.16))', pointerEvents: 'none' }} />
                 {/* Orbe Nova */}
-                <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg, #D4C4E2, #8A6FB0)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', fontWeight: 700, fontSize: 24, flexShrink: 0, boxShadow: '0 4px 12px rgba(138,111,176,0.35)' }}>N</div>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: themedNovaOrbBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', fontWeight: 700, fontSize: 24, flexShrink: 0, boxShadow: '0 4px 12px rgba(138,111,176,0.35)' }}>N</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 9, fontWeight: 700, color: '#5b4b7a', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.18em' }}>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: isClassicTheme ? '#5b4b7a' : 'var(--novae-primary, #5b4b7a)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.18em' }}>
                     {novaPending ? "Nova t'a laissé un message" : 'Ton assistante IA'}
                   </p>
                   <p style={{ fontSize: 17, color: 'var(--novae-text-main, #3d2618)', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontWeight: 500, lineHeight: 1.2 }}>
@@ -387,14 +472,14 @@ const visibleModules = (u: Univers) => {
                     {novaPending ? 'Elle a pensé à toi.' : 'Elle organise, planifie et agit sur ta journée. Dis-lui ce que tu as en tête.'}
                   </p>
                 </div>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, #8A6FB0, #6f57a0)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 15, flexShrink: 0 }}>→</div>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: themedNovaOrbBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 15, flexShrink: 0 }}>→</div>
               </div>
             </Link>
 
             {/* STRUGGLE */}
             {struggle.active && (
               <Link href="/agent" style={{ textDecoration: 'none', display: 'block', marginBottom: 10 }}>
-                <div style={{ background: 'linear-gradient(135deg, rgba(196,149,106,0.20), rgba(123,111,160,0.18))', border: '1px solid rgba(196,149,106,0.35)', borderRadius: 14, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 9 }}>
+                <div style={{ background: isClassicTheme ? 'linear-gradient(135deg, rgba(196,149,106,0.20), rgba(123,111,160,0.18))' : 'var(--novae-surface-alt, #FFF9F5)', border: isClassicTheme ? '1px solid rgba(196,149,106,0.35)' : '1px solid var(--novae-border, #EADDD2)', borderRadius: 14, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 9 }}>
                   <span style={{ fontSize: 18, flexShrink: 0 }}>🌙</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--novae-primary, #8b5a3c)', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Une période plus calme ?</p>
@@ -417,9 +502,9 @@ const visibleModules = (u: Univers) => {
                   }
                   setShowObjectifForm(true)
                 }}
-                style={{ background: 'rgba(243,205,182,0.35)', border: '1px solid rgba(230,180,147,0.45)', borderRadius: 14, padding: '12px 12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 90, position: 'relative', overflow: 'hidden' }}
+                style={{ background: themedObjectiveBackground, border: isClassicTheme ? '1px solid rgba(230,180,147,0.45)' : '1px solid var(--novae-border, #EADDD2)', borderRadius: 14, padding: '12px 12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 90, position: 'relative', overflow: 'hidden' }}
               >
-                <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: 'rgba(196,149,106,0.15)', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: isClassicTheme ? 'rgba(196,149,106,0.15)' : 'var(--novae-primary-soft, rgba(196,149,106,0.15))', pointerEvents: 'none' }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 8.5, color: 'var(--novae-secondary, #8b6f55)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 5 }}>Objectif du jour</div>
                   {objectifDuJour ? (
@@ -432,7 +517,7 @@ const visibleModules = (u: Univers) => {
                       )}
                       {objectifDuJour.priorite && (
                         <div style={{ fontSize: 11, color: 'var(--novae-text-main, #3d2618)', lineHeight: 1.4, display: 'flex', gap: 4 }}>
-                          <span style={{ color: '#B5654A', fontWeight: 700, flexShrink: 0 }}>①</span>
+                          <span style={{ color: isClassicTheme ? '#B5654A' : 'var(--novae-primary, #B5654A)', fontWeight: 700, flexShrink: 0 }}>①</span>
                           <span style={{ fontWeight: 600 }}>{objectifDuJour.priorite}</span>
                         </div>
                       )}
@@ -455,19 +540,19 @@ const visibleModules = (u: Univers) => {
 
               {/* CARTE COMMUNAUTÉ */}
               <Link href="/community" onClick={() => localStorage.setItem('novae-community-last-visit', new Date().toISOString())} style={{ textDecoration: 'none' }}>
-                <div style={{ background: 'rgba(212,196,226,0.30)', border: '1px solid rgba(185,162,212,0.45)', borderRadius: 14, padding: '12px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 90, position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: 'rgba(185,162,212,0.18)', pointerEvents: 'none' }} />
+                <div style={{ background: themedCommunityBackground, border: isClassicTheme ? '1px solid rgba(185,162,212,0.45)' : '1px solid var(--novae-border, #EADDD2)', borderRadius: 14, padding: '12px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 90, position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: isClassicTheme ? 'rgba(185,162,212,0.18)' : 'var(--novae-surface-alt, rgba(185,162,212,0.18))', pointerEvents: 'none' }} />
                   {newCommunityPosts !== null && newCommunityPosts > 0 && (
                     <span style={{ position: 'absolute', top: 8, right: 8, background: 'linear-gradient(135deg, #c44757, #8b2d3d)', color: '#fff', fontSize: 9, fontWeight: 700, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {newCommunityPosts > 9 ? '9+' : newCommunityPosts}
                     </span>
                   )}
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 8.5, color: '#7E63A8', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 5 }}>Communauté</div>
+                    <div style={{ fontSize: 8.5, color: isClassicTheme ? '#7E63A8' : 'var(--novae-primary, #7E63A8)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 5 }}>Communauté</div>
                     <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: 'var(--novae-text-muted, #6b5340)', lineHeight: 1.3 }}>Tu ne reconstruis pas seule</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                    <span style={{ fontSize: 10, color: '#7E63A8', fontWeight: 600 }}>
+                    <span style={{ fontSize: 10, color: isClassicTheme ? '#7E63A8' : 'var(--novae-primary, #7E63A8)', fontWeight: 600 }}>
                       {newCommunityPosts === null ? '...' : newCommunityPosts > 0 ? `${newCommunityPosts} nouveau${newCommunityPosts > 1 ? 'x' : ''}` : 'À jour ✓'}
                     </span>
                     <span style={{ fontSize: 16 }}>👥</span>
@@ -487,17 +572,17 @@ const visibleModules = (u: Univers) => {
             {/* ADMIN */}
             {isAdmin && (
               <Link href="/admin" style={{ textDecoration: 'none', display: 'block', marginTop: 8 }}>
-                <div style={{ background: 'linear-gradient(135deg, rgba(61,38,24,0.85), rgba(107,83,64,0.75))', border: '1px solid rgba(196,149,106,0.4)', borderRadius: 12, padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ background: isClassicTheme ? 'linear-gradient(135deg, rgba(61,38,24,0.85), rgba(107,83,64,0.75))' : 'linear-gradient(135deg, var(--novae-primary, #2E302D), var(--novae-secondary, #77736A))', border: isClassicTheme ? '1px solid rgba(196,149,106,0.4)' : '1px solid var(--novae-border, #EADDD2)', borderRadius: 12, padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span>🛡️</span>
-                  <div style={{ flex: 1, fontSize: 12, color: '#F3DCC6', fontWeight: 600 }}>Admin · Pilotage</div>
-                  <span style={{ color: '#F3DCC6' }}>→</span>
+                  <div style={{ flex: 1, fontSize: 12, color: isClassicTheme ? '#F3DCC6' : '#FFFFFF', fontWeight: 600 }}>Admin · Pilotage</div>
+                  <span style={{ color: isClassicTheme ? '#F3DCC6' : '#FFFFFF' }}>→</span>
                 </div>
               </Link>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 7, alignItems: 'center', marginTop: 10 }}>
-              <button onClick={() => { localStorage.removeItem('novae-onboarding-done'); setShowTour(true); window.dispatchEvent(new CustomEvent('novae-restart-tour')) }} style={{ padding: '5px 10px', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(212,165,116,0.3)', borderRadius: 999, fontSize: 10, color: '#5c4530', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>🎓 Tuto</button>
-              <Link href="/settings" style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(212,165,116,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, textDecoration: 'none' }}>⚙️</Link>
+              <button onClick={() => { localStorage.removeItem('novae-onboarding-done'); setShowTour(true); window.dispatchEvent(new CustomEvent('novae-restart-tour')) }} style={{ padding: '5px 10px', background: isClassicTheme ? 'rgba(255,255,255,0.5)' : 'var(--novae-surface, #FFFFFF)', border: isClassicTheme ? '1px solid rgba(212,165,116,0.3)' : '1px solid var(--novae-border, #EADDD2)', borderRadius: 999, fontSize: 10, color: isClassicTheme ? '#5c4530' : 'var(--novae-primary, #5c4530)', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>🎓 Tuto</button>
+              <Link href="/settings" style={{ width: 26, height: 26, borderRadius: '50%', background: isClassicTheme ? 'rgba(255,255,255,0.5)' : 'var(--novae-surface, #FFFFFF)', border: isClassicTheme ? '1px solid rgba(212,165,116,0.3)' : '1px solid var(--novae-border, #EADDD2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, textDecoration: 'none' }}>⚙️</Link>
             </div>
 
           </div>
