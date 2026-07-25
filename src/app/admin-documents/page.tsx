@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import type { AdministrativeDocumentExtractedData } from '@/lib/admin-documents/types'
 import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
-import Link from 'next/link'
 
 const MAX_ORIGINAL_DOCUMENT_BYTES = 15 * 1024 * 1024
 const MAX_ORIGINAL_PDF_BYTES = 5 * 1024 * 1024
@@ -15,6 +15,7 @@ const DEFAULT_EVENT_START_MINUTES = 9 * 60
 const DEFAULT_EVENT_END_MINUTES = 10 * 60
 
 type ActiveView = 'add' | 'archives'
+type SensitivityLevel = 'standard' | 'sensitive' | 'very_sensitive'
 
 type ExtractionApiResponse = {
   success?: boolean
@@ -29,6 +30,7 @@ type SaveApiResponse = {
   storagePath?: string
   message?: string
   error?: string
+  requiresVaultPin?: boolean
 }
 
 type ViewDocumentApiResponse = {
@@ -38,6 +40,7 @@ type ViewDocumentApiResponse = {
   filename?: string | null
   mimeType?: string | null
   error?: string
+  requiresVaultPin?: boolean
 }
 
 type StatusApiResponse = {
@@ -49,6 +52,36 @@ type DeleteApiResponse = {
   success?: boolean
   message?: string
   error?: string
+}
+
+type VaultPinStatusApiResponse = {
+  success?: boolean
+  hasPin?: boolean
+  isLocked?: boolean
+  lockedUntil?: string | null
+  error?: string
+}
+
+type VaultPinSetupApiResponse = {
+  success?: boolean
+  message?: string
+  error?: string
+}
+
+type VaultPinVerifyApiResponse = {
+  success?: boolean
+  vaultAccessToken?: string
+  unlockDurationMinutes?: number
+  message?: string
+  error?: string
+  remainingAttempts?: number
+  lockedUntil?: string | null
+}
+
+type VaultDocumentApiResponse = {
+  success?: boolean
+  error?: string
+  requiresVaultPin?: boolean
 }
 
 type SavedAdministrativeDocument = {
@@ -66,6 +99,9 @@ type SavedAdministrativeDocument = {
   recommended_next_step: string | null
   processing_status: 'todo' | 'in_progress' | 'done'
   processed_at: string | null
+  vault_protected: boolean
+  sensitivity_level: SensitivityLevel
+  added_to_vault_at: string | null
 }
 
 async function compressImageForAdminDocument(file: File): Promise<File> {
@@ -183,6 +219,24 @@ function dueDateStatusColor(status: AdministrativeDocumentExtractedData['due_dat
   return '#6F625C'
 }
 
+function processingStatusLabel(status: SavedAdministrativeDocument['processing_status']) {
+  if (status === 'done') return 'Traité'
+  if (status === 'in_progress') return 'En cours'
+  return 'À traiter'
+}
+
+function processingStatusColor(status: SavedAdministrativeDocument['processing_status']) {
+  if (status === 'done') return '#2F7A4F'
+  if (status === 'in_progress') return '#A65E12'
+  return '#8A2525'
+}
+
+function sensitivityLabel(level: SensitivityLevel) {
+  if (level === 'very_sensitive') return 'Très sensible'
+  if (level === 'sensitive') return 'Sensible'
+  return 'Standard'
+}
+
 function getEventDateForExtraction(extraction: AdministrativeDocumentExtractedData): string | null {
   if (extraction.due_date_status === 'overdue') {
     return getTodayLocalISODate()
@@ -213,7 +267,7 @@ function getEventTitleForExtraction(extraction: AdministrativeDocumentExtractedD
 export default function AdminDocumentsTestPage() {
   const [activeView, setActiveView] = useState<ActiveView>('add')
   const [isCheckingAccess, setIsCheckingAccess] = useState(true)
-const [hasAccess, setHasAccess] = useState(false)
+  const [hasAccess, setHasAccess] = useState(false)
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [compressedSize, setCompressedSize] = useState<string | null>(null)
@@ -239,8 +293,22 @@ const [hasAccess, setHasAccess] = useState(false)
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null)
 
   const [managingDocumentId, setManagingDocumentId] = useState<string | null>(null)
-const [updatingDocumentId, setUpdatingDocumentId] = useState<string | null>(null)
-const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null)
+  const [updatingDocumentId, setUpdatingDocumentId] = useState<string | null>(null)
+  const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null)
+
+  const [vaultAccessToken, setVaultAccessToken] = useState<string | null>(null)
+  const [vaultUnlockedUntil, setVaultUnlockedUntil] = useState<number | null>(null)
+  const [vaultPin, setVaultPin] = useState('')
+  const [vaultPinConfirm, setVaultPinConfirm] = useState('')
+  const [vaultModalMode, setVaultModalMode] = useState<'setup' | 'verify' | null>(null)
+  const [pendingVaultAction, setPendingVaultAction] = useState<null | ((token: string) => Promise<void>)>(null)
+  const [vaultMessage, setVaultMessage] = useState<string | null>(null)
+  const [isVaultBusy, setIsVaultBusy] = useState(false)
+  const [vaultUpdatingDocumentId, setVaultUpdatingDocumentId] = useState<string | null>(null)
+
+  const isVaultUnlocked = () => {
+    return Boolean(vaultAccessToken && vaultUnlockedUntil && vaultUnlockedUntil > Date.now())
+  }
 
   const loadSavedDocuments = async () => {
     setIsLoadingSavedDocuments(true)
@@ -256,7 +324,8 @@ const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null
 
       const { data, error: queryError } = await supabase
         .from('administrative_documents')
-.select('id, title, document_type, sender, due_date, due_date_status, amount, currency, created_at, summary, action_required, recommended_next_step, processing_status, processed_at')        .eq('user_id', user.id)
+        .select('id, title, document_type, sender, due_date, due_date_status, amount, currency, created_at, summary, action_required, recommended_next_step, processing_status, processed_at, vault_protected, sensitivity_level, added_to_vault_at')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20)
 
@@ -277,22 +346,180 @@ const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null
   }
 
   useEffect(() => {
-  const checkAccess = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const checkAccess = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user || !canAccessAdminDocuments(user.email)) {
-      setHasAccess(false)
+      if (!user || !canAccessAdminDocuments(user.email)) {
+        setHasAccess(false)
+        setIsCheckingAccess(false)
+        return
+      }
+
+      setHasAccess(true)
       setIsCheckingAccess(false)
+      await loadSavedDocuments()
+    }
+
+    checkAccess()
+  }, [])
+
+  const checkVaultStatus = async () => {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData.session?.access_token
+
+    if (!accessToken) {
+      throw new Error('Session introuvable. Reconnecte-toi avant d’ouvrir le coffre.')
+    }
+
+    const response = await fetch('/api/vault/pin/status', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    const payload = await response.json().catch(() => null) as VaultPinStatusApiResponse | null
+
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Impossible de vérifier le coffre.')
+    }
+
+    if (payload?.isLocked) {
+      throw new Error('Le coffre est temporairement bloqué après plusieurs erreurs de code PIN.')
+    }
+
+    return Boolean(payload?.hasPin)
+  }
+
+  const requestVaultUnlock = async (action: (token: string) => Promise<void>) => {
+    if (isVaultUnlocked() && vaultAccessToken) {
+      await action(vaultAccessToken)
       return
     }
 
-    setHasAccess(true)
-    setIsCheckingAccess(false)
-    await loadSavedDocuments()
+    try {
+      const hasPin = await checkVaultStatus()
+      setPendingVaultAction(() => action)
+      setVaultModalMode(hasPin ? 'verify' : 'setup')
+      setVaultMessage(null)
+      setVaultPin('')
+      setVaultPinConfirm('')
+    } catch (vaultError) {
+      const message =
+        vaultError instanceof Error
+          ? vaultError.message
+          : 'Impossible d’ouvrir le coffre.'
+
+      if (activeView === 'archives') {
+        setSavedDocumentsError(message)
+      } else {
+        setError(message)
+      }
+    }
   }
 
-  checkAccess()
-}, [])
+  const handleSetupVaultPin = async () => {
+    setIsVaultBusy(true)
+    setVaultMessage(null)
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+
+      if (!accessToken) {
+        throw new Error('Session introuvable. Reconnecte-toi avant de créer le code PIN.')
+      }
+
+      const response = await fetch('/api/vault/pin/setup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          pin: vaultPin,
+          confirmPin: vaultPinConfirm,
+        }),
+      })
+
+      const payload = await response.json().catch(() => null) as VaultPinSetupApiResponse | null
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Impossible de créer le code PIN.')
+      }
+
+      setVaultPin('')
+      setVaultPinConfirm('')
+      setVaultModalMode('verify')
+      setVaultMessage('Code PIN créé. Entre-le maintenant pour déverrouiller le coffre.')
+    } catch (setupError) {
+      setVaultMessage(
+        setupError instanceof Error
+          ? setupError.message
+          : 'Impossible de créer le code PIN.'
+      )
+    } finally {
+      setIsVaultBusy(false)
+    }
+  }
+
+  const handleVerifyVaultPin = async () => {
+    setIsVaultBusy(true)
+    setVaultMessage(null)
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+
+      if (!accessToken) {
+        throw new Error('Session introuvable. Reconnecte-toi avant de déverrouiller le coffre.')
+      }
+
+      const response = await fetch('/api/vault/pin/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          pin: vaultPin,
+        }),
+      })
+
+      const payload = await response.json().catch(() => null) as VaultPinVerifyApiResponse | null
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Code PIN incorrect.')
+      }
+
+      if (!payload?.vaultAccessToken) {
+        throw new Error('Token coffre manquant.')
+      }
+
+      const unlockMinutes = payload.unlockDurationMinutes || 5
+      const token = payload.vaultAccessToken
+      const action = pendingVaultAction
+
+      setVaultAccessToken(token)
+      setVaultUnlockedUntil(Date.now() + unlockMinutes * 60 * 1000)
+      setVaultPin('')
+      setVaultPinConfirm('')
+      setVaultModalMode(null)
+      setPendingVaultAction(null)
+
+      if (action) {
+        await action(token)
+      }
+    } catch (verifyError) {
+      setVaultMessage(
+        verifyError instanceof Error
+          ? verifyError.message
+          : 'Impossible de déverrouiller le coffre.'
+      )
+    } finally {
+      setIsVaultBusy(false)
+    }
+  }
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
@@ -334,15 +561,16 @@ const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null
       setError('Ajoute une photo ou un PDF avant de lancer l’analyse.')
       return
     }
-if (isPdfFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_PDF_BYTES) {
-  setError('PDF trop lourd. Pour cette version, choisis un PDF de moins de 5 MB ou prends une photo/capture du document.')
-  return
-}
 
-if (isImageFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_DOCUMENT_BYTES) {
-  setError('Image trop lourde. Choisis une photo de moins de 15 MB.')
-  return
-}
+    if (isPdfFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_PDF_BYTES) {
+      setError('PDF trop lourd. Pour cette version, choisis un PDF de moins de 5 MB ou prends une photo/capture du document.')
+      return
+    }
+
+    if (isImageFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_DOCUMENT_BYTES) {
+      setError('Image trop lourde. Choisis une photo de moins de 15 MB.')
+      return
+    }
 
     setIsScanning(true)
     setError(null)
@@ -530,7 +758,7 @@ if (isImageFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_DOCUMENT_BYTES
     }
   }
 
-  const handleSaveDocument = async () => {
+  const saveDocumentWithVaultOption = async (vaultProtected: boolean, token?: string) => {
     if (!selectedFile || !extraction) {
       setError('Analyse un document avant de l’enregistrer.')
       return
@@ -555,6 +783,8 @@ if (isImageFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_DOCUMENT_BYTES
       const formData = new FormData()
       formData.append('document', documentForSave)
       formData.append('extraction', JSON.stringify(extraction))
+      formData.append('vaultProtected', vaultProtected ? 'true' : 'false')
+      formData.append('sensitivityLevel', vaultProtected ? 'sensitive' : 'standard')
 
       if (createdTaskId) {
         formData.append('linkedTodoId', createdTaskId)
@@ -568,6 +798,7 @@ if (isImageFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_DOCUMENT_BYTES
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
+          ...(vaultProtected && token ? { 'x-vault-access-token': token } : {}),
         },
         body: formData,
       })
@@ -590,7 +821,12 @@ if (isImageFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_DOCUMENT_BYTES
       }
 
       setSavedDocumentId(payload.documentId)
-      setSaveMessage(payload.message || 'Document enregistré dans ton espace sécurisé.')
+      setSaveMessage(
+        payload.message ||
+        (vaultProtected
+          ? 'Document enregistré dans le coffre sécurisé.'
+          : 'Document enregistré dans ton espace sécurisé.')
+      )
       await loadSavedDocuments()
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Impossible d'enregistrer le document.")
@@ -599,7 +835,17 @@ if (isImageFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_DOCUMENT_BYTES
     }
   }
 
-  const handleOpenSavedDocument = async (documentId: string) => {
+  const handleSaveDocument = async () => {
+    await saveDocumentWithVaultOption(false)
+  }
+
+  const handleSaveDocumentToVault = async () => {
+    await requestVaultUnlock(async (token) => {
+      await saveDocumentWithVaultOption(true, token)
+    })
+  }
+
+  const openSavedDocumentWithToken = async (documentId: string, token?: string) => {
     setOpeningDocumentId(documentId)
     setSavedDocumentsError(null)
 
@@ -615,6 +861,7 @@ if (isImageFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_DOCUMENT_BYTES
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,
+          ...(token ? { 'x-vault-access-token': token } : {}),
         },
       })
 
@@ -647,99 +894,170 @@ if (isImageFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_DOCUMENT_BYTES
     }
   }
 
+  const handleOpenSavedDocument = async (document: SavedAdministrativeDocument) => {
+    if (document.vault_protected) {
+      await requestVaultUnlock(async (token) => {
+        await openSavedDocumentWithToken(document.id, token)
+      })
+      return
+    }
+
+    await openSavedDocumentWithToken(document.id)
+  }
+
   const handleUpdateProcessingStatus = async (
-  documentId: string,
-  processingStatus: 'todo' | 'in_progress' | 'done'
-) => {
-  setUpdatingDocumentId(documentId)
-  setSavedDocumentsError(null)
+    documentId: string,
+    processingStatus: SavedAdministrativeDocument['processing_status']
+  ) => {
+    setUpdatingDocumentId(documentId)
+    setSavedDocumentsError(null)
 
-  try {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const accessToken = sessionData.session?.access_token
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
 
-    if (!accessToken) {
-      throw new Error('Session introuvable. Reconnecte-toi avant de modifier le document.')
+      if (!accessToken) {
+        throw new Error('Session introuvable. Reconnecte-toi avant de modifier le document.')
+      }
+
+      const response = await fetch('/api/admin-documents/status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          documentId,
+          processingStatus,
+        }),
+      })
+
+      const payload = await response.json().catch(() => null) as StatusApiResponse | null
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Impossible de mettre à jour le statut.')
+      }
+
+      await loadSavedDocuments()
+    } catch (statusError) {
+      setSavedDocumentsError(
+        statusError instanceof Error
+          ? statusError.message
+          : 'Impossible de mettre à jour le statut.'
+      )
+    } finally {
+      setUpdatingDocumentId(null)
     }
-
-    const response = await fetch('/api/admin-documents/status', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        documentId,
-        processingStatus,
-      }),
-    })
-
-    const payload = await response.json().catch(() => null) as StatusApiResponse | null
-
-    if (!response.ok) {
-      throw new Error(payload?.error || 'Impossible de mettre à jour le statut.')
-    }
-
-    await loadSavedDocuments()
-  } catch (statusError) {
-    setSavedDocumentsError(
-      statusError instanceof Error
-        ? statusError.message
-        : 'Impossible de mettre à jour le statut.'
-    )
-  } finally {
-    setUpdatingDocumentId(null)
   }
-}
 
-const handleDeleteSavedDocument = async (documentId: string) => {
-  const confirmed = window.confirm(
-    'Supprimer ce document ? Le fichier et sa fiche seront supprimés définitivement.'
-  )
+  const handleToggleVaultProtection = async (
+    document: SavedAdministrativeDocument,
+    vaultProtected: boolean,
+    sensitivityLevel: Exclude<SensitivityLevel, 'standard'> = 'sensitive'
+  ) => {
+    const action = async (token: string) => {
+      setVaultUpdatingDocumentId(document.id)
+      setSavedDocumentsError(null)
 
-  if (!confirmed) return
+      try {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData.session?.access_token
 
-  setDeletingDocumentId(documentId)
-  setSavedDocumentsError(null)
+        if (!accessToken) {
+          throw new Error('Session introuvable. Reconnecte-toi avant de modifier le coffre.')
+        }
 
-  try {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const accessToken = sessionData.session?.access_token
+        const response = await fetch('/api/admin-documents/vault', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+            'x-vault-access-token': token,
+          },
+          body: JSON.stringify({
+            documentId: document.id,
+            vaultProtected,
+            sensitivityLevel,
+          }),
+        })
 
-    if (!accessToken) {
-      throw new Error('Session introuvable. Reconnecte-toi avant de supprimer le document.')
+        const payload = await response.json().catch(() => null) as VaultDocumentApiResponse | null
+
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Impossible de modifier la protection coffre.')
+        }
+
+        await loadSavedDocuments()
+      } catch (vaultError) {
+        setSavedDocumentsError(
+          vaultError instanceof Error
+            ? vaultError.message
+            : 'Impossible de modifier la protection coffre.'
+        )
+      } finally {
+        setVaultUpdatingDocumentId(null)
+      }
     }
 
-    const response = await fetch('/api/admin-documents/delete', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ documentId }),
-    })
-
-    const payload = await response.json().catch(() => null) as DeleteApiResponse | null
-
-    if (!response.ok) {
-      throw new Error(payload?.error || 'Impossible de supprimer ce document.')
+    if (vaultProtected) {
+      await requestVaultUnlock(action)
+      return
     }
 
-    if (managingDocumentId === documentId) {
-      setManagingDocumentId(null)
-    }
+    const confirmed = window.confirm('Retirer ce document du coffre sécurisé ?')
+    if (!confirmed) return
 
-    await loadSavedDocuments()
-  } catch (deleteError) {
-    setSavedDocumentsError(
-      deleteError instanceof Error
-        ? deleteError.message
-        : 'Impossible de supprimer ce document.'
-    )
-  } finally {
-    setDeletingDocumentId(null)
+    await requestVaultUnlock(action)
   }
-}
+
+  const handleDeleteSavedDocument = async (documentId: string) => {
+    const confirmed = window.confirm(
+      'Supprimer ce document ? Le fichier et sa fiche seront supprimés définitivement.'
+    )
+
+    if (!confirmed) return
+
+    setDeletingDocumentId(documentId)
+    setSavedDocumentsError(null)
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+
+      if (!accessToken) {
+        throw new Error('Session introuvable. Reconnecte-toi avant de supprimer le document.')
+      }
+
+      const response = await fetch('/api/admin-documents/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ documentId }),
+      })
+
+      const payload = await response.json().catch(() => null) as DeleteApiResponse | null
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Impossible de supprimer ce document.')
+      }
+
+      if (managingDocumentId === documentId) {
+        setManagingDocumentId(null)
+      }
+
+      await loadSavedDocuments()
+    } catch (deleteError) {
+      setSavedDocumentsError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : 'Impossible de supprimer ce document.'
+      )
+    } finally {
+      setDeletingDocumentId(null)
+    }
+  }
 
   const eventButtonLabel = (() => {
     if (createdEventId) return 'Échéance créée'
@@ -759,56 +1077,62 @@ const handleDeleteSavedDocument = async (documentId: string) => {
     return 'Enregistrer ce document'
   })()
 
+  const saveVaultButtonLabel = (() => {
+    if (savedDocumentId) return 'Document enregistré'
+    if (isSavingDocument) return 'Enregistrement...'
+    return 'Enregistrer dans le coffre'
+  })()
+
   const eventDatePreview = extraction ? getEventDateForExtraction(extraction) : null
 
   if (isCheckingAccess) {
-  return (
-    <main style={{
-      minHeight: '100vh',
-      background: '#FBF7F2',
-      padding: '32px 16px',
-      color: '#2B2320',
-    }}>
-      <section style={{
-        maxWidth: 720,
-        margin: '0 auto',
-        background: '#FFFFFF',
-        border: '1px solid #EADDD2',
-        borderRadius: 24,
-        padding: 24,
+    return (
+      <main style={{
+        minHeight: '100vh',
+        background: '#FBF7F2',
+        padding: '32px 16px',
+        color: '#2B2320',
       }}>
-        Chargement...
-      </section>
-    </main>
-  )
-}
+        <section style={{
+          maxWidth: 720,
+          margin: '0 auto',
+          background: '#FFFFFF',
+          border: '1px solid #EADDD2',
+          borderRadius: 24,
+          padding: 24,
+        }}>
+          Chargement...
+        </section>
+      </main>
+    )
+  }
 
-if (!hasAccess) {
-  return (
-    <main style={{
-      minHeight: '100vh',
-      background: '#FBF7F2',
-      padding: '32px 16px',
-      color: '#2B2320',
-    }}>
-      <section style={{
-        maxWidth: 720,
-        margin: '0 auto',
-        background: '#FFFFFF',
-        border: '1px solid #EADDD2',
-        borderRadius: 24,
-        padding: 24,
+  if (!hasAccess) {
+    return (
+      <main style={{
+        minHeight: '100vh',
+        background: '#FBF7F2',
+        padding: '32px 16px',
+        color: '#2B2320',
       }}>
-        <h1 style={{ margin: '0 0 12px', color: '#4A1F1B' }}>
-          Module en test privé
-        </h1>
-        <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.6 }}>
-          Le module administratif est en cours de test et n’est pas encore disponible pour tous les comptes.
-        </p>
-      </section>
-    </main>
-  )
-}
+        <section style={{
+          maxWidth: 720,
+          margin: '0 auto',
+          background: '#FFFFFF',
+          border: '1px solid #EADDD2',
+          borderRadius: 24,
+          padding: 24,
+        }}>
+          <h1 style={{ margin: '0 0 12px', color: '#4A1F1B' }}>
+            Module en test privé
+          </h1>
+          <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.6 }}>
+            Le module administratif est en cours de test et n’est pas encore disponible pour tous les comptes.
+          </p>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <main style={{
@@ -826,7 +1150,26 @@ if (!hasAccess) {
         padding: 24,
         boxShadow: '0 18px 45px rgba(55, 35, 25, 0.08)',
       }}>
+        <div style={{ display: 'block', marginBottom: 14 }}>
+          <Link
+            href="/"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              color: '#7A2E2A',
+              textDecoration: 'none',
+              fontWeight: 700,
+              fontSize: 14,
+            }}
+          >
+            ← Retour à l’accueil
+          </Link>
+        </div>
+
         <p style={{
+          display: 'block',
+          clear: 'both',
           margin: '0 0 8px',
           fontSize: 13,
           color: '#9A6A5B',
@@ -834,22 +1177,6 @@ if (!hasAccess) {
           letterSpacing: 0.5,
           textTransform: 'uppercase',
         }}>
-            <Link
-  href="/"
-  style={{
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 18,
-    color: '#7A2E2A',
-    textDecoration: 'none',
-    fontWeight: 700,
-    fontSize: 14,
-  }}
->
-  ← Retour à l’accueil
-</Link>
-
           Assistant administratif
         </p>
 
@@ -1062,7 +1389,7 @@ if (!hasAccess) {
                     <li>{createdTaskId ? 'Une tâche a été créée après validation' : 'Aucune tâche créée'}</li>
                     <li>{createdEventId ? 'Une échéance a été ajoutée au planner après validation' : 'Aucune échéance ajoutée au planner'}</li>
                     <li>Aucun rappel automatique programmé</li>
-                    <li>{savedDocumentId ? 'Document enregistré dans ton espace sécurisé' : 'Aucun document enregistré en base'}</li>
+                    <li>{savedDocumentId ? 'Document enregistré' : 'Aucun document enregistré en base'}</li>
                   </ul>
 
                   {extraction.due_date_status === 'overdue' && !createdEventId && (
@@ -1132,7 +1459,28 @@ if (!hasAccess) {
                     >
                       {saveButtonLabel}
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveDocumentToVault}
+                      disabled={isSavingDocument || Boolean(savedDocumentId)}
+                      style={{
+                        border: '1px solid #7A2E2A',
+                        borderRadius: 999,
+                        padding: '11px 16px',
+                        background: isSavingDocument || savedDocumentId ? '#F0E7DF' : '#FFF9F5',
+                        color: isSavingDocument || savedDocumentId ? '#9A6A5B' : '#7A2E2A',
+                        fontWeight: 800,
+                        cursor: isSavingDocument || savedDocumentId ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {saveVaultButtonLabel}
+                    </button>
                   </div>
+
+                  <p style={{ margin: '12px 0 0', color: '#6F625C', fontSize: 13, lineHeight: 1.45 }}>
+                    Le coffre demande un code PIN et utilise un accès temporaire. À utiliser pour les documents sensibles.
+                  </p>
 
                   {taskMessage && (
                     <p style={{
@@ -1174,35 +1522,151 @@ if (!hasAccess) {
 
         {activeView === 'archives' && (
           <SavedDocumentsSection
-  documents={savedDocuments}
-  isLoading={isLoadingSavedDocuments}
-  error={savedDocumentsError}
-  openingDocumentId={openingDocumentId}
-  managingDocumentId={managingDocumentId}
-  updatingDocumentId={updatingDocumentId}
-  deletingDocumentId={deletingDocumentId}
-  onRefresh={loadSavedDocuments}
-  onOpenDocument={handleOpenSavedDocument}
-  onManageDocument={setManagingDocumentId}
-  onUpdateProcessingStatus={handleUpdateProcessingStatus}
-  onDeleteDocument={handleDeleteSavedDocument}
-/>
+            documents={savedDocuments}
+            isLoading={isLoadingSavedDocuments}
+            error={savedDocumentsError}
+            openingDocumentId={openingDocumentId}
+            managingDocumentId={managingDocumentId}
+            updatingDocumentId={updatingDocumentId}
+            deletingDocumentId={deletingDocumentId}
+            vaultUpdatingDocumentId={vaultUpdatingDocumentId}
+            onRefresh={loadSavedDocuments}
+            onOpenDocument={handleOpenSavedDocument}
+            onManageDocument={setManagingDocumentId}
+            onUpdateProcessingStatus={handleUpdateProcessingStatus}
+            onDeleteDocument={handleDeleteSavedDocument}
+            onToggleVaultProtection={handleToggleVaultProtection}
+          />
         )}
       </section>
+
+      {vaultModalMode && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(43, 35, 32, 0.45)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: 16,
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: 420,
+            background: '#FFFFFF',
+            borderRadius: 22,
+            padding: 22,
+            border: '1px solid #EADDD2',
+            boxShadow: '0 18px 45px rgba(55, 35, 25, 0.18)',
+          }}>
+            <h2 style={{ margin: '0 0 8px', color: '#4A1F1B', fontSize: 22 }}>
+              {vaultModalMode === 'setup' ? 'Créer ton code coffre' : 'Déverrouiller le coffre'}
+            </h2>
+
+            <p style={{ margin: '0 0 16px', color: '#6F625C', lineHeight: 1.5 }}>
+              {vaultModalMode === 'setup'
+                ? 'Choisis un code PIN de 4 à 8 chiffres. Il ne sera jamais stocké en clair.'
+                : 'Entre ton code PIN pour accéder au coffre sécurisé pendant quelques minutes.'}
+            </p>
+
+            <input
+              type="password"
+              inputMode="numeric"
+              value={vaultPin}
+              onChange={(event) => setVaultPin(event.target.value)}
+              placeholder="Code PIN"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                border: '1px solid #D7C8BE',
+                borderRadius: 12,
+                padding: '12px 14px',
+                fontSize: 16,
+                marginBottom: 10,
+              }}
+            />
+
+            {vaultModalMode === 'setup' && (
+              <input
+                type="password"
+                inputMode="numeric"
+                value={vaultPinConfirm}
+                onChange={(event) => setVaultPinConfirm(event.target.value)}
+                placeholder="Confirmer le code PIN"
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  border: '1px solid #D7C8BE',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  fontSize: 16,
+                  marginBottom: 10,
+                }}
+              />
+            )}
+
+            {vaultMessage && (
+              <p style={{
+                margin: '0 0 12px',
+                color: vaultMessage.includes('créé') ? '#2F7A4F' : '#8A2525',
+                fontWeight: 700,
+                lineHeight: 1.4,
+              }}>
+                {vaultMessage}
+              </p>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setVaultModalMode(null)
+                  setPendingVaultAction(null)
+                  setVaultPin('')
+                  setVaultPinConfirm('')
+                  setVaultMessage(null)
+                }}
+                disabled={isVaultBusy}
+                style={{
+                  border: '1px solid #D7C8BE',
+                  borderRadius: 999,
+                  padding: '10px 14px',
+                  background: '#FFFFFF',
+                  color: '#7A2E2A',
+                  fontWeight: 700,
+                  cursor: isVaultBusy ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Annuler
+              </button>
+
+              <button
+                type="button"
+                onClick={vaultModalMode === 'setup' ? handleSetupVaultPin : handleVerifyVaultPin}
+                disabled={isVaultBusy}
+                style={{
+                  border: 'none',
+                  borderRadius: 999,
+                  padding: '10px 14px',
+                  background: '#7A2E2A',
+                  color: '#FFFFFF',
+                  fontWeight: 700,
+                  cursor: isVaultBusy ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isVaultBusy
+                  ? 'Vérification...'
+                  : vaultModalMode === 'setup'
+                    ? 'Créer le PIN'
+                    : 'Déverrouiller'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
-}
-
-function processingStatusLabel(status: SavedAdministrativeDocument['processing_status']) {
-  if (status === 'done') return 'Traité'
-  if (status === 'in_progress') return 'En cours'
-  return 'À traiter'
-}
-
-function processingStatusColor(status: SavedAdministrativeDocument['processing_status']) {
-  if (status === 'done') return '#2F7A4F'
-  if (status === 'in_progress') return '#A65E12'
-  return '#8A2525'
 }
 
 function SavedDocumentsSection({
@@ -1213,11 +1677,13 @@ function SavedDocumentsSection({
   managingDocumentId,
   updatingDocumentId,
   deletingDocumentId,
+  vaultUpdatingDocumentId,
   onRefresh,
   onOpenDocument,
   onManageDocument,
   onUpdateProcessingStatus,
   onDeleteDocument,
+  onToggleVaultProtection,
 }: {
   documents: SavedAdministrativeDocument[]
   isLoading: boolean
@@ -1226,14 +1692,20 @@ function SavedDocumentsSection({
   managingDocumentId: string | null
   updatingDocumentId: string | null
   deletingDocumentId: string | null
+  vaultUpdatingDocumentId: string | null
   onRefresh: () => void
-  onOpenDocument: (documentId: string) => void
+  onOpenDocument: (document: SavedAdministrativeDocument) => void
   onManageDocument: (documentId: string | null) => void
   onUpdateProcessingStatus: (
     documentId: string,
     status: SavedAdministrativeDocument['processing_status']
   ) => void
   onDeleteDocument: (documentId: string) => void
+  onToggleVaultProtection: (
+    document: SavedAdministrativeDocument,
+    vaultProtected: boolean,
+    sensitivityLevel?: Exclude<SensitivityLevel, 'standard'>
+  ) => void
 }) {
   return (
     <section style={{
@@ -1301,6 +1773,7 @@ function SavedDocumentsSection({
             const isManaging = managingDocumentId === document.id
             const isUpdating = updatingDocumentId === document.id
             const isDeleting = deletingDocumentId === document.id
+            const isVaultUpdating = vaultUpdatingDocumentId === document.id
 
             return (
               <div
@@ -1341,6 +1814,17 @@ function SavedDocumentsSection({
                     }}>
                       Statut : {processingStatusLabel(document.processing_status)}
                     </p>
+
+                    {document.vault_protected && (
+                      <p style={{
+                        margin: '6px 0 0',
+                        color: '#7A2E2A',
+                        fontWeight: 800,
+                        fontSize: 13,
+                      }}>
+                        🔐 Coffre sécurisé · {sensitivityLabel(document.sensitivity_level)}
+                      </p>
+                    )}
                   </div>
 
                   <div style={{ textAlign: 'right', minWidth: 140 }}>
@@ -1369,7 +1853,7 @@ function SavedDocumentsSection({
                     <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
                       <button
                         type="button"
-                        onClick={() => onOpenDocument(document.id)}
+                        onClick={() => onOpenDocument(document)}
                         disabled={openingDocumentId === document.id}
                         style={{
                           border: '1px solid #D7C8BE',
@@ -1381,7 +1865,7 @@ function SavedDocumentsSection({
                           cursor: openingDocumentId === document.id ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        {openingDocumentId === document.id ? 'Ouverture...' : 'Voir'}
+                        {openingDocumentId === document.id ? 'Ouverture...' : document.vault_protected ? 'Voir coffre' : 'Voir'}
                       </button>
 
                       <button
@@ -1477,6 +1961,42 @@ function SavedDocumentsSection({
                       >
                         Remettre à traiter
                       </button>
+
+                      {document.vault_protected ? (
+                        <button
+                          type="button"
+                          onClick={() => onToggleVaultProtection(document, false)}
+                          disabled={isVaultUpdating}
+                          style={{
+                            border: '1px solid #D7C8BE',
+                            borderRadius: 999,
+                            padding: '8px 12px',
+                            background: '#FFFFFF',
+                            color: '#7A2E2A',
+                            fontWeight: 700,
+                            cursor: isVaultUpdating ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {isVaultUpdating ? 'Modification...' : 'Retirer du coffre'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onToggleVaultProtection(document, true, 'sensitive')}
+                          disabled={isVaultUpdating}
+                          style={{
+                            border: '1px solid #B8895E',
+                            borderRadius: 999,
+                            padding: '8px 12px',
+                            background: '#FFF9F5',
+                            color: '#7A2E2A',
+                            fontWeight: 800,
+                            cursor: isVaultUpdating ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {isVaultUpdating ? 'Protection...' : 'Ajouter au coffre'}
+                        </button>
+                      )}
 
                       <button
                         type="button"
