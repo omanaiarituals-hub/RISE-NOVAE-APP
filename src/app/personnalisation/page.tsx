@@ -477,6 +477,18 @@ export default function PersonnalisationPage() {
         throw new Error(interfaceSaveError.message)
       }
 
+      window.localStorage.setItem(
+  'novae-interface-preferences',
+  JSON.stringify({
+    theme_key: interfacePreferences.theme_key,
+    interface_density: interfacePreferences.interface_density,
+    reduced_motion: interfacePreferences.reduced_motion,
+    high_contrast: interfacePreferences.high_contrast,
+  })
+)
+
+window.dispatchEvent(new Event('novae-theme-updated'))
+
       setSuccessMessage('Personnalisation enregistrée. Nova pourra utiliser ces préférences progressivement.')
     } catch (saveError) {
       setError(

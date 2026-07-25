@@ -11,6 +11,7 @@ import { SetupGuide } from '@/components/SetupGuide'
 import { PWAInstallPrompt } from '@/components/PWAInstallPrompt'
 import { CookieBanner } from '@/components/CookieBanner'
 import GlobalHeader from '@/components/GlobalHeader'
+import UserThemeProvider from '@/components/theme/UserThemeProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -78,19 +79,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr">
-      <body className={inter.className} style={{ margin: 0, background: '#F8F1E5' }}>
-        <SetupGuide />
-        <GlobalHeader />
-        <main>
-          {children}
-        </main>
-        <PWAInstallPrompt />
-        <PushManager />
-        {/* CORRECTIF (audit 02/07/2026) : CookieBanner était importé mais
-            jamais rendu — aucune visiteuse n'a jamais vu de bandeau de
-            consentement cookies. Composant remonté ici, sans autre
-            modification (logique de consentement inchangée). */}
-        <CookieBanner />
+      <body
+  className={inter.className}
+  style={{ margin: 0, background: 'var(--novae-background, #F8F1E5)' }}
+>
+  <UserThemeProvider>
+    <SetupGuide />
+    <GlobalHeader />
+    <main>
+      {children}
+    </main>
+    <PWAInstallPrompt />
+    <PushManager />
+    <CookieBanner />
+  </UserThemeProvider>
         <script dangerouslySetInnerHTML={{__html: `
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
