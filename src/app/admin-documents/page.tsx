@@ -104,6 +104,16 @@ type SavedAdministrativeDocument = {
   added_to_vault_at: string | null
 }
 
+type AdministrativeDocumentReminder = {
+  id: string
+  document_id: string
+  reminder_type: string
+  scheduled_for: string
+  sent_at: string | null
+  skipped_at: string | null
+  skip_reason: string | null
+}
+
 async function compressImageForAdminDocument(file: File): Promise<File> {
   if (file.size <= MAX_COMPRESSED_DOCUMENT_BYTES) {
     return file
@@ -237,6 +247,28 @@ function sensitivityLabel(level: SensitivityLevel) {
   return 'Standard'
 }
 
+function reminderTypeLabel(type: string) {
+  if (type === 'before_7_days') return '7 jours avant'
+  if (type === 'before_3_days') return '3 jours avant'
+  if (type === 'before_1_day') return '1 jour avant'
+  if (type === 'due_today') return 'Le jour de l’échéance'
+  if (type === 'overdue_1_day') return 'Relance J+1'
+  if (type === 'overdue_3_days') return 'Relance J+3'
+  return type
+}
+
+function reminderStatusLabel(reminder: AdministrativeDocumentReminder) {
+  if (reminder.sent_at) return 'Envoyé'
+  if (reminder.skipped_at) return 'Ignoré'
+  return 'Programmé'
+}
+
+function reminderStatusColor(reminder: AdministrativeDocumentReminder) {
+  if (reminder.sent_at) return '#2F7A4F'
+  if (reminder.skipped_at) return '#9A6A5B'
+  return '#A65E12'
+}
+
 function getEventDateForExtraction(extraction: AdministrativeDocumentExtractedData): string | null {
   if (extraction.due_date_status === 'overdue') {
     return getTodayLocalISODate()
@@ -288,6 +320,7 @@ export default function AdminDocumentsTestPage() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
   const [savedDocuments, setSavedDocuments] = useState<SavedAdministrativeDocument[]>([])
+  const [documentReminders, setDocumentReminders] = useState<Record<string, AdministrativeDocumentReminder[]>>({})
   const [isLoadingSavedDocuments, setIsLoadingSavedDocuments] = useState(false)
   const [savedDocumentsError, setSavedDocumentsError] = useState<string | null>(null)
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null)
@@ -333,7 +366,39 @@ export default function AdminDocumentsTestPage() {
         throw new Error(queryError.message)
       }
 
-      setSavedDocuments((data || []) as SavedAdministrativeDocument[])
+const documents = (data || []) as SavedAdministrativeDocument[]
+setSavedDocuments(documents)
+
+const documentIds = documents.map((document) => document.id)
+
+if (documentIds.length === 0) {
+  setDocumentReminders({})
+  return
+}
+
+const { data: remindersData, error: remindersError } = await supabase
+  .from('administrative_document_reminders')
+  .select('id, document_id, reminder_type, scheduled_for, sent_at, skipped_at, skip_reason')
+  .in('document_id', documentIds)
+  .order('scheduled_for', { ascending: true })
+
+if (remindersError) {
+  throw new Error(remindersError.message)
+}
+
+const remindersByDocument = ((remindersData || []) as AdministrativeDocumentReminder[]).reduce(
+  (acc, reminder) => {
+    if (!acc[reminder.document_id]) {
+      acc[reminder.document_id] = []
+    }
+
+    acc[reminder.document_id].push(reminder)
+    return acc
+  },
+  {} as Record<string, AdministrativeDocumentReminder[]>
+)
+
+setDocumentReminders(remindersByDocument)
     } catch (loadError) {
       setSavedDocumentsError(
         loadError instanceof Error
@@ -1544,6 +1609,7 @@ Mes documents archivés ({archivedDocuments.length})
         {activeView === 'archives' && (
           <SavedDocumentsSection
             documents={archivedDocuments}
+            documentReminders={documentReminders}
             isLoading={isLoadingSavedDocuments}
             error={savedDocumentsError}
             openingDocumentId={openingDocumentId}
@@ -1566,6 +1632,7 @@ Mes documents archivés ({archivedDocuments.length})
         {activeView === 'vault' && (
           <SavedDocumentsSection
             documents={vaultDocuments}
+            documentReminders={documentReminders}
             isLoading={isLoadingSavedDocuments}
             error={savedDocumentsError}
             openingDocumentId={openingDocumentId}
@@ -1717,6 +1784,7 @@ Mes documents archivés ({archivedDocuments.length})
 
 function SavedDocumentsSection({
   documents,
+  documentReminders,
   isLoading,
   error,
   openingDocumentId,
@@ -1735,6 +1803,7 @@ function SavedDocumentsSection({
   emptyMessage = 'Aucun document enregistré pour l’instant.',
 }: {
   documents: SavedAdministrativeDocument[]
+  documentReminders: Record<string, AdministrativeDocumentReminder[]>
   isLoading: boolean
   error: string | null
   openingDocumentId: string | null
@@ -1953,9 +2022,11 @@ function SavedDocumentsSection({
                       <Block title="Action à faire" value={document.action_required} />
                     )}
 
-                    {document.recommended_next_step && (
-                      <Block title="Prochaine action recommandée" value={document.recommended_next_step} />
-                    )}
+                   {document.recommended_next_step && (
+  <Block title="Prochaine action recommandée" value={document.recommended_next_step} />
+)}
+
+<ReminderBlock reminders={documentReminders[document.id] || []} />
 
                     <div style={{
                       display: 'flex',
@@ -2130,6 +2201,78 @@ function ListBlock({ title, items }: { title: string; items: string[] }) {
           <li key={item}>{item}</li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+function ReminderBlock({ reminders }: { reminders: AdministrativeDocumentReminder[] }) {
+  if (reminders.length === 0) {
+    return (
+      <div style={{
+        marginTop: 14,
+        border: '1px solid #EFE2D8',
+        borderRadius: 14,
+        padding: 12,
+        background: '#FFFCFA',
+      }}>
+        <h3 style={{ margin: '0 0 6px', fontSize: 15, color: '#4A1F1B' }}>
+          Rappels programmés
+        </h3>
+        <p style={{ margin: 0, color: '#6F625C', lineHeight: 1.5 }}>
+          Aucun rappel automatique programmé pour ce document.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      marginTop: 14,
+      border: '1px solid #EFE2D8',
+      borderRadius: 14,
+      padding: 12,
+      background: '#FFFCFA',
+    }}>
+      <h3 style={{ margin: '0 0 10px', fontSize: 15, color: '#4A1F1B' }}>
+        Rappels programmés
+      </h3>
+
+      <div style={{ display: 'grid', gap: 8 }}>
+        {reminders.map((reminder) => (
+          <div
+            key={reminder.id}
+            style={{
+              border: '1px solid #EFE2D8',
+              borderRadius: 12,
+              padding: 10,
+              background: '#FFFFFF',
+            }}
+          >
+            <p style={{ margin: '0 0 4px', color: '#4A1F1B', fontWeight: 700 }}>
+              {reminderTypeLabel(reminder.reminder_type)}
+            </p>
+
+            <p style={{ margin: '0 0 4px', color: '#6F625C', fontSize: 13 }}>
+              Prévu le {new Date(reminder.scheduled_for).toLocaleString('fr-FR')}
+            </p>
+
+            <p style={{
+              margin: 0,
+              color: reminderStatusColor(reminder),
+              fontWeight: 700,
+              fontSize: 13,
+            }}>
+              {reminderStatusLabel(reminder)}
+            </p>
+
+            {reminder.skip_reason && (
+              <p style={{ margin: '4px 0 0', color: '#9A6A5B', fontSize: 12 }}>
+                Raison : {reminder.skip_reason}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
