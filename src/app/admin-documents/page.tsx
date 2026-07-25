@@ -1239,7 +1239,7 @@ export default function AdminDocumentsTestPage() {
               cursor: 'pointer',
             }}
           >
-            Mes documents archivés
+Mes documents archivés ({archivedDocuments.length})
           </button>
 
           <button
@@ -1258,7 +1258,7 @@ export default function AdminDocumentsTestPage() {
               cursor: 'pointer',
             }}
           >
-            🔐 Coffre
+            🔐 Coffre ({vaultDocuments.length})
           </button>
         </div>
 
