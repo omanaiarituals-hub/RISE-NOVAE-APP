@@ -44,7 +44,7 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
     {
       id: createId('welcome'),
       role: 'nova',
-      text: 'Bonjour. Confie-moi une situation, un rendez-vous, une échéance ou une information à retenir. Je préparerai la suite et je n’exécuterai que les tâches que tu confirmes explicitement.',
+      text: 'Bonjour. Confie-moi une situation, une échéance ou une information à retenir. Je peux maintenant créer tes tâches et programmer les rappels que tu confirmes explicitement.',
     },
   ])
   const [result, setResult] = useState<NovaPlanResult | null>(null)
@@ -269,7 +269,11 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
   const executableTaskCount = confirmableActions.filter(
     (action) => action.type === 'create_task' && action.engine === 'tasks'
   ).length
-  const otherActionCount = confirmableActions.length - executableTaskCount
+  const executableReminderCount = confirmableActions.filter(
+    (action) => action.type === 'create_reminder' && action.engine === 'notifications'
+  ).length
+  const executableActionCount = executableTaskCount + executableReminderCount
+  const otherActionCount = confirmableActions.length - executableActionCount
 
   return (
     <main className="min-h-screen bg-[#F7F5F1] px-4 py-8 text-[#282522]">
@@ -281,7 +285,7 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
             </p>
             <h1 className="font-serif text-3xl font-semibold">Nova V2</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#625B55]">
-              Nova comprend, précise et demande ton accord. Le moteur Tâches est actif ; les autres moteurs restent en simulation.
+              Nova comprend, précise et demande ton accord. Les moteurs Tâches et Rappels sont actifs ; les autres moteurs restent en simulation.
             </p>
             {userEmail ? (
               <p className="mt-1 text-xs text-[#847A72]">Compte : {userEmail}</p>
@@ -308,7 +312,7 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
         <section className="overflow-hidden rounded-2xl border border-[#D7D0C8] bg-white shadow-sm">
           <div className="border-b border-[#E8E2DC] bg-[#FBFAF8] px-5 py-3">
             <span className="rounded-full bg-[#E8EFE7] px-3 py-1 text-xs font-medium text-[#425642]">
-              Tâches actives, autres actions en test
+              Tâches et rappels actifs, autres actions en test
             </span>
           </div>
 
@@ -338,7 +342,7 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
               <div className="flex justify-start">
                 <div className="rounded-2xl rounded-bl-md border border-[#E1DBD5] bg-[#F8F5F1] px-4 py-3 text-sm text-[#6B625B]">
                   {status === 'executing'
-                    ? 'Nova vérifie et exécute la tâche…'
+                    ? 'Nova vérifie et exécute les actions…'
                     : 'Nova prépare la suite…'}
                 </div>
               </div>
@@ -381,7 +385,9 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
                       <p className="mt-2 text-xs text-[#7B716A]">
                         {action.type === 'create_task' && action.engine === 'tasks'
                           ? 'Cette tâche sera créée après confirmation.'
-                          : 'Cette action reste en simulation pour le moment.'}
+                          : action.type === 'create_reminder' && action.engine === 'notifications'
+                            ? 'Ce rappel sera programmé après confirmation.'
+                            : 'Cette action reste en simulation pour le moment.'}
                       </p>
                     </article>
                   ))}
@@ -389,7 +395,7 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
 
                 {otherActionCount > 0 ? (
                   <p className="mt-3 text-xs leading-5 text-[#766D66]">
-                    Seules les tâches seront réellement créées. Les autres propositions ne seront pas exécutées.
+                    Seules les tâches et les rappels seront réellement exécutés. Les autres propositions resteront en simulation.
                   </p>
                 ) : null}
 
@@ -400,11 +406,17 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
                     disabled={loading}
                     className="rounded-lg bg-[#332E2A] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   >
-                    {executableTaskCount > 0
-                      ? executableTaskCount > 1
-                        ? 'Confirmer et créer les tâches'
-                        : 'Confirmer et créer la tâche'
-                      : 'Confirmer'}
+                    {executableActionCount === 0
+                      ? 'Confirmer'
+                      : executableTaskCount > 0 && executableReminderCount > 0
+                        ? 'Confirmer les actions'
+                        : executableReminderCount > 0
+                          ? executableReminderCount > 1
+                            ? 'Confirmer et programmer les rappels'
+                            : 'Confirmer et programmer le rappel'
+                          : executableTaskCount > 1
+                            ? 'Confirmer et créer les tâches'
+                            : 'Confirmer et créer la tâche'}
                   </button>
                   <button
                     type="button"

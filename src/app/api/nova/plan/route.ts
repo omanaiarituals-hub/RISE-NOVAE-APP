@@ -8,6 +8,14 @@ import { createNovaExecutionToken } from '@/lib/nova-ai/action-token'
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
+type ActiveTaskContextRow = {
+  id: string
+  title: string
+  due_date: string | null
+  due_time: string | null
+  status: string
+}
+
 function labEnabled(): boolean {
   return process.env.NOVA_V2_LAB_ENABLED === 'true'
 }
@@ -87,9 +95,43 @@ export async function POST(request: NextRequest) {
       ? (body.provider as NovaProviderPreference)
       : 'auto'
 
+    const { data: activeTasks, error: activeTasksError } = await supabaseAdmin
+      .from('todo_list')
+      .select('id,title,due_date,due_time,status')
+      .eq('user_id', user.id)
+      .in('status', ['pending', 'in_progress'])
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    if (activeTasksError) {
+      console.warn('[api/nova/plan] task context unavailable', activeTasksError.message)
+    }
+
+    const taskContext = ((activeTasks || []) as ActiveTaskContextRow[])
+      .map((task: ActiveTaskContextRow) =>
+        [
+          `id=${task.id}`,
+          `titre=${String(task.title || '').replace(/\s+/g, ' ').trim()}`,
+          `echeance=${task.due_date || 'aucune'}`,
+          `heure=${task.due_time || 'aucune'}`,
+          `statut=${task.status}`,
+        ].join(' ; ')
+      )
+      .join('\n')
+
+    const messageWithContext = [
+      message,
+      '',
+      'CONTEXTE INTERNE NOVAÉ - ne jamais réciter les identifiants techniques à l’utilisatrice :',
+      'Tâches actives connues :',
+      taskContext || 'aucune tâche active',
+      '',
+      'Utilise ce contexte uniquement pour comprendre les références comme « cette tâche », éviter les doublons et rattacher un rappel à la bonne tâche.',
+    ].join('\n')
+
     const result = await createNovaActionPlan(
       {
-        message,
+        message: messageWithContext,
         locale: 'fr-FR',
         timezone: 'Europe/Paris',
         nowIso: new Date().toISOString(),

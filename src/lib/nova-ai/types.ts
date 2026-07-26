@@ -138,6 +138,7 @@ export interface NovaPlanResult extends NovaProviderResult {
 }
 
 export interface NovaTaskExecutionItem {
+  kind: 'task'
   actionId: string
   status: 'created' | 'already_exists' | 'failed'
   task: {
@@ -154,12 +155,37 @@ export interface NovaTaskExecutionItem {
   message: string
 }
 
+export interface NovaReminderExecutionItem {
+  kind: 'reminder'
+  actionId: string
+  status: 'scheduled' | 'already_exists' | 'failed'
+  reminder: {
+    id: string
+    todo_id: string
+    scheduled_for: string
+    status: string
+    message: string | null
+    created_at: string
+  } | null
+  task: {
+    id: string
+    title: string
+    due_date: string | null
+    due_time: string | null
+    status: string
+  } | null
+  message: string
+}
+
+export type NovaExecutionItem = NovaTaskExecutionItem | NovaReminderExecutionItem
+
 export interface NovaExecutionResult {
   ok: boolean
   message: string
-  results: NovaTaskExecutionItem[]
+  results: NovaExecutionItem[]
   counts: {
-    created: number
+    tasksCreated: number
+    remindersScheduled: number
     alreadyExists: number
     failed: number
     unsupported: number

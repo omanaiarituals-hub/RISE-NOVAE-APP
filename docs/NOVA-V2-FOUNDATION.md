@@ -1,29 +1,30 @@
-# Fondation Nova V2 · Laboratoire en lecture seule
+# Nova V2 · Fondation, tâches et rappels
 
-## Objectif
+## État actuel
 
-Cette fondation ajoute une couche IA indépendante des fournisseurs sans modifier les routes actuelles de Nova. Elle permet de tester l’analyse d’une situation et la préparation d’actions structurées. Aucune donnée n’est écrite dans Supabase.
+Nova V2 fonctionne dans un laboratoire privé accessible uniquement aux comptes autorisés. Elle utilise un routeur multi-fournisseurs, prépare des actions structurées, demande une validation explicite puis exécute uniquement les moteurs autorisés.
 
-## Nouveaux fichiers
+## Moteurs actifs
 
-```text
-src/lib/nova-ai/
-  types.ts
-  schema.ts
-  json.ts
-  normalize.ts
-  provider.ts
-  prompt.ts
-  router.ts
-  providers/anthropic.ts
-  providers/openai.ts
+- Création sécurisée d’une tâche dans `todo_list`.
+- Détection des doublons avant écriture.
+- Programmation d’un rappel rattaché à une tâche existante dans `task_reminders`.
+- Envoi du rappel par notification push et notification interne via le cron existant `/api/cron/reminder`.
 
-src/app/api/nova/plan/route.ts
-src/app/dev/nova-lab/page.tsx
-src/app/dev/nova-lab/NovaLabClient.tsx
-```
+Les rendez-vous, le planner, les règles familiales, les documents et les autres moteurs restent en simulation.
 
-## Variables à ajouter dans `.env.local`
+## Sécurité
+
+- Authentification Supabase obligatoire.
+- Liste d’adresses autorisées possible avec `NOVA_V2_LAB_ALLOWED_EMAILS`.
+- Proposition signée avec `NOVA_ACTION_SIGNING_SECRET`.
+- Aucune écriture avant confirmation explicite.
+- Relecture de la donnée après création.
+- Protection contre les doublons.
+- RLS sur les tâches et les rappels.
+- Aucun identifiant technique n’est affiché dans la conversation.
+
+## Variables nécessaires
 
 ```env
 NOVA_V2_LAB_ENABLED=true
@@ -31,44 +32,48 @@ NOVA_V2_LAB_ALLOWED_EMAILS=ton-adresse@email.fr
 NOVA_AI_PROVIDER_ORDER=anthropic,openai
 NOVA_ANTHROPIC_MODEL=claude-haiku-4-5
 NOVA_OPENAI_MODEL=gpt-5.6-luna
+NOVA_ACTION_SIGNING_SECRET=une-valeur-aleatoire-d-au-moins-32-caracteres
 ```
 
-Les clés `ANTHROPIC_API_KEY` et `OPENAI_API_KEY` restent dans `.env.local`. Ne jamais les préfixer par `NEXT_PUBLIC_`.
+Les variables suivantes doivent également exister côté serveur :
 
-## Accès
+```env
+ANTHROPIC_API_KEY=...
+OPENAI_API_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+CRON_SECRET=...
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:contact@omanaia.com
+```
 
-1. Démarrer l’application avec `npm run dev`.
-2. Se connecter normalement.
-3. Ouvrir `http://localhost:3000/dev/nova-lab`.
-4. Choisir `Automatique avec secours` pour tester le routeur.
+## Migration requise pour les rappels
 
-## Sécurité
+Exécuter le fichier suivant dans Supabase SQL Editor avant de tester les rappels :
 
-- La page renvoie 404 tant que `NOVA_V2_LAB_ENABLED` n’est pas à `true`.
-- Une liste d’adresses autorisées peut être définie.
-- L’API exige un token Supabase valide.
-- Le rate limit est fixé à 30 analyses par heure et par utilisatrice.
-- Le mode est strictement `dryRun`: aucune tâche, aucun rappel et aucun événement ne sont créés.
-- OpenAI est appelé avec `store: false`.
+```text
+docs/database/nova-task-reminders.sql
+```
 
-## Test de secours
+## Tests recommandés
 
-Pour vérifier le basculement sans supprimer de clé :
+### Création de tâche
 
-1. Mettre temporairement un faux modèle dans `NOVA_ANTHROPIC_MODEL`.
-2. Garder `NOVA_AI_PROVIDER_ORDER=anthropic,openai`.
-3. Relancer le serveur.
-4. Lancer une analyse en mode automatique.
-5. Le champ `attemptedProviders` doit afficher `anthropic → openai`, et `provider` doit valoir `openai`.
+> Je dois envoyer mon dossier à la CPAM avant vendredi.
 
-Remettre ensuite le bon modèle Anthropic.
+Après validation, vérifier que la tâche existe dans la to-do et qu’un second essai ne crée pas de doublon.
 
-## Étape suivante après validation
+### Rappel rattaché à la tâche
 
-Ne pas brancher immédiatement toutes les écritures. Commencer par un seul flux :
+> Rappelle-moi cette tâche demain à 19 h.
 
-1. Nova prépare `create_task`.
-2. L’interface affiche la proposition.
-3. L’utilisatrice confirme explicitement.
-4. Une route d’exécution dédiée vérifie à nouveau les paramètres.
-5. La tâche est créée et relue en base avant confirmation à l’utilisatrice.
+Nova doit retrouver la tâche existante, demander confirmation puis programmer un seul rappel. Si la date ou l’heure manque, elle doit poser une question avant de proposer l’exécution.
+
+## Fonctionnement des notifications
+
+Le cron `/api/cron/reminder` est déjà exécuté toutes les cinq minutes par Vercel. Il traite désormais :
+
+- les rappels des événements du planner ;
+- les rappels Nova rattachés aux tâches.
+
+Si une tâche est terminée ou annulée avant l’heure prévue, son rappel est automatiquement annulé. Si les notifications « Planning & conflits » sont désactivées, le rappel n’est pas envoyé.

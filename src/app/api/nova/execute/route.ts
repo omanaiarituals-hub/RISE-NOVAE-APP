@@ -7,6 +7,14 @@ import {
   prepareTaskInsert,
   type PreparedTaskInsert,
 } from '@/lib/nova-ai/task-execution'
+import {
+  prepareReminderInsert,
+  type PreparedReminderInsert,
+} from '@/lib/nova-ai/reminder-execution'
+import type {
+  NovaReminderExecutionItem,
+  NovaTaskExecutionItem,
+} from '@/lib/nova-ai/types'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -23,11 +31,13 @@ type StoredTask = {
   created_at: string
 }
 
-type TaskExecutionItem = {
-  actionId: string
-  status: 'created' | 'already_exists' | 'failed'
-  task: StoredTask | null
-  message: string
+type StoredReminder = {
+  id: string
+  todo_id: string
+  scheduled_for: string
+  status: string
+  message: string | null
+  created_at: string
 }
 
 function labEnabled(): boolean {
@@ -77,10 +87,11 @@ async function createAndVerifyTask(
   db: ReturnType<typeof buildUserClient>,
   userId: string,
   task: PreparedTaskInsert
-): Promise<TaskExecutionItem> {
+): Promise<NovaTaskExecutionItem> {
   const duplicate = await findDuplicateTask(db, userId, task)
   if (duplicate) {
     return {
+      kind: 'task',
       actionId: task.actionId,
       status: 'already_exists',
       task: duplicate,
@@ -128,12 +139,204 @@ async function createAndVerifyTask(
   }
 
   return {
+    kind: 'task',
     actionId: task.actionId,
     status: 'created',
     task: storedTask,
     message: `C’est fait. La tâche « ${storedTask.title} » a été ajoutée à ta to-do${
       storedTask.due_date ? ` pour le ${storedTask.due_date}` : ''
     }.`,
+  }
+}
+
+async function resolveReminderTask(
+  db: ReturnType<typeof buildUserClient>,
+  userId: string,
+  reminder: PreparedReminderInsert
+): Promise<StoredTask> {
+  if (reminder.taskId) {
+    const { data, error } = await db
+      .from('todo_list')
+      .select('id,title,description,category,priority,due_date,due_time,status,created_at')
+      .eq('id', reminder.taskId)
+      .eq('user_id', userId)
+      .in('status', ['pending', 'in_progress'])
+      .maybeSingle()
+
+    if (error) throw new Error(`Impossible de retrouver la tâche : ${error.message}`)
+    if (data) return data as StoredTask
+  }
+
+  const { data, error } = await db
+    .from('todo_list')
+    .select('id,title,description,category,priority,due_date,due_time,status,created_at')
+    .eq('user_id', userId)
+    .in('status', ['pending', 'in_progress'])
+    .limit(100)
+
+  if (error) throw new Error(`Impossible de retrouver la tâche : ${error.message}`)
+
+  const candidates = ((data || []) as StoredTask[]).filter(
+    (task) => normalizeTaskTitle(task.title) === reminder.taskTitle
+  )
+
+  if (candidates.length === 0) {
+    throw new Error('La tâche à laquelle rattacher ce rappel est introuvable ou déjà terminée.')
+  }
+  if (candidates.length > 1) {
+    throw new Error('Plusieurs tâches portent ce titre. Précise laquelle doit recevoir le rappel.')
+  }
+
+  return candidates[0]
+}
+
+function formatReminderDateFr(iso: string): string {
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso))
+}
+
+async function createAndVerifyReminder(
+  db: ReturnType<typeof buildUserClient>,
+  userId: string,
+  reminder: PreparedReminderInsert
+): Promise<NovaReminderExecutionItem> {
+  const task = await resolveReminderTask(db, userId, reminder)
+
+  const normalizedReminderDate = new Date(reminder.scheduledFor)
+  normalizedReminderDate.setUTCSeconds(0, 0)
+  const normalizedScheduledFor = normalizedReminderDate.toISOString()
+  const minuteEnd = new Date(normalizedReminderDate.getTime() + 60_000).toISOString()
+
+  // On cherche sur toute la minute, y compris les anciennes lignes qui ont
+  // pu conserver quelques secondes (ex. 13:13:08 au lieu de 13:13:00).
+  const { data: duplicateRows, error: duplicateError } = await db
+    .from('task_reminders')
+    .select('id,todo_id,scheduled_for,status,message,created_at')
+    .eq('user_id', userId)
+    .eq('todo_id', task.id)
+    .gte('scheduled_for', normalizedScheduledFor)
+    .lt('scheduled_for', minuteEnd)
+    .in('status', ['pending', 'sent'])
+    .order('created_at', { ascending: true })
+    .limit(1)
+
+  if (duplicateError) {
+    throw new Error(`Impossible de vérifier les rappels existants : ${duplicateError.message}`)
+  }
+
+  const duplicate = (duplicateRows || [])[0] as StoredReminder | undefined
+
+  if (duplicate) {
+    return {
+      kind: 'reminder',
+      actionId: reminder.actionId,
+      status: 'already_exists',
+      reminder: duplicate as StoredReminder,
+      task: {
+        id: task.id,
+        title: task.title,
+        due_date: task.due_date,
+        due_time: task.due_time,
+        status: task.status,
+      },
+      message: `Un rappel était déjà prévu le ${formatReminderDateFr(
+        duplicate.scheduled_for
+      )} pour la tâche « ${task.title} ». Je n’ai pas créé de doublon.`,
+    }
+  }
+
+  const { data: inserted, error: insertError } = await db
+    .from('task_reminders')
+    .insert({
+      user_id: userId,
+      todo_id: task.id,
+      scheduled_for: normalizedScheduledFor,
+      status: 'pending',
+      channel: 'push_and_in_app',
+      message: reminder.message,
+      source: 'nova',
+    })
+    .select('id')
+    .single()
+
+  if (insertError || !inserted?.id) {
+    if (insertError?.code === '23505') {
+      const { data: existingRows } = await db
+        .from('task_reminders')
+        .select('id,todo_id,scheduled_for,status,message,created_at')
+        .eq('user_id', userId)
+        .eq('todo_id', task.id)
+        .gte('scheduled_for', normalizedScheduledFor)
+        .lt('scheduled_for', minuteEnd)
+        .in('status', ['pending', 'sent'])
+        .order('created_at', { ascending: true })
+        .limit(1)
+
+      const existing = (existingRows || [])[0] as StoredReminder | undefined
+      if (existing) {
+        return {
+          kind: 'reminder',
+          actionId: reminder.actionId,
+          status: 'already_exists',
+          reminder: existing,
+          task: {
+            id: task.id,
+            title: task.title,
+            due_date: task.due_date,
+            due_time: task.due_time,
+            status: task.status,
+          },
+          message: `Un rappel était déjà prévu le ${formatReminderDateFr(
+            existing.scheduled_for
+          )} pour la tâche « ${task.title} ». Je n’ai pas créé de doublon.`,
+        }
+      }
+    }
+    throw new Error(insertError?.message || 'Le rappel n’a pas pu être programmé.')
+  }
+
+  const { data: verified, error: verifyError } = await db
+    .from('task_reminders')
+    .select('id,todo_id,scheduled_for,status,message,created_at')
+    .eq('id', inserted.id)
+    .eq('user_id', userId)
+    .single()
+
+  if (verifyError || !verified) {
+    throw new Error(verifyError?.message || 'Le rappel a été créé mais sa vérification a échoué.')
+  }
+
+  const storedReminder = verified as StoredReminder
+  if (
+    storedReminder.todo_id !== task.id ||
+    new Date(storedReminder.scheduled_for).getTime() !== new Date(normalizedScheduledFor).getTime() ||
+    storedReminder.status !== 'pending'
+  ) {
+    throw new Error('Le rappel enregistré ne correspond pas entièrement à la proposition validée.')
+  }
+
+  return {
+    kind: 'reminder',
+    actionId: reminder.actionId,
+    status: 'scheduled',
+    reminder: storedReminder,
+    task: {
+      id: task.id,
+      title: task.title,
+      due_date: task.due_date,
+      due_time: task.due_time,
+      status: task.status,
+    },
+    message: `C’est fait. Je te rappellerai la tâche « ${task.title} » le ${formatReminderDateFr(
+      storedReminder.scheduled_for
+    )}.`,
   }
 }
 
@@ -175,8 +378,8 @@ export async function POST(request: NextRequest) {
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
-    const rl = await rateLimit(adminClient, user.id, 'nova_v2_execute_task', {
-      max: 20,
+    const rl = await rateLimit(adminClient, user.id, 'nova_v2_execute', {
+      max: 30,
       windowMinutes: 60,
     })
     if (!rl.allowed) {
@@ -210,11 +413,18 @@ export async function POST(request: NextRequest) {
     const taskActions = confirmedActions.filter(
       (action) => action.type === 'create_task' && action.engine === 'tasks'
     )
+    const reminderActions = confirmedActions.filter(
+      (action) => action.type === 'create_reminder' && action.engine === 'notifications'
+    )
     const unsupportedActions = confirmedActions.filter(
-      (action) => action.type !== 'create_task' || action.engine !== 'tasks'
+      (action) =>
+        !(
+          (action.type === 'create_task' && action.engine === 'tasks') ||
+          (action.type === 'create_reminder' && action.engine === 'notifications')
+        )
     )
 
-    if (taskActions.length === 0) {
+    if (taskActions.length + reminderActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -229,17 +439,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5) {
-      return NextResponse.json({ error: 'Trop de tâches dans une seule validation.' }, { status: 400 })
+    if (taskActions.length > 5 || reminderActions.length > 5) {
+      return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
-    const results: TaskExecutionItem[] = []
+    const results: Array<NovaTaskExecutionItem | NovaReminderExecutionItem> = []
+
     for (const action of taskActions) {
       try {
         const prepared = prepareTaskInsert(action, payload.plan)
         results.push(await createAndVerifyTask(userClient, user.id, prepared))
       } catch (error) {
         results.push({
+          kind: 'task',
           actionId: action.id,
           status: 'failed',
           task: null,
@@ -248,27 +460,47 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const createdCount = results.filter((item) => item.status === 'created').length
-    const duplicateCount = results.filter((item) => item.status === 'already_exists').length
-    const failedCount = results.filter((item) => item.status === 'failed').length
+    for (const action of reminderActions) {
+      try {
+        const prepared = prepareReminderInsert(action, payload.plan)
+        results.push(await createAndVerifyReminder(userClient, user.id, prepared))
+      } catch (error) {
+        results.push({
+          kind: 'reminder',
+          actionId: action.id,
+          status: 'failed',
+          reminder: null,
+          task: null,
+          message: error instanceof Error ? error.message : 'Le rappel n’a pas pu être programmé.',
+        })
+      }
+    }
+
+    const tasksCreated = results.filter(
+      (item) => item.kind === 'task' && item.status === 'created'
+    ).length
+    const remindersScheduled = results.filter(
+      (item) => item.kind === 'reminder' && item.status === 'scheduled'
+    ).length
+    const alreadyExists = results.filter((item) => item.status === 'already_exists').length
+    const failed = results.filter((item) => item.status === 'failed').length
 
     const messageParts = results.map((item) => item.message)
     if (unsupportedActions.length > 0) {
-      messageParts.push(
-        'Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.'
-      )
+      messageParts.push('Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.')
     }
 
-    const httpStatus = createdCount + duplicateCount > 0 ? 200 : 500
+    const httpStatus = tasksCreated + remindersScheduled + alreadyExists > 0 ? 200 : 500
     return NextResponse.json(
       {
-        ok: failedCount === 0,
+        ok: failed === 0,
         message: messageParts.join(' '),
         results,
         counts: {
-          created: createdCount,
-          alreadyExists: duplicateCount,
-          failed: failedCount,
+          tasksCreated,
+          remindersScheduled,
+          alreadyExists,
+          failed,
           unsupported: unsupportedActions.length,
         },
       },
