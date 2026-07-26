@@ -77,3 +77,7 @@ Le cron `/api/cron/reminder` est déjà exécuté toutes les cinq minutes par Ve
 - les rappels Nova rattachés aux tâches.
 
 Si une tâche est terminée ou annulée avant l’heure prévue, son rappel est automatiquement annulé. Si les notifications « Planning & conflits » sont désactivées, le rappel n’est pas envoyé.
+
+## Résolution sémantique des tâches
+
+Nova V2 compare désormais le sens des tâches actives, et pas uniquement leur intitulé exact. Lorsque deux tâches semblent représenter la même action, Nova propose de conserver l’intitulé le plus clair et d’archiver le doublon. La fusion exige une validation explicite. Les rappels encore actifs sont transférés vers la tâche conservée ; un rappel identique est annulé plutôt que dupliqué. La tâche doublon reste traçable grâce aux champs `merged_into_todo_id` et `merged_at`.
