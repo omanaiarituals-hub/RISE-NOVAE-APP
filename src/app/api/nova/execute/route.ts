@@ -11,9 +11,15 @@ import {
   prepareReminderInsert,
   type PreparedReminderInsert,
 } from '@/lib/nova-ai/reminder-execution'
+import { compareTaskIdentity } from '@/lib/nova-ai/task-identity'
+import {
+  prepareTaskMerge,
+  type PreparedTaskMerge,
+} from '@/lib/nova-ai/task-merge-execution'
 import type {
   NovaReminderExecutionItem,
   NovaTaskExecutionItem,
+  NovaTaskMergeExecutionItem,
 } from '@/lib/nova-ai/types'
 
 export const runtime = 'nodejs'
@@ -24,10 +30,15 @@ type StoredTask = {
   title: string
   description: string | null
   category: string | null
+  project: string | null
+  tags: string[] | null
   priority: string | null
   due_date: string | null
   due_time: string | null
   status: string
+  estimated_duration_minutes: number | null
+  merged_into_todo_id: string | null
+  merged_at: string | null
   created_at: string
 }
 
@@ -39,6 +50,23 @@ type StoredReminder = {
   message: string | null
   created_at: string
 }
+
+const TASK_SELECT = [
+  'id',
+  'title',
+  'description',
+  'category',
+  'project',
+  'tags',
+  'priority',
+  'due_date',
+  'due_time',
+  'status',
+  'estimated_duration_minutes',
+  'merged_into_todo_id',
+  'merged_at',
+  'created_at',
+].join(',')
 
 function labEnabled(): boolean {
   return process.env.NOVA_V2_LAB_ENABLED === 'true'
@@ -63,24 +91,44 @@ async function findDuplicateTask(
   userId: string,
   task: PreparedTaskInsert
 ): Promise<StoredTask | null> {
-  let query = db
+  const { data, error } = await db
     .from('todo_list')
-    .select('id,title,description,category,priority,due_date,due_time,status,created_at')
+    .select(TASK_SELECT)
     .eq('user_id', userId)
     .in('status', ['pending', 'in_progress'])
     .limit(100)
 
-  query = task.dueDate ? query.eq('due_date', task.dueDate) : query.is('due_date', null)
-
-  const { data, error } = await query
   if (error) throw new Error(`Impossible de vérifier les doublons : ${error.message}`)
 
-  const normalizedTitle = normalizeTaskTitle(task.title)
-  return (
-    ((data || []) as StoredTask[]).find(
-      (candidate) => normalizeTaskTitle(candidate.title) === normalizedTitle
-    ) || null
+  const candidates = ((data || []) as StoredTask[])
+    .map((candidate) => ({
+      candidate,
+      comparison: compareTaskIdentity(
+        {
+          title: task.title,
+          description: task.description,
+          due_date: task.dueDate,
+          due_time: task.dueTime,
+          category: task.category,
+        },
+        candidate
+      ),
+    }))
+    .sort((left, right) => right.comparison.score - left.comparison.score)
+
+  const exactTitle = candidates.find(
+    ({ candidate }) => normalizeTaskTitle(candidate.title) === normalizeTaskTitle(task.title)
   )
+  if (exactTitle) return exactTitle.candidate
+
+  const strong = candidates[0]
+  if (!strong || strong.comparison.score < 0.9) return null
+
+  const dateConflict =
+    !!task.dueDate && !!strong.candidate.due_date && task.dueDate !== strong.candidate.due_date
+  if (dateConflict) return null
+
+  return strong.candidate
 }
 
 async function createAndVerifyTask(
@@ -120,7 +168,7 @@ async function createAndVerifyTask(
 
   const { data: verified, error: verifyError } = await db
     .from('todo_list')
-    .select('id,title,description,category,priority,due_date,due_time,status,created_at')
+    .select(TASK_SELECT)
     .eq('id', inserted.id)
     .eq('user_id', userId)
     .single()
@@ -157,7 +205,7 @@ async function resolveReminderTask(
   if (reminder.taskId) {
     const { data, error } = await db
       .from('todo_list')
-      .select('id,title,description,category,priority,due_date,due_time,status,created_at')
+      .select(TASK_SELECT)
       .eq('id', reminder.taskId)
       .eq('user_id', userId)
       .in('status', ['pending', 'in_progress'])
@@ -169,25 +217,47 @@ async function resolveReminderTask(
 
   const { data, error } = await db
     .from('todo_list')
-    .select('id,title,description,category,priority,due_date,due_time,status,created_at')
+    .select(TASK_SELECT)
     .eq('user_id', userId)
     .in('status', ['pending', 'in_progress'])
     .limit(100)
 
   if (error) throw new Error(`Impossible de retrouver la tâche : ${error.message}`)
 
-  const candidates = ((data || []) as StoredTask[]).filter(
+  const tasks = (data || []) as StoredTask[]
+  const exactCandidates = tasks.filter(
     (task) => normalizeTaskTitle(task.title) === reminder.taskTitle
   )
 
-  if (candidates.length === 0) {
-    throw new Error('La tâche à laquelle rattacher ce rappel est introuvable ou déjà terminée.')
-  }
-  if (candidates.length > 1) {
+  if (exactCandidates.length === 1) return exactCandidates[0]
+  if (exactCandidates.length > 1) {
     throw new Error('Plusieurs tâches portent ce titre. Précise laquelle doit recevoir le rappel.')
   }
 
-  return candidates[0]
+  const semanticCandidates = tasks
+    .map((task) => ({
+      task,
+      comparison: compareTaskIdentity({ title: reminder.taskTitle }, task),
+    }))
+    .filter(({ comparison }) => comparison.score >= 0.76)
+    .sort((left, right) => right.comparison.score - left.comparison.score)
+
+  if (semanticCandidates.length === 0) {
+    throw new Error('La tâche à laquelle rattacher ce rappel est introuvable ou déjà terminée.')
+  }
+
+  const best = semanticCandidates[0]
+  const second = semanticCandidates[1]
+  if (
+    best.comparison.score < 0.9 ||
+    (second && best.comparison.score - second.comparison.score < 0.08)
+  ) {
+    throw new Error(
+      'Plusieurs tâches semblent correspondre à cette demande. Demande d’abord à Nova de les fusionner ou précise la tâche exacte.'
+    )
+  }
+
+  return best.task
 }
 
 function formatReminderDateFr(iso: string): string {
@@ -340,6 +410,149 @@ async function createAndVerifyReminder(
   }
 }
 
+
+
+async function readTaskForMerge(
+  db: ReturnType<typeof buildUserClient>,
+  userId: string,
+  taskId: string
+): Promise<StoredTask | null> {
+  const { data, error } = await db
+    .from('todo_list')
+    .select(TASK_SELECT)
+    .eq('id', taskId)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error) throw new Error(`Impossible de lire la tâche : ${error.message}`)
+  return data ? (data as StoredTask) : null
+}
+
+type MergeRpcResult = {
+  already_merged?: boolean
+  kept_task_id?: string
+  archived_task_id?: string
+  reminders_moved?: number
+  reminder_duplicates_cancelled?: number
+  merged_at?: string
+}
+
+async function mergeAndVerifyTasks(
+  db: ReturnType<typeof buildUserClient>,
+  userId: string,
+  merge: PreparedTaskMerge
+): Promise<NovaTaskMergeExecutionItem> {
+  const keepTask = await readTaskForMerge(db, userId, merge.keepTaskId)
+  const duplicateTask = await readTaskForMerge(db, userId, merge.duplicateTaskId)
+
+  if (!keepTask || !duplicateTask) {
+    throw new Error('L’une des tâches à fusionner est introuvable.')
+  }
+
+  if (
+    duplicateTask.status === 'cancelled' &&
+    duplicateTask.merged_into_todo_id === keepTask.id
+  ) {
+    return {
+      kind: 'task_merge',
+      actionId: merge.actionId,
+      status: 'already_merged',
+      keptTask: {
+        id: keepTask.id,
+        title: keepTask.title,
+        due_date: keepTask.due_date,
+        due_time: keepTask.due_time,
+        status: keepTask.status,
+      },
+      archivedTask: {
+        id: duplicateTask.id,
+        title: duplicateTask.title,
+        status: duplicateTask.status,
+        merged_into_todo_id: duplicateTask.merged_into_todo_id,
+        merged_at: duplicateTask.merged_at,
+      },
+      remindersMoved: 0,
+      reminderDuplicatesCancelled: 0,
+      message: `Ces deux tâches avaient déjà été fusionnées. « ${keepTask.title} » reste la tâche active.`,
+    }
+  }
+
+  const comparison = compareTaskIdentity(keepTask, duplicateTask)
+  if (comparison.score < 0.76) {
+    throw new Error(
+      'Ces tâches ne sont pas assez similaires pour être fusionnées en sécurité.'
+    )
+  }
+
+  if (
+    keepTask.due_date &&
+    duplicateTask.due_date &&
+    keepTask.due_date !== duplicateTask.due_date
+  ) {
+    throw new Error(
+      'Les deux tâches ont des échéances différentes. Modifie d’abord la proposition ou conserve les deux tâches.'
+    )
+  }
+
+  const { data: rpcData, error: rpcError } = await db.rpc('nova_merge_tasks', {
+    p_keep_task_id: keepTask.id,
+    p_duplicate_task_id: duplicateTask.id,
+  })
+
+  if (rpcError) {
+    throw new Error(`Impossible de fusionner les tâches : ${rpcError.message}`)
+  }
+
+  const rpcResult = (rpcData || {}) as MergeRpcResult
+  const verifiedKeep = await readTaskForMerge(db, userId, keepTask.id)
+  const verifiedDuplicate = await readTaskForMerge(db, userId, duplicateTask.id)
+
+  if (!verifiedKeep || !verifiedDuplicate) {
+    throw new Error('La fusion a été enregistrée mais sa vérification a échoué.')
+  }
+  if (
+    verifiedDuplicate.status !== 'cancelled' ||
+    verifiedDuplicate.merged_into_todo_id !== verifiedKeep.id ||
+    !verifiedDuplicate.merged_at
+  ) {
+    throw new Error('La tâche doublon n’a pas été archivée correctement.')
+  }
+
+  const remindersMoved = Number(rpcResult.reminders_moved || 0)
+  const reminderDuplicatesCancelled = Number(
+    rpcResult.reminder_duplicates_cancelled || 0
+  )
+
+  return {
+    kind: 'task_merge',
+    actionId: merge.actionId,
+    status: rpcResult.already_merged ? 'already_merged' : 'merged',
+    keptTask: {
+      id: verifiedKeep.id,
+      title: verifiedKeep.title,
+      due_date: verifiedKeep.due_date,
+      due_time: verifiedKeep.due_time,
+      status: verifiedKeep.status,
+    },
+    archivedTask: {
+      id: verifiedDuplicate.id,
+      title: verifiedDuplicate.title,
+      status: verifiedDuplicate.status,
+      merged_into_todo_id: verifiedDuplicate.merged_into_todo_id,
+      merged_at: verifiedDuplicate.merged_at,
+    },
+    remindersMoved,
+    reminderDuplicatesCancelled,
+    message: rpcResult.already_merged
+      ? `Ces deux tâches avaient déjà été fusionnées. « ${verifiedKeep.title} » reste la tâche active.`
+      : `C’est fait. J’ai conservé « ${verifiedKeep.title} » et archivé le doublon « ${verifiedDuplicate.title} ».${
+          remindersMoved > 0
+            ? ` ${remindersMoved} rappel${remindersMoved > 1 ? 's ont' : ' a'} été rattaché${remindersMoved > 1 ? 's' : ''} à la tâche conservée.`
+            : ''
+        }`,
+  }
+}
+
 export async function POST(request: NextRequest) {
   if (!labEnabled()) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -416,15 +629,19 @@ export async function POST(request: NextRequest) {
     const reminderActions = confirmedActions.filter(
       (action) => action.type === 'create_reminder' && action.engine === 'notifications'
     )
+    const mergeActions = confirmedActions.filter(
+      (action) => action.type === 'merge_tasks' && action.engine === 'tasks'
+    )
     const unsupportedActions = confirmedActions.filter(
       (action) =>
         !(
           (action.type === 'create_task' && action.engine === 'tasks') ||
-          (action.type === 'create_reminder' && action.engine === 'notifications')
+          (action.type === 'create_reminder' && action.engine === 'notifications') ||
+          (action.type === 'merge_tasks' && action.engine === 'tasks')
         )
     )
 
-    if (taskActions.length + reminderActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -439,11 +656,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
-    const results: Array<NovaTaskExecutionItem | NovaReminderExecutionItem> = []
+    const results: Array<
+      NovaTaskExecutionItem | NovaReminderExecutionItem | NovaTaskMergeExecutionItem
+    > = []
 
     for (const action of taskActions) {
       try {
@@ -476,13 +695,36 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    for (const action of mergeActions) {
+      try {
+        const prepared = prepareTaskMerge(action, payload.plan)
+        results.push(await mergeAndVerifyTasks(userClient, user.id, prepared))
+      } catch (error) {
+        results.push({
+          kind: 'task_merge',
+          actionId: action.id,
+          status: 'failed',
+          keptTask: null,
+          archivedTask: null,
+          remindersMoved: 0,
+          reminderDuplicatesCancelled: 0,
+          message: error instanceof Error ? error.message : 'Les tâches n’ont pas pu être fusionnées.',
+        })
+      }
+    }
+
     const tasksCreated = results.filter(
       (item) => item.kind === 'task' && item.status === 'created'
     ).length
     const remindersScheduled = results.filter(
       (item) => item.kind === 'reminder' && item.status === 'scheduled'
     ).length
-    const alreadyExists = results.filter((item) => item.status === 'already_exists').length
+    const tasksMerged = results.filter(
+      (item) => item.kind === 'task_merge' && item.status === 'merged'
+    ).length
+    const alreadyExists = results.filter(
+      (item) => item.status === 'already_exists' || item.status === 'already_merged'
+    ).length
     const failed = results.filter((item) => item.status === 'failed').length
 
     const messageParts = results.map((item) => item.message)
@@ -490,7 +732,7 @@ export async function POST(request: NextRequest) {
       messageParts.push('Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.')
     }
 
-    const httpStatus = tasksCreated + remindersScheduled + alreadyExists > 0 ? 200 : 500
+    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + alreadyExists > 0 ? 200 : 500
     return NextResponse.json(
       {
         ok: failed === 0,
@@ -499,6 +741,7 @@ export async function POST(request: NextRequest) {
         counts: {
           tasksCreated,
           remindersScheduled,
+          tasksMerged,
           alreadyExists,
           failed,
           unsupported: unsupportedActions.length,

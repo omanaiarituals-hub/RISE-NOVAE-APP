@@ -34,6 +34,7 @@ export type NovaEngine = (typeof NOVA_ENGINES)[number]
 export const NOVA_ACTION_TYPES = [
   'create_task',
   'create_reminder',
+  'merge_tasks',
   'create_calendar_event',
   'classify_document',
   'create_admin_case',
@@ -177,7 +178,34 @@ export interface NovaReminderExecutionItem {
   message: string
 }
 
-export type NovaExecutionItem = NovaTaskExecutionItem | NovaReminderExecutionItem
+
+export interface NovaTaskMergeExecutionItem {
+  kind: 'task_merge'
+  actionId: string
+  status: 'merged' | 'already_merged' | 'failed'
+  keptTask: {
+    id: string
+    title: string
+    due_date: string | null
+    due_time: string | null
+    status: string
+  } | null
+  archivedTask: {
+    id: string
+    title: string
+    status: string
+    merged_into_todo_id: string | null
+    merged_at: string | null
+  } | null
+  remindersMoved: number
+  reminderDuplicatesCancelled: number
+  message: string
+}
+
+export type NovaExecutionItem =
+  | NovaTaskExecutionItem
+  | NovaReminderExecutionItem
+  | NovaTaskMergeExecutionItem
 
 export interface NovaExecutionResult {
   ok: boolean
@@ -186,6 +214,7 @@ export interface NovaExecutionResult {
   counts: {
     tasksCreated: number
     remindersScheduled: number
+    tasksMerged: number
     alreadyExists: number
     failed: number
     unsupported: number

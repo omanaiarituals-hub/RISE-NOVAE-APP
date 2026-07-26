@@ -272,7 +272,11 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
   const executableReminderCount = confirmableActions.filter(
     (action) => action.type === 'create_reminder' && action.engine === 'notifications'
   ).length
-  const executableActionCount = executableTaskCount + executableReminderCount
+  const executableMergeCount = confirmableActions.filter(
+    (action) => action.type === 'merge_tasks' && action.engine === 'tasks'
+  ).length
+  const executableActionCount =
+    executableTaskCount + executableReminderCount + executableMergeCount
   const otherActionCount = confirmableActions.length - executableActionCount
 
   return (
@@ -285,7 +289,7 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
             </p>
             <h1 className="font-serif text-3xl font-semibold">Nova V2</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#625B55]">
-              Nova comprend, précise et demande ton accord. Les moteurs Tâches et Rappels sont actifs ; les autres moteurs restent en simulation.
+              Nova comprend, précise et demande ton accord. Les moteurs Tâches, Rappels et Fusion de doublons sont actifs ; les autres moteurs restent en simulation.
             </p>
             {userEmail ? (
               <p className="mt-1 text-xs text-[#847A72]">Compte : {userEmail}</p>
@@ -312,7 +316,7 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
         <section className="overflow-hidden rounded-2xl border border-[#D7D0C8] bg-white shadow-sm">
           <div className="border-b border-[#E8E2DC] bg-[#FBFAF8] px-5 py-3">
             <span className="rounded-full bg-[#E8EFE7] px-3 py-1 text-xs font-medium text-[#425642]">
-              Tâches et rappels actifs, autres actions en test
+              Tâches, rappels et fusion de doublons actifs
             </span>
           </div>
 
@@ -387,7 +391,9 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
                           ? 'Cette tâche sera créée après confirmation.'
                           : action.type === 'create_reminder' && action.engine === 'notifications'
                             ? 'Ce rappel sera programmé après confirmation.'
-                            : 'Cette action reste en simulation pour le moment.'}
+                            : action.type === 'merge_tasks' && action.engine === 'tasks'
+                              ? 'La tâche choisie sera conservée et le doublon sera archivé après confirmation.'
+                              : 'Cette action reste en simulation pour le moment.'}
                       </p>
                     </article>
                   ))}
@@ -395,7 +401,7 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
 
                 {otherActionCount > 0 ? (
                   <p className="mt-3 text-xs leading-5 text-[#766D66]">
-                    Seules les tâches et les rappels seront réellement exécutés. Les autres propositions resteront en simulation.
+                    Seules les tâches, les rappels et les fusions validées seront réellement exécutés. Les autres propositions resteront en simulation.
                   </p>
                 ) : null}
 
@@ -408,15 +414,17 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
                   >
                     {executableActionCount === 0
                       ? 'Confirmer'
-                      : executableTaskCount > 0 && executableReminderCount > 0
-                        ? 'Confirmer les actions'
-                        : executableReminderCount > 0
-                          ? executableReminderCount > 1
-                            ? 'Confirmer et programmer les rappels'
-                            : 'Confirmer et programmer le rappel'
-                          : executableTaskCount > 1
-                            ? 'Confirmer et créer les tâches'
-                            : 'Confirmer et créer la tâche'}
+                      : executableMergeCount > 0 && executableActionCount === executableMergeCount
+                        ? executableMergeCount > 1
+                          ? 'Confirmer et fusionner les tâches'
+                          : 'Confirmer la fusion'
+                        : executableActionCount > 1
+                          ? 'Confirmer les actions'
+                          : executableReminderCount > 0
+                            ? 'Confirmer et programmer le rappel'
+                            : executableTaskCount > 0
+                              ? 'Confirmer et créer la tâche'
+                              : 'Confirmer'}
                   </button>
                   <button
                     type="button"

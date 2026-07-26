@@ -87,6 +87,7 @@ export const NOVA_ACTION_PLAN_JSON_SCHEMA = {
             enum: [
               'create_task',
               'create_reminder',
+              'merge_tasks',
               'create_calendar_event',
               'classify_document',
               'create_admin_case',
