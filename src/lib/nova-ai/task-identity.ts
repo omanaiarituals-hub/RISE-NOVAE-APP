@@ -1,4 +1,4 @@
-export type TaskIdentityRecord = {
+﻿export type TaskIdentityRecord = {
   id?: string
   title: string
   description?: string | null
@@ -144,7 +144,7 @@ function singularize(token: string): string {
 export function normalizeTaskSemanticText(value: string): string {
   return removeDiacritics(value)
     .toLowerCase()
-    .replace(/[’']/g, ' ')
+    .replace(/[â€™']/g, ' ')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, ' ')
@@ -166,9 +166,11 @@ export function taskSemanticTokens(value: string): string[] {
 
 function setIntersectionSize(left: Set<string>, right: Set<string>): number {
   let count = 0
-  for (const value of left) {
+
+  left.forEach((value) => {
     if (right.has(value)) count += 1
-  }
+  })
+
   return count
 }
 
@@ -220,9 +222,9 @@ export function compareTaskIdentity(
   left: TaskIdentityRecord,
   right: TaskIdentityRecord
 ): TaskIdentityComparison {
-  // L'identité d'une tâche est portée d'abord par son titre.
-  // Une description longue ou formulée différemment ne doit pas faire chuter
-  // artificiellement la similarité de deux intitulés équivalents.
+  // L'identitÃ© d'une tÃ¢che est portÃ©e d'abord par son titre.
+  // Une description longue ou formulÃ©e diffÃ©remment ne doit pas faire chuter
+  // artificiellement la similaritÃ© de deux intitulÃ©s Ã©quivalents.
   const leftTitleTokens = taskSemanticTokens(left.title)
   const rightTitleTokens = taskSemanticTokens(right.title)
   const leftAllTokens = taskSemanticTokens(`${left.title} ${left.description || ''}`)
@@ -244,10 +246,10 @@ export function compareTaskIdentity(
   if (leftAction && rightAction) {
     if (leftAction === rightAction) {
       score += 0.15
-      reasons.push(`même action (${leftAction})`)
+      reasons.push(`mÃªme action (${leftAction})`)
     } else {
       score -= 0.25
-      reasons.push('actions différentes')
+      reasons.push('actions diffÃ©rentes')
     }
   }
 
@@ -263,10 +265,10 @@ export function compareTaskIdentity(
   )
   if (organizationOverlap > 0) {
     score += 0.12
-    reasons.push('même organisme ou contexte')
+    reasons.push('mÃªme organisme ou contexte')
   } else if (leftOrganizations.length > 0 && rightOrganizations.length > 0) {
     score -= 0.12
-    reasons.push('organismes différents')
+    reasons.push('organismes diffÃ©rents')
   }
 
   const sharedImportantTokens = [...leftSet].filter(
@@ -274,7 +276,7 @@ export function compareTaskIdentity(
   )
   if (sharedImportantTokens.length >= 2) {
     score += 0.08
-    reasons.push('mêmes éléments principaux')
+    reasons.push('mÃªmes Ã©lÃ©ments principaux')
   } else if (sharedImportantTokens.length === 1) {
     score += 0.03
   }
@@ -298,22 +300,22 @@ export function compareTaskIdentity(
     (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft))
   ) {
     score += 0.08
-    reasons.push('un intitulé contient l’autre')
+    reasons.push('un intitulÃ© contient lâ€™autre')
   }
 
   if (datesCompatible(left.due_date, right.due_date)) {
     if (left.due_date && right.due_date) {
       score += 0.05
-      reasons.push('même échéance')
+      reasons.push('mÃªme Ã©chÃ©ance')
     }
   } else {
     score -= 0.18
-    reasons.push('échéances différentes')
+    reasons.push('Ã©chÃ©ances diffÃ©rentes')
   }
 
   if (!timesCompatible(left.due_time, right.due_time)) {
     score -= 0.08
-    reasons.push('heures différentes')
+    reasons.push('heures diffÃ©rentes')
   }
 
   if (left.category && right.category && left.category !== right.category) {
@@ -370,3 +372,4 @@ export function findBestTaskMatches<T extends TaskIdentityRecord>(
     .filter((candidate) => candidate.comparison.score >= minimumScore)
     .sort((a, b) => b.comparison.score - a.comparison.score)
 }
+
