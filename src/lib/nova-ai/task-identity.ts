@@ -179,7 +179,17 @@ function jaccard(left: string[], right: string[]): number {
   const rightSet = new Set(right)
   if (leftSet.size === 0 && rightSet.size === 0) return 1
   const intersection = setIntersectionSize(leftSet, rightSet)
-  const union = new Set([...leftSet, ...rightSet]).size
+  const unionSet = new Set<string>()
+
+  leftSet.forEach((value) => {
+    unionSet.add(value)
+  })
+
+  rightSet.forEach((value) => {
+    unionSet.add(value)
+  })
+
+  const union = unionSet.size
   return union === 0 ? 0 : intersection / union
 }
 
@@ -271,9 +281,13 @@ export function compareTaskIdentity(
     reasons.push('organismes diffÃ©rents')
   }
 
-  const sharedImportantTokens = [...leftSet].filter(
-    (token) => rightSet.has(token) && !ACTION_TOKENS.has(token)
-  )
+  const sharedImportantTokens: string[] = []
+
+  leftSet.forEach((token) => {
+    if (rightSet.has(token) && !ACTION_TOKENS.has(token)) {
+      sharedImportantTokens.push(token)
+    }
+  })
   if (sharedImportantTokens.length >= 2) {
     score += 0.08
     reasons.push('mÃªmes Ã©lÃ©ments principaux')
@@ -372,4 +386,7 @@ export function findBestTaskMatches<T extends TaskIdentityRecord>(
     .filter((candidate) => candidate.comparison.score >= minimumScore)
     .sort((a, b) => b.comparison.score - a.comparison.score)
 }
+
+
+
 
