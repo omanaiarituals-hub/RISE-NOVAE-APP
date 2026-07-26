@@ -135,6 +135,7 @@ export default function HomePageClient() {
 
   const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
   const isTester = !!user?.email && TESTER_EMAILS.includes(user.email.toLowerCase())
+  const isNovaV2Tester = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
 
   useEffect(() => {
     if (loading) return
@@ -429,7 +430,7 @@ const visibleModules = (u: Univers) => {
         <div style={{ flexShrink: 0, background: themedHeaderBackground, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: themedHeaderBorder, boxShadow: '0 4px 18px rgba(20,20,20,0.10)', padding: '10px 16px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <img src="/logo.png" alt="NOVAÉ by OMANAÏA" style={{ height: 42, objectFit: 'contain', maxWidth: 140 }} />
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <Link href="/agent?voice=1" aria-label="Parler à Nova" style={{ textDecoration: 'none' }}>
+            <Link href={isNovaV2Tester ? '/nova-v2?voice=1' : '/agent?voice=1'} aria-label="Parler à Nova" style={{ textDecoration: 'none' }}>
               <div className="mic-cta" style={{ width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'linear-gradient(135deg, var(--novae-accent, #c4956a), var(--novae-secondary, #b07d5a) 55%, #c98b86)', cursor: 'pointer' }}>🎙️</div>
             </Link>
             <NotificationBell />
@@ -454,7 +455,7 @@ const visibleModules = (u: Univers) => {
 
             {/* NOVA, ENTRÉE PRINCIPALE (toujours visible, s'adapte au message en attente) */}
             <Link
-              href={novaPending ? `/agent?nova_thread=${novaPending.thread_id}` : '/agent'}
+              href={isNovaV2Tester ? '/nova-v2' : (novaPending ? `/agent?nova_thread=${novaPending.thread_id}` : '/agent')}
               style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}
             >
               <div style={{ background: themedNovaCardBackground, border: themedNovaCardBorder, borderRadius: 18, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, position: 'relative', overflow: 'hidden', boxShadow: '0 6px 20px rgba(138,111,176,0.18)' }}>
@@ -463,13 +464,13 @@ const visibleModules = (u: Univers) => {
                 <div style={{ width: 48, height: 48, borderRadius: '50%', background: themedNovaOrbBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', fontWeight: 700, fontSize: 24, flexShrink: 0, boxShadow: '0 4px 12px rgba(138,111,176,0.35)' }}>N</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 9, fontWeight: 700, color: isClassicTheme ? '#5b4b7a' : 'var(--novae-primary, #5b4b7a)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.18em' }}>
-                    {novaPending ? "Nova t'a laissé un message" : 'Ton assistante IA'}
+                    {isNovaV2Tester ? 'Nova V2 · version privée' : (novaPending ? "Nova t'a laissé un message" : 'Ton assistante IA')}
                   </p>
                   <p style={{ fontSize: 17, color: 'var(--novae-text-main, #3d2618)', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontWeight: 500, lineHeight: 1.2 }}>
-                    {novaPending ? 'Appuie pour lire 💜' : 'Parle à Nova'}
+                    {isNovaV2Tester ? 'Ouvre ta nouvelle Nova' : (novaPending ? 'Appuie pour lire 💜' : 'Parle à Nova')}
                   </p>
                   <p style={{ fontSize: 11.5, color: 'var(--novae-text-muted, #6b5340)', margin: '3px 0 0', lineHeight: 1.35 }}>
-                    {novaPending ? 'Elle a pensé à toi.' : 'Elle organise, planifie et agit sur ta journée. Dis-lui ce que tu as en tête.'}
+                    {isNovaV2Tester ? 'Tâches, rappels, notifications, fusion et historique de conversations sont actifs pour tes tests.' : (novaPending ? 'Elle a pensé à toi.' : 'Elle organise, planifie et agit sur ta journée. Dis-lui ce que tu as en tête.')}
                   </p>
                 </div>
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: themedNovaOrbBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 15, flexShrink: 0 }}>→</div>
@@ -478,7 +479,7 @@ const visibleModules = (u: Univers) => {
 
             {/* STRUGGLE */}
             {struggle.active && (
-              <Link href="/agent" style={{ textDecoration: 'none', display: 'block', marginBottom: 10 }}>
+              <Link href={isNovaV2Tester ? '/nova-v2' : '/agent'} style={{ textDecoration: 'none', display: 'block', marginBottom: 10 }}>
                 <div style={{ background: isClassicTheme ? 'linear-gradient(135deg, rgba(196,149,106,0.20), rgba(123,111,160,0.18))' : 'var(--novae-surface-alt, #FFF9F5)', border: isClassicTheme ? '1px solid rgba(196,149,106,0.35)' : '1px solid var(--novae-border, #EADDD2)', borderRadius: 14, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 9 }}>
                   <span style={{ fontSize: 18, flexShrink: 0 }}>🌙</span>
                   <div style={{ flex: 1, minWidth: 0 }}>

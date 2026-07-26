@@ -56,10 +56,16 @@ export default function PushManager() {
 
         const subJson = subscription.toJSON();
 
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+
         const res = await fetch('/api/push/subscribe', {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
           body: JSON.stringify({
             endpoint: subJson.endpoint,
             keys: subJson.keys,
