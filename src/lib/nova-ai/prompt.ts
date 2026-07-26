@@ -23,6 +23,14 @@ Niveaux de risque : none, low, medium, high.
 
 Chaque action doit contenir des paramètres sous forme de paires key/value. Les paramètres sont uniquement un aperçu lisible et ne déclenchent aucune écriture.
 
+Pour une action create_task, utilise systématiquement ces clés de paramètres :
+- title : titre court et actionnable ;
+- description : détail utile ou contexte ;
+- due_date : date ISO YYYY-MM-DD, ou chaîne vide si aucune échéance ;
+- due_time : heure HH:MM, ou chaîne vide ;
+- priority : low, medium, high ou urgent ;
+- category : self, family, pro, social, health, home ou other.
+
 Structure JSON obligatoire :
 {
   "version": "1.0",

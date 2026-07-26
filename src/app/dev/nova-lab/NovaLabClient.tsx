@@ -3,13 +3,14 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
-import type { NovaPlanResult } from '@/lib/nova-ai/types'
+import type { NovaExecutionResult, NovaPlanResult } from '@/lib/nova-ai/types'
 
 type ConversationStatus =
   | 'idle'
   | 'waiting_information'
   | 'waiting_confirmation'
-  | 'confirmed'
+  | 'executing'
+  | 'completed'
   | 'cancelled'
 
 type ChatMessage = {
@@ -43,7 +44,7 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
     {
       id: createId('welcome'),
       role: 'nova',
-      text: 'Bonjour. Confie-moi une situation, un rendez-vous, une échéance ou une information à retenir. Je préparerai la suite sans rien exécuter.',
+      text: 'Bonjour. Confie-moi une situation, un rendez-vous, une échéance ou une information à retenir. Je préparerai la suite et je n’exécuterai que les tâches que tu confirmes explicitement.',
     },
   ])
   const [result, setResult] = useState<NovaPlanResult | null>(null)
@@ -87,12 +88,12 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
   }
 
   async function requestPlan(visibleMessage: string) {
-    if (!visibleMessage.trim() || loading) return
+    if (!visibleMessage.trim() || loading || status === 'executing') return
 
     const normalized = visibleMessage.trim()
 
     if (status === 'waiting_confirmation' && isPositiveConfirmation(normalized)) {
-      confirmPreparedActions()
+      await confirmPreparedActions()
       return
     }
 
@@ -169,13 +170,63 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
     }
   }
 
-  function confirmPreparedActions() {
+  async function confirmPreparedActions() {
+    if (!result || loading || status === 'executing') return
+
     addMessage('user', 'Oui, je confirme.')
-    addMessage(
-      'nova',
-      'Validation reçue. L’exécution sécurisée n’est pas encore activée dans ce laboratoire, donc aucune donnée n’a été créée. La prochaine étape sera de connecter cette validation au moteur concerné.'
-    )
-    setStatus('confirmed')
+    setLoading(true)
+    setStatus('executing')
+    setError('')
+
+    try {
+      if (!result.executionToken) {
+        throw new Error(
+          'La validation est reçue, mais l’exécution n’est pas encore configurée sur ce serveur.'
+        )
+      }
+
+      const { data } = await supabase.auth.getSession()
+      const token = data.session?.access_token
+      if (!token) {
+        throw new Error('Ta session a expiré. Reconnecte-toi à NOVAÉ.')
+      }
+
+      const response = await fetch('/api/nova/execute', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ executionToken: result.executionToken }),
+      })
+
+      const payload = (await response.json()) as Partial<NovaExecutionResult> & {
+        message?: string
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          payload.message ||
+            'La proposition a été validée, mais elle n’a pas pu être exécutée.'
+        )
+      }
+
+      addMessage(
+        'nova',
+        payload.message || 'C’est fait. La tâche a été ajoutée à ta to-do.'
+      )
+      setStatus('completed')
+    } catch (caught) {
+      const message =
+        caught instanceof Error
+          ? caught.message
+          : 'L’action n’a pas pu être exécutée.'
+      setError(message)
+      addMessage('system', message)
+      setStatus('waiting_confirmation')
+    } finally {
+      setLoading(false)
+    }
   }
 
   function cancelPreparedActions() {
@@ -215,6 +266,10 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
     result?.plan.proposed_actions.filter(
       (action) => action.requires_confirmation
     ) || []
+  const executableTaskCount = confirmableActions.filter(
+    (action) => action.type === 'create_task' && action.engine === 'tasks'
+  ).length
+  const otherActionCount = confirmableActions.length - executableTaskCount
 
   return (
     <main className="min-h-screen bg-[#F7F5F1] px-4 py-8 text-[#282522]">
@@ -226,7 +281,7 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
             </p>
             <h1 className="font-serif text-3xl font-semibold">Nova V2</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#625B55]">
-              Une conversation de test pour comprendre, préciser et valider une action. Aucune exécution réelle n’est encore activée.
+              Nova comprend, précise et demande ton accord. Le moteur Tâches est actif ; les autres moteurs restent en simulation.
             </p>
             {userEmail ? (
               <p className="mt-1 text-xs text-[#847A72]">Compte : {userEmail}</p>
@@ -252,8 +307,8 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
 
         <section className="overflow-hidden rounded-2xl border border-[#D7D0C8] bg-white shadow-sm">
           <div className="border-b border-[#E8E2DC] bg-[#FBFAF8] px-5 py-3">
-            <span className="rounded-full bg-[#EFEAE5] px-3 py-1 text-xs font-medium text-[#625B55]">
-              Mode test, sans exécution
+            <span className="rounded-full bg-[#E8EFE7] px-3 py-1 text-xs font-medium text-[#425642]">
+              Tâches actives, autres actions en test
             </span>
           </div>
 
@@ -282,7 +337,9 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
             {loading ? (
               <div className="flex justify-start">
                 <div className="rounded-2xl rounded-bl-md border border-[#E1DBD5] bg-[#F8F5F1] px-4 py-3 text-sm text-[#6B625B]">
-                  Nova prépare la suite…
+                  {status === 'executing'
+                    ? 'Nova vérifie et exécute la tâche…'
+                    : 'Nova prépare la suite…'}
                 </div>
               </div>
             ) : null}
@@ -321,39 +378,51 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
                       <p className="mt-1 text-sm leading-6 text-[#5E5751]">
                         {action.reason}
                       </p>
+                      <p className="mt-2 text-xs text-[#7B716A]">
+                        {action.type === 'create_task' && action.engine === 'tasks'
+                          ? 'Cette tâche sera créée après confirmation.'
+                          : 'Cette action reste en simulation pour le moment.'}
+                      </p>
                     </article>
                   ))}
                 </div>
 
+                {otherActionCount > 0 ? (
+                  <p className="mt-3 text-xs leading-5 text-[#766D66]">
+                    Seules les tâches seront réellement créées. Les autres propositions ne seront pas exécutées.
+                  </p>
+                ) : null}
+
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={confirmPreparedActions}
-                    className="rounded-lg bg-[#332E2A] px-4 py-2 text-sm font-semibold text-white"
+                    onClick={() => void confirmPreparedActions()}
+                    disabled={loading}
+                    className="rounded-lg bg-[#332E2A] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   >
-                    Confirmer
+                    {executableTaskCount > 0
+                      ? executableTaskCount > 1
+                        ? 'Confirmer et créer les tâches'
+                        : 'Confirmer et créer la tâche'
+                      : 'Confirmer'}
                   </button>
                   <button
                     type="button"
                     onClick={askForModification}
-                    className="rounded-lg border border-[#CFC7BF] bg-white px-4 py-2 text-sm font-semibold"
+                    disabled={loading}
+                    className="rounded-lg border border-[#CFC7BF] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
                   >
                     Modifier
                   </button>
                   <button
                     type="button"
                     onClick={cancelPreparedActions}
-                    className="rounded-lg border border-[#CFC7BF] bg-white px-4 py-2 text-sm"
+                    disabled={loading}
+                    className="rounded-lg border border-[#CFC7BF] bg-white px-4 py-2 text-sm disabled:opacity-50"
                   >
                     Annuler
                   </button>
                 </div>
-              </div>
-            ) : null}
-
-            {status === 'confirmed' ? (
-              <div className="rounded-xl border border-[#BFC7BC] bg-[#F2F5F1] p-4 text-sm leading-6 text-[#3F5140]">
-                Validation enregistrée dans la conversation. Aucune exécution réelle n’a encore eu lieu.
               </div>
             ) : null}
 
@@ -384,7 +453,7 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault()
-                    if (input.trim() && !loading) {
+                    if (input.trim() && !loading && status !== 'executing') {
                       void requestPlan(input)
                     }
                   }
@@ -393,14 +462,17 @@ export default function NovaLabClient({ userEmail }: { userEmail?: string }) {
                 placeholder={
                   status === 'waiting_information'
                     ? 'Réponds à Nova…'
-                    : 'Écris à Nova…'
+                    : status === 'completed'
+                      ? 'Écris une nouvelle demande ou clique sur “Nouvelle demande”…'
+                      : 'Écris à Nova…'
                 }
-                className="min-h-[52px] flex-1 resize-none rounded-xl border border-[#CBC3BB] bg-white px-4 py-3 text-sm leading-6 outline-none focus:border-[#7B6F66]"
+                disabled={loading || status === 'executing'}
+                className="min-h-[52px] flex-1 resize-none rounded-xl border border-[#CBC3BB] bg-white px-4 py-3 text-sm leading-6 outline-none focus:border-[#7B6F66] disabled:bg-[#F2EFEC]"
               />
 
               <button
                 type="submit"
-                disabled={loading || !input.trim()}
+                disabled={loading || !input.trim() || status === 'executing'}
                 className="rounded-xl bg-[#332E2A] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Envoyer

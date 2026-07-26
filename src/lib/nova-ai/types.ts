@@ -134,4 +134,34 @@ export interface NovaPlanResult extends NovaProviderResult {
   attemptedProviders: NovaProviderId[]
   durationMs: number
   dryRun: true
+  executionToken?: string
+}
+
+export interface NovaTaskExecutionItem {
+  actionId: string
+  status: 'created' | 'already_exists' | 'failed'
+  task: {
+    id: string
+    title: string
+    description: string | null
+    category: string | null
+    priority: string | null
+    due_date: string | null
+    due_time: string | null
+    status: string
+    created_at: string
+  } | null
+  message: string
+}
+
+export interface NovaExecutionResult {
+  ok: boolean
+  message: string
+  results: NovaTaskExecutionItem[]
+  counts: {
+    created: number
+    alreadyExists: number
+    failed: number
+    unsupported: number
+  }
 }

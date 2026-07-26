@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createNovaActionPlan } from '@/lib/nova-ai/router'
 import { NOVA_PROVIDER_IDS, type NovaProviderPreference } from '@/lib/nova-ai/types'
 import { rateLimit } from '@/lib/rateLimit'
+import { createNovaExecutionToken } from '@/lib/nova-ai/action-token'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -96,7 +97,23 @@ export async function POST(request: NextRequest) {
       provider
     )
 
-    return NextResponse.json(result)
+    const hasConfirmableAction = result.plan.proposed_actions.some(
+      (action) => action.requires_confirmation
+    )
+    const hasBlockingMissingInformation = result.plan.missing_information.some(
+      (item) => item.blocking
+    )
+
+    let executionToken: string | undefined
+    if (hasConfirmableAction && !hasBlockingMissingInformation) {
+      try {
+        executionToken = createNovaExecutionToken(user.id, result.plan)
+      } catch (tokenError) {
+        console.warn('[api/nova/plan] execution token unavailable', tokenError)
+      }
+    }
+
+    return NextResponse.json({ ...result, executionToken })
   } catch (error) {
     console.error('[api/nova/plan] error', error)
     return NextResponse.json(
