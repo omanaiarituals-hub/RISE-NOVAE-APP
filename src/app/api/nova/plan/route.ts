@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createNovaActionPlan } from '@/lib/nova-ai/router'
 import {
@@ -13,6 +13,10 @@ import {
   findLikelyDuplicatePairs,
   type TaskIdentityComparison,
 } from '@/lib/nova-ai/task-identity'
+import {
+  findBestCalendarMatches,
+  type CalendarIdentityMatch,
+} from '@/lib/nova-ai/calendar-identity'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -57,6 +61,8 @@ type RequestTaskMatch = {
   task: ActiveTaskContextRow
   comparison: TaskIdentityComparison
 }
+
+type RequestCalendarMatch = CalendarIdentityMatch
 
 function labEnabled(): boolean {
   return process.env.NOVA_V2_LAB_ENABLED === 'true'
@@ -109,28 +115,28 @@ function applyTaskIdentityGuard(
     (action) => action.type === 'merge_tasks'
   )
 
-  // Le modèle de langage peut soupçonner un doublon, mais il ne doit jamais
-  // produire une fusion exécutable sans validation déterministe côté NOVAÉ.
+  // Le modÃ¨le de langage peut soupÃ§onner un doublon, mais il ne doit jamais
+  // produire une fusion exÃ©cutable sans validation dÃ©terministe cÃ´tÃ© NOVAÃ‰.
   if (duplicatePairs.length === 0) {
     if (!planContainsMerge) return plan
     return {
       ...plan,
-      summary: 'Une proximité a été repérée, mais elle n’est pas encore assez fiable.',
+      summary: 'Une proximitÃ© a Ã©tÃ© repÃ©rÃ©e, mais elle nâ€™est pas encore assez fiable.',
       missing_information: [
         {
           field: 'task_duplicate_confirmation',
           question:
-            'Ces tâches semblent proches, mais Nova ne peut pas encore confirmer qu’il s’agit de la même action. Souhaites-tu les conserver séparément ?',
+            'Ces tÃ¢ches semblent proches, mais Nova ne peut pas encore confirmer quâ€™il sâ€™agit de la mÃªme action. Souhaites-tu les conserver sÃ©parÃ©ment ?',
           blocking: true,
         },
       ],
       proposed_actions: [],
       assistant_message:
-        'J’ai repéré une ressemblance entre ces tâches, mais pas assez pour proposer une fusion sécurisée. Je les laisse séparées pour le moment.',
+        'Jâ€™ai repÃ©rÃ© une ressemblance entre ces tÃ¢ches, mais pas assez pour proposer une fusion sÃ©curisÃ©e. Je les laisse sÃ©parÃ©es pour le moment.',
     }
   }
 
-  const explicitMergeRequest = /\b(fusionne|fusionner|doublon|meme tache|même tâche|identique)\b/i.test(
+  const explicitMergeRequest = /\b(fusionne|fusionner|doublon|meme tache|mÃªme tÃ¢che|identique)\b/i.test(
     message
   )
   const matchThreshold = explicitMergeRequest ? 0.25 : 0.45
@@ -156,11 +162,11 @@ function applyTaskIdentityGuard(
     if (!planContainsMerge) return plan
     return {
       ...plan,
-      summary: 'Aucune paire de tâches suffisamment fiable n’a été identifiée.',
+      summary: 'Aucune paire de tÃ¢ches suffisamment fiable nâ€™a Ã©tÃ© identifiÃ©e.',
       missing_information: [],
       proposed_actions: [],
       assistant_message:
-        'Je ne peux pas relier ces tâches avec assez de certitude pour proposer une fusion. Je les conserve séparément.',
+        'Je ne peux pas relier ces tÃ¢ches avec assez de certitude pour proposer une fusion. Je les conserve sÃ©parÃ©ment.',
     }
   }
 
@@ -172,16 +178,16 @@ function applyTaskIdentityGuard(
   ) {
     return {
       ...plan,
-      summary: `Deux tâches similaires ont été trouvées, mais leurs échéances sont différentes.`,
+      summary: `Deux tÃ¢ches similaires ont Ã©tÃ© trouvÃ©es, mais leurs Ã©chÃ©ances sont diffÃ©rentes.`,
       missing_information: [
         {
           field: 'task_duplicate_dates',
-          question: `Les tâches « ${left.title} » et « ${right.title} » semblent proches, mais leurs échéances diffèrent. S’agit-il vraiment de la même démarche ?`,
+          question: `Les tÃ¢ches Â« ${left.title} Â» et Â« ${right.title} Â» semblent proches, mais leurs Ã©chÃ©ances diffÃ¨rent. Sâ€™agit-il vraiment de la mÃªme dÃ©marche ?`,
           blocking: true,
         },
       ],
       proposed_actions: [],
-      assistant_message: `J’ai trouvé deux tâches très proches, mais elles n’ont pas la même échéance. Dis-moi si elles correspondent réellement à la même démarche avant que je propose une fusion.`,
+      assistant_message: `Jâ€™ai trouvÃ© deux tÃ¢ches trÃ¨s proches, mais elles nâ€™ont pas la mÃªme Ã©chÃ©ance. Dis-moi si elles correspondent rÃ©ellement Ã  la mÃªme dÃ©marche avant que je propose une fusion.`,
     }
   }
 
@@ -190,17 +196,17 @@ function applyTaskIdentityGuard(
 
   return {
     ...plan,
-    summary: `Deux tâches semblent correspondre à la même action (${Math.round(
+    summary: `Deux tÃ¢ches semblent correspondre Ã  la mÃªme action (${Math.round(
       comparison.score * 100
-    )} % de similarité).`,
+    )} % de similaritÃ©).`,
     missing_information: [],
     proposed_actions: [
       {
         id: 'merge_tasks_1',
         type: 'merge_tasks',
         engine: 'tasks',
-        title: `Fusionner les deux tâches similaires`,
-        reason: `Conserver « ${keep.title} » et archiver « ${duplicate.title} ». Les rappels actifs seront rattachés à la tâche conservée sans doublon.`,
+        title: `Fusionner les deux tÃ¢ches similaires`,
+        reason: `Conserver Â« ${keep.title} Â» et archiver Â« ${duplicate.title} Â». Les rappels actifs seront rattachÃ©s Ã  la tÃ¢che conservÃ©e sans doublon.`,
         risk: 'medium',
         requires_confirmation: true,
         parameters: [
@@ -211,7 +217,7 @@ function applyTaskIdentityGuard(
         ],
       },
     ],
-    assistant_message: `J’ai repéré que « ${left.title} » et « ${right.title} » semblent correspondre à la même tâche. Je te propose de conserver « ${keep.title} » et d’archiver l’autre. Tu confirmes ?`,
+    assistant_message: `Jâ€™ai repÃ©rÃ© que Â« ${left.title} Â» et Â« ${right.title} Â» semblent correspondre Ã  la mÃªme tÃ¢che. Je te propose de conserver Â« ${keep.title} Â» et dâ€™archiver lâ€™autre. Tu confirmes ?`,
   }
 }
 
@@ -225,7 +231,7 @@ export async function POST(request: NextRequest) {
     const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
 
     if (!token) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+      return NextResponse.json({ error: 'Non authentifiÃ©' }, { status: 401 })
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -233,7 +239,7 @@ export async function POST(request: NextRequest) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return NextResponse.json({ error: 'Configuration Supabase incomplète.' }, { status: 500 })
+      return NextResponse.json({ error: 'Configuration Supabase incomplÃ¨te.' }, { status: 500 })
     }
 
     const authClient = createClient(supabaseUrl, anonKey, {
@@ -251,7 +257,7 @@ export async function POST(request: NextRequest) {
     const allowlist = allowedEmails()
     const email = user.email?.toLowerCase() || ''
     if (allowlist.length > 0 && !allowlist.includes(email)) {
-      return NextResponse.json({ error: 'Accès au laboratoire refusé.' }, { status: 403 })
+      return NextResponse.json({ error: 'AccÃ¨s au laboratoire refusÃ©.' }, { status: 403 })
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
@@ -261,7 +267,7 @@ export async function POST(request: NextRequest) {
     const rl = await rateLimit(supabaseAdmin, user.id, 'nova_v2_lab', { max: 30, windowMinutes: 60 })
     if (!rl.allowed) {
       return NextResponse.json(
-        { error: 'too_many_requests', message: 'Trop de tests en peu de temps. Réessaie plus tard.' },
+        { error: 'too_many_requests', message: 'Trop de tests en peu de temps. RÃ©essaie plus tard.' },
         { status: 429 }
       )
     }
@@ -295,13 +301,17 @@ export async function POST(request: NextRequest) {
       console.warn('[api/nova/plan] task context unavailable', activeTasksError.message)
     }
 
+    const calendarWindowStart = new Date()
+    calendarWindowStart.setDate(calendarWindowStart.getDate() - 30)
+
     const { data: activeEvents, error: activeEventsError } = await supabaseAdmin
       .from('planner_events')
       .select('id,title,start_date,end_date,location,attendees,status,reminder_minutes_before')
       .eq('user_id', user.id)
       .neq('status', 'cancelled')
+      .gte('end_date', calendarWindowStart.toISOString())
       .order('start_date', { ascending: true })
-      .limit(40)
+      .limit(200)
 
     if (activeEventsError) {
       console.warn('[api/nova/plan] calendar context unavailable', activeEventsError.message)
@@ -334,7 +344,8 @@ export async function POST(request: NextRequest) {
       )
       .join('\n')
 
-    const eventContext = ((activeEvents || []) as ActiveCalendarContextRow[])
+    const activeEventRows = ((activeEvents || []) as ActiveCalendarContextRow[])
+    const eventContext = activeEventRows
       .map((event) => [
         `id=${event.id}`,
         `titre=${String(event.title || '').replace(/\s+/g, ' ').trim()}`,
@@ -345,6 +356,24 @@ export async function POST(request: NextRequest) {
         `rappel_minutes=${(event.reminder_minutes_before || []).join(',') || 'aucun'}`,
         `statut=${event.status || 'pending'}`,
       ].join(' ; '))
+      .join('\n')
+
+    const calendarMatches: RequestCalendarMatch[] = findBestCalendarMatches(
+      message,
+      activeEventRows,
+      0.2
+    ).slice(0, 5)
+    const calendarMatchContext = calendarMatches
+      .map(({ event, score, reasons }) =>
+        [
+          `score=${score.toFixed(3)}`,
+          `id=${event.id}`,
+          `titre=${String(event.title || '').replace(/\s+/g, ' ').trim()}`,
+          `debut=${event.start_date}`,
+          `fin=${event.end_date}`,
+          `raisons=${reasons.join(', ') || 'proximite semantique'}`,
+        ].join(' ; ')
+      )
       .join('\n')
 
     const reminderContext = ((activeReminders || []) as ActiveReminderContextRow[])
@@ -381,23 +410,31 @@ export async function POST(request: NextRequest) {
     const messageWithContext = [
       message,
       '',
-      'CONTEXTE INTERNE NOVAÉ - ne jamais réciter les identifiants techniques à l’utilisatrice :',
-      'Tâches actives connues :',
-      taskContext || 'aucune tâche active',
+      'CONTEXTE INTERNE NOVAÃ‰ - ne jamais rÃ©citer les identifiants techniques Ã  lâ€™utilisatrice :',
+      'TÃ¢ches actives connues :',
+      taskContext || 'aucune tÃ¢che active',
       '',
-      'Correspondances probables entre la demande et les tâches actives :',
+      'Correspondances probables entre la demande et les tÃ¢ches actives :',
       requestMatchContext || 'aucune correspondance suffisamment proche',
       '',
-      'Groupes de tâches déjà existantes qui semblent être des doublons :',
-      duplicateContext || 'aucun doublon probable détecté',
+      'Groupes de tÃ¢ches dÃ©jÃ  existantes qui semblent Ãªtre des doublons :',
+      duplicateContext || 'aucun doublon probable dÃ©tectÃ©',
       '',
       'Rendez-vous actifs connus :',
       eventContext || 'aucun rendez-vous actif',
       '',
-      'Rappels de tâches encore en attente :',
+      'Correspondances prioritaires entre la demande et les rendez-vous actifs :',
+      calendarMatchContext || 'aucune correspondance suffisamment proche',
+      '',
+      'RÃˆGLE DE RÃ‰SOLUTION DES RENDEZ-VOUS :',
+      calendarMatches.length > 0 && (calendarMatches.length === 1 || calendarMatches[0].score - calendarMatches[1].score >= 0.12)
+        ? `Le rendez-vous prioritaire est id=${calendarMatches[0].event.id}, titre=${calendarMatches[0].event.title}, debut=${calendarMatches[0].event.start_date}, fin=${calendarMatches[0].event.end_date}. ConsidÃ¨re-le comme identifiÃ©. Ne dis jamais qu'il est absent et ne redemande pas son identitÃ©. Pour une modification ou annulation, utilise obligatoirement cet id dans event_id. Demande seulement les informations rÃ©ellement manquantes sur le nouvel horaire.`
+        : 'Plusieurs rendez-vous restent plausibles : demande lequel utiliser sans prÃ©tendre quâ€™aucun rendez-vous nâ€™existe.',
+      '',
+      'Rappels de tÃ¢ches encore en attente :',
       reminderContext || 'aucun rappel en attente',
       '',
-      'Utilise ce contexte uniquement pour comprendre les références, éviter les doublons, retrouver précisément une tâche, un rappel ou un rendez-vous et préparer une création, modification ou annulation après validation.',
+      'Utilise ce contexte uniquement pour comprendre les rÃ©fÃ©rences, Ã©viter les doublons, retrouver prÃ©cisÃ©ment une tÃ¢che, un rappel ou un rendez-vous et prÃ©parer une crÃ©ation, modification ou annulation aprÃ¨s validation.',
     ].join('\n')
 
     const result = await createNovaActionPlan(
@@ -439,9 +476,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'nova_plan_failed',
-        message: error instanceof Error ? error.message : 'Impossible d’analyser la demande.',
+        message: error instanceof Error ? error.message : 'Impossible dâ€™analyser la demande.',
       },
       { status: 502 }
     )
   }
 }
+
