@@ -104,7 +104,7 @@ async function findDuplicateTask(
 
   if (error) throw new Error(`Impossible de vérifier les doublons : ${error.message}`)
 
-  const candidates = ((data || []) as StoredTask[])
+  const candidates = ((data || []) as unknown as unknown as unknown as StoredTask[])
     .map((candidate) => ({
       candidate,
       comparison: compareTaskIdentity(
@@ -181,7 +181,7 @@ async function createAndVerifyTask(
     throw new Error(verifyError?.message || 'La tâche a été créée mais sa vérification a échoué.')
   }
 
-  const storedTask = verified as StoredTask
+  const storedTask = verified as unknown as unknown as unknown as StoredTask
   if (
     normalizeTaskTitle(storedTask.title) !== normalizeTaskTitle(task.title) ||
     (storedTask.due_date || null) !== task.dueDate ||
@@ -216,7 +216,7 @@ async function resolveReminderTask(
       .maybeSingle()
 
     if (error) throw new Error(`Impossible de retrouver la tâche : ${error.message}`)
-    if (data) return data as StoredTask
+    if (data) return data as unknown as unknown as unknown as StoredTask
   }
 
   const { data, error } = await db
@@ -228,7 +228,7 @@ async function resolveReminderTask(
 
   if (error) throw new Error(`Impossible de retrouver la tâche : ${error.message}`)
 
-  const tasks = (data || []) as StoredTask[]
+  const tasks = (data || []) as unknown as unknown as unknown as StoredTask[]
   const exactCandidates = tasks.filter(
     (task) => normalizeTaskTitle(task.title) === reminder.taskTitle
   )
@@ -489,7 +489,7 @@ async function readTaskForMerge(
     .maybeSingle()
 
   if (error) throw new Error(`Impossible de lire la tâche : ${error.message}`)
-  return data ? (data as StoredTask) : null
+  return data ? (data as unknown as unknown as unknown as StoredTask) : null
 }
 
 type MergeRpcResult = {
