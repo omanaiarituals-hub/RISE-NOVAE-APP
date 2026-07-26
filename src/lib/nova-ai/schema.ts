@@ -1,0 +1,154 @@
+export const NOVA_ACTION_PLAN_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'version',
+    'summary',
+    'intent',
+    'confidence',
+    'extracted_data',
+    'missing_information',
+    'proposed_actions',
+    'memory_candidates',
+    'assistant_message',
+  ],
+  properties: {
+    version: { type: 'string', enum: ['1.0'] },
+    summary: { type: 'string' },
+    intent: {
+      type: 'string',
+      enum: ['task', 'calendar', 'document', 'administrative', 'finance', 'family', 'meal', 'note', 'question', 'unknown'],
+    },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+    extracted_data: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['people', 'organizations', 'dates', 'amounts', 'documents', 'locations', 'facts'],
+      properties: {
+        people: { type: 'array', items: { type: 'string' } },
+        organizations: { type: 'array', items: { type: 'string' } },
+        dates: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['raw', 'iso', 'kind'],
+            properties: {
+              raw: { type: 'string' },
+              iso: { type: 'string' },
+              kind: {
+                type: 'string',
+                enum: ['date', 'deadline', 'appointment', 'reminder', 'unknown'],
+              },
+            },
+          },
+        },
+        amounts: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['value', 'currency', 'label'],
+            properties: {
+              value: { type: 'number' },
+              currency: { type: 'string' },
+              label: { type: 'string' },
+            },
+          },
+        },
+        documents: { type: 'array', items: { type: 'string' } },
+        locations: { type: 'array', items: { type: 'string' } },
+        facts: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    missing_information: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['field', 'question', 'blocking'],
+        properties: {
+          field: { type: 'string' },
+          question: { type: 'string' },
+          blocking: { type: 'boolean' },
+        },
+      },
+    },
+    proposed_actions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'type', 'engine', 'title', 'reason', 'risk', 'requires_confirmation', 'parameters'],
+        properties: {
+          id: { type: 'string' },
+          type: {
+            type: 'string',
+            enum: [
+              'create_task',
+              'create_reminder',
+              'create_calendar_event',
+              'classify_document',
+              'create_admin_case',
+              'prepare_email',
+              'save_note',
+              'ask_question',
+              'no_action',
+            ],
+          },
+          engine: {
+            type: 'string',
+            enum: [
+              'tasks',
+              'calendar',
+              'documents',
+              'administrative',
+              'finance',
+              'family',
+              'meals',
+              'notes',
+              'memory',
+              'notifications',
+              'none',
+            ],
+          },
+          title: { type: 'string' },
+          reason: { type: 'string' },
+          risk: { type: 'string', enum: ['none', 'low', 'medium', 'high'] },
+          requires_confirmation: { type: 'boolean' },
+          parameters: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['key', 'value'],
+              properties: {
+                key: { type: 'string' },
+                value: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+    },
+    memory_candidates: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['key', 'value', 'scope', 'confidence', 'requires_confirmation'],
+        properties: {
+          key: { type: 'string' },
+          value: { type: 'string' },
+          scope: {
+            type: 'string',
+            enum: ['temporary', 'profile', 'family', 'preference', 'organization'],
+          },
+          confidence: { type: 'number', minimum: 0, maximum: 1 },
+          requires_confirmation: { type: 'boolean' },
+        },
+      },
+    },
+    assistant_message: { type: 'string' },
+  },
+} as const
