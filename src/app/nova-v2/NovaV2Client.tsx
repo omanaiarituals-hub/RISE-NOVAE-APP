@@ -377,7 +377,8 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const executableReminderCount = confirmableActions.filter((action) => action.type === 'create_reminder' && action.engine === 'notifications').length
   const executableCalendarCount = confirmableActions.filter((action) => action.type === 'create_calendar_event' && action.engine === 'calendar').length
   const executableMergeCount = confirmableActions.filter((action) => action.type === 'merge_tasks' && action.engine === 'tasks').length
-  const executableActionCount = executableTaskCount + executableReminderCount + executableMergeCount + executableCalendarCount
+  const executableLifecycleCount = confirmableActions.filter((action) => ['update_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type)).length
+  const executableActionCount = executableTaskCount + executableReminderCount + executableMergeCount + executableCalendarCount + executableLifecycleCount
   const otherActionCount = confirmableActions.length - executableActionCount
 
   return (
@@ -429,7 +430,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#796F68]">Version privée</p>
             <h1 className="font-serif text-3xl font-semibold">Nova</h1>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-[#625B55]">Ton espace de test réel. Les tâches, rappels, notifications et fusions sont actifs après validation. Les autres moteurs restent en préparation.</p>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-[#625B55]">Ton espace de test réel. Les tâches, rappels, notifications et fusions sont actifs après validation. Les tâches, rappels, rendez-vous et leurs modifications sont actifs après validation.</p>
             {userEmail ? <p className="mt-1 text-xs text-[#847A72]">Compte : {userEmail}</p> : null}
           </div>
 
@@ -442,7 +443,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
 
         <section className="overflow-hidden rounded-2xl border border-[#D7D0C8] bg-white shadow-sm">
           <div className="border-b border-[#E8E2DC] bg-[#FBFAF8] px-5 py-3">
-            <span className="rounded-full bg-[#E8EFE7] px-3 py-1 text-xs font-medium text-[#425642]">Tâches, rappels, agenda, notifications et fusion actifs</span>
+            <span className="rounded-full bg-[#E8EFE7] px-3 py-1 text-xs font-medium text-[#425642]">Tâches, rappels, agenda, modifications et annulations actifs</span>
           </div>
 
           <div className="max-h-[62vh] min-h-[440px] space-y-4 overflow-y-auto px-4 py-5 sm:px-5 sm:py-6">
@@ -486,13 +487,17 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
                               ? 'Ce rendez-vous sera ajouté au planning après confirmation.'
                             : action.type === 'merge_tasks' && action.engine === 'tasks'
                               ? 'La tâche choisie sera conservée et le doublon sera archivé après confirmation.'
-                              : 'Cette action reste en simulation pour le moment.'
+                              : action.type.startsWith('update_')
+                                ? 'La modification sera appliquée après confirmation.'
+                                : action.type.startsWith('cancel_')
+                                  ? 'L’annulation sera appliquée après confirmation, sans suppression silencieuse.'
+                                  : 'Cette action reste en simulation pour le moment.'
                       }</p>
                     </article>
                   ))}
                 </div>
 
-                {otherActionCount > 0 ? <p className="mt-3 text-xs leading-5 text-[#766D66]">Seules les tâches, les rappels et les fusions validées seront réellement exécutés. Les autres propositions resteront en simulation.</p> : null}
+                {otherActionCount > 0 ? <p className="mt-3 text-xs leading-5 text-[#766D66]">Seules les actions prises en charge et validées seront réellement exécutées. Les autres propositions resteront en simulation.</p> : null}
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button type="button" onClick={() => void confirmPreparedActions()} disabled={loading} className="rounded-lg bg-[#332E2A] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
@@ -502,6 +507,8 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
                         ? executableMergeCount > 1 ? 'Confirmer et fusionner les tâches' : 'Confirmer la fusion'
                         : executableActionCount > 1
                           ? 'Confirmer les actions'
+                          : executableLifecycleCount > 0
+                            ? 'Confirmer la modification'
                           : executableCalendarCount > 0
                             ? 'Confirmer et ajouter au planning'
                           : executableReminderCount > 0

@@ -13,6 +13,7 @@ import {
 } from '@/lib/nova-ai/reminder-execution'
 import { compareTaskIdentity } from '@/lib/nova-ai/task-identity'
 import { prepareCalendarInsert, type PreparedCalendarInsert } from '@/lib/nova-ai/calendar-execution'
+import { executeLifecycleAction } from '@/lib/nova-ai/lifecycle-execution'
 import {
   prepareTaskMerge,
   type PreparedTaskMerge,
@@ -22,6 +23,7 @@ import type {
   NovaTaskExecutionItem,
   NovaTaskMergeExecutionItem,
   NovaCalendarExecutionItem,
+  NovaLifecycleExecutionItem,
 } from '@/lib/nova-ai/types'
 
 export const runtime = 'nodejs'
@@ -697,17 +699,21 @@ export async function POST(request: NextRequest) {
     const calendarActions = confirmedActions.filter(
       (action) => action.type === 'create_calendar_event' && action.engine === 'calendar'
     )
+    const lifecycleActions = confirmedActions.filter((action) =>
+      ['update_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type)
+    )
     const unsupportedActions = confirmedActions.filter(
       (action) =>
         !(
           (action.type === 'create_task' && action.engine === 'tasks') ||
           (action.type === 'create_reminder' && action.engine === 'notifications') ||
           (action.type === 'merge_tasks' && action.engine === 'tasks') ||
-          (action.type === 'create_calendar_event' && action.engine === 'calendar')
+          (action.type === 'create_calendar_event' && action.engine === 'calendar') ||
+          ['update_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type)
         )
     )
 
-    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -722,12 +728,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
     const results: Array<
-      NovaTaskExecutionItem | NovaReminderExecutionItem | NovaTaskMergeExecutionItem | NovaCalendarExecutionItem
+      NovaTaskExecutionItem | NovaReminderExecutionItem | NovaTaskMergeExecutionItem | NovaCalendarExecutionItem | NovaLifecycleExecutionItem
     > = []
 
     for (const action of taskActions) {
@@ -788,6 +794,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    for (const action of lifecycleActions) {
+      try {
+        results.push(await executeLifecycleAction(userClient, user.id, action, payload.plan))
+      } catch (error) {
+        const kind = action.type.startsWith('update_task') ? 'task_update'
+          : action.type.startsWith('cancel_task') ? 'task_cancel'
+          : action.type.startsWith('update_reminder') ? 'reminder_update'
+          : action.type.startsWith('cancel_reminder') ? 'reminder_cancel'
+          : action.type.startsWith('update_calendar') ? 'calendar_update'
+          : 'calendar_cancel'
+        results.push({ kind, actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'La modification n’a pas pu être exécutée.' } as NovaLifecycleExecutionItem)
+      }
+    }
+
     const tasksCreated = results.filter(
       (item) => item.kind === 'task' && item.status === 'created'
     ).length
@@ -800,6 +820,8 @@ export async function POST(request: NextRequest) {
     const calendarEventsCreated = results.filter(
       (item) => item.kind === 'calendar_event' && item.status === 'created'
     ).length
+    const actionsUpdated = results.filter((item) => item.status === 'updated').length
+    const actionsCancelled = results.filter((item) => item.status === 'cancelled').length
     const alreadyExists = results.filter(
       (item) => item.status === 'already_exists' || item.status === 'already_merged'
     ).length
@@ -810,7 +832,7 @@ export async function POST(request: NextRequest) {
       messageParts.push('Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.')
     }
 
-    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + alreadyExists > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
+    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
     return NextResponse.json(
       {
         ok: failed === 0,
@@ -821,6 +843,8 @@ export async function POST(request: NextRequest) {
           remindersScheduled,
           tasksMerged,
           calendarEventsCreated,
+          actionsUpdated,
+          actionsCancelled,
           alreadyExists,
           failed,
           unsupported: unsupportedActions.length,

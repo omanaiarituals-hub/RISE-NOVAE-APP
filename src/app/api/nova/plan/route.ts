@@ -28,6 +28,25 @@ type ActiveTaskContextRow = {
   created_at: string
 }
 
+type ActiveCalendarContextRow = {
+  id: string
+  title: string
+  start_date: string
+  end_date: string
+  location: string | null
+  attendees: string[] | null
+  status: string | null
+  reminder_minutes_before: number[] | null
+}
+
+type ActiveReminderContextRow = {
+  id: string
+  todo_id: string
+  scheduled_for: string
+  status: string
+  message: string | null
+}
+
 type DuplicateTaskPair = {
   left: ActiveTaskContextRow
   right: ActiveTaskContextRow
@@ -276,6 +295,30 @@ export async function POST(request: NextRequest) {
       console.warn('[api/nova/plan] task context unavailable', activeTasksError.message)
     }
 
+    const { data: activeEvents, error: activeEventsError } = await supabaseAdmin
+      .from('planner_events')
+      .select('id,title,start_date,end_date,location,attendees,status,reminder_minutes_before')
+      .eq('user_id', user.id)
+      .neq('status', 'cancelled')
+      .order('start_date', { ascending: true })
+      .limit(40)
+
+    if (activeEventsError) {
+      console.warn('[api/nova/plan] calendar context unavailable', activeEventsError.message)
+    }
+
+    const { data: activeReminders, error: activeRemindersError } = await supabaseAdmin
+      .from('task_reminders')
+      .select('id,todo_id,scheduled_for,status,message')
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+      .order('scheduled_for', { ascending: true })
+      .limit(40)
+
+    if (activeRemindersError) {
+      console.warn('[api/nova/plan] reminder context unavailable', activeRemindersError.message)
+    }
+
     const activeTaskRows = (activeTasks || []) as ActiveTaskContextRow[]
     const taskContext = activeTaskRows
       .map((task: ActiveTaskContextRow) =>
@@ -289,6 +332,29 @@ export async function POST(request: NextRequest) {
           `statut=${task.status}`,
         ].join(' ; ')
       )
+      .join('\n')
+
+    const eventContext = ((activeEvents || []) as ActiveCalendarContextRow[])
+      .map((event) => [
+        `id=${event.id}`,
+        `titre=${String(event.title || '').replace(/\s+/g, ' ').trim()}`,
+        `debut=${event.start_date}`,
+        `fin=${event.end_date}`,
+        `lieu=${event.location || 'aucun'}`,
+        `participants=${(event.attendees || []).join(', ') || 'aucun'}`,
+        `rappel_minutes=${(event.reminder_minutes_before || []).join(',') || 'aucun'}`,
+        `statut=${event.status || 'pending'}`,
+      ].join(' ; '))
+      .join('\n')
+
+    const reminderContext = ((activeReminders || []) as ActiveReminderContextRow[])
+      .map((reminder) => [
+        `id=${reminder.id}`,
+        `task_id=${reminder.todo_id}`,
+        `date=${reminder.scheduled_for}`,
+        `message=${String(reminder.message || '').replace(/\s+/g, ' ').trim() || 'aucun'}`,
+        `statut=${reminder.status}`,
+      ].join(' ; '))
       .join('\n')
 
     const duplicatePairs = findLikelyDuplicatePairs(activeTaskRows, 0.76).slice(0, 8)
@@ -325,7 +391,13 @@ export async function POST(request: NextRequest) {
       'Groupes de tâches déjà existantes qui semblent être des doublons :',
       duplicateContext || 'aucun doublon probable détecté',
       '',
-      'Utilise ce contexte uniquement pour comprendre les références comme « cette tâche », éviter les doublons, proposer une fusion après validation et rattacher un rappel à la bonne tâche.',
+      'Rendez-vous actifs connus :',
+      eventContext || 'aucun rendez-vous actif',
+      '',
+      'Rappels de tâches encore en attente :',
+      reminderContext || 'aucun rappel en attente',
+      '',
+      'Utilise ce contexte uniquement pour comprendre les références, éviter les doublons, retrouver précisément une tâche, un rappel ou un rendez-vous et préparer une création, modification ou annulation après validation.',
     ].join('\n')
 
     const result = await createNovaActionPlan(
