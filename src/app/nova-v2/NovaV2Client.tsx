@@ -72,6 +72,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historySearch, setHistorySearch] = useState('')
+  const [listening, setListening] = useState(false)
   const endRef = useRef<HTMLDivElement | null>(null)
 
   const filteredConversations = useMemo(() => {
@@ -255,6 +256,14 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
 
       const payload = (await response.json()) as Partial<NovaExecutionResult> & { message?: string }
       if (!response.ok) {
+        if (response.status === 409 && payload.message) {
+          await addMessage('nova', payload.message, activeConversationId, {
+            type: 'execution_result', success: false, requires_modification: true,
+          })
+          setResult(null)
+          setStatus('completed')
+          return
+        }
         throw new Error(payload.message || 'La proposition a été validée, mais elle n’a pas pu être exécutée.')
       }
 
@@ -337,6 +346,27 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     }
   }
 
+  function toggleVoiceInput() {
+    if (listening) return
+    const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognitionCtor) {
+      setError('La dictée vocale n’est pas disponible dans ce navigateur. Utilise Chrome ou Edge.')
+      return
+    }
+    const recognition = new SpeechRecognitionCtor()
+    recognition.lang = 'fr-FR'
+    recognition.interimResults = false
+    recognition.continuous = false
+    recognition.onstart = () => { setListening(true); setError('') }
+    recognition.onend = () => setListening(false)
+    recognition.onerror = () => { setListening(false); setError('Je n’ai pas réussi à entendre la dictée. Réessaie.') }
+    recognition.onresult = (event: any) => {
+      const transcript = event.results?.[0]?.[0]?.transcript || ''
+      if (transcript) setInput((current) => current ? `${current} ${transcript}` : transcript)
+    }
+    recognition.start()
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     void requestPlan(input)
@@ -345,8 +375,9 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const confirmableActions = result?.plan.proposed_actions.filter((action) => action.requires_confirmation) || []
   const executableTaskCount = confirmableActions.filter((action) => action.type === 'create_task' && action.engine === 'tasks').length
   const executableReminderCount = confirmableActions.filter((action) => action.type === 'create_reminder' && action.engine === 'notifications').length
+  const executableCalendarCount = confirmableActions.filter((action) => action.type === 'create_calendar_event' && action.engine === 'calendar').length
   const executableMergeCount = confirmableActions.filter((action) => action.type === 'merge_tasks' && action.engine === 'tasks').length
-  const executableActionCount = executableTaskCount + executableReminderCount + executableMergeCount
+  const executableActionCount = executableTaskCount + executableReminderCount + executableMergeCount + executableCalendarCount
   const otherActionCount = confirmableActions.length - executableActionCount
 
   return (
@@ -411,7 +442,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
 
         <section className="overflow-hidden rounded-2xl border border-[#D7D0C8] bg-white shadow-sm">
           <div className="border-b border-[#E8E2DC] bg-[#FBFAF8] px-5 py-3">
-            <span className="rounded-full bg-[#E8EFE7] px-3 py-1 text-xs font-medium text-[#425642]">Tâches, rappels, notifications et fusion actifs</span>
+            <span className="rounded-full bg-[#E8EFE7] px-3 py-1 text-xs font-medium text-[#425642]">Tâches, rappels, agenda, notifications et fusion actifs</span>
           </div>
 
           <div className="max-h-[62vh] min-h-[440px] space-y-4 overflow-y-auto px-4 py-5 sm:px-5 sm:py-6">
@@ -451,6 +482,8 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
                           ? 'Cette tâche sera créée après confirmation.'
                           : action.type === 'create_reminder' && action.engine === 'notifications'
                             ? 'Ce rappel sera programmé après confirmation.'
+                            : action.type === 'create_calendar_event' && action.engine === 'calendar'
+                              ? 'Ce rendez-vous sera ajouté au planning après confirmation.'
                             : action.type === 'merge_tasks' && action.engine === 'tasks'
                               ? 'La tâche choisie sera conservée et le doublon sera archivé après confirmation.'
                               : 'Cette action reste en simulation pour le moment.'
@@ -469,6 +502,8 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
                         ? executableMergeCount > 1 ? 'Confirmer et fusionner les tâches' : 'Confirmer la fusion'
                         : executableActionCount > 1
                           ? 'Confirmer les actions'
+                          : executableCalendarCount > 0
+                            ? 'Confirmer et ajouter au planning'
                           : executableReminderCount > 0
                             ? 'Confirmer et programmer le rappel'
                             : executableTaskCount > 0
@@ -504,6 +539,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
                 disabled={loading || status === 'executing'}
                 className="min-h-[52px] flex-1 resize-none rounded-xl border border-[#CBC3BB] bg-white px-4 py-3 text-sm leading-6 outline-none focus:border-[#7B6F66] disabled:bg-[#F2EFEC]"
               />
+              <button type="button" onClick={toggleVoiceInput} disabled={loading || status === 'executing'} title="Dicter un message" className={`rounded-xl border px-4 py-3 text-sm font-semibold ${listening ? 'border-[#6F5B8E] bg-[#EEE7F4] text-[#5D477D]' : 'border-[#CBC3BB] bg-white text-[#514B46]'}`}>{listening ? 'Écoute…' : '🎤'}</button>
               <button type="submit" disabled={loading || !input.trim() || status === 'executing'} className="rounded-xl bg-[#332E2A] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Envoyer</button>
             </form>
             {error ? <p className="mt-3 text-xs text-[#7B2921]">{error}</p> : null}

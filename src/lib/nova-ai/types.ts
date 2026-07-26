@@ -179,6 +179,23 @@ export interface NovaReminderExecutionItem {
 }
 
 
+export interface NovaCalendarExecutionItem {
+  kind: 'calendar_event'
+  actionId: string
+  status: 'created' | 'already_exists' | 'conflict' | 'failed'
+  event: {
+    id: string
+    title: string
+    start_date: string
+    end_date: string
+    location: string | null
+    source_todo_id: string | null
+    status: string | null
+  } | null
+  conflicts: Array<{ id: string; title: string; start_date: string; end_date: string }>
+  message: string
+}
+
 export interface NovaTaskMergeExecutionItem {
   kind: 'task_merge'
   actionId: string
@@ -206,6 +223,7 @@ export type NovaExecutionItem =
   | NovaTaskExecutionItem
   | NovaReminderExecutionItem
   | NovaTaskMergeExecutionItem
+  | NovaCalendarExecutionItem
 
 export interface NovaExecutionResult {
   ok: boolean
@@ -215,6 +233,7 @@ export interface NovaExecutionResult {
     tasksCreated: number
     remindersScheduled: number
     tasksMerged: number
+    calendarEventsCreated: number
     alreadyExists: number
     failed: number
     unsupported: number

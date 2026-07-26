@@ -712,6 +712,7 @@ export default function PlannerNovae() {
       .from("todo_list")
       .select("id, title, priority, status")
       .eq("user_id", user.id)
+      .neq("status", "cancelled")
       .order("created_at", { ascending: false });
 
     if (todosData) {

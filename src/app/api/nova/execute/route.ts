@@ -12,6 +12,7 @@ import {
   type PreparedReminderInsert,
 } from '@/lib/nova-ai/reminder-execution'
 import { compareTaskIdentity } from '@/lib/nova-ai/task-identity'
+import { prepareCalendarInsert, type PreparedCalendarInsert } from '@/lib/nova-ai/calendar-execution'
 import {
   prepareTaskMerge,
   type PreparedTaskMerge,
@@ -20,6 +21,7 @@ import type {
   NovaReminderExecutionItem,
   NovaTaskExecutionItem,
   NovaTaskMergeExecutionItem,
+  NovaCalendarExecutionItem,
 } from '@/lib/nova-ai/types'
 
 export const runtime = 'nodejs'
@@ -412,6 +414,66 @@ async function createAndVerifyReminder(
 
 
 
+type StoredCalendarEvent = {
+  id: string
+  title: string
+  start_date: string
+  end_date: string
+  location: string | null
+  source_todo_id: string | null
+  status: string | null
+}
+
+function formatCalendarDateFr(iso: string): string {
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  }).format(new Date(iso))
+}
+
+async function createAndVerifyCalendarEvent(
+  db: ReturnType<typeof buildUserClient>, userId: string, event: PreparedCalendarInsert
+): Promise<NovaCalendarExecutionItem> {
+  if (event.taskId) {
+    const { data: task } = await db.from('todo_list').select('id,title,status').eq('id', event.taskId).eq('user_id', userId).maybeSingle()
+    if (!task) throw new Error('La tâche à planifier est introuvable.')
+    const { data: existingBlock } = await db.from('planner_events')
+      .select('id,title,start_date,end_date,location,source_todo_id,status')
+      .eq('user_id', userId).eq('source_todo_id', event.taskId).neq('status', 'cancelled').limit(1).maybeSingle()
+    if (existingBlock) {
+      return { kind:'calendar_event', actionId:event.actionId, status:'already_exists', event: existingBlock as StoredCalendarEvent, conflicts:[], message:`La tâche « ${task.title} » est déjà placée dans ton planning. Je n’ai pas créé de doublon.` }
+    }
+  }
+
+  const { data: conflicts, error: conflictError } = await db.from('planner_events')
+    .select('id,title,start_date,end_date')
+    .eq('user_id', userId)
+    .lt('start_date', event.endAt)
+    .gt('end_date', event.startAt)
+    .neq('status', 'cancelled')
+    .limit(10)
+  if (conflictError) throw new Error(`Impossible de vérifier les conflits : ${conflictError.message}`)
+  if ((conflicts || []).length > 0) {
+    const list = (conflicts || []) as Array<{id:string;title:string;start_date:string;end_date:string}>
+    return { kind:'calendar_event', actionId:event.actionId, status:'conflict', event:null, conflicts:list, message:`Je n’ai rien ajouté : ce créneau chevauche « ${list[0].title} ». Modifie l’horaire ou confirme une exception dans un prochain échange.` }
+  }
+
+  const start = new Date(event.startAt)
+  const end = new Date(event.endAt)
+  const startMinutes = start.getHours() * 60 + start.getMinutes()
+  const endMinutes = end.getHours() * 60 + end.getMinutes()
+  const { data: inserted, error } = await db.from('planner_events').insert({
+    user_id:userId, title:event.title, description:event.description, location:event.location,
+    start_date:event.startAt, end_date:event.endAt, start_minutes:startMinutes, end_minutes:endMinutes,
+    category:event.category, attendees:event.attendees, reminder_minutes_before:event.reminderMinutesBefore > 0 ? [event.reminderMinutesBefore] : [],
+    reminder_sent:false, status:'pending', source_todo_id:event.taskId,
+  }).select('id').single()
+  if (error || !inserted?.id) throw new Error(error?.message || 'Le rendez-vous n’a pas pu être ajouté.')
+  const { data: verified, error: verifyError } = await db.from('planner_events')
+    .select('id,title,start_date,end_date,location,source_todo_id,status').eq('id', inserted.id).eq('user_id', userId).single()
+  if (verifyError || !verified) throw new Error(verifyError?.message || 'Le rendez-vous a été créé mais sa vérification a échoué.')
+  return { kind:'calendar_event', actionId:event.actionId, status:'created', event:verified as StoredCalendarEvent, conflicts:[], message:`C’est fait. J’ai ajouté « ${event.title} » à ton planning le ${formatCalendarDateFr(event.startAt)}.` }
+}
+
 async function readTaskForMerge(
   db: ReturnType<typeof buildUserClient>,
   userId: string,
@@ -632,16 +694,20 @@ export async function POST(request: NextRequest) {
     const mergeActions = confirmedActions.filter(
       (action) => action.type === 'merge_tasks' && action.engine === 'tasks'
     )
+    const calendarActions = confirmedActions.filter(
+      (action) => action.type === 'create_calendar_event' && action.engine === 'calendar'
+    )
     const unsupportedActions = confirmedActions.filter(
       (action) =>
         !(
           (action.type === 'create_task' && action.engine === 'tasks') ||
           (action.type === 'create_reminder' && action.engine === 'notifications') ||
-          (action.type === 'merge_tasks' && action.engine === 'tasks')
+          (action.type === 'merge_tasks' && action.engine === 'tasks') ||
+          (action.type === 'create_calendar_event' && action.engine === 'calendar')
         )
     )
 
-    if (taskActions.length + reminderActions.length + mergeActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -656,12 +722,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
     const results: Array<
-      NovaTaskExecutionItem | NovaReminderExecutionItem | NovaTaskMergeExecutionItem
+      NovaTaskExecutionItem | NovaReminderExecutionItem | NovaTaskMergeExecutionItem | NovaCalendarExecutionItem
     > = []
 
     for (const action of taskActions) {
@@ -713,6 +779,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    for (const action of calendarActions) {
+      try {
+        const prepared = prepareCalendarInsert(action, payload.plan)
+        results.push(await createAndVerifyCalendarEvent(userClient, user.id, prepared))
+      } catch (error) {
+        results.push({ kind:'calendar_event', actionId:action.id, status:'failed', event:null, conflicts:[], message:error instanceof Error ? error.message : 'Le rendez-vous n’a pas pu être ajouté.' })
+      }
+    }
+
     const tasksCreated = results.filter(
       (item) => item.kind === 'task' && item.status === 'created'
     ).length
@@ -722,17 +797,20 @@ export async function POST(request: NextRequest) {
     const tasksMerged = results.filter(
       (item) => item.kind === 'task_merge' && item.status === 'merged'
     ).length
+    const calendarEventsCreated = results.filter(
+      (item) => item.kind === 'calendar_event' && item.status === 'created'
+    ).length
     const alreadyExists = results.filter(
       (item) => item.status === 'already_exists' || item.status === 'already_merged'
     ).length
-    const failed = results.filter((item) => item.status === 'failed').length
+    const failed = results.filter((item) => item.status === 'failed' || item.status === 'conflict').length
 
     const messageParts = results.map((item) => item.message)
     if (unsupportedActions.length > 0) {
       messageParts.push('Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.')
     }
 
-    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + alreadyExists > 0 ? 200 : 500
+    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + alreadyExists > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
     return NextResponse.json(
       {
         ok: failed === 0,
@@ -742,6 +820,7 @@ export async function POST(request: NextRequest) {
           tasksCreated,
           remindersScheduled,
           tasksMerged,
+          calendarEventsCreated,
           alreadyExists,
           failed,
           unsupported: unsupportedActions.length,
