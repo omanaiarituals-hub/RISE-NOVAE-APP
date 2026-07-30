@@ -1,111 +1,198 @@
-// src/app/HomePageClient.tsx — v6
-// Objectif du jour affiché sur la carte après saisie
+// src/app/HomePageClient.tsx
 'use client'
-import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase/client'
+
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
-import { usePseudo } from '@/hooks/usePseudo'
-import { UserMenu } from '@/components/UserMenu'
-import { OnboardingTour } from '@/components/OnboardingTour'
-import { getProverbeDuJour } from '@/lib/proverbes'
+import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 import NotificationBell from '@/components/NotificationBell'
-import { detectStruggleMode, type StruggleState } from '@/lib/struggle/detect'
+import { UserMenu } from '@/components/UserMenu'
+import PremiumIcon, {
+  type PremiumIconName,
+} from '@/components/ui/PremiumIcon'
+import { usePseudo } from '@/hooks/usePseudo'
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { logEvent } from '@/lib/events'
+import { supabase } from '@/lib/supabase/client'
+import {
+  getUserInterfacePreset,
+  normalizeUserThemeKey,
+  type UserPointMode,
+  type UserThemeKey,
+} from '@/lib/theme/user-themes'
 
-const ADMIN_EMAILS = ['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com']
-const TESTER_EMAILS = ['nesserinesediri@gmail.com']
+const ADMIN_EMAILS = [
+  'nesserinesediri@gmail.com',
+  'omanaiarituals@gmail.com',
+]
+const PARIS_TIME_ZONE = 'Europe/Paris'
+const CACHE_KEY = 'novae-interface-preferences'
 
-
-const THEME_CACHE_KEY = 'novae-interface-preferences'
-
-type CachedInterfacePreferences = {
-  theme_key?: string | null
+type TimelineItem = {
+  id: string
+  title: string
+  startMinutes: number
+  endMinutes: number
+  kind: 'event' | 'routine'
 }
 
-function readActiveThemeKey(): string {
-  if (typeof window === 'undefined') return 'novae_bordeaux'
-
-  try {
-    const raw = window.localStorage.getItem(THEME_CACHE_KEY)
-    if (!raw) return 'novae_bordeaux'
-
-    const parsed = JSON.parse(raw) as CachedInterfacePreferences
-    return parsed.theme_key || 'novae_bordeaux'
-  } catch {
-    return 'novae_bordeaux'
-  }
+type PriorityItem = {
+  id: string
+  title: string
+  priority?: string | null
 }
 
 type ModuleItem = {
+  key: string
   href: string
   title: string
-  badge?: string
-  tester?: boolean
-  adminDocumentsTester?: boolean
-}
-type Univers = {
-  key: string; title: string; subtitle: string; icon: string
-  tint: string; border: string; ink: string; modules: ModuleItem[]
+  description: string
+  icon: PremiumIconName
+  adminOnly?: boolean
 }
 
-const UNIVERS_LIST: Univers[] = [
+const PRIMARY_MODULES: ModuleItem[] = [
   {
-    key: 'quotidien', title: 'Mon quotidien', subtitle: 'Organise tes journées avec sérénité.',
-    icon: '/icon-quotidien.png', tint: 'rgba(197,211,180,0.25)', border: 'rgba(167,189,144,0.40)', ink: '#5C7044',
-    modules: [
-  { href: '/planner', title: 'Planner' },
-  { href: '/routines', title: 'Routines' },
-  { href: '/recipes', title: 'Repas' },
-  { href: '/notes', title: 'Notes' },
-  { href: '/admin-documents', title: 'Documents', badge: 'TEST', adminDocumentsTester: true },
-],
+    key: 'admin',
+    href: '/admin-documents',
+    title: 'Documents',
+    description: 'Centralise et retrouve',
+    icon: 'document',
   },
   {
-    key: 'transformation', title: 'Ma transformation', subtitle: "Change ta vie un pas après l'autre.",
-    icon: '/icon-transformation.png', tint: 'rgba(242,194,182,0.25)', border: 'rgba(223,160,143,0.40)', ink: '#B5654A',
-    modules: [
-      { href: '/program', title: 'Reset 90j' },
-      { href: '/parcours-profonds/reclaim-myself', title: 'Reclaim', badge: 'TEST', tester: true },
-      { href: '/defis', title: 'Défis' },
-    ],
+    key: 'planner',
+    href: '/planner',
+    title: 'Planner',
+    description: 'Organise ta journée',
+    icon: 'calendar',
   },
   {
-    key: 'equilibre', title: 'Mon équilibre', subtitle: 'Observe, ajuste et prends soin de toi.',
-    icon: '/icon-equilibre.png', tint: 'rgba(212,196,226,0.25)', border: 'rgba(185,162,212,0.40)', ink: '#7E63A8',
-    modules: [
-      { href: '/tracker', title: 'Tracker' }, { href: '/family', title: 'Famille' },
-      { href: '/community', title: 'Commu.' },
-    ],
-  },
-  {
-    key: 'accompagnement', title: 'Mon accompagnement', subtitle: "Tu n'avances jamais seule.",
-    icon: '/icon-accompagnement.png', tint: 'rgba(245,216,155,0.25)', border: 'rgba(231,192,111,0.40)', ink: '#A8852E',
-    modules: [
-      { href: '/agent', title: 'Nova', badge: 'IA' },
-      { href: '/astuces', title: 'Astuces' },
-      { href: '/blog', title: 'Blog' },
-    ],
+    key: 'meals',
+    href: '/recipes',
+    title: 'Repas',
+    description: 'Inspire et régale',
+    icon: 'meal',
   },
 ]
 
-const PHASE_MESSAGES: Record<string, { label: string; phase: string }> = {
-  reprogrammation: { phase: 'Phase 1', label: 'Reprogrammation' },
-  action: { phase: 'Phase 2', label: 'Action' },
-  expansion: { phase: 'Phase 3', label: 'Expansion' },
-  start: { phase: 'Reset 90j', label: 'Prête à commencer' },
+const OTHER_MODULES: ModuleItem[] = [
+  {
+    key: 'notes',
+    href: '/notes',
+    title: 'Notes',
+    description: 'Idées et informations',
+    icon: 'notes',
+  },
+  {
+    key: 'family',
+    href: '/family',
+    title: 'Famille',
+    description: 'Informations du foyer',
+    icon: 'family',
+  },
+  {
+    key: 'routines',
+    href: '/routines',
+    title: 'Routines',
+    description: 'Habitudes du quotidien',
+    icon: 'routine',
+  },
+  {
+    key: 'tracker',
+    href: '/tracker',
+    title: 'Suivi',
+    description: 'Tes indicateurs',
+    icon: 'tracker',
+  },
+  {
+    key: 'astuces',
+    href: '/astuces',
+    title: 'Astuces',
+    description: 'Conseils pratiques',
+    icon: 'idea',
+  },
+  {
+    key: 'blog',
+    href: '/blog',
+    title: 'Ressources',
+    description: 'Articles et contenus',
+    icon: 'book',
+  },
+  {
+    key: 'finance',
+    href: '/settings',
+    title: 'Finances',
+    description: 'Bientôt disponible',
+    icon: 'wallet',
+  },
+]
+
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+function getParisParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: PARIS_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value || 0)
+
+  return {
+    year: value('year'),
+    month: value('month'),
+    day: value('day'),
+    hour: value('hour'),
+    minute: value('minute'),
+  }
 }
 
-function getPhase(day: number) {
-  if (day < 1) return 'start'
-  if (day <= 30) return 'reprogrammation'
-  if (day <= 60) return 'action'
-  return 'expansion'
+function formatParisDate(date = new Date()) {
+  const parts = getParisParts(date)
+
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(
+    parts.day,
+  ).padStart(2, '0')}`
 }
 
-function fmtDate(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+function minutesToLabel(totalMinutes: number) {
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440
+  const hours = Math.floor(normalized / 60)
+  const minutes = normalized % 60
+
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(
+    2,
+    '0',
+  )}`
+}
+
+function timelineWindowLabel(start: number, end: number) {
+  return `${minutesToLabel(start)} – ${minutesToLabel(end)}${
+    end >= 1440 ? ' demain' : ''
+  }`
+}
+
+function parseTimeToMinutes(value: string | null | undefined) {
+  if (!value) return 0
+
+  const [hours, minutes] = value.split(':').map(Number)
+  return (hours || 0) * 60 + (minutes || 0)
+}
+
+function readCachedTheme(): UserThemeKey {
+  if (typeof window === 'undefined') return 'deep_emerald'
+
+  try {
+    const raw = window.localStorage.getItem(CACHE_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return normalizeUserThemeKey(parsed?.theme_key)
+  } catch {
+    return 'deep_emerald'
+  }
 }
 
 export default function HomePageClient() {
@@ -113,310 +200,468 @@ export default function HomePageClient() {
   const pseudo = usePseudo()
   const router = useRouter()
 
-  const [onboardingChecked, setOnboardingChecked] = useState(false)
-  const [showTour, setShowTour] = useState(false)
-  const [currentDay, setCurrentDay] = useState(0)
-  const [programProgress, setProgramProgress] = useState(0)
-  const [proverbeDuJour, setProverbeDuJour] = useState('')
-  const [novaPending, setNovaPending] = useState<{ thread_id: string } | null>(null)
-  const [struggle, setStruggle] = useState<StruggleState>({ active: false, reason: null })
+  const [themeKey, setThemeKey] =
+    useState<UserThemeKey>('deep_emerald')
   const [greeting, setGreeting] = useState('Bonjour')
   const [dateLabel, setDateLabel] = useState('')
-  const [newCommunityPosts, setNewCommunityPosts] = useState<number | null>(null)
-  const [activeThemeKey, setActiveThemeKey] = useState('novae_bordeaux')
+  const [timelineWindow, setTimelineWindow] = useState({
+    start: 0,
+    end: 180,
+  })
+  const [timeline, setTimeline] = useState<TimelineItem[]>([])
+  const [priorityItems, setPriorityItems] = useState<PriorityItem[]>([])
+  const [documentCount, setDocumentCount] = useState(0)
+  const [showAllModules, setShowAllModules] = useState(false)
+  const [novaPending, setNovaPending] = useState<{
+    thread_id: string
+  } | null>(null)
 
-  // Objectif du jour
-  const [showObjectifForm, setShowObjectifForm] = useState(false)
+  const [showObjective, setShowObjective] = useState(false)
   const [intention, setIntention] = useState('')
   const [priorite, setPriorite] = useState('')
-  const [objectifSaved, setObjectifSaved] = useState(false)
-  const [objectifLoading, setObjectifLoading] = useState(false)
-  const [objectifDuJour, setObjectifDuJour] = useState<{ intention: string; priorite: string } | null>(null)
+  const [objectiveLoading, setObjectiveLoading] = useState(false)
+  const [objectiveSaved, setObjectiveSaved] = useState(false)
+  const [objective, setObjective] = useState<{
+    intention: string
+    priorite: string
+  } | null>(null)
 
-  const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
-  const isTester = !!user?.email && TESTER_EMAILS.includes(user.email.toLowerCase())
-  const isNovaV2Tester = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
+  const isAdmin = Boolean(
+    user?.email &&
+      ADMIN_EMAILS.includes(user.email.toLowerCase()),
+  )
+  const pointMode: UserPointMode =
+    getUserInterfacePreset(themeKey).pointMode
+
+  const novaHref = useMemo(() => {
+    if (isAdmin) return '/nova-v2'
+    if (novaPending) {
+      return `/agent?nova_thread=${novaPending.thread_id}`
+    }
+    return '/agent'
+  }, [isAdmin, novaPending])
+
+  const visiblePrimaryModules = PRIMARY_MODULES
+
+  const visibleOtherModules = useMemo(
+    () =>
+      OTHER_MODULES.filter(
+        (module) => !module.adminOnly || isAdmin,
+      ),
+    [isAdmin],
+  )
 
   useEffect(() => {
-    if (loading) return
-    if (!user) return
-    if (onboardingChecked) return
-    ;(async () => {
-      const { data } = await supabase.from('ai_personality_profile').select('id').eq('user_id', user.id).single()
-      setOnboardingChecked(true)
-      if (!data) router.push('/onboarding')
-    })()
-  }, [user, loading, onboardingChecked, router])
+    const syncTheme = (event?: Event) => {
+      const customEvent = event as
+        | CustomEvent<{ theme_key?: string }>
+        | undefined
 
-  useEffect(() => {
-    setProverbeDuJour(getProverbeDuJour())
-    const h = new Date().getHours()
-    setGreeting(h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Bonne après-midi' : 'Bonsoir')
-    setDateLabel(new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))
-  }, [])
-
-
-  useEffect(() => {
-    const updateActiveTheme = () => {
-      setActiveThemeKey(readActiveThemeKey())
+      setThemeKey(
+        normalizeUserThemeKey(
+          customEvent?.detail?.theme_key || readCachedTheme(),
+        ),
+      )
     }
 
-    updateActiveTheme()
+    syncTheme()
 
-    window.addEventListener('novae-theme-updated', updateActiveTheme)
-    window.addEventListener('storage', updateActiveTheme)
+    window.addEventListener('novae-theme-updated', syncTheme)
 
     return () => {
-      window.removeEventListener('novae-theme-updated', updateActiveTheme)
-      window.removeEventListener('storage', updateActiveTheme)
+      window.removeEventListener('novae-theme-updated', syncTheme)
     }
+  }, [])
+
+  useEffect(() => {
+    const updateClock = () => {
+      const now = new Date()
+      const paris = getParisParts(now)
+      const currentMinutes = paris.hour * 60 + paris.minute
+
+      setGreeting(
+        paris.hour < 5
+          ? 'Bonne nuit'
+          : paris.hour < 12
+            ? 'Bonjour'
+            : paris.hour < 18
+              ? 'Bonne après-midi'
+              : 'Bonsoir',
+      )
+
+      setDateLabel(
+        now.toLocaleDateString('fr-FR', {
+          timeZone: PARIS_TIME_ZONE,
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+        }),
+      )
+
+      setTimelineWindow({
+        start: currentMinutes,
+        end: currentMinutes + 180,
+      })
+    }
+
+    updateClock()
+    const interval = window.setInterval(updateClock, 60_000)
+
+    return () => window.clearInterval(interval)
   }, [])
 
   useEffect(() => {
     if (loading || !user) return
-    loadAllDashboardData()
-    logEvent(supabase, user.id, 'module_programme')
+
+    const checkOnboarding = async () => {
+      const { data } = await supabase
+        .from('ai_personality_profile')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!data) router.push('/onboarding')
+    }
+
+    void checkOnboarding()
+    void loadDashboardData()
+    void logEvent(supabase, user.id, 'module_programme')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loading])
 
-  // PERF (P1) : les 6 requêtes du dashboard sont parallélisées en un seul
-  // Promise.all au lieu de 4 fonctions séquentielles (loadData, checkNovaPending,
-  // loadCommunity, detectStruggleMode). Un seul aller-retour réseau au lieu de 4.
-  const loadAllDashboardData = async () => {
+  const loadDashboardData = async () => {
     if (!user) return
-    try {
-      const lastVisit = localStorage.getItem('novae-community-last-visit')
-      const since = lastVisit
-        ? new Date(lastVisit).toISOString()
-        : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-      const [progRes, noteRes, novaRes, communityRes, struggleRes] = await Promise.all([
-        supabase.from('program_progress').select('current_day').eq('user_id', user.id).maybeSingle(),
-        supabase.from('notes').select('content')
+    try {
+      const now = new Date()
+      const todayString = formatParisDate(now)
+      const parisWeekday = new Intl.DateTimeFormat('en-US', {
+        timeZone: PARIS_TIME_ZONE,
+        weekday: 'short',
+      })
+        .format(now)
+        .toLowerCase()
+        .slice(0, 3)
+
+      const currentDayKey = DAY_KEYS.includes(parisWeekday)
+        ? parisWeekday
+        : DAY_KEYS[now.getDay()]
+
+      const [
+        noteRes,
+        novaRes,
+        eventsRes,
+        routinesRes,
+        todoRes,
+        documentRes,
+      ] = await Promise.all([
+        supabase
+          .from('notes')
+          .select('content')
           .eq('user_id', user.id)
           .like('title', 'Objectif du%')
-          .gte('created_at', `${fmtDate(new Date())}T00:00:00`)
+          .gte('created_at', `${todayString}T00:00:00`)
           .maybeSingle(),
-        supabase.from('nova_pending_messages').select('thread_id')
-          .eq('user_id', user.id).eq('is_read', false).limit(1),
-        supabase.from('community_posts')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', since).neq('user_id', user.id),
-        detectStruggleMode(supabase, user.id).catch(() => null),
+        supabase
+          .from('nova_pending_messages')
+          .select('thread_id')
+          .eq('user_id', user.id)
+          .eq('is_read', false)
+          .limit(1),
+        supabase
+          .from('planner_events')
+          .select(
+            'id, title, start_date, end_date, start_minutes, end_minutes, recurrence_days',
+          )
+          .eq('user_id', user.id)
+          .order('start_date', { ascending: true }),
+        supabase
+          .from('routines')
+          .select(
+            'id, title, preferred_time, duration_minutes, frequency, custom_days',
+          )
+          .eq('user_id', user.id)
+          .not('preferred_time', 'is', null),
+        supabase
+          .from('todo_list')
+          .select('id, title, priority, status')
+          .eq('user_id', user.id)
+          .neq('status', 'done')
+          .limit(4),
+        supabase
+          .from('admin_documents')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id),
       ])
 
-      if (progRes.data) {
-        const d = progRes.data.current_day || 1
-        setCurrentDay(d)
-        setProgramProgress(Math.round((d / 90) * 100))
-      }
-
       if (noteRes.data?.content) {
-        const lines = noteRes.data.content.split('\n')
-        const int = lines.find((l: string) => l.startsWith('Intention :'))?.replace('Intention : ', '') || ''
-        const pri = lines.find((l: string) => l.startsWith('Priorité n°1 :'))?.replace('Priorité n°1 : ', '') || ''
-        if (int || pri) setObjectifDuJour({ intention: int, priorite: pri })
+        const lines = String(noteRes.data.content).split('\n')
+        const savedIntention =
+          lines
+            .find((line) => line.startsWith('Intention :'))
+            ?.replace('Intention : ', '') || ''
+        const savedPriority =
+          lines
+            .find((line) => line.startsWith('Priorité n°1 :'))
+            ?.replace('Priorité n°1 : ', '') || ''
+
+        if (savedIntention || savedPriority) {
+          setObjective({
+            intention: savedIntention,
+            priorite: savedPriority,
+          })
+        }
       }
 
-      if (novaRes.data && novaRes.data.length > 0) {
-        setNovaPending({ thread_id: novaRes.data[0].thread_id })
-      }
-
-      setNewCommunityPosts(communityRes.count || 0)
-
-      if (struggleRes) setStruggle(struggleRes)
-    } catch {
-      setNewCommunityPosts(0)
-    }
-  }
-
-  const handleObjectifSubmit = async () => {
-    if (!user || (!intention.trim() && !priorite.trim())) return
-    setObjectifLoading(true)
-    try {
-      const content = `🎯 Objectif du jour\n\nIntention : ${intention}\nPriorité n°1 : ${priorite}`
-      await supabase.from('notes').insert({
-        user_id: user.id,
-        content,
-        title: `Objectif du ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      if (priorite.trim()) {
-        await supabase.from('todo_list').insert({
-          user_id: user.id,
-          title: priorite,
-          priority: 'high',
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+      if (novaRes.data?.length) {
+        setNovaPending({
+          thread_id: novaRes.data[0].thread_id,
         })
       }
-      // Affiche immédiatement sur la carte
-      setObjectifDuJour({ intention: intention.trim(), priorite: priorite.trim() })
-      setObjectifSaved(true)
-      setTimeout(() => {
-        setShowObjectifForm(false)
-        setObjectifSaved(false)
+
+      setPriorityItems(
+        (todoRes.data || []).map((item) => ({
+          id: String(item.id),
+          title: String(item.title),
+          priority: item.priority,
+        })),
+      )
+
+      if (!documentRes.error) {
+        setDocumentCount(documentRes.count || 0)
+      }
+
+      const builtTimeline: TimelineItem[] = []
+
+      for (const event of eventsRes.data || []) {
+        const startDate = event.start_date
+          ? String(event.start_date).split('T')[0]
+          : todayString
+        const endDate = event.end_date
+          ? String(event.end_date).split('T')[0]
+          : startDate
+        const recurrenceDays = Array.isArray(event.recurrence_days)
+          ? event.recurrence_days
+          : []
+
+        const appliesToday =
+          recurrenceDays.length > 0
+            ? recurrenceDays.includes(currentDayKey)
+            : startDate <= todayString && endDate >= todayString
+
+        if (!appliesToday) continue
+
+        const startMinutes = event.start_minutes ?? 9 * 60
+        const endMinutes = event.end_minutes ?? startMinutes + 60
+
+        builtTimeline.push({
+          id: `event-${event.id}`,
+          title: String(event.title),
+          startMinutes,
+          endMinutes,
+          kind: 'event',
+        })
+      }
+
+      for (const routine of routinesRes.data || []) {
+        const customDays = Array.isArray(routine.custom_days)
+          ? routine.custom_days
+          : typeof routine.custom_days === 'string'
+            ? routine.custom_days
+                .replace(/[{}]/g, '')
+                .split(',')
+                .map((day: string) => day.trim())
+            : []
+
+        const appliesToday =
+          routine.frequency === 'daily' ||
+          customDays.length === 0 ||
+          customDays.length === 7 ||
+          customDays.includes(currentDayKey)
+
+        if (!appliesToday) continue
+
+        const startMinutes = parseTimeToMinutes(
+          routine.preferred_time,
+        )
+        const endMinutes =
+          startMinutes + (routine.duration_minutes || 60)
+
+        builtTimeline.push({
+          id: `routine-${routine.id}`,
+          title: String(routine.title),
+          startMinutes,
+          endMinutes,
+          kind: 'routine',
+        })
+      }
+
+      setTimeline(
+        builtTimeline.sort(
+          (first, second) =>
+            first.startMinutes - second.startMinutes,
+        ),
+      )
+    } catch (error) {
+      console.error('[Home] dashboard load error', error)
+    }
+  }
+
+  const upcomingTimeline = timeline.filter(
+    (item) =>
+      item.endMinutes >= timelineWindow.start &&
+      item.startMinutes <= timelineWindow.end,
+  )
+
+  const openObjective = () => {
+    if (objective) {
+      setIntention(objective.intention)
+      setPriorite(objective.priorite)
+    }
+
+    setShowObjective(true)
+  }
+
+  const saveObjective = async () => {
+    if (!user || (!intention.trim() && !priorite.trim())) return
+
+    setObjectiveLoading(true)
+
+    try {
+      const cleanIntention = intention.trim()
+      const cleanPriority = priorite.trim()
+      const now = new Date().toISOString()
+
+      const { error: noteError } = await supabase
+        .from('notes')
+        .insert({
+          user_id: user.id,
+          content: `🎯 Objectif du jour\n\nIntention : ${cleanIntention}\nPriorité n°1 : ${cleanPriority}`,
+          title: `Objectif du ${new Date().toLocaleDateString(
+            'fr-FR',
+            {
+              timeZone: PARIS_TIME_ZONE,
+              day: 'numeric',
+              month: 'long',
+            },
+          )}`,
+          created_at: now,
+          updated_at: now,
+        })
+
+      if (noteError) throw noteError
+
+      if (cleanPriority) {
+        const { error: todoError } = await supabase
+          .from('todo_list')
+          .insert({
+            user_id: user.id,
+            title: cleanPriority,
+            priority: 'high',
+            status: 'pending',
+            created_at: now,
+            updated_at: now,
+          })
+
+        if (todoError) throw todoError
+      }
+
+      setObjective({
+        intention: cleanIntention,
+        priorite: cleanPriority,
+      })
+      setObjectiveSaved(true)
+
+      window.setTimeout(() => {
+        setShowObjective(false)
+        setObjectiveSaved(false)
         setIntention('')
         setPriorite('')
-      }, 1800)
-    } catch {}
-    setObjectifLoading(false)
-  }
-
-const visibleModules = (u: Univers) => {
-  if (loading) {
-    return u.modules.filter(m => !m.tester && !m.adminDocumentsTester)
-  }
-
-  return u.modules.filter((m) => {
-    if (m.adminDocumentsTester) return isTester
-    if (m.tester) return isTester
-    return true
-  })
-}
-
-  const phaseInfo = PHASE_MESSAGES[getPhase(currentDay)]
-
-  const isClassicTheme = activeThemeKey === 'novae_bordeaux'
-
-  const themedPageBackground = isClassicTheme
-    ? 'radial-gradient(ellipse at 20% 0%, #F8E6DB 0%, transparent 55%),radial-gradient(ellipse at 80% 100%, #EBD7E0 0%, transparent 60%),linear-gradient(180deg, #FBF4EC 0%, #F8F1E5 55%, #F3E9DF 100%)'
-    : 'radial-gradient(ellipse at 20% 0%, var(--novae-primary-soft, #E7DFF4) 0%, transparent 55%),radial-gradient(ellipse at 80% 100%, var(--novae-accent, #CBB7E8) 0%, transparent 60%),linear-gradient(180deg, var(--novae-background, #F8F1E5) 0%, var(--novae-surface-alt, #F3E9DF) 55%, var(--novae-background, #F8F1E5) 100%)'
-
-  const themedHeaderBackground = isClassicTheme
-    ? 'linear-gradient(180deg, rgba(240,201,208,0.97) 0%, rgba(233,186,196,0.92) 100%)'
-    : 'linear-gradient(180deg, var(--novae-primary, #7A2E2A) 0%, var(--novae-secondary, #B8895E) 100%)'
-
-  const themedHeaderBorder = isClassicTheme
-    ? '1px solid rgba(225,170,180,0.45)'
-    : '1px solid var(--novae-border, #EADDD2)'
-
-  const themedNovaCardBackground = isClassicTheme
-    ? 'linear-gradient(135deg, rgba(212,196,226,0.65), rgba(138,111,176,0.28))'
-    : 'linear-gradient(135deg, var(--novae-primary-soft, #E7DFF4), var(--novae-surface-alt, #F5F0FA))'
-
-  const themedNovaCardBorder = isClassicTheme
-    ? '1px solid rgba(138,111,176,0.40)'
-    : '1px solid var(--novae-border, #EADDD2)'
-
-  const themedNovaOrbBackground = isClassicTheme
-    ? 'linear-gradient(135deg, #D4C4E2, #8A6FB0)'
-    : 'linear-gradient(135deg, var(--novae-primary, #7A2E2A), var(--novae-secondary, #B8895E))'
-
-  const themedObjectiveBackground = isClassicTheme
-    ? 'rgba(243,205,182,0.35)'
-    : 'var(--novae-surface-alt, #FFF9F5)'
-
-  const themedCommunityBackground = isClassicTheme
-    ? 'rgba(212,196,226,0.30)'
-    : 'var(--novae-primary-soft, #F3D8CF)'
-
-
-  const UniversCard = ({ u }: { u: Univers }) => {
-    const mods = visibleModules(u)
-    const themedTileByKey: Record<string, string> = {
-      quotidien: 'var(--novae-tile-daily, rgba(197,211,180,0.25))',
-      transformation: 'var(--novae-tile-transformation, rgba(242,194,182,0.25))',
-      equilibre: 'var(--novae-tile-family, rgba(212,196,226,0.25))',
-      accompagnement: 'var(--novae-tile-learning, rgba(245,216,155,0.25))',
+        void loadDashboardData()
+      }, 1200)
+    } catch (error) {
+      console.error('[Home] objective save error', error)
+    } finally {
+      setObjectiveLoading(false)
     }
-    const cardBackground = isClassicTheme ? u.tint : themedTileByKey[u.key]
-    const cardBorder = isClassicTheme ? u.border : 'var(--novae-border, rgba(167,189,144,0.40))'
-    const cardInk = isClassicTheme ? u.ink : 'var(--novae-primary, #5C7044)'
-    const moduleBackground = isClassicTheme ? 'rgba(255,255,255,0.72)' : 'var(--novae-surface, #FFFFFF)'
-    const moduleBorder = isClassicTheme ? '1px solid rgba(255,255,255,0.9)' : '1px solid var(--novae-border, #EADDD2)'
-    return (
-      <div style={{ background: cardBackground, border: `1px solid ${cardBorder}`, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'row', height: '100%' }}>
-        <div style={{ width: 76, flexShrink: 0, background: cardBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 6px', borderRight: `1px solid ${cardBorder}` }}>
-          <img src={u.icon} alt={u.title} style={{ width: 60, height: 60, objectFit: 'contain', borderRadius: 12, mixBlendMode: 'multiply' }} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0, padding: '10px 10px 10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 15, fontWeight: 600, color: cardInk, lineHeight: 1.1, marginBottom: 2 }}>{u.title}</div>
-            <div style={{ fontSize: 9.5, color: 'var(--novae-text-muted, #6b5340)', lineHeight: 1.25, marginBottom: 8 }}>{u.subtitle}</div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${mods.length}, 1fr)`, gap: 5 }}>
-            {mods.map((m) => (
-              <Link key={m.href} href={m.href} style={{ textDecoration: 'none' }}>
-                <div style={{ background: moduleBackground, border: moduleBorder, borderRadius: 9, padding: '7px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 34 }}>
-                  {m.badge && <span style={{ position: 'absolute', top: 2, right: 2, fontSize: 5.5, fontWeight: 700, color: cardInk, background: 'rgba(255,255,255,0.95)', borderRadius: 999, padding: '1px 3px' }}>{m.badge}</span>}
-                  <span style={{ fontSize: 10.5, color: 'var(--novae-text-main, #3d2618)', fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{m.title}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
     <>
-      <OnboardingTour forceShow={showTour} onClose={() => setShowTour(false)} />
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: themedPageBackground }} />
-
-      {/* MODAL OBJECTIF DU JOUR */}
-      {showObjectifForm && (
+      {showObjective && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 99998, background: 'rgba(61,38,24,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 20px' }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowObjectifForm(false) }}
+          className="modal-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setShowObjective(false)
+            }
+          }}
         >
-          <div style={{ background: 'var(--novae-surface, #FAF7F2)', borderRadius: '20px 20px 16px 16px', padding: '24px 20px 20px', width: '100%', maxWidth: 480, boxShadow: '0 -8px 32px rgba(61,38,24,0.18)', fontFamily: "'DM Sans', sans-serif" }}>
-            {objectifSaved ? (
-              <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <div style={{ fontSize: 40, marginBottom: 10 }}>✨</div>
-                <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, color: 'var(--novae-text-main, #3d2618)', margin: 0 }}>Objectif enregistré !</p>
-                <p style={{ fontSize: 13, color: 'var(--novae-secondary, #8b6f55)', marginTop: 6 }}>Il s'affiche maintenant sur ton accueil.</p>
+          <div className="objective-modal">
+            {objectiveSaved ? (
+              <div className="saved-state">
+                <span className="saved-icon">
+                  <PremiumIcon name="check" />
+                </span>
+                <h2>Objectif enregistré</h2>
+                <p>Ta priorité est maintenant visible sur l’accueil.</p>
               </div>
             ) : (
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                  <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: 'var(--novae-text-main, #3d2618)', margin: 0, fontWeight: 500 }}>
-                    {objectifDuJour ? 'Modifier mon objectif' : 'Mon objectif du jour'}
-                  </h3>
-                  <button onClick={() => setShowObjectifForm(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--novae-secondary, #8b6f55)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
+                <div className="modal-header">
+                  <div>
+                    <span className="eyebrow">Aujourd’hui</span>
+                    <h2>
+                      {objective
+                        ? 'Modifier ma priorité'
+                        : 'Définir ma priorité'}
+                    </h2>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="close-button"
+                    onClick={() => setShowObjective(false)}
+                    aria-label="Fermer"
+                  >
+                    ×
+                  </button>
                 </div>
 
-                <div style={{ marginBottom: 14 }}>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--novae-secondary, #8b6f55)', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: 6 }}>
-                    Mon intention du jour
-                  </label>
+                <label className="field">
+                  <span>Mon intention</span>
                   <input
-                    type="text"
                     value={intention}
-                    onChange={e => setIntention(e.target.value)}
-                    placeholder={objectifDuJour?.intention || "Ex : rester calme et centrée malgré l'agenda chargé"}
-                    style={{ width: '100%', border: '1.5px solid var(--novae-border, #E8E4DF)', borderRadius: 10, padding: '11px 13px', fontSize: 14, color: '#1A1A1A', background: '#FFFFFF', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none' }}
-                    onFocus={e => e.target.style.borderColor = 'var(--novae-accent, #c4956a)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--novae-border, #E8E4DF)'}
+                    onChange={(event) =>
+                      setIntention(event.target.value)
+                    }
+                    placeholder="Ex. avancer sans m’éparpiller"
                   />
-                </div>
+                </label>
 
-                <div style={{ marginBottom: 20 }}>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--novae-secondary, #8b6f55)', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: 6 }}>
-                    Ma priorité n°1
-                  </label>
+                <label className="field">
+                  <span>Ma priorité n°1</span>
                   <input
-                    type="text"
                     value={priorite}
-                    onChange={e => setPriorite(e.target.value)}
-                    placeholder={objectifDuJour?.priorite || "Ex : finir le rapport avant 14h"}
-                    style={{ width: '100%', border: '1.5px solid var(--novae-border, #E8E4DF)', borderRadius: 10, padding: '11px 13px', fontSize: 14, color: '#1A1A1A', background: '#FFFFFF', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', outline: 'none' }}
-                    onFocus={e => e.target.style.borderColor = 'var(--novae-accent, #c4956a)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--novae-border, #E8E4DF)'}
-                    onKeyDown={e => { if (e.key === 'Enter') handleObjectifSubmit() }}
+                    onChange={(event) =>
+                      setPriorite(event.target.value)
+                    }
+                    placeholder="Ex. terminer le dossier avant 14 h"
                   />
-                  <p style={{ fontSize: 11, color: '#a08770', margin: '6px 0 0', fontStyle: 'italic' }}>
-                    La priorité sera ajoutée à ta to-do du jour.
-                  </p>
-                </div>
+                </label>
 
                 <button
-                  onClick={handleObjectifSubmit}
-                  disabled={objectifLoading || (!intention.trim() && !priorite.trim())}
-                  style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: (!intention.trim() && !priorite.trim()) ? 'var(--novae-border, #E8E4DF)' : 'linear-gradient(135deg, var(--novae-accent, #c4956a), var(--novae-secondary, #b07d5a))', color: (!intention.trim() && !priorite.trim()) ? '#aaa' : '#fff', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, cursor: (!intention.trim() && !priorite.trim()) ? 'not-allowed' : 'pointer' }}>
-                  {objectifLoading ? 'Enregistrement...' : 'Valider mon objectif →'}
+                  type="button"
+                  className="modal-primary"
+                  onClick={() => void saveObjective()}
+                  disabled={
+                    objectiveLoading ||
+                    (!intention.trim() && !priorite.trim())
+                  }
+                >
+                  {objectiveLoading
+                    ? 'Enregistrement…'
+                    : 'Valider'}
                 </button>
               </>
             )}
@@ -424,184 +669,1805 @@ const visibleModules = (u: Univers) => {
         </div>
       )}
 
-      <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', sans-serif", position: 'relative', zIndex: 2 }}>
+      <main className="home-page">
+        <header className="home-header">
+          <Link href="/" className="brand" aria-label="Accueil NOVAÉ">
+            <span className="official-full-logo" aria-hidden="true" />
+          </Link>
 
-        {/* HEADER */}
-        <div style={{ flexShrink: 0, background: themedHeaderBackground, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: themedHeaderBorder, boxShadow: '0 4px 18px rgba(20,20,20,0.10)', padding: '10px 16px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <img src="/logo.png" alt="NOVAÉ by OMANAÏA" style={{ height: 42, objectFit: 'contain', maxWidth: 140 }} />
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <Link href={isNovaV2Tester ? '/nova-v2?voice=1' : '/agent?voice=1'} aria-label="Parler à Nova" style={{ textDecoration: 'none' }}>
-              <div className="mic-cta" style={{ width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'linear-gradient(135deg, var(--novae-accent, #c4956a), var(--novae-secondary, #b07d5a) 55%, #c98b86)', cursor: 'pointer' }}>🎙️</div>
-            </Link>
+          <div className="header-actions">
             <NotificationBell />
-            {!loading && (user ? <UserMenu /> : (
-              <Link href="/auth" style={{ padding: '6px 12px', borderRadius: 16, background: isClassicTheme ? 'rgba(255,255,255,0.45)' : 'var(--novae-surface, #FFFFFF)', border: isClassicTheme ? '1px solid rgba(123,57,71,0.22)' : '1px solid var(--novae-border, #EADDD2)', color: isClassicTheme ? '#7A3F4A' : 'var(--novae-primary, #7A2E2A)', textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>Se connecter</Link>
-            ))}
+            {!loading &&
+              (user ? (
+                <UserMenu />
+              ) : (
+                <Link href="/auth" className="login-link">
+                  Se connecter
+                </Link>
+              ))}
           </div>
-        </div>
+        </header>
 
-        {/* CONTENU */}
-        <div style={{ flex: 1, overflowX: 'hidden', padding: '12px 14px 80px' }}>
-          <div className="home-content">
-
-            {/* BONJOUR */}
-            <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: 9.5, color: 'var(--novae-secondary, #8b6f55)', textTransform: 'uppercase', letterSpacing: '2px', margin: '0 0 3px', fontWeight: 600 }} suppressHydrationWarning>{dateLabel}</p>
-              <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 400, color: 'var(--novae-text-main, #3d2618)', margin: 0, lineHeight: 1.1 }} suppressHydrationWarning>
-                {greeting}{pseudo && (<>, <span style={{ color: 'var(--novae-primary, #8b5a3c)', fontStyle: 'italic' }}>{pseudo}</span></>)}{' '}👋
+        <div className="home-content">
+          <section className="welcome">
+            <div>
+              <p className="date" suppressHydrationWarning>
+                {dateLabel}
+              </p>
+              <h1 suppressHydrationWarning>
+                {greeting}
+                {pseudo ? (
+                  <>
+                    , <em>{pseudo}</em>
+                  </>
+                ) : null}
               </h1>
-              <p style={{ margin: '6px 0 0', fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontStyle: 'italic', color: 'var(--novae-text-muted, #6b5340)', lineHeight: 1.4, borderLeft: '2px solid var(--novae-accent, #c4956a)', paddingLeft: 9 }}>« {proverbeDuJour} »</p>
+            </div>
+          </section>
+
+          <section className="nova-hero">
+            <div className="hero-decoration" />
+
+            <div className="hero-copy">
+              <h2>
+                Qu’est-ce que je peux faire pour toi aujourd’hui ?
+              </h2>
+              <p>
+                Nova est là pour t’aider à gagner du temps, y voir
+                plus clair et passer à l’essentiel.
+              </p>
             </div>
 
-            {/* NOVA, ENTRÉE PRINCIPALE (toujours visible, s'adapte au message en attente) */}
-            <Link
-              href={isNovaV2Tester ? '/nova-v2' : (novaPending ? `/agent?nova_thread=${novaPending.thread_id}` : '/agent')}
-              style={{ textDecoration: 'none', display: 'block', marginBottom: 14 }}
-            >
-              <div style={{ background: themedNovaCardBackground, border: themedNovaCardBorder, borderRadius: 18, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, position: 'relative', overflow: 'hidden', boxShadow: '0 6px 20px rgba(138,111,176,0.18)' }}>
-                <div style={{ position: 'absolute', top: -24, right: -24, width: 90, height: 90, borderRadius: '50%', background: isClassicTheme ? 'rgba(138,111,176,0.16)' : 'var(--novae-primary-soft, rgba(138,111,176,0.16))', pointerEvents: 'none' }} />
-                {/* Orbe Nova */}
-                <div style={{ width: 48, height: 48, borderRadius: '50%', background: themedNovaOrbBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', fontWeight: 700, fontSize: 24, flexShrink: 0, boxShadow: '0 4px 12px rgba(138,111,176,0.35)' }}>N</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 9, fontWeight: 700, color: isClassicTheme ? '#5b4b7a' : 'var(--novae-primary, #5b4b7a)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.18em' }}>
-                    {isNovaV2Tester ? 'Nova V2 · version privée' : (novaPending ? "Nova t'a laissé un message" : 'Ton assistante IA')}
-                  </p>
-                  <p style={{ fontSize: 17, color: 'var(--novae-text-main, #3d2618)', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontWeight: 500, lineHeight: 1.2 }}>
-                    {isNovaV2Tester ? 'Ouvre ta nouvelle Nova' : (novaPending ? 'Appuie pour lire 💜' : 'Parle à Nova')}
-                  </p>
-                  <p style={{ fontSize: 11.5, color: 'var(--novae-text-muted, #6b5340)', margin: '3px 0 0', lineHeight: 1.35 }}>
-                    {isNovaV2Tester ? 'Tâches, rappels, notifications, fusion et historique de conversations sont actifs pour tes tests.' : (novaPending ? 'Elle a pensé à toi.' : 'Elle organise, planifie et agit sur ta journée. Dis-lui ce que tu as en tête.')}
-                  </p>
-                </div>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: themedNovaOrbBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 15, flexShrink: 0 }}>→</div>
-              </div>
-            </Link>
+            <span className="nova-monogram" aria-label="Nova" />
 
-            {/* STRUGGLE */}
-            {struggle.active && (
-              <Link href={isNovaV2Tester ? '/nova-v2' : '/agent'} style={{ textDecoration: 'none', display: 'block', marginBottom: 10 }}>
-                <div style={{ background: isClassicTheme ? 'linear-gradient(135deg, rgba(196,149,106,0.20), rgba(123,111,160,0.18))' : 'var(--novae-surface-alt, #FFF9F5)', border: isClassicTheme ? '1px solid rgba(196,149,106,0.35)' : '1px solid var(--novae-border, #EADDD2)', borderRadius: 14, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 9 }}>
-                  <span style={{ fontSize: 18, flexShrink: 0 }}>🌙</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--novae-primary, #8b5a3c)', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Une période plus calme ?</p>
-                    <p style={{ fontSize: 12, color: 'var(--novae-text-main, #3d2618)', margin: 0, fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}>Je suis là si tu veux juste échanger.</p>
-                  </div>
-                  <span style={{ color: 'var(--novae-primary, #8b5a3c)', flexShrink: 0 }}>→</span>
-                </div>
+            <div className="nova-actions-row">
+              <Link href={novaHref}>
+                <PremiumIcon name="pen" width={23} height={23} />
+                <span>Écrire</span>
               </Link>
-            )}
 
-            {/* DEUX CARTES : OBJECTIF DU JOUR + COMMUNAUTÉ */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+              <Link href="/agent?voice=1">
+                <PremiumIcon name="voice" width={23} height={23} />
+                <span>Parler</span>
+              </Link>
 
-              {/* CARTE OBJECTIF DU JOUR */}
-              <div
-                onClick={() => {
-                  if (objectifDuJour) {
-                    setIntention(objectifDuJour.intention)
-                    setPriorite(objectifDuJour.priorite)
-                  }
-                  setShowObjectifForm(true)
-                }}
-                style={{ background: themedObjectiveBackground, border: isClassicTheme ? '1px solid rgba(230,180,147,0.45)' : '1px solid var(--novae-border, #EADDD2)', borderRadius: 14, padding: '12px 12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 90, position: 'relative', overflow: 'hidden' }}
-              >
-                <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: isClassicTheme ? 'rgba(196,149,106,0.15)' : 'var(--novae-primary-soft, rgba(196,149,106,0.15))', pointerEvents: 'none' }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 8.5, color: 'var(--novae-secondary, #8b6f55)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 5 }}>Objectif du jour</div>
-                  {objectifDuJour ? (
+              <Link href="/admin-documents">
+                <PremiumIcon name="upload" width={23} height={23} />
+                <span>Importer</span>
+              </Link>
+            </div>
+          </section>
+
+          <section className="situation-section">
+            <div className="section-heading">
+              <h2>Ton point de situation</h2>
+              <Link href="/planner">
+                Voir tout
+                <PremiumIcon
+                  name="chevron"
+                  width={17}
+                  height={17}
+                />
+              </Link>
+            </div>
+
+            {pointMode === 'metrics' ? (
+              <div className="metrics-card">
+                <div className="metric">
+                  <span className="metric-icon">
+                    <PremiumIcon name="calendar" />
+                  </span>
+                  <strong>{timeline.length}</strong>
+                  <small>Événements aujourd’hui</small>
+                </div>
+
+                <div className="metric">
+                  <span className="metric-icon">
+                    <PremiumIcon name="check" />
+                  </span>
+                  <strong>{priorityItems.length}</strong>
+                  <small>Tâches en cours</small>
+                </div>
+
+                <div className="metric">
+                  <span className="metric-icon">
+                    <PremiumIcon name="document" />
+                  </span>
+                  <strong>{documentCount}</strong>
+                  <small>Documents à traiter</small>
+                </div>
+              </div>
+            ) : pointMode === 'timeline' ? (
+              <div className="dashboard-grid">
+                <div className="timeline-dashboard">
+                  <div className="dashboard-title">
+                    <span className="dashboard-icon">
+                      <PremiumIcon name="calendar" />
+                    </span>
+                    <strong>Aujourd’hui</strong>
+                  </div>
+
+                  <div className="dashboard-list">
+                    {(timeline.length > 0
+                      ? timeline.slice(0, 4)
+                      : [
+                          {
+                            id: 'empty',
+                            title: 'Aucun rendez-vous prévu',
+                            startMinutes: timelineWindow.start,
+                            endMinutes: timelineWindow.start,
+                            kind: 'event' as const,
+                          },
+                        ]
+                    ).map((item) => (
+                      <div key={item.id} className="dashboard-row">
+                        <span className="dashboard-time">
+                          {minutesToLabel(item.startMinutes)}
+                        </span>
+                        <i />
+                        <div>
+                          <strong>{item.title}</strong>
+                          <small>
+                            {item.id === 'empty'
+                              ? 'Ta journée est disponible'
+                              : item.kind === 'routine'
+                                ? 'Routine'
+                                : 'Planning'}
+                          </small>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Link href="/planner" className="nova-suggestion">
+                    <span className="nova-suggestion-icon">
+                      <PremiumIcon
+                        name="sparkle"
+                        width={18}
+                        height={18}
+                      />
+                    </span>
+
+                    <span className="nova-suggestion-copy">
+                      <strong>Suggestions de Nova</strong>
+                      <small>
+                        Actions proposées selon ton planning.
+                      </small>
+                    </span>
+
+                    <span className="nova-suggestion-cta">
+                      Voir tout
+                    </span>
+
+                    <PremiumIcon
+                      name="chevron"
+                      width={15}
+                      height={15}
+                    />
+                  </Link>
+                </div>
+
+                <div className="priorities-dashboard">
+                  <div className="dashboard-title">
+                    <span className="dashboard-icon">
+                      <PremiumIcon name="flag" />
+                    </span>
+                    <strong>Priorités</strong>
+                  </div>
+
+                  <div className="priority-list">
+                    {[
+                      ...(objective?.priorite
+                        ? [
+                            {
+                              id: 'objective',
+                              title: objective.priorite,
+                              priority: 'high',
+                            },
+                          ]
+                        : []),
+                      ...priorityItems,
+                    ]
+                      .slice(0, 3)
+                      .map((item) => (
+                        <div key={item.id} className="priority-row">
+                          <i
+                            className={
+                              item.priority === 'high'
+                                ? 'high'
+                                : ''
+                            }
+                          />
+                          <span>{item.title}</span>
+                        </div>
+                      ))}
+
+                    {!objective?.priorite &&
+                      priorityItems.length === 0 && (
+                        <button
+                          type="button"
+                          className="empty-priority"
+                          onClick={openObjective}
+                        >
+                          Définir ma première priorité
+                        </button>
+                      )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="focus-row"
+                    onClick={openObjective}
+                  >
+                    <PremiumIcon
+                      name="sparkle"
+                      width={19}
+                      height={19}
+                    />
+                    <span>
+                      <strong>Focus du jour</strong>
+                      <small>
+                        Avancer sur ce qui compte vraiment.
+                      </small>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="situation-cards">
+                <div className="next-hours-card">
+                  <div className="card-heading">
+                    <span className="premium-circle">
+                      <PremiumIcon name="clock" />
+                    </span>
                     <div>
-                      {objectifDuJour.intention && (
-                        <div style={{ fontSize: 11, color: 'var(--novae-text-main, #3d2618)', lineHeight: 1.4, marginBottom: 4, display: 'flex', gap: 4 }}>
-                          <span style={{ color: 'var(--novae-accent, #c4956a)', fontWeight: 700, flexShrink: 0 }}>✦</span>
-                          <span style={{ fontStyle: 'italic' }}>{objectifDuJour.intention}</span>
-                        </div>
-                      )}
-                      {objectifDuJour.priorite && (
-                        <div style={{ fontSize: 11, color: 'var(--novae-text-main, #3d2618)', lineHeight: 1.4, display: 'flex', gap: 4 }}>
-                          <span style={{ color: isClassicTheme ? '#B5654A' : 'var(--novae-primary, #B5654A)', fontWeight: 700, flexShrink: 0 }}>①</span>
-                          <span style={{ fontWeight: 600 }}>{objectifDuJour.priorite}</span>
-                        </div>
-                      )}
+                      <strong>Les 3 prochaines heures</strong>
+                      <small>
+                        {timelineWindowLabel(
+                          timelineWindow.start,
+                          timelineWindow.end,
+                        )}
+                      </small>
+                    </div>
+                  </div>
+
+                  {upcomingTimeline.length > 0 ? (
+                    <div className="next-list">
+                      {upcomingTimeline.slice(0, 3).map((item) => {
+                        const inProgress =
+                          item.startMinutes <=
+                            timelineWindow.start &&
+                          item.endMinutes > timelineWindow.start
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="next-item"
+                          >
+                            <span className="next-time">
+                              {inProgress
+                                ? `En cours jusqu’à ${minutesToLabel(
+                                    item.endMinutes,
+                                  )}`
+                                : `${minutesToLabel(
+                                    item.startMinutes,
+                                  )} – ${minutesToLabel(
+                                    item.endMinutes,
+                                  )}`}
+                            </span>
+
+                            <div className="next-copy">
+                              <strong>{item.title}</strong>
+                              <small>
+                                {inProgress
+                                  ? 'En cours'
+                                  : item.kind === 'routine'
+                                    ? 'Routine'
+                                    : 'Événement'}
+                              </small>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   ) : (
-                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: 'var(--novae-text-muted, #6b5340)', lineHeight: 1.3 }}>
-                      Définis ton intention et ta priorité
+                    <div className="calm-message">
+                      <strong>Soirée plus calme à venir.</strong>
+                      <p>Parfait pour avancer sereinement.</p>
                     </div>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                  <span style={{ fontSize: 10, color: 'var(--novae-accent, #c4956a)', fontWeight: 600 }}>
-                    {objectifDuJour ? 'Modifier →' : 'Avec Nova →'}
+
+                <button
+                  type="button"
+                  className="priority-card"
+                  onClick={openObjective}
+                >
+                  <div className="card-heading">
+                    <span className="premium-circle">
+                      <PremiumIcon name="flag" />
+                    </span>
+                    <strong>Priorité</strong>
+                  </div>
+
+                  <div className="priority-content">
+                    <strong>
+                      {objective?.priorite ||
+                        'Choisis ce qui compte aujourd’hui.'}
+                    </strong>
+                    {objective?.intention && (
+                      <p>{objective.intention}</p>
+                    )}
+                  </div>
+
+                  <span className="priority-badge">
+                    {objective?.priorite
+                      ? 'Haute priorité'
+                      : 'Définir'}
                   </span>
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, var(--novae-accent, #c4956a), var(--novae-secondary, #b07d5a))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: objectifDuJour ? 13 : 17, flexShrink: 0 }}>
-                    {objectifDuJour ? '✎' : '+'}
-                  </div>
-                </div>
+                </button>
               </div>
-
-              {/* CARTE COMMUNAUTÉ */}
-              <Link href="/community" onClick={() => localStorage.setItem('novae-community-last-visit', new Date().toISOString())} style={{ textDecoration: 'none' }}>
-                <div style={{ background: themedCommunityBackground, border: isClassicTheme ? '1px solid rgba(185,162,212,0.45)' : '1px solid var(--novae-border, #EADDD2)', borderRadius: 14, padding: '12px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 90, position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: isClassicTheme ? 'rgba(185,162,212,0.18)' : 'var(--novae-surface-alt, rgba(185,162,212,0.18))', pointerEvents: 'none' }} />
-                  {newCommunityPosts !== null && newCommunityPosts > 0 && (
-                    <span style={{ position: 'absolute', top: 8, right: 8, background: 'linear-gradient(135deg, #c44757, #8b2d3d)', color: '#fff', fontSize: 9, fontWeight: 700, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {newCommunityPosts > 9 ? '9+' : newCommunityPosts}
-                    </span>
-                  )}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 8.5, color: isClassicTheme ? '#7E63A8' : 'var(--novae-primary, #7E63A8)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 5 }}>Communauté</div>
-                    <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, color: 'var(--novae-text-muted, #6b5340)', lineHeight: 1.3 }}>Tu ne reconstruis pas seule</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                    <span style={{ fontSize: 10, color: isClassicTheme ? '#7E63A8' : 'var(--novae-primary, #7E63A8)', fontWeight: 600 }}>
-                      {newCommunityPosts === null ? '...' : newCommunityPosts > 0 ? `${newCommunityPosts} nouveau${newCommunityPosts > 1 ? 'x' : ''}` : 'À jour ✓'}
-                    </span>
-                    <span style={{ fontSize: 16 }}>👥</span>
-                  </div>
-                </div>
-              </Link>
-            </div>
-
-            {/* LABEL UNIVERS */}
-            <div style={{ fontSize: 9, color: 'var(--novae-secondary, #8b6f55)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600, marginBottom: 8, paddingLeft: 2 }}>Mes univers</div>
-
-            {/* 4 UNIVERS */}
-            <div className="univers-grid">
-              {UNIVERS_LIST.map((u) => <UniversCard key={u.key} u={u} />)}
-            </div>
-
-            {/* ADMIN */}
-            {isAdmin && (
-              <Link href="/admin" style={{ textDecoration: 'none', display: 'block', marginTop: 8 }}>
-                <div style={{ background: isClassicTheme ? 'linear-gradient(135deg, rgba(61,38,24,0.85), rgba(107,83,64,0.75))' : 'linear-gradient(135deg, var(--novae-primary, #2E302D), var(--novae-secondary, #77736A))', border: isClassicTheme ? '1px solid rgba(196,149,106,0.4)' : '1px solid var(--novae-border, #EADDD2)', borderRadius: 12, padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span>🛡️</span>
-                  <div style={{ flex: 1, fontSize: 12, color: isClassicTheme ? '#F3DCC6' : '#FFFFFF', fontWeight: 600 }}>Admin · Pilotage</div>
-                  <span style={{ color: isClassicTheme ? '#F3DCC6' : '#FFFFFF' }}>→</span>
-                </div>
-              </Link>
             )}
+          </section>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 7, alignItems: 'center', marginTop: 10 }}>
-              <button onClick={() => { localStorage.removeItem('novae-onboarding-done'); setShowTour(true); window.dispatchEvent(new CustomEvent('novae-restart-tour')) }} style={{ padding: '5px 10px', background: isClassicTheme ? 'rgba(255,255,255,0.5)' : 'var(--novae-surface, #FFFFFF)', border: isClassicTheme ? '1px solid rgba(212,165,116,0.3)' : '1px solid var(--novae-border, #EADDD2)', borderRadius: 999, fontSize: 10, color: isClassicTheme ? '#5c4530' : 'var(--novae-primary, #5c4530)', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>🎓 Tuto</button>
-              <Link href="/settings" style={{ width: 26, height: 26, borderRadius: '50%', background: isClassicTheme ? 'rgba(255,255,255,0.5)' : 'var(--novae-surface, #FFFFFF)', border: isClassicTheme ? '1px solid rgba(212,165,116,0.3)' : '1px solid var(--novae-border, #EADDD2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, textDecoration: 'none' }}>⚙️</Link>
+          <section className="modules-section">
+            <div className="section-heading">
+              <h2>Mes modules</h2>
+              <Link href="/personnalisation">
+                Personnaliser
+                <PremiumIcon
+                  name="sliders"
+                  width={19}
+                  height={19}
+                />
+              </Link>
             </div>
 
-          </div>
+            <div className="home-primary-modules">
+              {visiblePrimaryModules.map((module) => (
+                <Link
+                  key={module.key}
+                  href={module.href}
+                  className={`home-primary-module home-primary-${module.key}`}
+                >
+                  <span className="home-primary-icon">
+                    <PremiumIcon
+                      name={module.icon}
+                      width={39}
+                      height={39}
+                    />
+                  </span>
+
+                  <span className="home-primary-label">{module.title}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <section className="spaces-section">
+            <button
+              type="button"
+              className="all-spaces-button"
+              onClick={() =>
+                setShowAllModules((current) => !current)
+              }
+              aria-expanded={showAllModules}
+            >
+              <span className="spaces-icon">
+                <PremiumIcon name="grid" />
+              </span>
+
+              <span>
+                <strong>Tous mes espaces</strong>
+                <small>Accède à l’ensemble de tes espaces</small>
+              </span>
+
+              <PremiumIcon
+                name="chevron"
+                className={showAllModules ? 'rotate' : ''}
+              />
+            </button>
+
+            {showAllModules && (
+              <div className="other-modules">
+                {visibleOtherModules.map((module) => (
+                  <Link
+                    key={module.key}
+                    href={module.href}
+                    className="secondary-space-link"
+                  >
+                    <span className="secondary-space-icon">
+                      <PremiumIcon
+                        name={module.icon}
+                        width={25}
+                        height={25}
+                      />
+                    </span>
+
+                    <strong>{module.title}</strong>
+                  </Link>
+                ))}
+
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className="secondary-space-link"
+                  >
+                    <span className="secondary-space-icon">
+                      <PremiumIcon
+                        name="shield"
+                        width={25}
+                        height={25}
+                      />
+                    </span>
+
+                    <strong>Administration</strong>
+                  </Link>
+                )}
+              </div>
+            )}
+          </section>
         </div>
-      </div>
+      </main>
 
       <style jsx>{`
-        .home-content { width: 100%; }
-        .univers-grid { display: flex; flex-direction: column; gap: 8px; }
-        @media (min-width: 768px) {
-          .home-content { max-width: 900px; margin: 0 auto; }
-          .univers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        :global(*) {
+          box-sizing: border-box;
         }
-        @keyframes micPulse {
-          0%, 100% { box-shadow: 0 4px 14px rgba(176,125,90,0.45), 0 0 0 0 rgba(196,149,106,0.55); }
-          50% { box-shadow: 0 4px 14px rgba(176,125,90,0.45), 0 0 0 7px rgba(196,149,106,0); }
+
+        .home-page {
+          min-height: 100dvh;
+          padding-bottom: 105px;
+          color: var(--novae-text-main);
+          background:
+            radial-gradient(
+              circle at 86% 0%,
+              color-mix(
+                in srgb,
+                var(--novae-primary-soft) 55%,
+                transparent
+              ),
+              transparent 28%
+            ),
+            var(--novae-background);
+          font-family: var(--novae-font-body);
         }
-        .mic-cta { animation: micPulse 2.2s ease-in-out infinite; }
+
+        :global(html[data-novae-preset='choice_4'])
+          .home-page {
+          background:
+            linear-gradient(
+              125deg,
+              rgba(255, 255, 255, 0.018),
+              transparent 45%
+            ),
+            repeating-linear-gradient(
+              135deg,
+              rgba(255, 255, 255, 0.018) 0 1px,
+              transparent 1px 36px
+            ),
+            var(--novae-background);
+        }
+
+        .home-header {
+          position: sticky;
+          top: 0;
+          z-index: 40;
+          display: flex;
+          min-height: 68px;
+          align-items: center;
+          justify-content: space-between;
+          padding: 9px 22px;
+          background: color-mix(
+            in srgb,
+            var(--novae-background) 90%,
+            transparent
+          );
+          border-bottom: 1px solid
+            color-mix(
+              in srgb,
+              var(--novae-border) 72%,
+              transparent
+            );
+          backdrop-filter: blur(18px);
+        }
+
+        .brand {
+          display: flex;
+          align-items: center;
+        }
+
+        .official-full-logo {
+          display: block;
+          width: 156px;
+          height: 45px;
+          background: var(--novae-metal);
+          -webkit-mask:
+            url('/novae-logo-complet-mask.png')
+            center / contain no-repeat;
+          mask:
+            url('/novae-logo-complet-mask.png')
+            center / contain no-repeat;
+        }
+
+        .header-actions {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+        }
+
+        .login-link {
+          color: var(--novae-primary);
+          font-size: 12px;
+          font-weight: 900;
+          text-decoration: none;
+        }
+
+        .home-content {
+          width: min(100%, 980px);
+          margin: 0 auto;
+          padding: 27px 18px 46px;
+        }
+
+        .welcome {
+          margin-bottom: 20px;
+        }
+
+        .date,
+        .eyebrow {
+          display: block;
+          margin: 0 0 6px;
+          color: var(--novae-metal);
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+        }
+
+        .welcome h1 {
+          margin: 0;
+          font-family: var(--novae-font-title);
+          font-size: clamp(39px, 7vw, 61px);
+          font-weight: var(--novae-title-weight);
+          line-height: 0.95;
+          letter-spacing: var(--novae-title-letter-spacing);
+        }
+
+        .welcome h1 em {
+          color: var(--novae-metal);
+          font-style: normal;
+          font-weight: inherit;
+        }
+
+        .nova-hero {
+          position: relative;
+          overflow: hidden;
+          min-height: 310px;
+          padding: clamp(28px, 5vw, 45px);
+          color: var(--novae-hero-text);
+          background:
+            radial-gradient(
+              circle at 87% 78%,
+              color-mix(
+                in srgb,
+                var(--novae-metal) 48%,
+                transparent
+              ),
+              transparent 22%
+            ),
+            linear-gradient(
+              135deg,
+              var(--novae-hero-start),
+              var(--novae-hero-end)
+            );
+          border: 1px solid
+            color-mix(
+              in srgb,
+              var(--novae-metal) 48%,
+              transparent
+            );
+          border-radius: 28px;
+          box-shadow: 0 22px 52px var(--novae-shadow);
+        }
+
+        .nova-hero::after {
+          position: absolute;
+          right: -12%;
+          bottom: -33%;
+          width: 62%;
+          height: 58%;
+          content: '';
+          border: 1px solid
+            color-mix(
+              in srgb,
+              var(--novae-metal) 58%,
+              transparent
+            );
+          border-radius: 50%;
+          box-shadow:
+            0 -8px 32px
+              color-mix(
+                in srgb,
+                var(--novae-metal) 35%,
+                transparent
+              ),
+            inset 0 12px 36px
+              color-mix(
+                in srgb,
+                var(--novae-metal) 20%,
+                transparent
+              );
+          transform: rotate(-12deg);
+        }
+
+        .hero-decoration {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          opacity: 0.65;
+        }
+
+        :global(html[data-novae-preset='choice_1'])
+          .hero-decoration {
+          background:
+            radial-gradient(
+              ellipse at 7% 8%,
+              rgba(143, 165, 126, 0.34) 0 8%,
+              transparent 9%
+            ),
+            radial-gradient(
+              ellipse at 14% 17%,
+              rgba(143, 165, 126, 0.24) 0 7%,
+              transparent 8%
+            ),
+            radial-gradient(
+              ellipse at 5% 29%,
+              rgba(143, 165, 126, 0.2) 0 6%,
+              transparent 7%
+            );
+        }
+
+        :global(html[data-novae-preset='choice_2'])
+          .hero-decoration,
+        :global(html[data-novae-preset='choice_3'])
+          .hero-decoration {
+          background-image:
+            radial-gradient(
+              circle at 82% 20%,
+              rgba(255, 255, 255, 0.38) 0 1px,
+              transparent 2px
+            ),
+            radial-gradient(
+              circle at 74% 35%,
+              rgba(255, 255, 255, 0.2) 0 1px,
+              transparent 2px
+            ),
+            radial-gradient(
+              circle at 92% 45%,
+              rgba(255, 255, 255, 0.25) 0 1px,
+              transparent 2px
+            );
+        }
+
+        .hero-copy {
+          position: relative;
+          z-index: 2;
+          width: min(62%, 590px);
+        }
+
+        .hero-copy h2 {
+          margin: 0;
+          font-family: var(--novae-font-title);
+          font-size: clamp(32px, 5vw, 49px);
+          font-weight: 500;
+          line-height: 1.02;
+        }
+
+        .hero-copy p {
+          max-width: 560px;
+          margin: 15px 0 0;
+          color: color-mix(
+            in srgb,
+            var(--novae-hero-text) 78%,
+            transparent
+          );
+          font-size: 15px;
+          line-height: 1.55;
+        }
+        :global(html[data-novae-preset='choice_4'])
+          .hero-copy {
+          width: min(56%, 500px);
+        }
+
+        :global(html[data-novae-preset='choice_4'])
+          .hero-copy h2 {
+          font-size: clamp(28px, 4.2vw, 43px);
+          line-height: 0.98;
+        }
+
+        :global(html[data-novae-preset='choice_4'])
+          .nova-hero {
+          min-height: 338px;
+        }
+
+
+        .nova-monogram {
+          position: absolute;
+          z-index: 2;
+          top: 22%;
+          right: clamp(34px, 7vw, 88px);
+          display: block;
+          width: clamp(120px, 19vw, 205px);
+          aspect-ratio: 484 / 303;
+          background: var(--novae-metal);
+          filter: drop-shadow(
+            0 0 18px
+              color-mix(
+                in srgb,
+                var(--novae-metal) 30%,
+                transparent
+              )
+          );
+          -webkit-mask:
+            url('/nova-monogramme-no-mask.png')
+            center / contain no-repeat;
+          mask:
+            url('/nova-monogramme-no-mask.png')
+            center / contain no-repeat;
+        }
+
+        .nova-actions-row {
+          position: absolute;
+          z-index: 3;
+          right: clamp(24px, 5vw, 44px);
+          bottom: 30px;
+          left: clamp(24px, 5vw, 44px);
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 13px;
+        }
+
+        .hero-actions a {
+          display: flex;
+          min-height: 58px;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          color: var(--novae-hero-text);
+          font-family: var(--novae-font-title);
+          font-size: 19px;
+          text-decoration: none;
+          background: color-mix(
+            in srgb,
+            var(--novae-hero-end) 68%,
+            transparent
+          );
+          border: 1px solid
+            color-mix(
+              in srgb,
+              var(--novae-metal) 55%,
+              transparent
+            );
+          border-radius: 15px;
+          backdrop-filter: blur(10px);
+        }
+
+        .nova-actions-row a {
+          width: min(100%, 220px);
+          justify-self: center;
+        }
+
+        .nova-actions-row a :global(svg) {
+          color: var(--novae-metal);
+        }
+
+        .situation-section,
+        .modules-section,
+        .spaces-section {
+          margin-top: 34px;
+        }
+
+        .section-heading {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          margin-bottom: 15px;
+        }
+
+        .section-heading h2 {
+          margin: 0;
+          font-family: var(--novae-font-title);
+          font-size: clamp(27px, 4vw, 37px);
+          font-weight: 500;
+          line-height: 1;
+        }
+
+        .section-heading a {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          color: var(--novae-primary);
+          font-size: 13px;
+          font-weight: 800;
+          text-decoration: none;
+        }
+
+        .situation-cards,
+        .dashboard-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.2fr) minmax(250px, 0.8fr);
+          gap: 14px;
+        }
+
+        .next-hours-card,
+        .priority-card,
+        .timeline-dashboard,
+        .priorities-dashboard,
+        .metrics-card {
+          color: var(--novae-text-main);
+          background: var(--novae-surface);
+          border: 1px solid var(--novae-border);
+          border-radius: 22px;
+          box-shadow: 0 13px 34px var(--novae-shadow);
+        }
+
+        .next-hours-card,
+        .priority-card {
+          min-height: 218px;
+          padding: 24px;
+        }
+
+        .priority-card {
+          display: flex;
+          text-align: left;
+          flex-direction: column;
+          cursor: pointer;
+        }
+
+        .card-heading {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+
+        .card-heading > strong,
+        .card-heading div > strong {
+          display: block;
+          font-family: var(--novae-font-title);
+          font-size: 22px;
+          font-weight: 500;
+        }
+
+        .card-heading small {
+          display: block;
+          margin-top: 3px;
+          color: var(--novae-metal);
+          font-size: 13px;
+        }
+
+        .premium-circle,
+        .metric-icon,
+        .dashboard-icon {
+          display: inline-flex;
+          flex: 0 0 48px;
+          width: 48px;
+          height: 48px;
+          align-items: center;
+          justify-content: center;
+          color: var(--novae-metal);
+          background: color-mix(
+            in srgb,
+            var(--novae-surface-alt) 85%,
+            transparent
+          );
+          border: 1px solid
+            color-mix(
+              in srgb,
+              var(--novae-metal) 60%,
+              transparent
+            );
+          border-radius: 50%;
+        }
+
+        .calm-message,
+        .priority-content {
+          margin-top: auto;
+          padding-top: 35px;
+        }
+
+        .calm-message strong,
+        .priority-content > strong {
+          display: block;
+          font-family: var(--novae-font-title);
+          font-size: 22px;
+          font-weight: 500;
+          line-height: 1.25;
+        }
+
+        .calm-message p,
+        .priority-content p {
+          margin: 7px 0 0;
+          color: var(--novae-text-muted);
+          font-size: 14px;
+          line-height: 1.5;
+        }
+
+        .next-list {
+          display: grid;
+          gap: 0;
+          margin-top: 24px;
+        }
+
+        .next-item {
+          display: grid;
+          grid-template-columns: minmax(118px, 138px) minmax(0, 1fr);
+          gap: 16px;
+          align-items: start;
+          padding: 14px 0;
+          border-top: 1px solid var(--novae-border);
+        }
+
+        .next-time {
+          color: var(--novae-metal);
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: 0.02em;
+        }
+
+        .next-copy {
+          min-width: 0;
+        }
+
+        .next-copy strong {
+          display: block;
+          font-size: 15px;
+          line-height: 1.35;
+        }
+
+        .next-copy small {
+          display: block;
+          margin-top: 4px;
+          color: var(--novae-text-muted);
+          font-size: 11px;
+        }
+
+        .priority-badge {
+          align-self: flex-start;
+          margin-top: 19px;
+          padding: 7px 10px;
+          color: var(--novae-primary);
+          background: var(--novae-primary-soft);
+          border-radius: 7px;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .metrics-card {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          padding: 24px 10px;
+        }
+
+        .metric {
+          display: grid;
+          min-height: 170px;
+          place-items: center;
+          align-content: center;
+          padding: 18px;
+          text-align: center;
+          border-right: 1px solid var(--novae-border);
+        }
+
+        .metric:last-child {
+          border-right: 0;
+        }
+
+        .metric strong {
+          margin-top: 10px;
+          font-family: var(--novae-font-title);
+          font-size: 43px;
+          font-weight: 500;
+        }
+
+        .metric small {
+          max-width: 120px;
+          margin-top: 5px;
+          color: var(--novae-text-muted);
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.12em;
+          line-height: 1.4;
+          text-transform: uppercase;
+        }
+
+        .timeline-dashboard,
+        .priorities-dashboard {
+          overflow: hidden;
+        }
+
+        .dashboard-title {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 19px 20px 13px;
+        }
+
+        .dashboard-icon {
+          flex-basis: 38px;
+          width: 38px;
+          height: 38px;
+        }
+
+        .dashboard-title strong {
+          color: var(--novae-metal);
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: 0.11em;
+          text-transform: uppercase;
+        }
+
+        .dashboard-list {
+          display: grid;
+          gap: 0;
+          padding: 4px 20px 10px;
+        }
+
+        .dashboard-row {
+          display: grid;
+          grid-template-columns: 48px 10px 1fr;
+          gap: 9px;
+          align-items: start;
+          min-height: 58px;
+        }
+
+        .dashboard-time {
+          color: var(--novae-text-muted);
+          font-size: 12px;
+        }
+
+        .dashboard-row > i {
+          position: relative;
+          width: 8px;
+          height: 8px;
+          margin-top: 4px;
+          background: var(--novae-metal);
+          border-radius: 50%;
+        }
+
+        .dashboard-row > i::after {
+          position: absolute;
+          top: 8px;
+          left: 3px;
+          width: 1px;
+          height: 42px;
+          content: '';
+          background: var(--novae-border);
+        }
+
+        .dashboard-row:last-child > i::after {
+          display: none;
+        }
+
+        .dashboard-row strong {
+          display: block;
+          font-size: 13px;
+        }
+
+        .dashboard-row small {
+          display: block;
+          margin-top: 3px;
+          color: var(--novae-text-muted);
+          font-size: 11px;
+        }
+
+        .nova-suggestion {
+          display: grid;
+          grid-template-columns: 42px minmax(0, 1fr) auto 16px;
+          gap: 12px;
+          align-items: center;
+          margin-top: 8px;
+          padding: 14px 18px;
+          color: var(--novae-text-main);
+          text-decoration: none;
+          background: color-mix(
+            in srgb,
+            var(--novae-primary-soft) 68%,
+            var(--novae-surface)
+          );
+          border-top: 1px solid var(--novae-border);
+        }
+
+        .nova-suggestion-icon {
+          display: inline-flex;
+          width: 38px;
+          height: 38px;
+          align-items: center;
+          justify-content: center;
+          color: var(--novae-metal);
+          background: color-mix(
+            in srgb,
+            var(--novae-surface) 88%,
+            transparent
+          );
+          border: 1px solid
+            color-mix(
+              in srgb,
+              var(--novae-metal) 40%,
+              transparent
+            );
+          border-radius: 12px;
+        }
+
+        .nova-suggestion-copy {
+          display: grid;
+          min-width: 0;
+        }
+
+        .nova-suggestion-copy strong {
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .nova-suggestion-copy small {
+          margin-top: 2px;
+          color: var(--novae-text-muted);
+          font-size: 11px;
+        }
+
+        .nova-suggestion-cta {
+          color: var(--novae-primary);
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .nova-suggestion :global(svg:last-child) {
+          color: var(--novae-primary);
+        }
+
+        .priority-list {
+          display: grid;
+          padding: 0 20px;
+        }
+
+        .priority-row {
+          display: grid;
+          grid-template-columns: 9px minmax(0, 1fr);
+          gap: 12px;
+          align-items: center;
+          min-height: 59px;
+          border-top: 1px solid var(--novae-border);
+        }
+
+        .priority-row i {
+          width: 8px;
+          height: 8px;
+          background: color-mix(
+            in srgb,
+            var(--novae-primary) 52%,
+            var(--novae-metal)
+          );
+          border-radius: 50%;
+        }
+
+        .priority-row i.high {
+          background: var(--novae-metal);
+        }
+
+        .priority-row span {
+          font-size: 13px;
+          font-weight: 700;
+        }
+
+        .empty-priority {
+          margin: 12px 0;
+          padding: 15px;
+          color: var(--novae-primary);
+          background: transparent;
+          border: 1px dashed var(--novae-border);
+          border-radius: 12px;
+          cursor: pointer;
+        }
+
+        .focus-row {
+          display: flex;
+          width: 100%;
+          align-items: center;
+          gap: 11px;
+          padding: 14px 20px;
+          color: var(--novae-text-main);
+          text-align: left;
+          background: var(--novae-surface-alt);
+          border: 0;
+          border-top: 1px solid var(--novae-border);
+          cursor: pointer;
+        }
+
+        .focus-row :global(svg) {
+          color: var(--novae-metal);
+        }
+
+        .focus-row span {
+          display: grid;
+        }
+
+        .focus-row strong {
+          font-size: 12px;
+        }
+
+        .focus-row small {
+          margin-top: 2px;
+          color: var(--novae-text-muted);
+          font-size: 11px;
+        }
+
+        .all-spaces-button {
+          display: grid;
+          width: 100%;
+          grid-template-columns: 50px 1fr 24px;
+          gap: 13px;
+          align-items: center;
+          padding: 15px 18px;
+          color: var(--novae-text-main);
+          text-align: left;
+          background: var(--novae-surface);
+          border: 1px solid var(--novae-border);
+          border-radius: 19px;
+          box-shadow: 0 11px 30px var(--novae-shadow);
+          cursor: pointer;
+        }
+
+        .spaces-icon {
+          display: inline-flex;
+          width: 46px;
+          height: 46px;
+          align-items: center;
+          justify-content: center;
+          color: var(--novae-metal);
+          background: var(--novae-primary);
+          border-radius: 50%;
+        }
+
+        .all-spaces-button > span:nth-child(2) {
+          display: grid;
+        }
+
+        .all-spaces-button strong {
+          font-family: var(--novae-font-title);
+          font-size: 22px;
+          font-weight: 500;
+        }
+
+        .all-spaces-button small {
+          margin-top: 2px;
+          color: var(--novae-text-muted);
+          font-size: 11px;
+        }
+
+        .all-spaces-button :global(.rotate) {
+          transform: rotate(90deg);
+        }
+
+        .home-primary-modules {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
+        }
+
+        .home-primary-module {
+          display: grid;
+          min-width: 0;
+          min-height: 190px;
+          justify-items: center;
+          align-content: center;
+          gap: 14px;
+          padding: 20px 12px;
+          color: var(--novae-text-main);
+          text-align: center;
+          text-decoration: none;
+          background: var(--novae-surface);
+          border: 1px solid var(--novae-border);
+          border-radius: 22px;
+          box-shadow: 0 12px 32px var(--novae-shadow);
+          transition:
+            transform 180ms ease,
+            box-shadow 180ms ease;
+        }
+
+        .home-primary-module:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 18px 38px var(--novae-shadow);
+        }
+
+        .home-primary-icon {
+          display: inline-flex;
+          width: 84px;
+          height: 84px;
+          align-items: center;
+          justify-content: center;
+          color: var(--novae-metal);
+          background: linear-gradient(
+            145deg,
+            var(--novae-primary),
+            var(--novae-hero-end)
+          );
+          border: 1px solid var(--novae-metal);
+          border-radius: 20px;
+          box-shadow:
+            0 8px 20px
+              color-mix(
+                in srgb,
+                var(--novae-primary) 28%,
+                transparent
+              ),
+            inset 0 0 0 3px
+              color-mix(
+                in srgb,
+                var(--novae-metal) 10%,
+                transparent
+              );
+        }
+
+        .home-primary-label {
+          display: block;
+          max-width: 100%;
+          overflow: hidden;
+          font-family: var(--novae-font-title);
+          font-size: 20px;
+          font-weight: 500;
+          line-height: 1.1;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        :global(html[data-novae-preset='choice_3'])
+          .home-primary-icon {
+          color: var(--novae-metal);
+          background: var(--novae-surface-alt);
+          border-color: color-mix(
+            in srgb,
+            var(--novae-metal) 55%,
+            transparent
+          );
+        }
+
+        .other-modules {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          margin-top: 12px;
+        }
+
+        .secondary-space-link {
+          display: grid;
+          min-width: 0;
+          grid-template-columns: 48px minmax(0, 1fr);
+          gap: 20px;
+          align-items: center;
+          padding: 14px 16px;
+          color: var(--novae-text-main);
+          text-decoration: none;
+          background: var(--novae-surface);
+          border: 1px solid var(--novae-border);
+          border-radius: 16px;
+          box-shadow: 0 8px 22px var(--novae-shadow);
+        }
+
+        .secondary-space-icon {
+          display: inline-flex;
+          width: 48px;
+          height: 48px;
+          align-items: center;
+          justify-content: center;
+          color: var(--novae-metal);
+          background: linear-gradient(
+            145deg,
+            var(--novae-primary),
+            var(--novae-hero-end)
+          );
+          border: 1px solid
+            color-mix(
+              in srgb,
+              var(--novae-metal) 70%,
+              transparent
+            );
+          border-radius: 14px;
+        }
+
+        .secondary-space-link > strong {
+          display: block;
+          min-width: 0;
+          overflow: hidden;
+          font-size: 14px;
+          font-weight: 800;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 100;
+          display: grid;
+          place-items: center;
+          padding: 18px;
+          background: rgba(0, 0, 0, 0.48);
+          backdrop-filter: blur(8px);
+        }
+
+        .objective-modal {
+          width: min(100%, 520px);
+          padding: 24px;
+          color: var(--novae-text-main);
+          background: var(--novae-surface);
+          border: 1px solid var(--novae-border);
+          border-radius: 24px;
+          box-shadow: 0 28px 70px rgba(0, 0, 0, 0.24);
+        }
+
+        .modal-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 18px;
+          margin-bottom: 18px;
+        }
+
+        .modal-header h2,
+        .saved-state h2 {
+          margin: 0;
+          font-family: var(--novae-font-title);
+          font-size: 34px;
+          font-weight: 500;
+        }
+
+        .close-button {
+          width: 36px;
+          height: 36px;
+          color: var(--novae-text-main);
+          background: var(--novae-surface-alt);
+          border: 1px solid var(--novae-border);
+          border-radius: 50%;
+          cursor: pointer;
+        }
+
+        .field {
+          display: grid;
+          gap: 7px;
+          margin-top: 14px;
+        }
+
+        .field span {
+          color: var(--novae-primary);
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        .field input {
+          width: 100%;
+          padding: 13px 14px;
+          color: var(--novae-text-main);
+          background: var(--novae-background);
+          border: 1px solid var(--novae-border);
+          border-radius: 12px;
+          outline: none;
+        }
+
+        .modal-primary {
+          width: 100%;
+          margin-top: 20px;
+          padding: 14px;
+          color: var(--novae-background);
+          background: var(--novae-primary);
+          border: 0;
+          border-radius: 13px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .saved-state {
+          display: grid;
+          place-items: center;
+          padding: 25px 10px;
+          text-align: center;
+        }
+
+        .saved-state p {
+          color: var(--novae-text-muted);
+        }
+
+        .saved-icon {
+          display: inline-flex;
+          width: 62px;
+          height: 62px;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 12px;
+          color: var(--novae-success);
+          background: var(--novae-primary-soft);
+          border-radius: 50%;
+        }
+
+        @media (max-width: 760px) {
+          .home-content {
+            padding-right: 14px;
+            padding-left: 14px;
+          }
+
+          .nova-hero {
+            min-height: 355px;
+            padding: 28px 23px;
+          }
+
+          .hero-copy {
+            width: 100%;
+            padding-right: 0;
+          }
+
+          .hero-copy h2 {
+            max-width: 92%;
+            font-size: 34px;
+          }
+
+          :global(html[data-novae-preset='choice_4'])
+            .hero-copy h2 {
+            max-width: 60%;
+            font-size: 30px;
+          }
+
+          :global(html[data-novae-preset='choice_4'])
+            .nova-hero {
+            min-height: 388px;
+          }
+
+          .nova-monogram {
+            top: 43%;
+            right: 24px;
+            width: 118px;
+          }
+
+          .nova-actions-row {
+            right: 18px;
+            bottom: 18px;
+            left: 18px;
+            gap: 7px;
+          }
+
+          .nova-actions-row {
+            padding: 0 18px;
+          }
+
+          .nova-actions-row a {
+            min-height: 52px;
+            gap: 6px;
+            font-size: 16px;
+          }
+
+          .situation-cards,
+          .dashboard-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .module-card {
+            min-height: 160px;
+          }
+
+          .module-icon-box {
+            width: 66px;
+            height: 66px;
+          }
+
+          .module-card > strong {
+            font-size: 19px;
+          }
+        }
+
+        @media (max-width: 900px) {
+          .home-primary-modules {
+            gap: 12px;
+          }
+
+          .home-primary-module {
+            min-height: 165px;
+            padding: 16px 8px;
+          }
+
+          .home-primary-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 18px;
+          }
+
+          .home-primary-label {
+            font-size: 17px;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .home-primary-modules {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+          }
+
+          .home-primary-module {
+            min-height: 126px;
+            gap: 9px;
+            padding: 12px 5px;
+            border-radius: 17px;
+          }
+
+          .home-primary-icon {
+            width: 55px;
+            height: 55px;
+            border-radius: 15px;
+          }
+
+          .home-primary-icon :global(svg) {
+            width: 28px;
+            height: 28px;
+          }
+
+          .home-primary-label {
+            font-size: 14px;
+          }
+
+          .other-modules {
+            grid-template-columns: 1fr;
+          }
+        }
+
+
+        @media (max-width: 640px) {
+          .next-item {
+            grid-template-columns: 1fr;
+            gap: 6px;
+          }
+
+          .next-time {
+            font-size: 11px;
+          }
+
+          .nova-suggestion {
+            grid-template-columns: 38px minmax(0, 1fr) 14px;
+          }
+
+          .nova-suggestion-cta {
+            display: none;
+          }
+
+          .secondary-space-link {
+            gap: 16px;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .home-header {
+            min-height: 60px;
+            padding: 7px 14px;
+          }
+
+          .official-full-logo {
+            width: 136px;
+            height: 39px;
+          }
+
+          .welcome h1 {
+            font-size: 41px;
+          }
+
+          .hero-copy h2 {
+            font-size: 30px;
+          }
+
+          :global(html[data-novae-preset='choice_4'])
+            .hero-copy h2 {
+            max-width: 58%;
+            font-size: 26px;
+          }
+
+          :global(html[data-novae-preset='choice_4'])
+            .nova-hero {
+            min-height: 402px;
+          }
+
+          .hero-copy p {
+            max-width: 70%;
+            font-size: 12px;
+          }
+
+          .nova-monogram {
+            top: 47%;
+            right: 20px;
+            width: 96px;
+          }
+
+          .nova-actions-row {
+            padding: 0 12px;
+          }
+
+          .nova-actions-row a span {
+            font-size: 13px;
+          }
+
+          .nova-actions-row a :global(svg) {
+            width: 19px;
+            height: 19px;
+          }
+
+          .metrics-card {
+            padding: 12px 4px;
+          }
+
+          .metric {
+            min-height: 145px;
+            padding: 10px 4px;
+          }
+
+          .metric-icon {
+            width: 42px;
+            height: 42px;
+          }
+
+          .metric strong {
+            font-size: 34px;
+          }
+
+          .metric small {
+            font-size: 8px;
+          }
+
+          .module-grid {
+            gap: 8px;
+          }
+
+          .module-card {
+            min-height: 145px;
+            padding: 14px 7px;
+          }
+
+          .module-icon-box {
+            width: 58px;
+            height: 58px;
+            margin-bottom: 11px;
+            border-radius: 16px;
+          }
+
+          .module-icon-box :global(svg) {
+            width: 30px;
+            height: 30px;
+          }
+
+          .module-card > strong {
+            font-size: 16px;
+          }
+
+          .module-card > small {
+            display: none;
+          }
+
+          .all-spaces-button {
+            grid-template-columns: 43px 1fr 21px;
+            padding: 13px;
+          }
+
+          .spaces-icon {
+            width: 39px;
+            height: 39px;
+          }
+
+          .all-spaces-button strong {
+            font-size: 18px;
+          }
+
+          .other-modules {
+            grid-template-columns: 1fr;
+          }
+        }
       `}</style>
     </>
   )

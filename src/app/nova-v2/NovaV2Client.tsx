@@ -1,7 +1,7 @@
 'use client'
-
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useNovaConversationHistory, type NovaConversationSummary } from '@/hooks/useNovaConversationHistory'
 import type { NovaExecutionResult, NovaPlanResult } from '@/lib/nova-ai/types'
@@ -57,6 +57,8 @@ function formatConversationDate(value: string): string {
 }
 
 export default function NovaV2Client({ userId, userEmail }: { userId: string; userEmail?: string }) {
+    const searchParams = useSearchParams()
+  const voiceMode = searchParams.get('voice') === '1'
   const history = useNovaConversationHistory(userId)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -74,6 +76,9 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const [historySearch, setHistorySearch] = useState('')
   const [listening, setListening] = useState(false)
   const endRef = useRef<HTMLDivElement | null>(null)
+    const autoVoiceStartedRef = useRef(false)
+
+
 
   const filteredConversations = useMemo(() => {
     const query = historySearch.trim().toLocaleLowerCase('fr-FR')
@@ -92,6 +97,20 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     // Le hook dépend uniquement de userId, déjà stable pour cette page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
+
+    useEffect(() => {
+    if (!voiceMode || autoVoiceStartedRef.current) return
+
+    autoVoiceStartedRef.current = true
+
+    const timeout = window.setTimeout(() => {
+      toggleVoiceInput(true)
+    }, 500)
+
+    return () => window.clearTimeout(timeout)
+    // Le démarrage doit avoir lieu une seule fois à l'ouverture.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceMode])
 
   async function refreshHistory() {
     try {
@@ -346,25 +365,72 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     }
   }
 
-  function toggleVoiceInput() {
+   function toggleVoiceInput(autoSubmit = false) {
     if (listening) return
-    const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+
+    const SpeechRecognitionCtor =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition
+
     if (!SpeechRecognitionCtor) {
-      setError('La dictée vocale n’est pas disponible dans ce navigateur. Utilise Chrome ou Edge.')
+      setError(
+        'La dictée vocale n’est pas disponible dans ce navigateur. Utilise Chrome ou Edge.',
+      )
       return
     }
+
     const recognition = new SpeechRecognitionCtor()
+
     recognition.lang = 'fr-FR'
     recognition.interimResults = false
     recognition.continuous = false
-    recognition.onstart = () => { setListening(true); setError('') }
-    recognition.onend = () => setListening(false)
-    recognition.onerror = () => { setListening(false); setError('Je n’ai pas réussi à entendre la dictée. Réessaie.') }
-    recognition.onresult = (event: any) => {
-      const transcript = event.results?.[0]?.[0]?.transcript || ''
-      if (transcript) setInput((current) => current ? `${current} ${transcript}` : transcript)
+
+    recognition.onstart = () => {
+      setListening(true)
+      setError('')
     }
-    recognition.start()
+
+    recognition.onend = () => {
+      setListening(false)
+    }
+
+    recognition.onerror = (event: any) => {
+      setListening(false)
+
+      if (event?.error === 'not-allowed') {
+        setError(
+          'Autorise l’accès au microphone dans ton navigateur, puis appuie de nouveau sur le micro.',
+        )
+        return
+      }
+
+      if (event?.error === 'no-speech') {
+        setError("Je n’ai rien entendu. Réessaie en parlant un peu plus près du micro.")
+        return
+      }
+
+      setError("Je n’ai pas réussi à entendre la dictée. Réessaie.")
+    }
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results?.[0]?.[0]?.transcript?.trim() || ''
+
+      if (!transcript) return
+
+      if (autoSubmit || voiceMode) {
+        void requestPlan(transcript)
+        return
+      }
+
+      setInput((current) => (current ? `${current} ${transcript}` : transcript))
+    }
+
+    try {
+      recognition.start()
+    } catch {
+      setListening(false)
+      setError('Le microphone est déjà utilisé. Attends une seconde puis réessaie.')
+    }
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -546,7 +612,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
                 disabled={loading || status === 'executing'}
                 className="min-h-[52px] flex-1 resize-none rounded-xl border border-[#CBC3BB] bg-white px-4 py-3 text-sm leading-6 outline-none focus:border-[#7B6F66] disabled:bg-[#F2EFEC]"
               />
-              <button type="button" onClick={toggleVoiceInput} disabled={loading || status === 'executing'} title="Dicter un message" className={`rounded-xl border px-4 py-3 text-sm font-semibold ${listening ? 'border-[#6F5B8E] bg-[#EEE7F4] text-[#5D477D]' : 'border-[#CBC3BB] bg-white text-[#514B46]'}`}>{listening ? 'Écoute…' : '🎤'}</button>
+              <button type="button" onClick={() => toggleVoiceInput(false)} disabled={loading || status === 'executing'} title="Dicter un message" className={`rounded-xl border px-4 py-3 text-sm font-semibold ${listening ? 'border-[#6F5B8E] bg-[#EEE7F4] text-[#5D477D]' : 'border-[#CBC3BB] bg-white text-[#514B46]'}`}>{listening ? 'Écoute…' : '🎤'}</button>
               <button type="submit" disabled={loading || !input.trim() || status === 'executing'} className="rounded-xl bg-[#332E2A] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Envoyer</button>
             </form>
             {error ? <p className="mt-3 text-xs text-[#7B2921]">{error}</p> : null}

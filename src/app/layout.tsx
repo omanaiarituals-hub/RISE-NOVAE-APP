@@ -1,10 +1,5 @@
 // src/app/layout.tsx
-// CORRECTIF (audit 02/07/2026) : NovaeProvider enveloppait toute l'app mais
-// aucun composant ne consomme useNovae (vérifié : seul NovaeContext.tsx
-// lui-même le référençait). Retiré : ça ne changeait rien à l'affichage,
-// mais chaque page payait le coût du contexte et de son état pour rien.
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 import PushManager from '@/components/PushManager'
 import { SetupGuide } from '@/components/SetupGuide'
@@ -13,22 +8,22 @@ import { CookieBanner } from '@/components/CookieBanner'
 import GlobalHeader from '@/components/GlobalHeader'
 import UserThemeProvider from '@/components/theme/UserThemeProvider'
 
-const inter = Inter({ subsets: ['latin'] })
-
 export const metadata: Metadata = {
   metadataBase: new URL('https://app.novae-by-omanaia.com'),
   title: {
     default: 'NOVAÉ by OMANAÏA',
     template: '%s | NOVAÉ',
   },
-  description: "NOVAÉ, l'application qui t'accompagne au quotidien avec NOVA, ta coach IA : programme de 90 jours, planner, routines, journaling et communauté.",
+  description:
+    'NOVAÉ centralise le quotidien, le planning, les tâches, les repas et les documents avec Nova, ton assistante de vie.',
   manifest: '/manifest.json',
   verification: {
     google: 'hjmuYuyMOLOIQDTVwmHabKyghViwFTAWTEqt1o1kFgU',
   },
   openGraph: {
-    title: 'NOVAÉ · Ton assistante contre la charge mentale',
-    description: "NOVAÉ, l'application qui t'accompagne au quotidien avec NOVA, ta coach IA : programme de 90 jours, planner, routines, journaling et communauté.",
+    title: 'NOVAÉ · Ton assistante de vie',
+    description:
+      'Un seul espace pour alléger la charge mentale, organiser le quotidien et agir avec Nova après validation.',
     url: 'https://app.novae-by-omanaia.com',
     siteName: 'NOVAÉ by OMANAÏA',
     images: [
@@ -44,13 +39,11 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'NOVAÉ · Ton assistante contre la charge mentale',
-    description: "NOVAÉ, l'application qui t'accompagne au quotidien avec NOVA, ta coach IA.",
+    title: 'NOVAÉ · Ton assistante de vie',
+    description:
+      'Un seul espace pour alléger la charge mentale et organiser le quotidien avec Nova.',
     images: ['/og-image.png'],
   },
-  // Par défaut, l'espace applicatif (derrière connexion) n'est pas indexé.
-  // Les pages publiques (ex: le blog) redéfinissent leurs propres
-  // métadonnées, y compris `robots`, via generateMetadata.
   robots: {
     index: false,
     follow: false,
@@ -68,8 +61,8 @@ export const metadata: Metadata = {
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-status-bar-style': 'black-translucent',
-    'theme-color': '#F8F1E5',
-  }
+    'theme-color': '#FBF7F2',
+  },
 }
 
 export default function RootLayout({
@@ -78,28 +71,28 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="fr">
-      <body
-  className={inter.className}
-  style={{ margin: 0, background: 'var(--novae-background, #F8F1E5)' }}
->
-  <UserThemeProvider>
-    <SetupGuide />
-    <GlobalHeader />
-    <main>
-      {children}
-    </main>
-    <PWAInstallPrompt />
-    <PushManager />
-    <CookieBanner />
-  </UserThemeProvider>
-        <script dangerouslySetInnerHTML={{__html: `
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-      navigator.serviceWorker.register('/sw.js')
-    })
-  }
-`}} />
+    <html lang="fr" suppressHydrationWarning>
+      <body>
+        <UserThemeProvider>
+          <SetupGuide />
+          <GlobalHeader />
+          <main>{children}</main>
+          <PWAInstallPrompt />
+          <PushManager />
+          <CookieBanner />
+        </UserThemeProvider>
+
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function () {
+                  navigator.serviceWorker.register('/sw.js')
+                })
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   )
