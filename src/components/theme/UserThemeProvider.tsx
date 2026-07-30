@@ -1,166 +1,176 @@
 'use client'
 
-import { ReactNode, useEffect } from 'react'
+import { useEffect } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import {
   getUserDensityOption,
+  getUserInterfacePreset,
   getUserThemePalette,
-  type UserInterfaceDensity,
+  normalizeUserThemeKey,
   type UserThemeKey,
 } from '@/lib/theme/user-themes'
 
-type UserInterfacePreferencesRow = {
-  theme_key: string | null
-  interface_density: string | null
-  reduced_motion: boolean | null
-  high_contrast: boolean | null
-}
-
-const DEFAULT_THEME_KEY: UserThemeKey = 'novae_bordeaux'
-const DEFAULT_DENSITY: UserInterfaceDensity = 'comfort'
 const CACHE_KEY = 'novae-interface-preferences'
 
-function applyThemeVariables(params: {
-  themeKey?: string | null
-  density?: string | null
-  reducedMotion?: boolean | null
-  highContrast?: boolean | null
-}) {
-  if (typeof document === 'undefined') return
-
-  const theme = getUserThemePalette(params.themeKey || DEFAULT_THEME_KEY)
-  const density = getUserDensityOption(params.density || DEFAULT_DENSITY)
-  const root = document.documentElement
-
-  root.style.setProperty('--novae-background', theme.background)
-  root.style.setProperty('--novae-surface', theme.surface)
-  root.style.setProperty('--novae-surface-alt', theme.surfaceAlt)
-
-  root.style.setProperty('--novae-primary', theme.primary)
-  root.style.setProperty('--novae-primary-soft', theme.primarySoft)
-  root.style.setProperty('--novae-secondary', theme.secondary)
-  root.style.setProperty('--novae-accent', theme.accent)
-
-  root.style.setProperty('--novae-text-main', theme.textMain)
-  root.style.setProperty('--novae-text-muted', theme.textMuted)
-  root.style.setProperty('--novae-border', theme.border)
-
-  root.style.setProperty('--novae-success', theme.success)
-  root.style.setProperty('--novae-warning', theme.warning)
-  root.style.setProperty('--novae-danger', theme.danger)
-
-  root.style.setProperty('--novae-tile-daily', theme.categories.daily)
-  root.style.setProperty('--novae-tile-admin', theme.categories.admin)
-  root.style.setProperty('--novae-tile-finance', theme.categories.finance)
-  root.style.setProperty('--novae-tile-family', theme.categories.family)
-  root.style.setProperty('--novae-tile-meals', theme.categories.meals)
-  root.style.setProperty('--novae-tile-planner', theme.categories.planner)
-  root.style.setProperty('--novae-tile-routines', theme.categories.routines)
-  root.style.setProperty('--novae-tile-vault', theme.categories.vault)
-  root.style.setProperty('--novae-tile-transformation', theme.categories.transformation)
-  root.style.setProperty('--novae-tile-learning', theme.categories.learning)
-
-  root.style.setProperty('--novae-card-padding', `${density.cardPadding}px`)
-  root.style.setProperty('--novae-gap', `${density.gap}px`)
-  root.style.setProperty('--novae-radius', `${density.radius}px`)
-
-  root.style.setProperty('--novae-reduced-motion', params.reducedMotion ? '1' : '0')
-  root.style.setProperty('--novae-high-contrast', params.highContrast ? '1' : '0')
+type CachedPreferences = {
+  theme_key: UserThemeKey
 }
 
-function cacheThemePreferences(preferences: UserInterfacePreferencesRow) {
-  if (typeof window === 'undefined') return
-
-  window.localStorage.setItem(
-    CACHE_KEY,
-    JSON.stringify({
-      theme_key: preferences.theme_key || DEFAULT_THEME_KEY,
-      interface_density: preferences.interface_density || DEFAULT_DENSITY,
-      reduced_motion: Boolean(preferences.reduced_motion),
-      high_contrast: Boolean(preferences.high_contrast),
-    })
-  )
-}
-
-function readCachedThemePreferences(): UserInterfacePreferencesRow | null {
-  if (typeof window === 'undefined') return null
+function readCache(): CachedPreferences {
+  if (typeof window === 'undefined') {
+    return { theme_key: 'deep_emerald' }
+  }
 
   try {
     const raw = window.localStorage.getItem(CACHE_KEY)
-    if (!raw) return null
+    const parsed = raw ? JSON.parse(raw) : null
 
-    return JSON.parse(raw) as UserInterfacePreferencesRow
+    return {
+      theme_key: normalizeUserThemeKey(parsed?.theme_key),
+    }
   } catch {
-    return null
+    return { theme_key: 'deep_emerald' }
   }
 }
 
-function applyCachedThemePreferences() {
-  const cached = readCachedThemePreferences()
-
-  if (cached) {
-    applyThemeVariables({
-      themeKey: cached.theme_key,
-      density: cached.interface_density,
-      reducedMotion: cached.reduced_motion,
-      highContrast: cached.high_contrast,
-    })
-    return
+function writeCache(themeKey: UserThemeKey) {
+  try {
+    window.localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({ theme_key: themeKey }),
+    )
+  } catch {
+    // Le thème reste appliqué même si le stockage local est indisponible.
   }
-
-  applyThemeVariables({
-    themeKey: DEFAULT_THEME_KEY,
-    density: DEFAULT_DENSITY,
-    reducedMotion: false,
-    highContrast: false,
-  })
 }
 
-export default function UserThemeProvider({ children }: { children: ReactNode }) {
+function setVar(name: string, value: string) {
+  document.documentElement.style.setProperty(name, value)
+}
+
+function applyTheme(themeKey: string | null | undefined) {
+  const normalized = normalizeUserThemeKey(themeKey)
+  const palette = getUserThemePalette(normalized)
+  const preset = getUserInterfacePreset(normalized)
+  const density = getUserDensityOption(preset.interfaceDensity)
+  const root = document.documentElement
+
+  const titleFont =
+    preset.id === 'choice_4'
+      ? "'Libre Baskerville', Georgia, serif"
+      : "'Cormorant Garamond', Georgia, serif"
+
+  const bodyFont =
+    preset.id === 'choice_4'
+      ? "'Manrope', 'Inter', system-ui, sans-serif"
+      : "'Manrope', 'Inter', system-ui, sans-serif"
+
+  setVar('--novae-background', palette.background)
+  setVar('--novae-surface', palette.surface)
+  setVar('--novae-surface-alt', palette.surfaceAlt)
+  setVar('--novae-primary', palette.primary)
+  setVar('--novae-primary-soft', palette.primarySoft)
+  setVar('--novae-secondary', palette.secondary)
+  setVar('--novae-accent', palette.accent)
+  setVar('--novae-metal', palette.metal)
+  setVar('--novae-hero-start', palette.heroStart)
+  setVar('--novae-hero-end', palette.heroEnd)
+  setVar('--novae-hero-text', palette.heroText)
+  setVar('--novae-text-main', palette.textMain)
+  setVar('--novae-text-muted', palette.textMuted)
+  setVar('--novae-border', palette.border)
+  setVar('--novae-success', palette.success)
+  setVar('--novae-warning', palette.warning)
+  setVar('--novae-danger', palette.danger)
+  setVar('--novae-shadow', palette.shadow)
+
+  setVar('--novae-tile-daily', palette.categories.daily)
+  setVar('--novae-tile-admin', palette.categories.admin)
+  setVar('--novae-tile-finance', palette.categories.finance)
+  setVar('--novae-tile-family', palette.categories.family)
+  setVar('--novae-tile-meals', palette.categories.meals)
+  setVar('--novae-tile-planner', palette.categories.planner)
+  setVar('--novae-tile-routines', palette.categories.routines)
+  setVar('--novae-tile-vault', palette.categories.vault)
+  setVar('--novae-tile-transformation', palette.categories.transformation)
+  setVar('--novae-tile-learning', palette.categories.learning)
+
+  setVar('--novae-font-body', bodyFont)
+  setVar('--novae-font-title', titleFont)
+  setVar('--novae-title-weight', preset.id === 'choice_4' ? '400' : '500')
+  setVar('--novae-title-letter-spacing', preset.id === 'choice_4' ? '-0.015em' : '0')
+
+  setVar('--novae-card-padding', `${density.cardPadding}px`)
+  setVar('--novae-gap', `${density.gap}px`)
+  setVar('--novae-radius-card', `${density.radius}px`)
+  setVar('--novae-radius-small', `${Math.max(12, density.radius - 7)}px`)
+
+  root.dataset.novaeTheme = normalized
+  root.dataset.novaePreset = preset.id
+  root.dataset.pointMode = preset.pointMode
+  root.dataset.dark = String(palette.isDark)
+
+  document.body.style.background = palette.background
+  document.body.style.color = palette.textMain
+  document.body.style.fontFamily = bodyFont
+
+  document
+    .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    ?.setAttribute('content', palette.background)
+
+  writeCache(normalized)
+}
+
+export default function UserThemeProvider({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   useEffect(() => {
-    applyCachedThemePreferences()
+    let cancelled = false
 
-    const loadThemePreferences = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
+    applyTheme(readCache().theme_key)
 
-        if (!user) return
+    const load = async (userId?: string) => {
+      if (!userId) return
 
-        const { data, error } = await supabase
-          .from('user_interface_preferences')
-          .select('theme_key, interface_density, reduced_motion, high_contrast')
-          .eq('user_id', user.id)
-          .maybeSingle()
+      const { data, error } = await supabase
+        .from('user_interface_preferences')
+        .select('theme_key')
+        .eq('user_id', userId)
+        .maybeSingle()
 
-        if (error || !data) return
-
-        const preferences = data as UserInterfacePreferencesRow
-
-        applyThemeVariables({
-          themeKey: preferences.theme_key,
-          density: preferences.interface_density,
-          reducedMotion: preferences.reduced_motion,
-          highContrast: preferences.high_contrast,
-        })
-
-        cacheThemePreferences(preferences)
-      } catch {
-        // On garde le thème par défaut ou le thème en cache.
-      }
+      if (cancelled || error || !data) return
+      applyTheme(data.theme_key)
     }
 
-    loadThemePreferences()
+    void supabase.auth.getUser().then(({ data }) => {
+      void load(data.user?.id)
+    })
 
-    const handleThemeUpdate = () => {
-      applyCachedThemePreferences()
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        void load(session?.user?.id)
+      },
+    )
+
+    const handleThemeUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ theme_key?: string }>
+      applyTheme(customEvent.detail?.theme_key || readCache().theme_key)
+    }
+
+    const handleStorage = () => {
+      applyTheme(readCache().theme_key)
     }
 
     window.addEventListener('novae-theme-updated', handleThemeUpdate)
-    window.addEventListener('storage', handleThemeUpdate)
+    window.addEventListener('storage', handleStorage)
 
     return () => {
+      cancelled = true
+      authListener.subscription.unsubscribe()
       window.removeEventListener('novae-theme-updated', handleThemeUpdate)
-      window.removeEventListener('storage', handleThemeUpdate)
+      window.removeEventListener('storage', handleStorage)
     }
   }, [])
 

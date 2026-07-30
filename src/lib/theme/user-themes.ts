@@ -6,31 +6,23 @@ export type UserThemeKey =
   | 'soft_graphite'
   | 'calm_lavender'
 
-export type UserFontStyle =
-  | 'modern'
-  | 'soft_elegant'
-  | 'focus_pro'
-
-export type UserInterfaceDensity =
-  | 'comfort'
-  | 'compact'
-  | 'focus'
-
+export type UserFontStyle = 'modern' | 'soft_elegant' | 'focus_pro'
+export type UserInterfaceDensity = 'comfort' | 'compact' | 'focus'
 export type UserTileStyle =
   | 'soft_transparent'
   | 'solid_cards'
   | 'minimal_lines'
-
 export type UserHomeLayout =
   | 'universe_cards'
   | 'focus_today'
   | 'dashboard'
 
+export type UserPointMode = 'cards' | 'timeline' | 'metrics'
+
 export type UserThemePalette = {
   key: UserThemeKey
   name: string
   description: string
-
   background: string
   surface: string
   surfaceAlt: string
@@ -38,15 +30,18 @@ export type UserThemePalette = {
   primarySoft: string
   secondary: string
   accent: string
-
+  metal: string
+  heroStart: string
+  heroEnd: string
+  heroText: string
   textMain: string
   textMuted: string
   border: string
-
   success: string
   warning: string
   danger: string
-
+  shadow: string
+  isDark: boolean
   categories: {
     daily: string
     admin: string
@@ -78,289 +73,386 @@ export type UserDensityOption = {
   radius: number
 }
 
+export type UserInterfacePreset = {
+  id: 'choice_1' | 'choice_2' | 'choice_3' | 'choice_4'
+  number: 1 | 2 | 3 | 4
+  label: string
+  description: string
+  themeKey: UserThemeKey
+  fontStyle: UserFontStyle
+  interfaceDensity: UserInterfaceDensity
+  tileStyle: UserTileStyle
+  homeLayout: UserHomeLayout
+  pointMode: UserPointMode
+  reducedMotion: boolean
+  highContrast: boolean
+}
+
+const VEGETAL_CATEGORIES = {
+  daily: '#F2E8D8',
+  admin: '#E4EADD',
+  finance: '#EFE4CA',
+  family: '#E7E1D9',
+  meals: '#E9E4D4',
+  planner: '#DDE5DD',
+  routines: '#E7E0D0',
+  vault: '#D7DFD5',
+  transformation: '#ECE5DE',
+  learning: '#F2EEE7',
+}
+
+const CELESTIAL_CATEGORIES = {
+  daily: '#E8EDF4',
+  admin: '#E2E9F2',
+  finance: '#F0E6CF',
+  family: '#ECE4EE',
+  meals: '#F2E8D8',
+  planner: '#DCE5F0',
+  routines: '#E5EAF1',
+  vault: '#D7DFEA',
+  transformation: '#E8E0EF',
+  learning: '#F2F4F7',
+}
+
+const EDITORIAL_CATEGORIES = {
+  daily: '#F2E8EF',
+  admin: '#EFE4EC',
+  finance: '#F3E8D7',
+  family: '#EDE2EA',
+  meals: '#F2E8E1',
+  planner: '#E8E1EC',
+  routines: '#ECE2E7',
+  vault: '#E2D9E6',
+  transformation: '#EFDDEB',
+  learning: '#F5EEF3',
+}
+
+const MASCULINE_CATEGORIES = {
+  daily: '#1A2025',
+  admin: '#171D22',
+  finance: '#211D17',
+  family: '#1D1D21',
+  meals: '#201E19',
+  planner: '#17212A',
+  routines: '#1C2023',
+  vault: '#11171C',
+  transformation: '#211A20',
+  learning: '#171A1D',
+}
+
 export const USER_THEME_PALETTES: Record<UserThemeKey, UserThemePalette> = {
-  novae_bordeaux: {
-    key: 'novae_bordeaux',
-    name: 'NOVAÉ classique',
-    description: 'Le thème d’origine de NOVAÉ : crème, rose poudré, lavande douce, cuivre et ambiance pastel premium.',
-
-    background: '#FBF7F2',
-    surface: '#FFFFFF',
-    surfaceAlt: '#FFF9F5',
-    primary: '#7A2E2A',
-    primarySoft: '#F3D8CF',
-    secondary: '#B8895E',
-    accent: '#D9A66F',
-
-    textMain: '#2B2320',
-    textMuted: '#6F625C',
-    border: '#EADDD2',
-
-    success: '#2F7A4F',
-    warning: '#A65E12',
-    danger: '#9F2525',
-
-    categories: {
-      daily: '#F8E7DF',
-      admin: '#F3D8CF',
-      finance: '#F4E2C8',
-      family: '#F6DCE6',
-      meals: '#F5E9D0',
-      planner: '#EADDD2',
-      routines: '#F1D9C8',
-      vault: '#E8C6BA',
-      transformation: '#EFD9E8',
-      learning: '#F5EFE8',
-    },
-  },
-
   deep_emerald: {
     key: 'deep_emerald',
-    name: 'Émeraude profond',
-    description: 'Premium, posé, mixte et rassurant, avec un vert plus assumé et une meilleure lisibilité.',
-
-    background: '#F1F7EF',
-    surface: '#FBFEF9',
-    surfaceAlt: '#E4F0DC',
-    primary: '#065F46',
-    primarySoft: '#CFE7D9',
-    secondary: '#3E7454',
-    accent: '#A7BE6B',
-
-    textMain: '#14251D',
-    textMuted: '#435649',
-    border: '#BFD4C2',
-
-    success: '#22764D',
-    warning: '#9B6815',
+    name: 'Épure végétale',
+    description:
+      'Ivoire, vert profond et or doux. Élégant, calme et organique.',
+    background: '#FBF8F2',
+    surface: '#FFFDF9',
+    surfaceAlt: '#F5F0E8',
+    primary: '#173D32',
+    primarySoft: '#E1E8DF',
+    secondary: '#6D5A3E',
+    accent: '#B88A4B',
+    metal: '#C69A5B',
+    heroStart: '#193D33',
+    heroEnd: '#0D2B25',
+    heroText: '#FFFDF8',
+    textMain: '#1C2924',
+    textMuted: '#6D6A61',
+    border: '#E4D8C9',
+    success: '#2F7A4F',
+    warning: '#A66D1D',
     danger: '#9F2525',
-
-    categories: {
-      daily: 'linear-gradient(135deg, #D9EDD3 0%, #BFDDB6 100%)',
-      admin: 'linear-gradient(135deg, #D2E8D9 0%, #AFCFBD 100%)',
-      finance: 'linear-gradient(135deg, #E2EBC0 0%, #C8D98D 100%)',
-      family: 'linear-gradient(135deg, #D7ECDC 0%, #B6D5C5 100%)',
-      meals: 'linear-gradient(135deg, #EEF2CF 0%, #D2DD9B 100%)',
-      planner: 'linear-gradient(135deg, #CAE3D4 0%, #A5CBB6 100%)',
-      routines: 'linear-gradient(135deg, #D9EAC6 0%, #BDD49B 100%)',
-      vault: 'linear-gradient(135deg, #B7D3C5 0%, #8DB7A2 100%)',
-      transformation: 'linear-gradient(135deg, #E3EBD5 0%, #C8D7AB 100%)',
-      learning: 'linear-gradient(135deg, #EEF6E8 0%, #D2E6C9 100%)',
-    },
+    shadow: 'rgba(39, 52, 45, 0.14)',
+    isDark: false,
+    categories: VEGETAL_CATEGORIES,
   },
 
   midnight_blue: {
     key: 'midnight_blue',
-    name: 'Bleu nuit',
-    description: 'Sobre, mixte, sérieux et très rassurant pour un assistant de vie quotidien.',
-
-    background: '#F1F5FB',
-    surface: '#FBFDFF',
-    surfaceAlt: '#DFE8F5',
-    primary: '#17365D',
-    primarySoft: '#D3E0F0',
-    secondary: '#4B6688',
-    accent: '#8BA2C8',
-
-    textMain: '#172235',
-    textMuted: '#435066',
-    border: '#BFD0E4',
-
-    success: '#2F7A4F',
-    warning: '#A65E12',
-    danger: '#9F2525',
-
-    categories: {
-      daily: 'linear-gradient(135deg, #D9E7F7 0%, #BFD3EC 100%)',
-      admin: 'linear-gradient(135deg, #CDDCF0 0%, #ACC3DF 100%)',
-      finance: 'linear-gradient(135deg, #D8E5F2 0%, #B8CDE5 100%)',
-      family: 'linear-gradient(135deg, #E1D9F2 0%, #C8B9E4 100%)',
-      meals: 'linear-gradient(135deg, #E4EDF7 0%, #C7D9EC 100%)',
-      planner: 'linear-gradient(135deg, #C5D8EE 0%, #A4BBD9 100%)',
-      routines: 'linear-gradient(135deg, #D6E4F4 0%, #B8CDE7 100%)',
-      vault: 'linear-gradient(135deg, #B8CBE3 0%, #92ABC9 100%)',
-      transformation: 'linear-gradient(135deg, #E2DAF4 0%, #C7B7E5 100%)',
-      learning: 'linear-gradient(135deg, #EDF4FB 0%, #D2DFEE 100%)',
-    },
-  },
-
-  terracotta_sun: {
-    key: 'terracotta_sun',
-    name: 'Terracotta solaire',
-    description: 'Chaleureux, humain, lumineux, avec une énergie douce mais plus structurée.',
-
-    background: '#FFF4E7',
+    name: 'Nuit céleste',
+    description:
+      'Bleu nuit, ivoire et or lumineux. Structuré, premium et spectaculaire.',
+    background: '#FBF9F5',
     surface: '#FFFDF9',
-    surfaceAlt: '#F7DFCB',
-    primary: '#A2462D',
-    primarySoft: '#F2CDBA',
-    secondary: '#B8663E',
-    accent: '#DD9B4A',
-
-    textMain: '#2F2018',
-    textMuted: '#5F4B3F',
-    border: '#E3C1AB',
-
+    surfaceAlt: '#F5F3EF',
+    primary: '#071D38',
+    primarySoft: '#E5EAF1',
+    secondary: '#17365D',
+    accent: '#B98232',
+    metal: '#D1A458',
+    heroStart: '#061A33',
+    heroEnd: '#020D1D',
+    heroText: '#FFFDF9',
+    textMain: '#0E2744',
+    textMuted: '#657184',
+    border: '#DED9D1',
     success: '#2F7A4F',
-    warning: '#9C5F11',
+    warning: '#A66D1D',
     danger: '#9F2525',
-
-    categories: {
-      daily: 'linear-gradient(135deg, #F8DDCB 0%, #EFBF9F 100%)',
-      admin: 'linear-gradient(135deg, #F2CDBA 0%, #DFA487 100%)',
-      finance: 'linear-gradient(135deg, #F5D7A6 0%, #E7B867 100%)',
-      family: 'linear-gradient(135deg, #F7D6C8 0%, #EAB39B 100%)',
-      meals: 'linear-gradient(135deg, #F9E1B7 0%, #EBC374 100%)',
-      planner: 'linear-gradient(135deg, #EBC8B3 0%, #D49F82 100%)',
-      routines: 'linear-gradient(135deg, #F4D3BF 0%, #E1AC8E 100%)',
-      vault: 'linear-gradient(135deg, #E3B9A3 0%, #C78A6E 100%)',
-      transformation: 'linear-gradient(135deg, #F3D8CD 0%, #E4B6A1 100%)',
-      learning: 'linear-gradient(135deg, #FAE9DA 0%, #F0CCAA 100%)',
-    },
-  },
-
-  soft_graphite: {
-    key: 'soft_graphite',
-    name: 'Graphite doux',
-    description: 'Minimaliste, professionnel, mixte, plus concentré, avec davantage de contraste.',
-
-    background: '#F3F1EC',
-    surface: '#FCFBF7',
-    surfaceAlt: '#E8E4DC',
-    primary: '#2F332D',
-    primarySoft: '#D9D6CE',
-    secondary: '#5F5B52',
-    accent: '#9C835B',
-
-    textMain: '#1E1F1C',
-    textMuted: '#505049',
-    border: '#C9C2B6',
-
-    success: '#2F7A4F',
-    warning: '#9A6417',
-    danger: '#9F2525',
-
-    categories: {
-      daily: 'linear-gradient(135deg, #E4E0D7 0%, #CFC7B9 100%)',
-      admin: 'linear-gradient(135deg, #D9D6CE 0%, #BEB8AC 100%)',
-      finance: 'linear-gradient(135deg, #E6DDCB 0%, #CDBF9F 100%)',
-      family: 'linear-gradient(135deg, #E0DCD8 0%, #C8C0B9 100%)',
-      meals: 'linear-gradient(135deg, #EDE4D2 0%, #D2C39F 100%)',
-      planner: 'linear-gradient(135deg, #D2CDC3 0%, #B3AB9C 100%)',
-      routines: 'linear-gradient(135deg, #DEDAD2 0%, #C2BAAE 100%)',
-      vault: 'linear-gradient(135deg, #C7C0B4 0%, #A69B8B 100%)',
-      transformation: 'linear-gradient(135deg, #E3DFDA 0%, #C9C0B7 100%)',
-      learning: 'linear-gradient(135deg, #F0EDE7 0%, #D8D0C4 100%)',
-    },
+    shadow: 'rgba(7, 29, 56, 0.16)',
+    isDark: false,
+    categories: CELESTIAL_CATEGORIES,
   },
 
   calm_lavender: {
     key: 'calm_lavender',
-    name: 'Lavande calme',
-    description: 'Apaisant, mental load friendly, doux, lisible et moins rose.',
-
-    background: '#F7F2FB',
-    surface: '#FFFDFE',
-    surfaceAlt: '#ECE2F5',
-    primary: '#6B4A99',
-    primarySoft: '#E2D5F2',
-    secondary: '#8167A4',
-    accent: '#BFA6E2',
-
-    textMain: '#282131',
-    textMuted: '#574D63',
-    border: '#D4C4E5',
-
+    name: 'Douceur éditoriale',
+    description:
+      'Crème, prune et or rosé. Raffiné, chaleureux et très éditorial.',
+    background: '#FBF7F6',
+    surface: '#FFFDFC',
+    surfaceAlt: '#F3ECEF',
+    primary: '#5A294F',
+    primarySoft: '#EADFE7',
+    secondary: '#7A536E',
+    accent: '#B07B63',
+    metal: '#C89A72',
+    heroStart: '#5A294F',
+    heroEnd: '#33182F',
+    heroText: '#FFF9FC',
+    textMain: '#3B2035',
+    textMuted: '#7A6874',
+    border: '#E5D8DE',
     success: '#2F7A4F',
-    warning: '#A65E12',
+    warning: '#A66D1D',
     danger: '#9F2525',
+    shadow: 'rgba(78, 36, 68, 0.14)',
+    isDark: false,
+    categories: EDITORIAL_CATEGORIES,
+  },
 
-    categories: {
-      daily: 'linear-gradient(135deg, #EBE1F6 0%, #D5C4EB 100%)',
-      admin: 'linear-gradient(135deg, #E2D5F2 0%, #CBB6E6 100%)',
-      finance: 'linear-gradient(135deg, #EDE4F4 0%, #D5C4E3 100%)',
-      family: 'linear-gradient(135deg, #EDDCEE 0%, #D8BBDD 100%)',
-      meals: 'linear-gradient(135deg, #F1E8F6 0%, #DCC9EA 100%)',
-      planner: 'linear-gradient(135deg, #D8C9EA 0%, #BDA7D8 100%)',
-      routines: 'linear-gradient(135deg, #E8DDF4 0%, #D1BDE7 100%)',
-      vault: 'linear-gradient(135deg, #CDBDDF 0%, #A98FC8 100%)',
-      transformation: 'linear-gradient(135deg, #EBD7EE 0%, #D5B4DC 100%)',
-      learning: 'linear-gradient(135deg, #F5EFFA 0%, #E0D0F0 100%)',
-    },
+  soft_graphite: {
+    key: 'soft_graphite',
+    name: 'Signature masculine',
+    description:
+      'Noir graphite, bleu profond et or chaud. Sobre, puissant et premium.',
+    background: '#0B0F12',
+    surface: '#12171B',
+    surfaceAlt: '#181E22',
+    primary: '#D09A57',
+    primarySoft: '#2A241D',
+    secondary: '#9E784B',
+    accent: '#E0AE6B',
+    metal: '#D7A25C',
+    heroStart: '#07131F',
+    heroEnd: '#03080D',
+    heroText: '#F7F2E9',
+    textMain: '#F4F0E9',
+    textMuted: '#AAA9A5',
+    border: '#5E4A32',
+    success: '#5AA779',
+    warning: '#D09A57',
+    danger: '#D46D6D',
+    shadow: 'rgba(0, 0, 0, 0.42)',
+    isDark: true,
+    categories: MASCULINE_CATEGORIES,
+  },
+
+  // Anciennes valeurs conservées uniquement pour ne pas casser
+  // les comptes qui les ont encore en base.
+  novae_bordeaux: {
+    key: 'novae_bordeaux',
+    name: 'Épure végétale',
+    description: 'Ancienne valeur redirigée vers le choix 1.',
+    background: '#FBF8F2',
+    surface: '#FFFDF9',
+    surfaceAlt: '#F5F0E8',
+    primary: '#173D32',
+    primarySoft: '#E1E8DF',
+    secondary: '#6D5A3E',
+    accent: '#B88A4B',
+    metal: '#C69A5B',
+    heroStart: '#193D33',
+    heroEnd: '#0D2B25',
+    heroText: '#FFFDF8',
+    textMain: '#1C2924',
+    textMuted: '#6D6A61',
+    border: '#E4D8C9',
+    success: '#2F7A4F',
+    warning: '#A66D1D',
+    danger: '#9F2525',
+    shadow: 'rgba(39, 52, 45, 0.14)',
+    isDark: false,
+    categories: VEGETAL_CATEGORIES,
+  },
+
+  terracotta_sun: {
+    key: 'terracotta_sun',
+    name: 'Douceur éditoriale',
+    description: 'Ancienne valeur redirigée vers le choix 3.',
+    background: '#FBF7F6',
+    surface: '#FFFDFC',
+    surfaceAlt: '#F3ECEF',
+    primary: '#5A294F',
+    primarySoft: '#EADFE7',
+    secondary: '#7A536E',
+    accent: '#B07B63',
+    metal: '#C89A72',
+    heroStart: '#5A294F',
+    heroEnd: '#33182F',
+    heroText: '#FFF9FC',
+    textMain: '#3B2035',
+    textMuted: '#7A6874',
+    border: '#E5D8DE',
+    success: '#2F7A4F',
+    warning: '#A66D1D',
+    danger: '#9F2525',
+    shadow: 'rgba(78, 36, 68, 0.14)',
+    isDark: false,
+    categories: EDITORIAL_CATEGORIES,
   },
 }
+
+export const USER_INTERFACE_PRESETS: UserInterfacePreset[] = [
+  {
+    id: 'choice_1',
+    number: 1,
+    label: 'Choix 1',
+    description: 'Épure végétale',
+    themeKey: 'deep_emerald',
+    fontStyle: 'soft_elegant',
+    interfaceDensity: 'comfort',
+    tileStyle: 'solid_cards',
+    homeLayout: 'focus_today',
+    pointMode: 'cards',
+    reducedMotion: false,
+    highContrast: false,
+  },
+  {
+    id: 'choice_2',
+    number: 2,
+    label: 'Choix 2',
+    description: 'Nuit céleste',
+    themeKey: 'midnight_blue',
+    fontStyle: 'soft_elegant',
+    interfaceDensity: 'comfort',
+    tileStyle: 'solid_cards',
+    homeLayout: 'dashboard',
+    pointMode: 'timeline',
+    reducedMotion: false,
+    highContrast: false,
+  },
+  {
+    id: 'choice_3',
+    number: 3,
+    label: 'Choix 3',
+    description: 'Douceur éditoriale',
+    themeKey: 'calm_lavender',
+    fontStyle: 'soft_elegant',
+    interfaceDensity: 'comfort',
+    tileStyle: 'soft_transparent',
+    homeLayout: 'focus_today',
+    pointMode: 'metrics',
+    reducedMotion: false,
+    highContrast: false,
+  },
+  {
+    id: 'choice_4',
+    number: 4,
+    label: 'Choix 4',
+    description: 'Signature masculine',
+    themeKey: 'soft_graphite',
+    fontStyle: 'focus_pro',
+    interfaceDensity: 'compact',
+    tileStyle: 'solid_cards',
+    homeLayout: 'focus_today',
+    pointMode: 'cards',
+    reducedMotion: false,
+    highContrast: true,
+  },
+]
+
+export const USER_INTERFACE_PRESET_ORDER = USER_INTERFACE_PRESETS.map(
+  (preset) => preset.id,
+)
 
 export const USER_FONT_OPTIONS: Record<UserFontStyle, UserFontOption> = {
   modern: {
     key: 'modern',
-    name: 'Moderne & mixte',
-    description: 'Clair, propre, lisible, adapté à tous les profils.',
+    name: 'Contemporaine',
+    description: 'Claire et très lisible.',
     titleClassName: 'font-sans',
     bodyClassName: 'font-sans',
   },
-
   soft_elegant: {
     key: 'soft_elegant',
-    name: 'Douce & élégante',
-    description: 'Plus premium, plus chaleureuse, adaptée à une ambiance bien-être.',
+    name: 'Éditoriale',
+    description: 'Élégante et chaleureuse.',
     titleClassName: 'font-serif',
     bodyClassName: 'font-sans',
   },
-
   focus_pro: {
     key: 'focus_pro',
-    name: 'Focus & pro',
-    description: 'Sobre, efficace, moins décoratif, pensé pour la productivité.',
-    titleClassName: 'font-sans',
+    name: 'Signature',
+    description: 'Structurée et professionnelle.',
+    titleClassName: 'font-serif',
     bodyClassName: 'font-sans',
   },
 }
 
-export const USER_DENSITY_OPTIONS: Record<UserInterfaceDensity, UserDensityOption> = {
+export const USER_DENSITY_OPTIONS: Record<
+  UserInterfaceDensity,
+  UserDensityOption
+> = {
   comfort: {
     key: 'comfort',
     name: 'Confort',
-    description: 'Grandes cartes, respiration visuelle, idéal en charge mentale.',
+    description: 'Respiration premium.',
     cardPadding: 20,
     gap: 14,
-    radius: 20,
+    radius: 22,
   },
-
   compact: {
     key: 'compact',
     name: 'Compact',
-    description: 'Plus d’informations visibles à l’écran.',
-    cardPadding: 14,
-    gap: 10,
-    radius: 16,
+    description: 'Plus structuré.',
+    cardPadding: 17,
+    gap: 12,
+    radius: 20,
   },
-
   focus: {
     key: 'focus',
     name: 'Focus',
-    description: 'Interface plus calme, moins d’éléments visibles à la fois.',
+    description: 'Plus calme.',
     cardPadding: 22,
     gap: 18,
     radius: 24,
   },
 }
 
-export function getUserThemePalette(themeKey: string | null | undefined): UserThemePalette {
-  if (
-    themeKey === 'novae_bordeaux' ||
-    themeKey === 'deep_emerald' ||
-    themeKey === 'midnight_blue' ||
-    themeKey === 'terracotta_sun' ||
-    themeKey === 'soft_graphite' ||
-    themeKey === 'calm_lavender'
-  ) {
-    return USER_THEME_PALETTES[themeKey]
-  }
-
-  return USER_THEME_PALETTES.novae_bordeaux
+export function normalizeUserThemeKey(
+  value: string | null | undefined,
+): UserThemeKey {
+  if (value === 'deep_emerald') return 'deep_emerald'
+  if (value === 'midnight_blue') return 'midnight_blue'
+  if (value === 'calm_lavender') return 'calm_lavender'
+  if (value === 'soft_graphite') return 'soft_graphite'
+  if (value === 'terracotta_sun') return 'calm_lavender'
+  return 'deep_emerald'
 }
 
-export function getUserFontOption(fontStyle: string | null | undefined): UserFontOption {
+export function getUserThemePalette(
+  themeKey: string | null | undefined,
+): UserThemePalette {
+  return USER_THEME_PALETTES[normalizeUserThemeKey(themeKey)]
+}
+
+export function getUserInterfacePreset(
+  themeKey: string | null | undefined,
+): UserInterfacePreset {
+  const normalized = normalizeUserThemeKey(themeKey)
+
+  return (
+    USER_INTERFACE_PRESETS.find(
+      (preset) => preset.themeKey === normalized,
+    ) || USER_INTERFACE_PRESETS[0]
+  )
+}
+
+export function getUserFontOption(
+  fontStyle: string | null | undefined,
+): UserFontOption {
   if (
     fontStyle === 'modern' ||
     fontStyle === 'soft_elegant' ||
@@ -369,11 +461,11 @@ export function getUserFontOption(fontStyle: string | null | undefined): UserFon
     return USER_FONT_OPTIONS[fontStyle]
   }
 
-  return USER_FONT_OPTIONS.modern
+  return USER_FONT_OPTIONS.soft_elegant
 }
 
 export function getUserDensityOption(
-  density: string | null | undefined
+  density: string | null | undefined,
 ): UserDensityOption {
   if (
     density === 'comfort' ||
@@ -387,12 +479,10 @@ export function getUserDensityOption(
 }
 
 export const USER_THEME_ORDER: UserThemeKey[] = [
-  'novae_bordeaux',
   'deep_emerald',
   'midnight_blue',
-  'terracotta_sun',
-  'soft_graphite',
   'calm_lavender',
+  'soft_graphite',
 ]
 
 export const USER_FONT_ORDER: UserFontStyle[] = [

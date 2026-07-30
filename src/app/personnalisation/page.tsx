@@ -1,1265 +1,690 @@
-'use client'
+﻿'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import PremiumIcon from '@/components/ui/PremiumIcon'
 import { supabase } from '@/lib/supabase/client'
 import {
-  USER_DENSITY_OPTIONS,
-  USER_DENSITY_ORDER,
-  USER_FONT_OPTIONS,
-  USER_FONT_ORDER,
-  USER_THEME_ORDER,
-  USER_THEME_PALETTES,
-  getUserThemePalette,
-  type UserFontStyle,
-  type UserHomeLayout,
-  type UserInterfaceDensity,
+  USER_INTERFACE_PRESETS,
+  getUserInterfacePreset,
+  normalizeUserThemeKey,
+  type UserInterfacePreset,
   type UserThemeKey,
-  type UserTileStyle,
 } from '@/lib/theme/user-themes'
 
-type NovaTone = 'soft' | 'balanced' | 'direct' | 'coach' | 'minimal'
-type ReminderStyle = 'gentle' | 'normal' | 'insistent' | 'minimal' | 'urgent_only'
-type MentalLoadLevel = 'low' | 'medium' | 'high' | 'overloaded'
-type LifeContext =
-  | 'not_specified'
-  | 'single'
-  | 'couple'
-  | 'parent'
-  | 'solo_parent'
-  | 'caregiver'
-  | 'student'
-  | 'other'
-type HouseholdContext =
-  | 'not_specified'
-  | 'alone'
-  | 'with_partner'
-  | 'with_children'
-  | 'shared_custody'
-  | 'family_home'
-  | 'other'
+const CACHE_KEY = 'novae-interface-preferences'
+const FIXED_HOME_MODULES = ['admin', 'planner', 'meals']
 
-type NovaProfileForm = {
-  display_name: string
-  life_context: LifeContext
-  household_context: HouseholdContext
-  nova_tone: NovaTone
-  reminder_style: ReminderStyle
-  mental_load_level: MentalLoadLevel
-  main_priorities: string[]
-  quiet_hours_start: string
-  quiet_hours_end: string
-  prefers_push_reminders: boolean
-  prefers_email_reminders: boolean
-  admin_documents_enabled: boolean
-  finance_help_enabled: boolean
-  family_help_enabled: boolean
-  meals_help_enabled: boolean
-  extra_instructions: string
-}
+function previewTheme(themeKey: UserThemeKey) {
+  window.localStorage.setItem(
+    CACHE_KEY,
+    JSON.stringify({ theme_key: themeKey }),
+  )
 
-type InterfacePreferencesForm = {
-  theme_key: UserThemeKey
-  font_style: UserFontStyle
-  interface_density: UserInterfaceDensity
-  tile_style: UserTileStyle
-  home_layout: UserHomeLayout
-  reduced_motion: boolean
-  high_contrast: boolean
-}
-
-const DEFAULT_NOVA_PROFILE: NovaProfileForm = {
-  display_name: '',
-  life_context: 'not_specified',
-  household_context: 'not_specified',
-  nova_tone: 'balanced',
-  reminder_style: 'gentle',
-  mental_load_level: 'medium',
-  main_priorities: ['admin', 'family', 'planner'],
-  quiet_hours_start: '21:00',
-  quiet_hours_end: '07:00',
-  prefers_push_reminders: true,
-  prefers_email_reminders: false,
-  admin_documents_enabled: true,
-  finance_help_enabled: false,
-  family_help_enabled: true,
-  meals_help_enabled: true,
-  extra_instructions: '',
-}
-
-const DEFAULT_INTERFACE_PREFERENCES: InterfacePreferencesForm = {
-  theme_key: 'novae_bordeaux',
-  font_style: 'modern',
-  interface_density: 'comfort',
-  tile_style: 'soft_transparent',
-  home_layout: 'universe_cards',
-  reduced_motion: false,
-  high_contrast: false,
-}
-
-const LIFE_CONTEXT_OPTIONS: { value: LifeContext; label: string }[] = [
-  { value: 'not_specified', label: 'Je préfère ne pas préciser' },
-  { value: 'single', label: 'Seule / célibataire' },
-  { value: 'couple', label: 'En couple' },
-  { value: 'parent', label: 'Parent' },
-  { value: 'solo_parent', label: 'Parent solo' },
-  { value: 'caregiver', label: 'Aidant / aidante' },
-  { value: 'student', label: 'Étudiant / étudiante' },
-  { value: 'other', label: 'Autre' },
-]
-
-const HOUSEHOLD_CONTEXT_OPTIONS: { value: HouseholdContext; label: string }[] = [
-  { value: 'not_specified', label: 'Je préfère ne pas préciser' },
-  { value: 'alone', label: 'Je vis seul(e)' },
-  { value: 'with_partner', label: 'Je vis avec mon/ma partenaire' },
-  { value: 'with_children', label: 'Je vis avec mes enfants' },
-  { value: 'shared_custody', label: 'Garde alternée / organisation partagée' },
-  { value: 'family_home', label: 'Foyer familial' },
-  { value: 'other', label: 'Autre' },
-]
-
-const NOVA_TONE_OPTIONS: { value: NovaTone; label: string; description: string }[] = [
-  {
-    value: 'soft',
-    label: 'Douce',
-    description: 'Nova rassure, encourage et évite de mettre trop de pression.',
-  },
-  {
-    value: 'balanced',
-    label: 'Équilibrée',
-    description: 'Nova est claire, aidante et garde un ton naturel.',
-  },
-  {
-    value: 'direct',
-    label: 'Directe',
-    description: 'Nova va droit au but et t’aide à prioriser sans tourner autour.',
-  },
-  {
-    value: 'coach',
-    label: 'Coach',
-    description: 'Nova motive, cadre et pousse davantage au passage à l’action.',
-  },
-  {
-    value: 'minimal',
-    label: 'Minimaliste',
-    description: 'Nova répond court, simple, avec le minimum d’informations utile.',
-  },
-]
-
-const REMINDER_STYLE_OPTIONS: { value: ReminderStyle; label: string; description: string }[] = [
-  {
-    value: 'gentle',
-    label: 'Doux',
-    description: 'Rappels discrets, sans pression inutile.',
-  },
-  {
-    value: 'normal',
-    label: 'Normal',
-    description: 'Rappels équilibrés pour ne pas oublier l’essentiel.',
-  },
-  {
-    value: 'insistent',
-    label: 'Insistant',
-    description: 'Relances plus visibles quand une action importante approche.',
-  },
-  {
-    value: 'minimal',
-    label: 'Minimal',
-    description: 'Peu de rappels, seulement quand c’est vraiment utile.',
-  },
-  {
-    value: 'urgent_only',
-    label: 'Urgences seulement',
-    description: 'Nova ne relance que pour les dates importantes ou critiques.',
-  },
-]
-
-const MENTAL_LOAD_OPTIONS: { value: MentalLoadLevel; label: string; description: string }[] = [
-  {
-    value: 'low',
-    label: 'Faible',
-    description: 'Je suis plutôt disponible mentalement.',
-  },
-  {
-    value: 'medium',
-    label: 'Moyenne',
-    description: 'J’ai besoin d’aide, mais je peux encore gérer.',
-  },
-  {
-    value: 'high',
-    label: 'Élevée',
-    description: 'J’ai beaucoup de choses en tête.',
-  },
-  {
-    value: 'overloaded',
-    label: 'Surcharge',
-    description: 'J’ai besoin que Nova simplifie au maximum.',
-  },
-]
-
-const PRIORITY_OPTIONS: { value: string; label: string }[] = [
-  { value: 'admin', label: 'Administratif' },
-  { value: 'finance', label: 'Finances' },
-  { value: 'family', label: 'Famille' },
-  { value: 'planner', label: 'Planner' },
-  { value: 'meals', label: 'Repas / courses' },
-  { value: 'routines', label: 'Routines' },
-  { value: 'mental_load', label: 'Charge mentale' },
-  { value: 'transformation', label: 'Transformation personnelle' },
-]
-
-const TILE_STYLE_OPTIONS: { value: UserTileStyle; label: string; description: string }[] = [
-  {
-    value: 'soft_transparent',
-    label: 'Tuiles transparentes',
-    description: 'Des cartes douces, légèrement colorées selon les catégories.',
-  },
-  {
-    value: 'solid_cards',
-    label: 'Cartes pleines',
-    description: 'Des blocs plus visibles, avec plus de présence couleur.',
-  },
-  {
-    value: 'minimal_lines',
-    label: 'Lignes minimalistes',
-    description: 'Interface plus sobre, avec moins de fonds colorés.',
-  },
-]
-
-const HOME_LAYOUT_OPTIONS: { value: UserHomeLayout; label: string; description: string }[] = [
-  {
-    value: 'universe_cards',
-    label: 'Univers',
-    description: 'Accueil organisé par grands univers de vie.',
-  },
-  {
-    value: 'focus_today',
-    label: 'Focus aujourd’hui',
-    description: 'Accueil centré sur ce qui compte maintenant.',
-  },
-  {
-    value: 'dashboard',
-    label: 'Dashboard',
-    description: 'Vue plus complète, avec plusieurs informations visibles.',
-  },
-]
-
-function isUserThemeKey(value: string | null | undefined): value is UserThemeKey {
-  return (
-    value === 'novae_bordeaux' ||
-    value === 'deep_emerald' ||
-    value === 'midnight_blue' ||
-    value === 'terracotta_sun' ||
-    value === 'soft_graphite' ||
-    value === 'calm_lavender'
+  window.dispatchEvent(
+    new CustomEvent('novae-theme-updated', {
+      detail: { theme_key: themeKey },
+    }),
   )
 }
 
-function isUserFontStyle(value: string | null | undefined): value is UserFontStyle {
-  return value === 'modern' || value === 'soft_elegant' || value === 'focus_pro'
-}
+function PresetPreview({ preset }: { preset: UserInterfacePreset }) {
+  const imageByPreset: Record<UserInterfacePreset['id'], string> = {
+    choice_1: '/interface-previews/choice-1.svg',
+    choice_2: '/interface-previews/choice-2.svg',
+    choice_3: '/interface-previews/choice-3.svg',
+    choice_4: '/interface-previews/choice-4.svg',
+  }
 
-function isUserInterfaceDensity(
-  value: string | null | undefined
-): value is UserInterfaceDensity {
-  return value === 'comfort' || value === 'compact' || value === 'focus'
-}
-
-function isUserTileStyle(value: string | null | undefined): value is UserTileStyle {
   return (
-    value === 'soft_transparent' ||
-    value === 'solid_cards' ||
-    value === 'minimal_lines'
-  )
-}
+    <div className="preset-preview">
+      <img
+        src={imageByPreset[preset.id]}
+        alt={`AperÃ§u de lâ€™interface ${preset.label} â€” ${preset.description}`}
+      />
 
-function isUserHomeLayout(value: string | null | undefined): value is UserHomeLayout {
-  return (
-    value === 'universe_cards' ||
-    value === 'focus_today' ||
-    value === 'dashboard'
-  )
-}
+      <style jsx>{`
+        .preset-preview {
+          position: relative;
+          overflow: hidden;
+          aspect-ratio: 760 / 470;
+          background: var(--novae-surface-alt);
+          border-bottom: 1px solid var(--novae-border);
+        }
 
-function normalizeTimeValue(value: string | null | undefined, fallback: string): string {
-  if (!value) return fallback
-  return value.slice(0, 5)
+        .preset-preview img {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: top center;
+          transition: transform 180ms ease;
+        }
+
+        .preset-preview:hover img {
+          transform: scale(1.015);
+        }
+      `}</style>
+    </div>
+  )
 }
 
 export default function PersonnalisationPage() {
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
+  const [selected, setSelected] = useState<UserThemeKey>('deep_emerald')
+  const [savedTheme, setSavedTheme] = useState<UserThemeKey>('deep_emerald')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
-
-  const [novaProfile, setNovaProfile] = useState<NovaProfileForm>(DEFAULT_NOVA_PROFILE)
-  const [interfacePreferences, setInterfacePreferences] =
-    useState<InterfacePreferencesForm>(DEFAULT_INTERFACE_PREFERENCES)
-
-  const selectedTheme = getUserThemePalette(interfacePreferences.theme_key)
-  const selectedDensity = USER_DENSITY_OPTIONS[interfacePreferences.interface_density]
+  const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    const loadPersonalisation = async () => {
-      setIsLoading(true)
-      setError(null)
+    let cancelled = false
 
+    const load = async () => {
       try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
 
-        if (userError || !user) {
-          throw new Error('Session introuvable. Reconnecte-toi pour personnaliser NOVAÉ.')
+        if (!user) {
+          setLoading(false)
+          return
         }
 
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_nova_profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle()
-
-        if (profileError) {
-          throw new Error(profileError.message)
-        }
-
-        const { data: interfaceData, error: interfaceError } = await supabase
+        const { data } = await supabase
           .from('user_interface_preferences')
-          .select('*')
+          .select('theme_key')
           .eq('user_id', user.id)
           .maybeSingle()
 
-        if (interfaceError) {
-          throw new Error(interfaceError.message)
-        }
+        if (cancelled) return
 
-        if (profileData) {
-          setNovaProfile({
-            display_name: profileData.display_name || '',
-            life_context: profileData.life_context || 'not_specified',
-            household_context: profileData.household_context || 'not_specified',
-            nova_tone: profileData.nova_tone || 'balanced',
-            reminder_style: profileData.reminder_style || 'gentle',
-            mental_load_level: profileData.mental_load_level || 'medium',
-            main_priorities: Array.isArray(profileData.main_priorities)
-              ? profileData.main_priorities
-              : [],
-            quiet_hours_start: normalizeTimeValue(profileData.quiet_hours_start, '21:00'),
-            quiet_hours_end: normalizeTimeValue(profileData.quiet_hours_end, '07:00'),
-            prefers_push_reminders: Boolean(profileData.prefers_push_reminders),
-            prefers_email_reminders: Boolean(profileData.prefers_email_reminders),
-            admin_documents_enabled: Boolean(profileData.admin_documents_enabled),
-            finance_help_enabled: Boolean(profileData.finance_help_enabled),
-            family_help_enabled: Boolean(profileData.family_help_enabled),
-            meals_help_enabled: Boolean(profileData.meals_help_enabled),
-            extra_instructions: profileData.extra_instructions || '',
-          })
-        }
-
-        if (interfaceData) {
-          setInterfacePreferences({
-            theme_key: isUserThemeKey(interfaceData.theme_key)
-              ? interfaceData.theme_key
-              : 'novae_bordeaux',
-            font_style: isUserFontStyle(interfaceData.font_style)
-              ? interfaceData.font_style
-              : 'modern',
-            interface_density: isUserInterfaceDensity(interfaceData.interface_density)
-              ? interfaceData.interface_density
-              : 'comfort',
-            tile_style: isUserTileStyle(interfaceData.tile_style)
-              ? interfaceData.tile_style
-              : 'soft_transparent',
-            home_layout: isUserHomeLayout(interfaceData.home_layout)
-              ? interfaceData.home_layout
-              : 'universe_cards',
-            reduced_motion: Boolean(interfaceData.reduced_motion),
-            high_contrast: Boolean(interfaceData.high_contrast),
-          })
-        }
+        const themeKey = normalizeUserThemeKey(data?.theme_key)
+        setSelected(themeKey)
+        setSavedTheme(themeKey)
+        previewTheme(themeKey)
       } catch (loadError) {
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Impossible de charger la personnalisation.'
-        )
+        console.error('[Personnalisation] load error', loadError)
       } finally {
-        setIsLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
-    loadPersonalisation()
+    void load()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  const updateNovaProfile = <Key extends keyof NovaProfileForm>(
-    key: Key,
-    value: NovaProfileForm[Key]
-  ) => {
-    setNovaProfile((current) => ({
-      ...current,
-      [key]: value,
-    }))
-  }
-
-  const updateInterfacePreferences = <Key extends keyof InterfacePreferencesForm>(
-    key: Key,
-    value: InterfacePreferencesForm[Key]
-  ) => {
-    setInterfacePreferences((current) => ({
-      ...current,
-      [key]: value,
-    }))
-  }
-
-  const togglePriority = (priority: string) => {
-    setNovaProfile((current) => {
-      const alreadySelected = current.main_priorities.includes(priority)
-
-      return {
-        ...current,
-        main_priorities: alreadySelected
-          ? current.main_priorities.filter((item) => item !== priority)
-          : [...current.main_priorities, priority],
-      }
-    })
-  }
-
-  const handleSave = async () => {
-    setIsSaving(true)
+  const choosePreset = (preset: UserInterfacePreset) => {
+    setSelected(preset.themeKey)
+    setSuccess(false)
     setError(null)
-    setSuccessMessage(null)
+    previewTheme(preset.themeKey)
+  }
+
+  const save = async () => {
+    setSaving(true)
+    setError(null)
+    setSuccess(false)
 
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-      if (userError || !user) {
-        throw new Error('Session introuvable. Reconnecte-toi avant d’enregistrer.')
+      if (!user) {
+        throw new Error('Tu dois être connectée pour enregistrer ton choix.')
       }
 
-      const { error: profileSaveError } = await supabase
-        .from('user_nova_profiles')
-        .upsert({
-          user_id: user.id,
-          display_name: novaProfile.display_name.trim() || null,
-          life_context: novaProfile.life_context,
-          household_context: novaProfile.household_context,
-          nova_tone: novaProfile.nova_tone,
-          reminder_style: novaProfile.reminder_style,
-          mental_load_level: novaProfile.mental_load_level,
-          main_priorities: novaProfile.main_priorities,
-          quiet_hours_start: novaProfile.quiet_hours_start,
-          quiet_hours_end: novaProfile.quiet_hours_end,
-          prefers_push_reminders: novaProfile.prefers_push_reminders,
-          prefers_email_reminders: novaProfile.prefers_email_reminders,
-          admin_documents_enabled: novaProfile.admin_documents_enabled,
-          finance_help_enabled: novaProfile.finance_help_enabled,
-          family_help_enabled: novaProfile.family_help_enabled,
-          meals_help_enabled: novaProfile.meals_help_enabled,
-          extra_instructions: novaProfile.extra_instructions.trim() || null,
-        })
+      const preset = getUserInterfacePreset(selected)
 
-      if (profileSaveError) {
-        throw new Error(profileSaveError.message)
+      const interfacePayload = {
+        user_id: user.id,
+        theme_key: preset.themeKey,
+        font_style: preset.fontStyle,
+        interface_density: preset.interfaceDensity,
+        tile_style: preset.tileStyle,
+        home_layout: preset.homeLayout,
+        reduced_motion: preset.reducedMotion,
+        high_contrast: preset.highContrast,
       }
 
-      const { error: interfaceSaveError } = await supabase
+      const { data: existing, error: lookupError } = await supabase
         .from('user_interface_preferences')
-        .upsert({
-          user_id: user.id,
-          theme_key: interfacePreferences.theme_key,
-          font_style: interfacePreferences.font_style,
-          interface_density: interfacePreferences.interface_density,
-          tile_style: interfacePreferences.tile_style,
-          home_layout: interfacePreferences.home_layout,
-          reduced_motion: interfacePreferences.reduced_motion,
-          high_contrast: interfacePreferences.high_contrast,
-        })
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
 
-      if (interfaceSaveError) {
-        throw new Error(interfaceSaveError.message)
-      }
+      if (lookupError) throw lookupError
 
-      window.localStorage.setItem(
-        'novae-interface-preferences',
-        JSON.stringify({
-          theme_key: interfacePreferences.theme_key,
-          interface_density: interfacePreferences.interface_density,
-          reduced_motion: interfacePreferences.reduced_motion,
-          high_contrast: interfacePreferences.high_contrast,
-        })
-      )
+      const saveResult = existing
+        ? await supabase
+            .from('user_interface_preferences')
+            .update(interfacePayload)
+            .eq('user_id', user.id)
+        : await supabase
+            .from('user_interface_preferences')
+            .insert(interfacePayload)
 
-      window.dispatchEvent(new Event('novae-theme-updated'))
+      if (saveResult.error) throw saveResult.error
 
-      setSuccessMessage('Personnalisation enregistrée. Nova pourra utiliser ces préférences progressivement.')
+      // Les quatre accueils sont volontairement construits autour
+      // des trois mêmes accès principaux.
+      await supabase
+        .from('user_nova_profiles')
+        .update({ main_priorities: FIXED_HOME_MODULES })
+        .eq('user_id', user.id)
+
+      previewTheme(preset.themeKey)
+      setSavedTheme(preset.themeKey)
+      setSuccess(true)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (saveError) {
-      setError(
+      const message =
         saveError instanceof Error
           ? saveError.message
-          : 'Impossible d’enregistrer la personnalisation.'
-      )
+          : 'Impossible d’enregistrer ce choix.'
+
+      setError(message)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } finally {
-      setIsSaving(false)
+      setSaving(false)
     }
   }
 
-  if (isLoading) {
-    return (
-      <main style={{
-        minHeight: '100vh',
-        background: 'var(--novae-background, #FBF7F2)',
-        padding: '32px 16px',
-        color: 'var(--novae-text-main, #2B2320)',
-      }}>
-        <section style={{
-          maxWidth: 920,
-          margin: '0 auto',
-          background: 'var(--novae-surface, #FFFFFF)',
-          border: '1px solid var(--novae-border, #EADDD2)',
-          borderRadius: 24,
-          padding: 24,
-        }}>
-          Chargement de ta personnalisation...
-        </section>
-      </main>
-    )
+  const cancel = () => {
+    setSelected(savedTheme)
+    previewTheme(savedTheme)
   }
 
   return (
-    <main style={{
-      minHeight: '100vh',
-      background: selectedTheme.background,
-      padding: '32px 16px',
-      color: selectedTheme.textMain,
-    }}>
-      <section style={{
-        maxWidth: 980,
-        margin: '0 auto',
-        background: selectedTheme.surface,
-        border: `1px solid ${selectedTheme.border}`,
-        borderRadius: selectedDensity.radius + 4,
-        padding: selectedDensity.cardPadding + 4,
-        boxShadow: '0 18px 45px rgba(55, 35, 25, 0.08)',
-      }}>
-        <div style={{ marginBottom: 14 }}>
-          <Link
-            href="/"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              color: selectedTheme.primary,
-              textDecoration: 'none',
-              fontWeight: 700,
-              fontSize: 14,
-            }}
-          >
+    <main className="preset-page">
+      <div className="preset-shell">
+        <header className="preset-header">
+          <Link href="/" className="back-link">
             ← Retour à l’accueil
           </Link>
-        </div>
 
-        <p style={{
-          margin: '0 0 8px',
-          fontSize: 13,
-          color: selectedTheme.secondary,
-          fontWeight: 800,
-          letterSpacing: 0.5,
-          textTransform: 'uppercase',
-        }}>
-          Personnalisation
-        </p>
+          <div className="preset-heading">
+            <span className="eyebrow">Personnalisation</span>
+            <h1>Choisir mon interface</h1>
+            <p>Sélectionne l’un des quatre univers déjà prêts.</p>
+          </div>
+        </header>
 
-        <h1 style={{
-          margin: '0 0 12px',
-          fontSize: 32,
-          lineHeight: 1.12,
-          color: selectedTheme.primary,
-        }}>
-          Adapter NOVAÉ à ma vie
-        </h1>
-
-        <p style={{
-          margin: '0 0 24px',
-          color: selectedTheme.textMuted,
-          fontSize: 15,
-          lineHeight: 1.6,
-          maxWidth: 760,
-        }}>
-          Règle le comportement de Nova, la façon dont elle te rappelle les choses,
-          et l’ambiance visuelle de ton application. Pour l’instant, ces préférences
-          sont enregistrées et seront appliquées progressivement dans toute l’app.
-        </p>
-
-        {error && (
-          <MessageBox
-            type="error"
-            message={error}
-            theme={selectedTheme}
-          />
+        {error && <div className="message error">{error}</div>}
+        {success && (
+          <div className="message success">
+            Ton interface est enregistrée.
+          </div>
         )}
 
-        {successMessage && (
-          <MessageBox
-            type="success"
-            message={successMessage}
-            theme={selectedTheme}
-          />
-        )}
+        {loading ? (
+          <div className="loading-card">Chargement de tes interfaces…</div>
+        ) : (
+          <section className="preset-grid" aria-label="Choix de l’interface">
+            {USER_INTERFACE_PRESETS.map((preset) => {
+              const isSelected = selected === preset.themeKey
 
-        <div style={{ display: 'grid', gap: selectedDensity.gap + 6 }}>
-          <section style={{
-            border: `1px solid ${selectedTheme.border}`,
-            borderRadius: selectedDensity.radius,
-            padding: selectedDensity.cardPadding,
-            background: selectedTheme.surfaceAlt,
-          }}>
-            <h2 style={{ margin: '0 0 8px', color: selectedTheme.primary, fontSize: 24 }}>
-              Comment Nova m’aide
-            </h2>
-
-            <p style={{ margin: '0 0 18px', color: selectedTheme.textMuted, lineHeight: 1.55 }}>
-              Ces réglages serviront à adapter les réponses, les rappels et la priorisation.
-            </p>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-              gap: selectedDensity.gap,
-            }}>
-              <Field label="Comment Nova peut t’appeler ?" theme={selectedTheme}>
-                <input
-                  value={novaProfile.display_name}
-                  onChange={(event) => updateNovaProfile('display_name', event.target.value)}
-                  placeholder="Ex : Ness"
-                  style={inputStyle(selectedTheme)}
-                />
-              </Field>
-
-              <Field label="Contexte de vie" theme={selectedTheme}>
-                <select
-                  value={novaProfile.life_context}
-                  onChange={(event) => updateNovaProfile('life_context', event.target.value as LifeContext)}
-                  style={inputStyle(selectedTheme)}
-                >
-                  {LIFE_CONTEXT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="Organisation du foyer" theme={selectedTheme}>
-                <select
-                  value={novaProfile.household_context}
-                  onChange={(event) => updateNovaProfile('household_context', event.target.value as HouseholdContext)}
-                  style={inputStyle(selectedTheme)}
-                >
-                  {HOUSEHOLD_CONTEXT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="Charge mentale actuelle" theme={selectedTheme}>
-                <select
-                  value={novaProfile.mental_load_level}
-                  onChange={(event) => updateNovaProfile('mental_load_level', event.target.value as MentalLoadLevel)}
-                  style={inputStyle(selectedTheme)}
-                >
-                  {MENTAL_LOAD_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-
-            <ChoiceSection title="Ton de Nova" theme={selectedTheme}>
-              {NOVA_TONE_OPTIONS.map((option) => (
-                <ChoiceCard
-                  key={option.value}
-                  selected={novaProfile.nova_tone === option.value}
-                  title={option.label}
-                  description={option.description}
-                  theme={selectedTheme}
-                  onClick={() => updateNovaProfile('nova_tone', option.value)}
-                />
-              ))}
-            </ChoiceSection>
-
-            <ChoiceSection title="Style de rappels" theme={selectedTheme}>
-              {REMINDER_STYLE_OPTIONS.map((option) => (
-                <ChoiceCard
-                  key={option.value}
-                  selected={novaProfile.reminder_style === option.value}
-                  title={option.label}
-                  description={option.description}
-                  theme={selectedTheme}
-                  onClick={() => updateNovaProfile('reminder_style', option.value)}
-                />
-              ))}
-            </ChoiceSection>
-
-            <ChoiceSection title="Mes priorités" theme={selectedTheme}>
-              {PRIORITY_OPTIONS.map((option) => (
+              return (
                 <button
-                  key={option.value}
+                  key={preset.id}
                   type="button"
-                  onClick={() => togglePriority(option.value)}
-                  style={{
-                    border: novaProfile.main_priorities.includes(option.value)
-                      ? `1px solid ${selectedTheme.primary}`
-                      : `1px solid ${selectedTheme.border}`,
-                    borderRadius: 999,
-                    padding: '10px 14px',
-                    background: novaProfile.main_priorities.includes(option.value)
-                      ? selectedTheme.primary
-                      : selectedTheme.surface,
-                    color: novaProfile.main_priorities.includes(option.value)
-                      ? '#FFFFFF'
-                      : selectedTheme.primary,
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                  }}
+                  className={isSelected ? 'preset-card selected' : 'preset-card'}
+                  onClick={() => choosePreset(preset)}
+                  aria-pressed={isSelected}
                 >
-                  {option.label}
-                </button>
-              ))}
-            </ChoiceSection>
+                  <PresetPreview preset={preset} />
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: selectedDensity.gap,
-              marginTop: 18,
-            }}>
-              <Field label="Ne pas déranger à partir de" theme={selectedTheme}>
-                <input
-                  type="time"
-                  value={novaProfile.quiet_hours_start}
-                  onChange={(event) => updateNovaProfile('quiet_hours_start', event.target.value)}
-                  style={inputStyle(selectedTheme)}
-                />
-              </Field>
-
-              <Field label="Reprendre les rappels à" theme={selectedTheme}>
-                <input
-                  type="time"
-                  value={novaProfile.quiet_hours_end}
-                  onChange={(event) => updateNovaProfile('quiet_hours_end', event.target.value)}
-                  style={inputStyle(selectedTheme)}
-                />
-              </Field>
-            </div>
-
-            <ToggleGrid>
-              <ToggleRow
-                label="Rappels push"
-                description="Recevoir les notifications importantes."
-                checked={novaProfile.prefers_push_reminders}
-                onChange={(value) => updateNovaProfile('prefers_push_reminders', value)}
-                theme={selectedTheme}
-              />
-
-              <ToggleRow
-                label="Rappels email"
-                description="Recevoir certains rappels par email."
-                checked={novaProfile.prefers_email_reminders}
-                onChange={(value) => updateNovaProfile('prefers_email_reminders', value)}
-                theme={selectedTheme}
-              />
-
-              <ToggleRow
-                label="Aide administrative"
-                description="Documents, échéances, rappels administratifs."
-                checked={novaProfile.admin_documents_enabled}
-                onChange={(value) => updateNovaProfile('admin_documents_enabled', value)}
-                theme={selectedTheme}
-              />
-
-              <ToggleRow
-                label="Aide financière"
-                description="Préparer le futur module finances."
-                checked={novaProfile.finance_help_enabled}
-                onChange={(value) => updateNovaProfile('finance_help_enabled', value)}
-                theme={selectedTheme}
-              />
-
-              <ToggleRow
-                label="Aide famille"
-                description="Rendez-vous, enfants, organisation familiale."
-                checked={novaProfile.family_help_enabled}
-                onChange={(value) => updateNovaProfile('family_help_enabled', value)}
-                theme={selectedTheme}
-              />
-
-              <ToggleRow
-                label="Aide repas"
-                description="Repas, courses, charge mentale alimentaire."
-                checked={novaProfile.meals_help_enabled}
-                onChange={(value) => updateNovaProfile('meals_help_enabled', value)}
-                theme={selectedTheme}
-              />
-            </ToggleGrid>
-
-            <Field label="Instructions personnelles pour Nova" theme={selectedTheme}>
-              <textarea
-                value={novaProfile.extra_instructions}
-                onChange={(event) => updateNovaProfile('extra_instructions', event.target.value)}
-                placeholder="Ex : Quand je suis surchargée, donne-moi seulement les 3 actions les plus importantes."
-                rows={4}
-                style={{
-                  ...inputStyle(selectedTheme),
-                  resize: 'vertical',
-                  lineHeight: 1.5,
-                }}
-              />
-            </Field>
-          </section>
-
-          <section style={{
-            border: `1px solid ${selectedTheme.border}`,
-            borderRadius: selectedDensity.radius,
-            padding: selectedDensity.cardPadding,
-            background: selectedTheme.surface,
-          }}>
-            <h2 style={{ margin: '0 0 8px', color: selectedTheme.primary, fontSize: 24 }}>
-              Comment je veux que mon app soit visuellement
-            </h2>
-
-            <p style={{ margin: '0 0 18px', color: selectedTheme.textMuted, lineHeight: 1.55 }}>
-              Ces préférences préparent le futur système de thèmes de NOVAÉ.
-            </p>
-
-            <h3 style={{ margin: '0 0 12px', color: selectedTheme.primary, fontSize: 17 }}>
-              Ambiance couleur
-            </h3>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: selectedDensity.gap,
-              marginBottom: 22,
-            }}>
-              {USER_THEME_ORDER.map((themeKey) => {
-                const theme = USER_THEME_PALETTES[themeKey]
-
-                return (
-                  <button
-                    key={theme.key}
-                    type="button"
-                    onClick={() => updateInterfacePreferences('theme_key', theme.key)}
-                    style={{
-                      textAlign: 'left',
-                      border: interfacePreferences.theme_key === theme.key
-                        ? `2px solid ${theme.primary}`
-                        : `1px solid ${theme.border}`,
-                      borderRadius: 18,
-                      padding: 14,
-                      background: theme.background,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                      <ColorDot color={theme.primary} />
-                      <ColorDot color={theme.primarySoft} />
-                      <ColorDot color={theme.secondary} />
-                      <ColorDot color={theme.accent} />
+                  <div className="preset-meta">
+                    <div>
+                      <strong>{preset.label}</strong>
+                      <span>{preset.description}</span>
                     </div>
 
-                    <p style={{ margin: '0 0 4px', color: theme.primary, fontWeight: 900 }}>
-                      {theme.name}
-                    </p>
-
-                    <p style={{ margin: 0, color: theme.textMuted, fontSize: 13, lineHeight: 1.4 }}>
-                      {theme.description}
-                    </p>
-                  </button>
-                )
-              })}
-            </div>
-
-            <ChoiceSection title="Typographie" theme={selectedTheme}>
-              {USER_FONT_ORDER.map((fontKey) => {
-                const font = USER_FONT_OPTIONS[fontKey]
-
-                return (
-                  <ChoiceCard
-                    key={font.key}
-                    selected={interfacePreferences.font_style === font.key}
-                    title={font.name}
-                    description={font.description}
-                    theme={selectedTheme}
-                    onClick={() => updateInterfacePreferences('font_style', font.key)}
-                  />
-                )
-              })}
-            </ChoiceSection>
-
-            <ChoiceSection title="Densité de l’interface" theme={selectedTheme}>
-              {USER_DENSITY_ORDER.map((densityKey) => {
-                const density = USER_DENSITY_OPTIONS[densityKey]
-
-                return (
-                  <ChoiceCard
-                    key={density.key}
-                    selected={interfacePreferences.interface_density === density.key}
-                    title={density.name}
-                    description={density.description}
-                    theme={selectedTheme}
-                    onClick={() => updateInterfacePreferences('interface_density', density.key)}
-                  />
-                )
-              })}
-            </ChoiceSection>
-
-            <ChoiceSection title="Style des tuiles" theme={selectedTheme}>
-              {TILE_STYLE_OPTIONS.map((option) => (
-                <ChoiceCard
-                  key={option.value}
-                  selected={interfacePreferences.tile_style === option.value}
-                  title={option.label}
-                  description={option.description}
-                  theme={selectedTheme}
-                  onClick={() => updateInterfacePreferences('tile_style', option.value)}
-                />
-              ))}
-            </ChoiceSection>
-
-            <ChoiceSection title="Accueil préféré" theme={selectedTheme}>
-              {HOME_LAYOUT_OPTIONS.map((option) => (
-                <ChoiceCard
-                  key={option.value}
-                  selected={interfacePreferences.home_layout === option.value}
-                  title={option.label}
-                  description={option.description}
-                  theme={selectedTheme}
-                  onClick={() => updateInterfacePreferences('home_layout', option.value)}
-                />
-              ))}
-            </ChoiceSection>
-
-            <ToggleGrid>
-              <ToggleRow
-                label="Réduire les animations"
-                description="Utile si tu veux une interface plus calme."
-                checked={interfacePreferences.reduced_motion}
-                onChange={(value) => updateInterfacePreferences('reduced_motion', value)}
-                theme={selectedTheme}
-              />
-
-              <ToggleRow
-                label="Contraste renforcé"
-                description="Prépare une meilleure lisibilité visuelle."
-                checked={interfacePreferences.high_contrast}
-                onChange={(value) => updateInterfacePreferences('high_contrast', value)}
-                theme={selectedTheme}
-              />
-            </ToggleGrid>
+                    <span className="selection-indicator">
+                      {isSelected ? '✓' : ''}
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
           </section>
+        )}
 
-          <section style={{
-            border: `1px solid ${selectedTheme.border}`,
-            borderRadius: selectedDensity.radius,
-            padding: selectedDensity.cardPadding,
-            background: selectedTheme.surfaceAlt,
-          }}>
-            <h2 style={{ margin: '0 0 8px', color: selectedTheme.primary, fontSize: 22 }}>
-              Aperçu rapide
-            </h2>
+        <div className="sticky-actions">
+          <button
+            type="button"
+            className="save-button"
+            onClick={() => void save()}
+            disabled={saving || loading}
+          >
+            <PremiumIcon name="sparkle" width={19} height={19} />
+            {saving ? 'Enregistrement…' : 'Enregistrer mon choix'}
+          </button>
 
-            <p style={{ margin: '0 0 16px', color: selectedTheme.textMuted, lineHeight: 1.5 }}>
-              Voici comment les couleurs pourraient se répartir par univers.
-            </p>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-              gap: selectedDensity.gap,
-            }}>
-              <PreviewTile label="Quotidien" color={selectedTheme.categories.daily} theme={selectedTheme} />
-              <PreviewTile label="Administratif" color={selectedTheme.categories.admin} theme={selectedTheme} />
-              <PreviewTile label="Finances" color={selectedTheme.categories.finance} theme={selectedTheme} />
-              <PreviewTile label="Famille" color={selectedTheme.categories.family} theme={selectedTheme} />
-              <PreviewTile label="Repas" color={selectedTheme.categories.meals} theme={selectedTheme} />
-              <PreviewTile label="Coffre" color={selectedTheme.categories.vault} theme={selectedTheme} />
-            </div>
-          </section>
-
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 10,
-            flexWrap: 'wrap',
-            position: 'sticky',
-            bottom: 14,
-            padding: 12,
-            background: selectedTheme.surface,
-            border: `1px solid ${selectedTheme.border}`,
-            borderRadius: 999,
-            boxShadow: '0 12px 30px rgba(55, 35, 25, 0.10)',
-          }}>
-            <Link
-              href="/"
-              style={{
-                border: `1px solid ${selectedTheme.border}`,
-                borderRadius: 999,
-                padding: '11px 16px',
-                color: selectedTheme.primary,
-                textDecoration: 'none',
-                fontWeight: 800,
-                background: selectedTheme.surface,
-              }}
-            >
-              Annuler
-            </Link>
-
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              style={{
-                border: 'none',
-                borderRadius: 999,
-                padding: '11px 18px',
-                color: '#FFFFFF',
-                background: isSaving ? selectedTheme.secondary : selectedTheme.primary,
-                fontWeight: 900,
-                cursor: isSaving ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {isSaving ? 'Enregistrement...' : 'Enregistrer ma personnalisation'}
-            </button>
-          </div>
+          <button
+            type="button"
+            className="cancel-button"
+            onClick={cancel}
+            disabled={saving}
+          >
+            Annuler les changements
+          </button>
         </div>
-      </section>
+      </div>
+
+      <style jsx>{`
+        .preset-page {
+          min-height: 100dvh;
+          padding: 30px 16px 120px;
+          color: var(--novae-text-main);
+          background:
+            radial-gradient(
+              circle at 8% 2%,
+              color-mix(in srgb, var(--novae-primary-soft) 62%, transparent),
+              transparent 28%
+            ),
+            var(--novae-background);
+        }
+
+        .preset-shell {
+          width: min(100%, 1040px);
+          margin: 0 auto;
+        }
+
+        .preset-header {
+          margin-bottom: 24px;
+        }
+
+        .back-link {
+          display: inline-flex;
+          margin-bottom: 20px;
+          color: var(--novae-primary);
+          font-size: 13px;
+          font-weight: 800;
+          text-decoration: none;
+        }
+
+        .preset-heading {
+          max-width: 720px;
+        }
+
+        .eyebrow {
+          color: var(--novae-metal);
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+        }
+
+        h1 {
+          margin: 7px 0 8px;
+          font-family: var(--novae-font-title);
+          font-size: clamp(38px, 7vw, 62px);
+          font-weight: var(--novae-title-weight);
+          line-height: 0.98;
+        }
+
+        .preset-heading p {
+          margin: 0;
+          color: var(--novae-text-muted);
+          font-size: 16px;
+          line-height: 1.5;
+        }
+
+        .message,
+        .loading-card {
+          margin-bottom: 18px;
+          padding: 15px 17px;
+          background: var(--novae-surface);
+          border: 1px solid var(--novae-border);
+          border-radius: 16px;
+          font-weight: 800;
+        }
+
+        .message.success {
+          color: var(--novae-success);
+        }
+
+        .message.error {
+          color: var(--novae-danger);
+        }
+
+        .preset-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 18px;
+        }
+
+        .preset-card {
+          overflow: hidden;
+          padding: 0;
+          color: inherit;
+          text-align: left;
+          background: var(--novae-surface);
+          border: 1px solid var(--novae-border);
+          border-radius: 24px;
+          cursor: pointer;
+          box-shadow: 0 16px 44px var(--novae-shadow);
+          transition:
+            transform 180ms ease,
+            border-color 180ms ease,
+            box-shadow 180ms ease;
+        }
+
+        .preset-card:hover {
+          transform: translateY(-3px);
+        }
+
+        .preset-card.selected {
+          border: 2px solid var(--novae-metal);
+          box-shadow:
+            0 0 0 4px color-mix(in srgb, var(--novae-metal) 15%, transparent),
+            0 20px 48px var(--novae-shadow);
+        }
+
+        .preset-preview {
+          min-height: 330px;
+          padding: 18px;
+          color: #1e2c26;
+          background: #fbf8f2;
+        }
+
+        .preview-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .preview-brand {
+          color: #b58549;
+          font-family: 'Cormorant Garamond', Georgia, serif;
+          font-size: 24px;
+          letter-spacing: 0.12em;
+        }
+
+        .preview-avatar {
+          width: 24px;
+          height: 24px;
+          background: linear-gradient(135deg, #dbc4b2, #9f8068);
+          border: 1px solid rgba(255, 255, 255, 0.7);
+          border-radius: 50%;
+        }
+
+        .preview-date {
+          display: block;
+          margin-top: 14px;
+          color: #a16f35;
+          font-size: 7px;
+          font-weight: 800;
+          letter-spacing: 0.12em;
+        }
+
+        .preview-greeting {
+          display: block;
+          margin: 2px 0 12px;
+          font-family: 'Cormorant Garamond', Georgia, serif;
+          font-size: 24px;
+          font-weight: 500;
+        }
+
+        .preview-hero {
+          position: relative;
+          overflow: hidden;
+          min-height: 154px;
+          padding: 16px;
+          color: #fffaf2;
+          background: linear-gradient(135deg, #193d33, #0d2b25);
+          border-radius: 18px;
+        }
+
+        .preview-hero > div:first-child {
+          position: relative;
+          z-index: 2;
+          width: 62%;
+        }
+
+        .preview-hero strong {
+          display: block;
+          font-family: 'Cormorant Garamond', Georgia, serif;
+          font-size: 17px;
+          font-weight: 600;
+          line-height: 1.05;
+        }
+
+        .preview-hero small {
+          display: block;
+          margin-top: 7px;
+          color: rgba(255, 255, 255, 0.74);
+          font-size: 7px;
+        }
+
+        .preview-wordmark {
+          position: absolute;
+          top: 42px;
+          right: 16px;
+          color: #d4a45f;
+          font-family: 'Cormorant Garamond', Georgia, serif;
+          font-size: 27px;
+          letter-spacing: 0.05em;
+        }
+
+        .preview-actions {
+          position: absolute;
+          right: 12px;
+          bottom: 12px;
+          left: 12px;
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 5px;
+        }
+
+        .preview-actions i {
+          padding: 6px 2px;
+          font-size: 6px;
+          font-style: normal;
+          text-align: center;
+          border: 1px solid rgba(255, 255, 255, 0.24);
+          border-radius: 7px;
+        }
+
+        .preview-situation {
+          margin-top: 12px;
+        }
+
+        .preview-situation > span {
+          font-family: 'Cormorant Garamond', Georgia, serif;
+          font-size: 13px;
+        }
+
+        .preview-panels,
+        .preview-metrics {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 7px;
+          margin-top: 7px;
+        }
+
+        .preview-panels i {
+          height: 48px;
+          background: rgba(255, 255, 255, 0.7);
+          border: 1px solid rgba(160, 130, 90, 0.22);
+          border-radius: 10px;
+        }
+
+        .preview-metrics {
+          grid-template-columns: repeat(3, 1fr);
+          padding: 10px;
+          background: rgba(255, 255, 255, 0.72);
+          border: 1px solid rgba(160, 130, 90, 0.2);
+          border-radius: 10px;
+        }
+
+        .preview-metrics i {
+          font-family: 'Cormorant Garamond', Georgia, serif;
+          font-size: 18px;
+          font-style: normal;
+          text-align: center;
+        }
+
+        .preview-choice_2 .preview-hero {
+          background:
+            radial-gradient(circle at 86% 80%, rgba(232, 174, 83, 0.5), transparent 22%),
+            linear-gradient(135deg, #061a33, #020d1d);
+        }
+
+        .preview-choice_3 {
+          background:
+            radial-gradient(circle at 90% 0, rgba(116, 72, 105, 0.14), transparent 28%),
+            #fbf7f6;
+        }
+
+        .preview-choice_3 .preview-hero {
+          background:
+            radial-gradient(circle at 88% 85%, rgba(220, 159, 111, 0.34), transparent 24%),
+            linear-gradient(135deg, #5a294f, #33182f);
+        }
+
+        .preview-choice_4 {
+          color: #f4f0e9;
+          background:
+            linear-gradient(135deg, rgba(255, 255, 255, 0.025), transparent),
+            #0b0f12;
+        }
+
+        .preview-choice_4 .preview-brand,
+        .preview-choice_4 .preview-date,
+        .preview-choice_4 .preview-wordmark {
+          color: #d09a57;
+        }
+
+        .preview-choice_4 .preview-greeting,
+        .preview-choice_4 .preview-situation > span {
+          color: #f4f0e9;
+        }
+
+        .preview-choice_4 .preview-hero {
+          background:
+            radial-gradient(circle at 88% 85%, rgba(224, 174, 107, 0.32), transparent 23%),
+            linear-gradient(135deg, #07131f, #03080d);
+          border: 1px solid rgba(208, 154, 87, 0.38);
+        }
+
+        .preview-choice_4 .preview-panels i {
+          background: #12171b;
+          border-color: #5e4a32;
+        }
+
+        .preset-meta {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 18px;
+        }
+
+        .preset-meta strong {
+          display: block;
+          font-family: var(--novae-font-title);
+          font-size: 27px;
+          font-weight: 500;
+        }
+
+        .preset-meta span:not(.selection-indicator) {
+          display: block;
+          margin-top: 2px;
+          color: var(--novae-text-muted);
+          font-size: 14px;
+        }
+
+        .selection-indicator {
+          display: inline-flex;
+          flex: 0 0 42px;
+          width: 42px;
+          height: 42px;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+          background: var(--novae-metal);
+          border: 1px solid var(--novae-metal);
+          border-radius: 50%;
+          font-size: 20px;
+          font-weight: 900;
+        }
+
+        .preset-card:not(.selected) .selection-indicator {
+          color: transparent;
+          background: transparent;
+        }
+
+        .sticky-actions {
+          position: sticky;
+          bottom: 12px;
+          z-index: 20;
+          display: grid;
+          grid-template-columns: 1.5fr 1fr;
+          gap: 10px;
+          margin-top: 22px;
+          padding: 12px;
+          background: color-mix(
+            in srgb,
+            var(--novae-surface) 90%,
+            transparent
+          );
+          border: 1px solid var(--novae-border);
+          border-radius: 22px;
+          box-shadow: 0 14px 40px var(--novae-shadow);
+          backdrop-filter: blur(18px);
+        }
+
+        .save-button,
+        .cancel-button {
+          display: inline-flex;
+          min-height: 52px;
+          align-items: center;
+          justify-content: center;
+          gap: 9px;
+          padding: 12px 18px;
+          font-weight: 900;
+          border-radius: 15px;
+          cursor: pointer;
+        }
+
+        .save-button {
+          color: var(--novae-background);
+          background: var(--novae-primary);
+          border: 1px solid var(--novae-primary);
+        }
+
+        .cancel-button {
+          color: var(--novae-primary);
+          background: transparent;
+          border: 1px solid var(--novae-border);
+        }
+
+        button:disabled {
+          cursor: wait;
+          opacity: 0.6;
+        }
+
+        @media (max-width: 760px) {
+          .preset-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .preset-preview {
+            min-height: 310px;
+          }
+
+          .sticky-actions {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </main>
   )
 }
 
-function inputStyle(theme: ReturnType<typeof getUserThemePalette>): React.CSSProperties {
-  return {
-    width: '100%',
-    boxSizing: 'border-box',
-    border: `1px solid ${theme.border}`,
-    borderRadius: 12,
-    padding: '11px 13px',
-    background: theme.surface,
-    color: theme.textMain,
-    fontSize: 15,
-  }
-}
-
-function Field({
-  label,
-  theme,
-  children,
-}: {
-  label: string
-  theme: ReturnType<typeof getUserThemePalette>
-  children: React.ReactNode
-}) {
-  return (
-    <label style={{ display: 'block', marginBottom: 14 }}>
-      <span style={{
-        display: 'block',
-        marginBottom: 6,
-        color: theme.primary,
-        fontWeight: 800,
-        fontSize: 14,
-      }}>
-        {label}
-      </span>
-      {children}
-    </label>
-  )
-}
-
-function ChoiceSection({
-  title,
-  theme,
-  children,
-}: {
-  title: string
-  theme: ReturnType<typeof getUserThemePalette>
-  children: React.ReactNode
-}) {
-  return (
-    <div style={{ marginTop: 20 }}>
-      <h3 style={{ margin: '0 0 10px', color: theme.primary, fontSize: 17 }}>
-        {title}
-      </h3>
-
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-        gap: 10,
-      }}>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function ChoiceCard({
-  selected,
-  title,
-  description,
-  theme,
-  onClick,
-}: {
-  selected: boolean
-  title: string
-  description: string
-  theme: ReturnType<typeof getUserThemePalette>
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        textAlign: 'left',
-        border: selected ? `2px solid ${theme.primary}` : `1px solid ${theme.border}`,
-        borderRadius: 16,
-        padding: 14,
-        background: selected ? theme.primarySoft : theme.surface,
-        color: theme.textMain,
-        cursor: 'pointer',
-      }}
-    >
-      <p style={{ margin: '0 0 5px', color: theme.primary, fontWeight: 900 }}>
-        {title}
-      </p>
-
-      <p style={{ margin: 0, color: theme.textMuted, lineHeight: 1.4, fontSize: 13 }}>
-        {description}
-      </p>
-    </button>
-  )
-}
-
-function ToggleGrid({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-      gap: 10,
-      marginTop: 18,
-    }}>
-      {children}
-    </div>
-  )
-}
-
-function ToggleRow({
-  label,
-  description,
-  checked,
-  onChange,
-  theme,
-}: {
-  label: string
-  description: string
-  checked: boolean
-  onChange: (checked: boolean) => void
-  theme: ReturnType<typeof getUserThemePalette>
-}) {
-  return (
-    <label style={{
-      display: 'flex',
-      gap: 12,
-      alignItems: 'flex-start',
-      border: `1px solid ${theme.border}`,
-      borderRadius: 16,
-      padding: 14,
-      background: theme.surface,
-      cursor: 'pointer',
-    }}>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        style={{ marginTop: 3 }}
-      />
-
-      <span>
-        <span style={{ display: 'block', color: theme.primary, fontWeight: 900 }}>
-          {label}
-        </span>
-
-        <span style={{ display: 'block', color: theme.textMuted, fontSize: 13, lineHeight: 1.4 }}>
-          {description}
-        </span>
-      </span>
-    </label>
-  )
-}
-
-function ColorDot({ color }: { color: string }) {
-  return (
-    <span style={{
-      width: 24,
-      height: 24,
-      borderRadius: 999,
-      background: color,
-      border: '1px solid rgba(0,0,0,0.08)',
-      display: 'inline-block',
-    }} />
-  )
-}
-
-function PreviewTile({
-  label,
-  color,
-  theme,
-}: {
-  label: string
-  color: string
-  theme: ReturnType<typeof getUserThemePalette>
-}) {
-  return (
-    <div style={{
-      minHeight: 82,
-      borderRadius: 18,
-      padding: 14,
-      background: color,
-      border: `1px solid ${theme.border}`,
-    }}>
-      <p style={{ margin: 0, color: theme.primary, fontWeight: 900 }}>
-        {label}
-      </p>
-
-      <p style={{ margin: '8px 0 0', color: theme.textMuted, fontSize: 13 }}>
-        Tuile personnalisée
-      </p>
-    </div>
-  )
-}
-
-function MessageBox({
-  type,
-  message,
-  theme,
-}: {
-  type: 'success' | 'error'
-  message: string
-  theme: ReturnType<typeof getUserThemePalette>
-}) {
-  return (
-    <div style={{
-      border: `1px solid ${type === 'success' ? theme.success : theme.danger}`,
-      background: type === 'success' ? 'rgba(47, 122, 79, 0.10)' : 'rgba(159, 37, 37, 0.10)',
-      color: type === 'success' ? theme.success : theme.danger,
-      borderRadius: 16,
-      padding: 14,
-      marginBottom: 18,
-      fontWeight: 800,
-      lineHeight: 1.5,
-    }}>
-      {message}
-    </div>
-  )
-}

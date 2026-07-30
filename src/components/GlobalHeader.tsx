@@ -1,15 +1,11 @@
 'use client'
+
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import PremiumIcon from '@/components/ui/PremiumIcon'
 import { supabase } from '@/lib/supabase/client'
 
-/**
- * Header global affiché sur toutes les pages SAUF l'accueil ('/') et,
- * pour une visiteuse anonyme, SAUF /blog (contenu éditorial public — voir
- * plus bas). Sur l'accueil, c'est le composant HomeHeader qui prend le relais.
- * Affiche le bouton "Passer Premium" pour les utilisatrices en trial/expired.
- */
 export default function GlobalHeader() {
   const pathname = usePathname()
   const [tier, setTier] = useState<string | null>(null)
@@ -19,123 +15,174 @@ export default function GlobalHeader() {
 
   useEffect(() => {
     let cancelled = false
+
     const loadSubscription = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
         if (!user || cancelled) {
           setLoaded(true)
           return
         }
+
         setIsLoggedIn(true)
+
         const { data } = await supabase
           .from('users')
           .select('subscription_tier, trial_ends_at')
           .eq('id', user.id)
           .maybeSingle()
-        if (cancelled) return
-        if (data) {
-          setTier(data.subscription_tier || null)
-          if (data.trial_ends_at && data.subscription_tier === 'trial') {
-            const days = Math.ceil((new Date(data.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-            setTrialDaysLeft(Math.max(0, days))
-          }
+
+        if (cancelled || !data) return
+
+        setTier(data.subscription_tier || null)
+
+        if (data.trial_ends_at && data.subscription_tier === 'trial') {
+          const days = Math.ceil(
+            (new Date(data.trial_ends_at).getTime() - Date.now()) /
+              (1000 * 60 * 60 * 24),
+          )
+          setTrialDaysLeft(Math.max(0, days))
         }
-      } catch (err) {
-        console.error('[GlobalHeader] subscription load error', err)
+      } catch (error) {
+        console.error('[GlobalHeader] load error', error)
       } finally {
         if (!cancelled) setLoaded(true)
       }
     }
-    loadSubscription()
-    return () => { cancelled = true }
+
+    void loadSubscription()
+
+    return () => {
+      cancelled = true
+    }
   }, [pathname])
 
-  // Pages où on cache complètement le header
   if (pathname === '/') return null
 
-  // Le blog est un contenu éditorial public, pas un écran de l'app : une
-  // lectrice anonyme ne doit voir aucun bandeau d'app (ni logo générique,
-  // ni CTA Premium) — chaque page du blog a son propre header. Une
-  // utilisatrice déjà connectée garde en revanche le header habituel,
-  // Premium compris, comme sur le reste de l'app.
   const isBlog = pathname?.startsWith('/blog') ?? false
   if (isBlog && (!loaded || !isLoggedIn)) return null
 
-  // Pages publiques : header simplifié sans CTA Premium
-  const minimalPaths = ['/auth', '/onboarding', '/subscribe', '/cgu', '/privacy']
-  const isMinimal = minimalPaths.some(p => pathname?.startsWith(p))
+  const minimalPaths = [
+    '/auth',
+    '/onboarding',
+    '/subscribe',
+    '/cgu',
+    '/confidentialite',
+  ]
+  const isMinimal = minimalPaths.some((path) =>
+    pathname?.startsWith(path),
+  )
 
   const isPremium = tier === 'premium'
-  const isTrialActive = tier === 'trial' && trialDaysLeft !== null && trialDaysLeft > 0
-  const showPremiumCTA = loaded && !isMinimal && !isPremium
+  const isTrialActive =
+    tier === 'trial' && trialDaysLeft !== null && trialDaysLeft > 0
 
   return (
-    <header
-      style={{
-        padding: '14px 20px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottom: '1px solid rgba(196,149,106,0.1)',
-        background: 'rgba(255,255,255,0.6)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-      }}
-    >
-      <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
-        <img src="/novae-logo.svg" alt="NOVAÉ" height={36} style={{ height: 36 }} />
+    <header className="global-header">
+      <Link href="/" className="global-brand" aria-label="Accueil NOVAÉ">
+        <span className="official-full-logo" aria-hidden="true" />
       </Link>
 
-      {/* CTA Premium pour trial / expired / free */}
-      {showPremiumCTA && (
-        <Link
-          href="/subscribe"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 16px',
-            borderRadius: 12,
-            background: isTrialActive
-              ? 'rgba(196,149,106,0.15)'
-              : 'linear-gradient(135deg,#c4956a 0%,#8b5a3c 100%)',
-            color: isTrialActive ? '#8b5a3c' : '#ffffff',
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: 12,
-            fontWeight: 700,
-            textDecoration: 'none',
-            letterSpacing: '0.02em',
-            border: isTrialActive ? '1px solid rgba(196,149,106,0.3)' : 'none',
-            boxShadow: isTrialActive ? 'none' : '0 4px 12px rgba(139,90,60,0.25)',
-            transition: 'all 0.2s',
-          }}
-        >
-          <span style={{ fontSize: 10 }}>✦</span>
-          <span>
-            {isTrialActive
-              ? `Trial · ${trialDaysLeft}j restants`
-              : 'Passer Premium'}
-          </span>
-        </Link>
+      {!isMinimal && (
+        <div className="global-actions">
+          {!isPremium && loaded && (
+            <Link
+              href="/subscribe"
+              className={isTrialActive ? 'premium-link trial' : 'premium-link'}
+            >
+              <PremiumIcon name="sparkle" width={15} height={15} />
+              <span>
+                {isTrialActive
+                  ? `Essai · ${trialDaysLeft} j`
+                  : 'Premium'}
+              </span>
+            </Link>
+          )}
+
+          {isPremium && (
+            <span className="premium-badge">
+              <PremiumIcon name="sparkle" width={14} height={14} />
+              Premium
+            </span>
+          )}
+        </div>
       )}
 
-      {/* Badge Premium discret */}
-      {loaded && !isMinimal && isPremium && (
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '6px 14px',
-          borderRadius: 999,
-          background: 'linear-gradient(135deg,#c4956a 0%,#8b5a3c 100%)',
-          color: '#ffffff',
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: '0.05em',
-        }}>
-          ✦ Premium
-        </span>
-      )}
+      <style jsx>{`
+        .global-header {
+          position: sticky;
+          top: 0;
+          z-index: 55;
+          display: flex;
+          min-height: 64px;
+          align-items: center;
+          justify-content: space-between;
+          padding: 9px 20px;
+          color: var(--novae-text-main);
+          background: color-mix(
+            in srgb,
+            var(--novae-background) 91%,
+            transparent
+          );
+          border-bottom: 1px solid var(--novae-border);
+          backdrop-filter: blur(18px);
+        }
+
+        .global-brand {
+          display: flex;
+          align-items: center;
+        }
+
+        .official-full-logo {
+          display: block;
+          width: 150px;
+          height: 43px;
+          background: var(--novae-metal);
+          -webkit-mask:
+            url('/novae-logo-complet-mask.png')
+            center / contain no-repeat;
+          mask:
+            url('/novae-logo-complet-mask.png')
+            center / contain no-repeat;
+        }
+
+        @media (max-width: 520px) {
+          .official-full-logo {
+            width: 132px;
+            height: 38px;
+          }
+        }
+
+        .global-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .premium-link,
+        .premium-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 13px;
+          color: var(--novae-background);
+          font-size: 10px;
+          font-weight: 900;
+          text-decoration: none;
+          background: var(--novae-primary);
+          border: 1px solid var(--novae-metal);
+          border-radius: 999px;
+        }
+
+        .premium-link.trial {
+          color: var(--novae-primary);
+          background: var(--novae-primary-soft);
+          border-color: var(--novae-border);
+        }
+      `}</style>
     </header>
   )
 }

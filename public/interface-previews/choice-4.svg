@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="470" viewBox="0 0 760 470">
+      <defs>
+        <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#07131F"/>
+          <stop offset="1" stop-color="#03080D"/>
+        </linearGradient>
+        <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="12" stdDeviation="13" flood-color="#07131F" flood-opacity=".18"/>
+        </filter>
+        <style>
+          .logo { font: 500 26px Georgia, serif; letter-spacing: .12em; fill: #D7A25C; }
+          .date { font: 700 10px Arial, sans-serif; letter-spacing: .14em; fill: #D7A25C; }
+          .hello { font: 500 34px 'Libre Baskerville', Georgia, serif; fill: #F4F0E9; }
+          .hero-title { font: 500 28px 'Libre Baskerville', Georgia, serif; fill: #fffaf3; }
+          .hero-small { font: 500 11px Arial, sans-serif; fill: rgba(255,255,255,.72); }
+          .action { font: 700 10px Arial, sans-serif; fill: #fffaf3; }
+          .eyebrow { font: 800 10px Arial, sans-serif; letter-spacing: .12em; fill: #D7A25C; }
+          .card-title { font: 600 13px 'Libre Baskerville', Georgia, serif; fill: #F4F0E9; }
+          .metric { font: 500 32px 'Libre Baskerville', Georgia, serif; fill: #F4F0E9; text-anchor: middle; }
+          .small { font: 700 8px Arial, sans-serif; letter-spacing: .09em; fill: #AAA9A5; text-anchor: middle; }
+          .module { font: 600 11px 'Libre Baskerville', Georgia, serif; fill: #F4F0E9; text-anchor: middle; }
+        </style>
+      </defs>
+
+      <rect width="760" height="470" rx="28" fill="#0B0F12"/>
+      
+        <path d="M0 70 L180 0" stroke="#5E4A32" opacity=".25"/>
+        <path d="M110 180 L370 0" stroke="#5E4A32" opacity=".18"/>
+        <path d="M520 210 L760 50" stroke="#5E4A32" opacity=".15"/>
+        
+      <rect x="0" y="0" width="760" height="56" fill="#12171B" opacity=".92"/>
+      <line x1="0" y1="56" x2="760" y2="56" stroke="#5E4A32"/>
+      <text x="34" y="36" class="logo">NOVAÉ</text>
+      <circle cx="710" cy="28" r="14" fill="#03080D" stroke="#D7A25C"/>
+
+      <text x="36" y="79" class="date">MERCREDI 29 JUILLET</text>
+      <text x="36" y="110" class="hello">Bonsoir, Ness</text>
+
+      <rect x="36" y="128" width="688" height="138" rx="22" fill="url(#hero)" stroke="#D7A25C" filter="url(#shadow)"/>
+      <text x="62" y="165" class="hero-title">Qu’est-ce que je peux faire</text>
+      <text x="62" y="194" class="hero-title">pour toi aujourd’hui ?</text>
+      <text x="62" y="216" class="hero-small">Nova t’aide à gagner du temps et à passer à l’essentiel.</text>
+      <text x="590" y="188" class="logo">NO</text>
+      <g transform="translate(58 232)">
+        <rect width="180" height="24" rx="8" fill="rgba(0,0,0,.12)" stroke="#D7A25C" opacity=".85"/>
+        <rect x="202" width="180" height="24" rx="8" fill="rgba(0,0,0,.12)" stroke="#D7A25C" opacity=".85"/>
+        <rect x="404" width="180" height="24" rx="8" fill="rgba(0,0,0,.12)" stroke="#D7A25C" opacity=".85"/>
+        <text x="90" y="16" class="action" text-anchor="middle">Écrire</text>
+        <text x="292" y="16" class="action" text-anchor="middle">Parler</text>
+        <text x="494" y="16" class="action" text-anchor="middle">Importer</text>
+      </g>
+
+      
+        <rect x="36" y="286" width="430" height="112" rx="18" fill="#12171B" stroke="#5E4A32"/>
+        <rect x="482" y="286" width="242" height="112" rx="18" fill="#12171B" stroke="#5E4A32"/>
+        <circle cx="74" cy="322" r="18" fill="#03080D" stroke="#D7A25C"/>
+        <circle cx="518" cy="322" r="18" fill="#03080D" stroke="#D7A25C"/>
+        <text x="106" y="319" class="card-title">Les 3 prochaines heures</text>
+        <text x="550" y="319" class="card-title">Priorité</text>
+        <line x1="106" y1="342" x2="420" y2="342" stroke="#5E4A32"/>
+        <line x1="106" y1="364" x2="310" y2="364" stroke="#AAA9A5" stroke-width="5" stroke-linecap="round"/>
+        <line x1="550" y1="353" x2="680" y2="353" stroke="#AAA9A5" stroke-width="5" stroke-linecap="round"/>
+        
+
+      <text x="36" y="430" class="eyebrow">MES MODULES</text>
+      <g transform="translate(360 418)">
+        <rect x="-130" y="0" width="54" height="40" rx="10" fill="#03080D" stroke="#D7A25C"/>
+        <rect x="-27" y="0" width="54" height="40" rx="10" fill="#03080D" stroke="#D7A25C"/>
+        <rect x="76" y="0" width="54" height="40" rx="10" fill="#03080D" stroke="#D7A25C"/>
+        <text x="-103" y="58" class="module">Documents</text>
+        <text x="0" y="58" class="module">Planner</text>
+        <text x="103" y="58" class="module">Repas</text>
+      </g>
+    </svg>

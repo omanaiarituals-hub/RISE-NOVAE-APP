@@ -1,33 +1,163 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Libre+Baskerville:wght@400;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --novae-background: #fbf8f2;
+  --novae-surface: #fffdf9;
+  --novae-surface-alt: #f5f0e8;
+  --novae-primary: #173d32;
+  --novae-primary-soft: #e1e8df;
+  --novae-secondary: #6d5a3e;
+  --novae-accent: #b88a4b;
+  --novae-metal: #c69a5b;
+  --novae-hero-start: #193d33;
+  --novae-hero-end: #0d2b25;
+  --novae-hero-text: #fffdf8;
+  --novae-text-main: #1c2924;
+  --novae-text-muted: #6d6a61;
+  --novae-border: #e4d8c9;
+  --novae-success: #2f7a4f;
+  --novae-warning: #a66d1d;
+  --novae-danger: #9f2525;
+  --novae-shadow: rgba(39, 52, 45, 0.14);
+
+  --novae-font-body: 'Manrope', 'Inter', system-ui, sans-serif;
+  --novae-font-title: 'Cormorant Garamond', Georgia, serif;
+  --novae-title-weight: 500;
+  --novae-title-letter-spacing: 0;
+
+  --novae-card-padding: 20px;
+  --novae-gap: 14px;
+  --novae-radius-card: 22px;
+  --novae-radius-small: 15px;
+}
+
 @layer base {
   html {
+    min-height: 100%;
     scroll-behavior: smooth;
+    background: var(--novae-background);
   }
-  
+
   body {
-    @apply bg-novae-cream text-novae-anthracite font-sans;
+    min-height: 100%;
+    margin: 0;
+    color: var(--novae-text-main);
+    background: var(--novae-background);
+    font-family: var(--novae-font-body);
+    transition:
+      color 180ms ease,
+      background-color 180ms ease;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  .novae-title {
+    font-family: var(--novae-font-title);
+    font-weight: var(--novae-title-weight);
+    letter-spacing: var(--novae-title-letter-spacing);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  a,
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection {
+    color: var(--novae-background);
+    background: var(--novae-primary);
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-novae-gold text-white px-6 py-3 rounded-lg font-medium hover:bg-novae-gold-light transition-colors duration-200;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.8rem 1.5rem;
+    color: var(--novae-background);
+    background: var(--novae-primary);
+    border-radius: var(--novae-radius-small);
+    font-weight: 800;
   }
-  
+
   .btn-secondary {
-    @apply bg-novae-beige text-novae-anthracite px-6 py-3 rounded-lg font-medium hover:bg-novae-beige-light transition-colors duration-200;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.8rem 1.5rem;
+    color: var(--novae-primary);
+    background: var(--novae-surface);
+    border: 1px solid var(--novae-border);
+    border-radius: var(--novae-radius-small);
+    font-weight: 800;
   }
-  
+
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-novae-beige/20 p-6;
+    padding: var(--novae-card-padding);
+    color: var(--novae-text-main);
+    background: var(--novae-surface);
+    border: 1px solid var(--novae-border);
+    border-radius: var(--novae-radius-card);
+    box-shadow: 0 12px 34px var(--novae-shadow);
   }
-  
+
   .input-field {
-    @apply w-full px-4 py-3 border border-novae-beige/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-novae-gold/50 focus:border-novae-gold transition-all duration-200;
+    width: 100%;
+    padding: 0.8rem 1rem;
+    color: var(--novae-text-main);
+    background: var(--novae-surface);
+    border: 1px solid var(--novae-border);
+    border-radius: var(--novae-radius-small);
+    outline: none;
+  }
+
+  .input-field:focus {
+    border-color: var(--novae-primary);
+    box-shadow: 0 0 0 3px
+      color-mix(in srgb, var(--novae-primary) 15%, transparent);
+  }
+}
+
+html[data-novae-preset='choice_4'] {
+  color-scheme: dark;
+}
+
+html[data-novae-preset='choice_4'] img {
+  color-scheme: normal;
+}
+
+html[data-novae-preset='choice_4'] .global-header,
+html[data-novae-preset='choice_4'] .bottom-navigation {
+  background: color-mix(
+    in srgb,
+    var(--novae-surface) 92%,
+    transparent
+  ) !important;
+  border-color: var(--novae-border) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

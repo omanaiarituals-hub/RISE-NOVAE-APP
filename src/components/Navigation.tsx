@@ -1,82 +1,164 @@
+// src/components/Navigation.tsx
 'use client'
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import PremiumIcon, {
+  type PremiumIconName,
+} from '@/components/ui/PremiumIcon'
 
-const NAV_ITEMS = [
-  { href: '/',        label: 'Accueil', emoji: '🏠' },
-  { href: '/program', label: 'Reset',   emoji: '🎯' },
-  { href: '/agent',   label: 'Nova',    emoji: '✦',  center: true },
-  { href: '/tracker', label: 'Suivi',   emoji: '📊' },
-  { href: '/profil',  label: 'Moi',     emoji: '👤' },
+type NavigationItem = {
+  href: string
+  label: string
+  icon: PremiumIconName
+  center?: boolean
+}
+
+const NAV_ITEMS: NavigationItem[] = [
+  { href: '/', label: 'Accueil', icon: 'home' },
+  { href: '/planner', label: 'Planner', icon: 'calendar' },
+  { href: '/agent', label: 'Nova', icon: 'sparkle', center: true },
+  { href: '/recipes', label: 'Repas', icon: 'meal' },
+  { href: '/profil', label: 'Moi', icon: 'user' },
 ]
 
 export default function Navigation() {
   const pathname = usePathname()
 
   const isActive = (href: string) =>
-    href === '/' ? pathname === '/' : pathname === href || pathname?.startsWith(href + '/')
+    href === '/'
+      ? pathname === '/'
+      : pathname === href || pathname?.startsWith(`${href}/`)
 
   return (
-    <nav style={{
-      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-      background: 'rgba(255,251,245,0.96)',
-      backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-      borderTop: '1px solid rgba(61,38,24,0.08)',
-      boxShadow: '0 -4px 20px rgba(61,38,24,0.07)',
-    }}>
-      <div style={{
-        maxWidth: 500, margin: '0 auto',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-        padding: '6px 8px 10px',
-        paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
-      }}>
+    <nav className="bottom-navigation" aria-label="Navigation principale">
+      <div className="navigation-inner">
         {NAV_ITEMS.map((item) => {
-          const active = isActive(item.href)
-
-          if (item.center) {
-            return (
-              <Link key={item.href} href={item.href} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                <div style={{
-                  width: 52, height: 52, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #c4956a, #b07d5a 55%, #c98b86)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 4px 18px rgba(196,149,106,0.5)',
-                  marginTop: -18,
-                  fontSize: 22, color: '#fff',
-                  fontFamily: "'Cormorant Garamond', serif",
-                }}>
-                  {item.emoji}
-                </div>
-                <span style={{ fontSize: 9.5, fontWeight: 600, color: '#b07d5a', letterSpacing: '0.04em' }}>
-                  {item.label}
-                </span>
-              </Link>
-            )
-          }
+          const active =
+            item.center && pathname?.startsWith('/nova-v2')
+              ? true
+              : isActive(item.href)
 
           return (
-            <Link key={item.href} href={item.href} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flex: 1 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 10,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18,
-                background: active ? 'rgba(196,149,106,0.15)' : 'transparent',
-                transition: 'background 0.15s',
-              }}>
-                {item.emoji}
-              </div>
-              <span style={{
-                fontSize: 9.5, fontWeight: active ? 700 : 500,
-                color: active ? '#b07d5a' : '#8b6f55',
-                letterSpacing: '0.03em',
-              }}>
-                {item.label}
+            <Link
+              key={item.href}
+              href={item.href}
+              className={[
+                'navigation-link',
+                active ? 'active' : '',
+                item.center ? 'center-link' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              aria-current={active ? 'page' : undefined}
+            >
+              <span
+                className={
+                  item.center ? 'center-icon' : 'navigation-icon'
+                }
+              >
+                <PremiumIcon
+                  name={item.icon}
+                  width={item.center ? 27 : 23}
+                  height={item.center ? 27 : 23}
+                />
               </span>
+              <span>{item.label}</span>
             </Link>
           )
         })}
       </div>
+
+      <style jsx>{`
+        .bottom-navigation {
+          position: fixed;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          z-index: 70;
+          color: var(--novae-text-muted);
+          background: color-mix(
+            in srgb,
+            var(--novae-surface) 94%,
+            transparent
+          );
+          border-top: 1px solid var(--novae-border);
+          box-shadow: 0 -12px 36px var(--novae-shadow);
+          backdrop-filter: blur(22px);
+        }
+
+        .navigation-inner {
+          display: grid;
+          width: min(100%, 600px);
+          grid-template-columns: repeat(5, 1fr);
+          align-items: end;
+          margin: 0 auto;
+          padding: 7px 8px max(10px, env(safe-area-inset-bottom));
+        }
+
+        .navigation-link {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          color: var(--novae-text-muted);
+          font-size: 10px;
+          font-weight: 700;
+          text-decoration: none;
+          flex-direction: column;
+        }
+
+        .navigation-icon {
+          display: inline-flex;
+          width: 38px;
+          height: 34px;
+          align-items: center;
+          justify-content: center;
+          border-radius: 12px;
+        }
+
+        .navigation-link.active {
+          color: var(--novae-primary);
+        }
+
+        .navigation-link.active .navigation-icon {
+          background: var(--novae-primary-soft);
+        }
+
+        .center-link {
+          position: relative;
+          margin-top: -26px;
+          color: var(--novae-primary);
+        }
+
+        .center-icon {
+          display: inline-flex;
+          width: 61px;
+          height: 61px;
+          align-items: center;
+          justify-content: center;
+          color: var(--novae-metal);
+          background: linear-gradient(
+            145deg,
+            var(--novae-primary),
+            var(--novae-hero-end)
+          );
+          border: 2px solid var(--novae-metal);
+          border-radius: 50%;
+          box-shadow: 0 10px 26px var(--novae-shadow);
+        }
+
+        .center-link > span:last-child {
+          color: var(--novae-primary);
+        }
+
+        :global(html[data-novae-preset='choice_4'])
+          .center-link
+          > span:last-child {
+          color: var(--novae-metal);
+        }
+      `}</style>
     </nav>
   )
 }
