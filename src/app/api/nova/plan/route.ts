@@ -426,7 +426,7 @@ export async function POST(request: NextRequest) {
       'Correspondances prioritaires entre la demande et les rendez-vous actifs :',
       calendarMatchContext || 'aucune correspondance suffisamment proche',
       '',
-      'RÈGLE DE RÃ‰SOLUTION DES RENDEZ-VOUS :',
+      'RÈGLE DE RÉSOLUTION DES RENDEZ-VOUS :',
       calendarMatches.length > 0 && (calendarMatches.length === 1 || calendarMatches[0].score - calendarMatches[1].score >= 0.12)
         ? `Le rendez-vous prioritaire est id=${calendarMatches[0].event.id}, titre=${calendarMatches[0].event.title}, debut=${calendarMatches[0].event.start_date}, fin=${calendarMatches[0].event.end_date}. Considère-le comme identifié. Ne dis jamais qu'il est absent et ne redemande pas son identité. Pour une modification ou annulation, utilise obligatoirement cet id dans event_id. Demande seulement les informations réellement manquantes sur le nouvel horaire.`
         : 'Plusieurs rendez-vous restent plausibles : demande lequel utiliser sans prétendre qu’aucun rendez-vous n’existe.',

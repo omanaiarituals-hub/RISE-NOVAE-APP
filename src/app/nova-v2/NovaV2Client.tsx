@@ -965,7 +965,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       <div className="mx-auto max-w-5xl px-4 py-5 sm:py-8">
         <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#796F68]">Version privée</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#796F68]">Assistant de vie</p>
             <h1 className="font-serif text-3xl font-semibold">Nova</h1>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-[#625B55]">Ton espace de test réel. Les tâches, rappels, notifications et fusions sont actifs après validation. Les tâches, rappels, rendez-vous et leurs modifications sont actifs après validation.</p>
             {userEmail ? <p className="mt-1 text-xs text-[#847A72]">Compte : {userEmail}</p> : null}

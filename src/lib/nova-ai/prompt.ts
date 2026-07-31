@@ -133,10 +133,47 @@ Les tableaux doivent être vides lorsqu’aucune donnée n’est présente. Ne c
 }
 
 export function buildNovaPlannerUserPrompt(input: NovaPlanInput): string {
-  return `Contexte temporel :
-- instant actuel : ${input.nowIso}
+  const now = new Date(input.nowIso)
+
+  const localDate = new Intl.DateTimeFormat(input.locale, {
+    timeZone: input.timezone,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(now)
+
+  const upcomingDays = Array.from({ length: 8 }, (_, index) => {
+    const date = new Date(now)
+    date.setUTCDate(date.getUTCDate() + index)
+
+    return new Intl.DateTimeFormat(input.locale, {
+      timeZone: input.timezone,
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(date)
+  })
+
+  return `Contexte temporel impératif :
+- instant UTC actuel : ${input.nowIso}
+- date et heure locales exactes : ${localDate}
 - fuseau horaire : ${input.timezone}
 - langue : ${input.locale}
+- aujourd’hui et les 7 prochains jours :
+${upcomingDays.map((day, index) => `  ${index === 0 ? 'aujourd’hui' : `J+${index}`} : ${day}`).join('\n')}
+
+RÈGLES TEMPORELLES OBLIGATOIRES :
+- interprète toujours les dates relatives depuis la date locale exacte ci-dessus ;
+- "lundi", "mardi", etc. désigne la prochaine occurrence future de ce jour, sauf précision contraire ;
+- ne produis jamais un jour de semaine incompatible avec la date numérique ;
+- vérifie systématiquement la cohérence jour/date/année avant de répondre ;
+- si l’utilisateur dit "à partir de lundi", utilise le prochain lundi figurant dans la liste ci-dessus ;
+- dans le message conversationnel, reprends exactement la même date que celle utilisée dans les actions structurées ;
+- ne devine jamais une année différente de l’année locale actuelle sans demande explicite.
 
 Demande à analyser :
 ${input.message}`
