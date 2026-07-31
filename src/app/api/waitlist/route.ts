@@ -5,6 +5,7 @@ export const runtime = 'nodejs'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const BREVO_LIST_ID = 8
+const BREVO_CONFIRMATION_TEMPLATE_ID = 49
 
 function normalizeEmail(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : ''
@@ -71,6 +72,8 @@ export async function POST(req: NextRequest) {
     let brevoStatus = 'skipped'
 
     if (process.env.BREVO_API_KEY) {
+      let confirmationSentAt: string | null = null
+
       try {
         const brevoResponse = await fetch('https://api.brevo.com/v3/contacts', {
           method: 'POST',
@@ -94,10 +97,34 @@ export async function POST(req: NextRequest) {
 
         if (brevoStatus === 'failed') {
           console.error(
-            '[waitlist] Brevo error:',
+            '[waitlist] Brevo contact error:',
             brevoResponse.status,
             await brevoResponse.text()
           )
+        }
+
+        if (brevoStatus === 'synced') {
+          const emailResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'api-key': process.env.BREVO_API_KEY,
+            },
+            body: JSON.stringify({
+              to: [{ email }],
+              templateId: BREVO_CONFIRMATION_TEMPLATE_ID,
+            }),
+          })
+
+          if (emailResponse.ok) {
+            confirmationSentAt = new Date().toISOString()
+          } else {
+            console.error(
+              '[waitlist] Brevo confirmation email error:',
+              emailResponse.status,
+              await emailResponse.text()
+            )
+          }
         }
       } catch (error) {
         brevoStatus = 'failed'
@@ -106,7 +133,10 @@ export async function POST(req: NextRequest) {
 
       await supabase
         .from('waitlist_signups')
-        .update({ brevo_status: brevoStatus })
+        .update({
+          brevo_status: brevoStatus,
+          confirmation_sent_at: confirmationSentAt,
+        })
         .eq('email_normalized', email)
     }
 
