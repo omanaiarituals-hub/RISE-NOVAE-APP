@@ -7,6 +7,7 @@ import { PWAInstallPrompt } from '@/components/PWAInstallPrompt'
 import { CookieBanner } from '@/components/CookieBanner'
 import GlobalHeader from '@/components/GlobalHeader'
 import UserThemeProvider from '@/components/theme/UserThemeProvider'
+import OnboardingV2Gate from '@/components/onboarding/OnboardingV2Gate'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://app.novae-by-omanaia.com'),
@@ -74,6 +75,7 @@ export default function RootLayout({
     <html lang="fr" suppressHydrationWarning>
       <body>
         <UserThemeProvider>
+          <OnboardingV2Gate />
           <SetupGuide />
           <GlobalHeader />
           <main>{children}</main>
