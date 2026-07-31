@@ -1,4 +1,5 @@
 import type { NovaActionPlan, NovaLifecycleExecutionItem, NovaProposedAction } from './types'
+import { parisMinutesFromIso } from './timezone'
 
 type Db = any
 
@@ -111,10 +112,9 @@ export async function executeLifecycleAction(
     const { data: conflicts, error: conflictError } = await db.from('planner_events').select('id,title,start_date,end_date').eq('user_id', userId).neq('id', eventId).neq('status','cancelled').lt('start_date', endAt).gt('end_date', startAt).limit(5)
     if (conflictError) throw new Error(`Impossible de vérifier les conflits : ${conflictError.message}`)
     if ((conflicts || []).length > 0) throw new Error(`Le nouvel horaire chevauche « ${(conflicts || [])[0].title} ». Je n’ai rien modifié.`)
-    const start = new Date(startAt); const end = new Date(endAt)
     const updates: Record<string, unknown> = {
       start_date: startAt, end_date: endAt,
-      start_minutes: start.getHours()*60+start.getMinutes(), end_minutes: end.getHours()*60+end.getMinutes(),
+      start_minutes: parisMinutesFromIso(startAt), end_minutes: parisMinutesFromIso(endAt),
       reminder_sent: false, updated_at: new Date().toISOString(),
     }
     if (nonEmpty(p.title)) updates.title = p.title.trim()

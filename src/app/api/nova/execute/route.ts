@@ -14,6 +14,7 @@ import {
 import { compareTaskIdentity } from '@/lib/nova-ai/task-identity'
 import { prepareCalendarInsert, type PreparedCalendarInsert } from '@/lib/nova-ai/calendar-execution'
 import { executeLifecycleAction } from '@/lib/nova-ai/lifecycle-execution'
+import { parisMinutesFromIso } from '@/lib/nova-ai/timezone'
 import {
   prepareTaskMerge,
   type PreparedTaskMerge,
@@ -459,10 +460,8 @@ async function createAndVerifyCalendarEvent(
     return { kind:'calendar_event', actionId:event.actionId, status:'conflict', event:null, conflicts:list, message:`Je n’ai rien ajouté : ce créneau chevauche « ${list[0].title} ». Modifie l’horaire ou confirme une exception dans un prochain échange.` }
   }
 
-  const start = new Date(event.startAt)
-  const end = new Date(event.endAt)
-  const startMinutes = start.getHours() * 60 + start.getMinutes()
-  const endMinutes = end.getHours() * 60 + end.getMinutes()
+  const startMinutes = parisMinutesFromIso(event.startAt)
+  const endMinutes = parisMinutesFromIso(event.endAt)
   const { data: inserted, error } = await db.from('planner_events').insert({
     user_id:userId, title:event.title, description:event.description, location:event.location,
     start_date:event.startAt, end_date:event.endAt, start_minutes:startMinutes, end_minutes:endMinutes,

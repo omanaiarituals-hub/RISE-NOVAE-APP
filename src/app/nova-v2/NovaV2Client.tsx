@@ -75,10 +75,117 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historySearch, setHistorySearch] = useState('')
   const [listening, setListening] = useState(false)
+  const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(voiceMode)
+  const [speaking, setSpeaking] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false)
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [voiceName, setVoiceName] = useState('')
+  const [voiceRate, setVoiceRate] = useState(1)
+  const [voicePitch, setVoicePitch] = useState(1.03)
+  const [voiceVolume, setVoiceVolume] = useState(1)
+  const recognitionRef = useRef<any>(null)
+  const voiceOverlayOpenRef = useRef(voiceMode)
+  const pausedRef = useRef(false)
+  const speakingRef = useRef(false)
+  const loadingRef = useRef(false)
+  const voiceRateRef = useRef(1)
+  const voicePitchRef = useRef(1.03)
+  const voiceVolumeRef = useRef(1)
+  const selectedVoiceRef = useRef<SpeechSynthesisVoice | null>(null)
+  const lastNovaSpeechRef = useRef('')
+  const lastNovaSpeechEndedAtRef = useRef(0)
   const endRef = useRef<HTMLDivElement | null>(null)
-    const autoVoiceStartedRef = useRef(false)
+  const autoVoiceStartedRef = useRef(false)
 
 
+
+  useEffect(() => {
+    voiceOverlayOpenRef.current = voiceOverlayOpen
+  }, [voiceOverlayOpen])
+
+  useEffect(() => {
+    pausedRef.current = paused
+  }, [paused])
+
+  useEffect(() => {
+    speakingRef.current = speaking
+  }, [speaking])
+
+  useEffect(() => {
+    loadingRef.current = loading
+  }, [loading])
+
+  useEffect(() => {
+    voiceRateRef.current = voiceRate
+  }, [voiceRate])
+
+  useEffect(() => {
+    voicePitchRef.current = voicePitch
+  }, [voicePitch])
+
+  useEffect(() => {
+    voiceVolumeRef.current = voiceVolume
+  }, [voiceVolume])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+
+    const loadVoices = () => {
+      const frenchVoices = window.speechSynthesis
+        .getVoices()
+        .filter((voice) => voice.lang?.toLowerCase().startsWith('fr'))
+
+      setVoices(frenchVoices)
+
+      let selected: SpeechSynthesisVoice | null = null
+      try {
+        const savedName = window.localStorage.getItem('novae-v2-voice-name')
+        if (savedName) {
+          selected = frenchVoices.find((voice) => voice.name === savedName) || null
+        }
+      } catch {}
+
+      if (!selected) {
+        selected =
+          frenchVoices.find((voice) =>
+            /amélie|audrey|virginie|female|fémin/i.test(voice.name),
+          ) ||
+          frenchVoices[0] ||
+          null
+      }
+
+      selectedVoiceRef.current = selected
+      setVoiceName(selected?.name || '')
+    }
+
+    loadVoices()
+    window.speechSynthesis.onvoiceschanged = loadVoices
+
+    try {
+      const savedRate = Number(window.localStorage.getItem('novae-v2-voice-rate'))
+      const savedPitch = Number(window.localStorage.getItem('novae-v2-voice-pitch'))
+      const savedVolume = Number(window.localStorage.getItem('novae-v2-voice-volume'))
+
+      if (Number.isFinite(savedRate) && savedRate >= 0.6 && savedRate <= 1.4) {
+        setVoiceRate(savedRate)
+        voiceRateRef.current = savedRate
+      }
+      if (Number.isFinite(savedPitch) && savedPitch >= 0.7 && savedPitch <= 1.4) {
+        setVoicePitch(savedPitch)
+        voicePitchRef.current = savedPitch
+      }
+      if (Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1) {
+        setVoiceVolume(savedVolume)
+        voiceVolumeRef.current = savedVolume
+      }
+    } catch {}
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null
+      window.speechSynthesis.cancel()
+    }
+  }, [])
 
   const filteredConversations = useMemo(() => {
     const query = historySearch.trim().toLocaleLowerCase('fr-FR')
@@ -98,19 +205,215 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
-    useEffect(() => {
+  useEffect(() => {
     if (!voiceMode || autoVoiceStartedRef.current) return
 
     autoVoiceStartedRef.current = true
+    setVoiceOverlayOpen(true)
 
     const timeout = window.setTimeout(() => {
       toggleVoiceInput(true)
-    }, 500)
+    }, 700)
 
     return () => window.clearTimeout(timeout)
     // Le démarrage doit avoir lieu une seule fois à l'ouverture.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceMode])
+
+  function cleanSpeechText(value: string): string {
+    return value
+      .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/[#*_>`~]/g, '')
+      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, ' ')
+      .replace(/[\uFE00-\uFE0F\u200D\u20E3]/g, ' ')
+      .replace(/[\u2190-\u21FF\u2300-\u27BF\u2B00-\u2BFF]/g, ' ')
+      .replace(/[•·▪◦]/g, ' ')
+      .replace(/([!?.,;:])\1+/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  function normalizeForEcho(value: string): string {
+    return cleanSpeechText(value)
+      .toLocaleLowerCase('fr-FR')
+      .replace(/[’']/g, ' ')
+      .replace(/[^a-zà-ÿ0-9 ]/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  function isLikelyNovaEcho(value: string): boolean {
+    const heard = normalizeForEcho(value)
+    const spoken = normalizeForEcho(lastNovaSpeechRef.current)
+
+    if (!heard || !spoken) return false
+
+    const tooSoonAfterSpeech =
+      Date.now() - lastNovaSpeechEndedAtRef.current < 1600
+
+    if (!tooSoonAfterSpeech) return false
+
+    return (
+      spoken.includes(heard) ||
+      heard.includes(spoken.slice(0, Math.min(spoken.length, 80)))
+    )
+  }
+
+  function speakNova(value: string) {
+    if (!voiceOverlayOpenRef.current || typeof window === 'undefined') return
+    if (!('speechSynthesis' in window)) return
+
+    const clean = cleanSpeechText(value)
+    if (!clean) return
+
+    lastNovaSpeechRef.current = clean
+
+    try {
+      recognitionRef.current?.abort?.()
+      recognitionRef.current?.stop?.()
+    } catch {}
+
+    setListening(false)
+    window.speechSynthesis.cancel()
+
+    const utterance = new SpeechSynthesisUtterance(clean)
+    utterance.lang = 'fr-FR'
+    utterance.rate = voiceRateRef.current
+    utterance.pitch = voicePitchRef.current
+    utterance.volume = voiceVolumeRef.current
+    if (selectedVoiceRef.current) utterance.voice = selectedVoiceRef.current
+
+    utterance.onstart = () => {
+      setSpeaking(true)
+      speakingRef.current = true
+      setListening(false)
+    }
+
+    const reopen = () => {
+      setSpeaking(false)
+      speakingRef.current = false
+      lastNovaSpeechEndedAtRef.current = Date.now()
+
+      if (voiceOverlayOpenRef.current && !pausedRef.current) {
+        window.setTimeout(() => {
+          if (
+            voiceOverlayOpenRef.current &&
+            !pausedRef.current &&
+            !speakingRef.current &&
+            !loadingRef.current
+          ) {
+            toggleVoiceInput(true)
+          }
+        }, 950)
+      }
+    }
+
+    utterance.onend = reopen
+    utterance.onerror = reopen
+    window.speechSynthesis.speak(utterance)
+  }
+
+  function previewVoice() {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+
+    const utterance = new SpeechSynthesisUtterance(
+      'Bonjour, je suis Nova. Cette voix sera utilisée pour te répondre.',
+    )
+    utterance.lang = 'fr-FR'
+    utterance.rate = voiceRateRef.current
+    utterance.pitch = voicePitchRef.current
+    utterance.volume = voiceVolumeRef.current
+    if (selectedVoiceRef.current) utterance.voice = selectedVoiceRef.current
+
+    try {
+      recognitionRef.current?.abort?.()
+      recognitionRef.current?.stop?.()
+    } catch {}
+
+    setListening(false)
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(utterance)
+  }
+
+  function changeVoice(name: string) {
+    setVoiceName(name)
+    selectedVoiceRef.current =
+      voices.find((voice) => voice.name === name) || null
+    try {
+      window.localStorage.setItem('novae-v2-voice-name', name)
+    } catch {}
+  }
+
+  function changeVoiceRate(value: number) {
+    setVoiceRate(value)
+    voiceRateRef.current = value
+    try {
+      window.localStorage.setItem('novae-v2-voice-rate', String(value))
+    } catch {}
+  }
+
+  function changeVoicePitch(value: number) {
+    setVoicePitch(value)
+    voicePitchRef.current = value
+    try {
+      window.localStorage.setItem('novae-v2-voice-pitch', String(value))
+    } catch {}
+  }
+
+  function changeVoiceVolume(value: number) {
+    setVoiceVolume(value)
+    voiceVolumeRef.current = value
+    try {
+      window.localStorage.setItem('novae-v2-voice-volume', String(value))
+    } catch {}
+  }
+
+  function closeVoiceOverlay() {
+    setVoiceOverlayOpen(false)
+    voiceOverlayOpenRef.current = false
+    setPaused(false)
+    pausedRef.current = false
+    setListening(false)
+    setSpeaking(false)
+    speakingRef.current = false
+    setShowVoiceSettings(false)
+
+    try {
+      recognitionRef.current?.abort?.()
+      recognitionRef.current?.stop?.()
+    } catch {}
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+    }
+  }
+
+  function toggleVoicePause() {
+    if (pausedRef.current) {
+      setPaused(false)
+      pausedRef.current = false
+      window.setTimeout(() => toggleVoiceInput(true), 250)
+      return
+    }
+
+    setPaused(true)
+    pausedRef.current = true
+    setListening(false)
+
+    try {
+      recognitionRef.current?.abort?.()
+      recognitionRef.current?.stop?.()
+    } catch {}
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+    }
+
+    setSpeaking(false)
+    speakingRef.current = false
+  }
 
   async function refreshHistory() {
     try {
@@ -136,6 +439,10 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     metadata: Record<string, unknown> = {}
   ) {
     setMessages((current) => [...current, { id: createId(role), role, text }])
+
+    if (role === 'nova') {
+      speakNova(text)
+    }
 
     const targetId = activeConversationId || conversationId
     if (!targetId) return
@@ -365,8 +672,15 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     }
   }
 
-   function toggleVoiceInput(autoSubmit = false) {
-    if (listening) return
+  function toggleVoiceInput(autoSubmit = false) {
+    if (
+      listening ||
+      speakingRef.current ||
+      pausedRef.current ||
+      loadingRef.current
+    ) {
+      return
+    }
 
     const SpeechRecognitionCtor =
       (window as any).SpeechRecognition ||
@@ -380,10 +694,12 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     }
 
     const recognition = new SpeechRecognitionCtor()
+    recognitionRef.current = recognition
 
     recognition.lang = 'fr-FR'
     recognition.interimResults = false
     recognition.continuous = false
+    recognition.maxAlternatives = 1
 
     recognition.onstart = () => {
       setListening(true)
@@ -399,25 +715,22 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
 
       if (event?.error === 'not-allowed') {
         setError(
-          'Autorise l’accès au microphone dans ton navigateur, puis appuie de nouveau sur le micro.',
+          'Autorise l’accès au microphone dans ton navigateur, puis touche le logo Nova.',
         )
         return
       }
 
-      if (event?.error === 'no-speech') {
-        setError("Je n’ai rien entendu. Réessaie en parlant un peu plus près du micro.")
-        return
-      }
-
+      if (event?.error === 'no-speech' || event?.error === 'aborted') return
       setError("Je n’ai pas réussi à entendre la dictée. Réessaie.")
     }
 
     recognition.onresult = (event: any) => {
       const transcript = event.results?.[0]?.[0]?.transcript?.trim() || ''
+      setListening(false)
 
-      if (!transcript) return
+      if (!transcript || isLikelyNovaEcho(transcript)) return
 
-      if (autoSubmit || voiceMode) {
+      if (autoSubmit || voiceOverlayOpenRef.current) {
         void requestPlan(transcript)
         return
       }
@@ -429,7 +742,6 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       recognition.start()
     } catch {
       setListening(false)
-      setError('Le microphone est déjà utilisé. Attends une seconde puis réessaie.')
     }
   }
 
@@ -491,6 +803,165 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
         </div>
       ) : null}
 
+      {voiceOverlayOpen ? (
+        <div className="nova-voice-overlay">
+          <button
+            type="button"
+            className="nova-voice-settings-button"
+            onClick={() => setShowVoiceSettings((current) => !current)}
+            aria-label="Réglages de la voix"
+          >
+            ⚙️
+          </button>
+
+          <button
+            type="button"
+            className="nova-voice-write"
+            onClick={closeVoiceOverlay}
+          >
+            ✕ Écrire
+          </button>
+
+          <button
+            type="button"
+            className={`nova-voice-stage ${listening || speaking ? 'is-active' : ''}`}
+            onClick={() => {
+              if (!listening && !speaking && !paused && !loading) {
+                toggleVoiceInput(true)
+              }
+            }}
+            aria-label="Parler à Nova"
+          >
+            {Array.from({ length: 24 }).map((_, index) => (
+              <span
+                key={index}
+                className="nova-voice-ray-wrap"
+                style={{ transform: `rotate(${index * 15}deg)` }}
+              >
+                <i
+                  className="nova-voice-ray"
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                />
+              </span>
+            ))}
+            <span className="nova-voice-core" aria-hidden="true" />
+          </button>
+
+          <p className="nova-voice-state">
+            {paused
+              ? 'En pause'
+              : speaking
+                ? 'Nova répond…'
+                : listening
+                  ? 'Je t’écoute…'
+                  : loading
+                    ? 'Nova réfléchit…'
+                    : 'Parle-moi'}
+          </p>
+
+          <button
+            type="button"
+            className="nova-voice-pause"
+            onClick={toggleVoicePause}
+            aria-label={paused ? 'Reprendre le mode vocal' : 'Mettre le mode vocal en pause'}
+          >
+            {paused ? '🎙️' : '⏸'}
+          </button>
+
+          <p className="nova-voice-hint">
+            {paused
+              ? 'Touche le micro pour reprendre.'
+              : 'Le micro se réactive après chaque réponse.'}
+          </p>
+
+          {showVoiceSettings ? (
+            <section className="nova-voice-settings-panel">
+              <div className="nova-voice-settings-heading">
+                <div>
+                  <strong>Réglages vocaux</strong>
+                  <small>Ils seront conservés sur cet appareil.</small>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowVoiceSettings(false)}
+                  aria-label="Fermer les réglages"
+                >
+                  ×
+                </button>
+              </div>
+
+              {voices.length > 0 ? (
+                <label>
+                  <span>Voix</span>
+                  <select
+                    value={voiceName}
+                    onChange={(event) => changeVoice(event.target.value)}
+                  >
+                    {voices.map((voice) => (
+                      <option key={voice.name} value={voice.name}>
+                        {voice.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              <label>
+                <span>Vitesse : {voiceRate.toFixed(2)}</span>
+                <input
+                  type="range"
+                  min="0.6"
+                  max="1.4"
+                  step="0.05"
+                  value={voiceRate}
+                  onChange={(event) =>
+                    changeVoiceRate(Number(event.target.value))
+                  }
+                />
+              </label>
+
+              <label>
+                <span>Tonalité : {voicePitch.toFixed(2)}</span>
+                <input
+                  type="range"
+                  min="0.7"
+                  max="1.4"
+                  step="0.05"
+                  value={voicePitch}
+                  onChange={(event) =>
+                    changeVoicePitch(Number(event.target.value))
+                  }
+                />
+              </label>
+
+              <label>
+                <span>Volume : {Math.round(voiceVolume * 100)} %</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={voiceVolume}
+                  onChange={(event) =>
+                    changeVoiceVolume(Number(event.target.value))
+                  }
+                />
+              </label>
+
+              <button
+                type="button"
+                className="nova-voice-preview"
+                onClick={previewVoice}
+              >
+                Écouter un aperçu
+              </button>
+            </section>
+          ) : null}
+
+          {error ? <p className="nova-voice-error">{error}</p> : null}
+        </div>
+      ) : null}
+
       <div className="mx-auto max-w-5xl px-4 py-5 sm:py-8">
         <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -506,7 +977,6 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
             <Link href="/" className="rounded-full border border-[#CFC7BF] bg-white px-4 py-2 text-sm">Retour</Link>
           </div>
         </header>
-
         <section className="overflow-hidden rounded-2xl border border-[#D7D0C8] bg-white shadow-sm">
           <div className="border-b border-[#E8E2DC] bg-[#FBFAF8] px-5 py-3">
             <span className="rounded-full bg-[#E8EFE7] px-3 py-1 text-xs font-medium text-[#425642]">Tâches, rappels, agenda, modifications et annulations actifs</span>
@@ -612,13 +1082,252 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
                 disabled={loading || status === 'executing'}
                 className="min-h-[52px] flex-1 resize-none rounded-xl border border-[#CBC3BB] bg-white px-4 py-3 text-sm leading-6 outline-none focus:border-[#7B6F66] disabled:bg-[#F2EFEC]"
               />
-              <button type="button" onClick={() => toggleVoiceInput(false)} disabled={loading || status === 'executing'} title="Dicter un message" className={`rounded-xl border px-4 py-3 text-sm font-semibold ${listening ? 'border-[#6F5B8E] bg-[#EEE7F4] text-[#5D477D]' : 'border-[#CBC3BB] bg-white text-[#514B46]'}`}>{listening ? 'Écoute…' : '🎤'}</button>
+              <button type="button" onClick={() => { setVoiceOverlayOpen(true); voiceOverlayOpenRef.current = true; window.setTimeout(() => toggleVoiceInput(true), 180) }} disabled={loading || status === 'executing'} title="Parler à Nova" className="rounded-xl border border-[var(--novae-border)] bg-[var(--novae-surface)] px-4 py-3 text-sm font-semibold text-[var(--novae-text-main)]">🎤</button>
               <button type="submit" disabled={loading || !input.trim() || status === 'executing'} className="rounded-xl bg-[#332E2A] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Envoyer</button>
             </form>
             {error ? <p className="mt-3 text-xs text-[#7B2921]">{error}</p> : null}
           </div>
         </section>
       </div>
+
+      <style jsx>{`
+        .nova-voice-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 120;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 18px;
+          padding: 24px;
+          color: var(--novae-text-main);
+          background:
+            radial-gradient(
+              circle at 50% 35%,
+              color-mix(in srgb, var(--novae-primary-soft) 78%, transparent),
+              transparent 44%
+            ),
+            color-mix(in srgb, var(--novae-background) 93%, transparent);
+          backdrop-filter: blur(18px);
+        }
+
+        .nova-voice-settings-button,
+        .nova-voice-write {
+          position: absolute;
+          top: 18px;
+          color: var(--novae-text-main);
+          background: color-mix(in srgb, var(--novae-surface) 88%, transparent);
+          border: 1px solid var(--novae-border);
+          cursor: pointer;
+        }
+
+        .nova-voice-settings-button {
+          left: 18px;
+          width: 42px;
+          height: 42px;
+          border-radius: 50%;
+        }
+
+        .nova-voice-write {
+          right: 18px;
+          padding: 9px 16px;
+          border-radius: 999px;
+          font-weight: 800;
+        }
+
+        .nova-voice-stage {
+          position: relative;
+          display: flex;
+          width: min(68vw, 270px);
+          height: min(68vw, 270px);
+          align-items: center;
+          justify-content: center;
+          padding: 0;
+          background: transparent;
+          border: 0;
+          cursor: pointer;
+        }
+
+        .nova-voice-ray-wrap {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          justify-content: center;
+          pointer-events: none;
+        }
+
+        .nova-voice-ray {
+          width: 4px;
+          height: 18px;
+          margin-top: 8px;
+          background: linear-gradient(
+            var(--novae-metal),
+            var(--novae-primary)
+          );
+          border-radius: 999px;
+          opacity: 0.42;
+          transform: scaleY(0.62);
+          transform-origin: center top;
+        }
+
+        .nova-voice-stage.is-active .nova-voice-ray {
+          animation: novaVoiceRay 1.1s ease-in-out infinite;
+        }
+
+        .nova-voice-core {
+          position: relative;
+          z-index: 2;
+          display: block;
+          width: 58%;
+          aspect-ratio: 484 / 303;
+          background: var(--novae-metal);
+          filter:
+            drop-shadow(0 16px 28px var(--novae-shadow))
+            drop-shadow(
+              0 0 22px
+                color-mix(in srgb, var(--novae-metal) 38%, transparent)
+            );
+          -webkit-mask:
+            url('/nova-monogramme-no-mask.png')
+            center / contain no-repeat;
+          mask:
+            url('/nova-monogramme-no-mask.png')
+            center / contain no-repeat;
+          animation: novaVoiceBreath 2.8s ease-in-out infinite;
+        }
+
+        .nova-voice-state {
+          margin: 0;
+          font-family: var(--novae-font-title);
+          font-size: clamp(24px, 5vw, 34px);
+          text-align: center;
+        }
+
+        .nova-voice-pause {
+          width: 68px;
+          height: 68px;
+          color: var(--novae-background);
+          background: linear-gradient(
+            145deg,
+            var(--novae-primary),
+            var(--novae-hero-end)
+          );
+          border: 1px solid var(--novae-metal);
+          border-radius: 50%;
+          box-shadow: 0 14px 34px var(--novae-shadow);
+          font-size: 25px;
+          cursor: pointer;
+        }
+
+        .nova-voice-hint {
+          margin: 0;
+          color: var(--novae-text-muted);
+          font-size: 12px;
+          text-align: center;
+        }
+
+        .nova-voice-settings-panel {
+          position: absolute;
+          top: 72px;
+          left: 18px;
+          display: grid;
+          width: min(330px, calc(100vw - 36px));
+          gap: 14px;
+          padding: 18px;
+          background: color-mix(in srgb, var(--novae-surface) 96%, transparent);
+          border: 1px solid var(--novae-border);
+          border-radius: 18px;
+          box-shadow: 0 18px 46px var(--novae-shadow);
+        }
+
+        .nova-voice-settings-heading {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .nova-voice-settings-heading div {
+          display: grid;
+          gap: 3px;
+        }
+
+        .nova-voice-settings-heading small,
+        .nova-voice-settings-panel label span {
+          color: var(--novae-text-muted);
+          font-size: 11px;
+        }
+
+        .nova-voice-settings-heading button {
+          width: 30px;
+          height: 30px;
+          color: var(--novae-text-main);
+          background: var(--novae-surface-alt);
+          border: 1px solid var(--novae-border);
+          border-radius: 50%;
+          cursor: pointer;
+        }
+
+        .nova-voice-settings-panel label {
+          display: grid;
+          gap: 7px;
+        }
+
+        .nova-voice-settings-panel select {
+          width: 100%;
+          padding: 10px;
+          color: var(--novae-text-main);
+          background: var(--novae-background);
+          border: 1px solid var(--novae-border);
+          border-radius: 10px;
+        }
+
+        .nova-voice-preview {
+          padding: 11px 13px;
+          color: var(--novae-background);
+          background: var(--novae-primary);
+          border: 0;
+          border-radius: 11px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .nova-voice-error {
+          max-width: 520px;
+          margin: 0;
+          padding: 10px 14px;
+          color: var(--novae-text-main);
+          text-align: center;
+          background: var(--novae-surface);
+          border: 1px solid var(--novae-border);
+          border-radius: 12px;
+        }
+
+        @keyframes novaVoiceRay {
+          0%,
+          100% {
+            opacity: 0.35;
+            transform: scaleY(0.5);
+          }
+          50% {
+            opacity: 1;
+            transform: scaleY(1.55);
+          }
+        }
+
+        @keyframes novaVoiceBreath {
+          0%,
+          100% {
+            opacity: 0.78;
+            transform: scale(0.96);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1.06);
+          }
+        }
+      `}</style>
     </main>
   )
 }

@@ -17,7 +17,7 @@ type NavigationItem = {
 const NAV_ITEMS: NavigationItem[] = [
   { href: '/', label: 'Accueil', icon: 'home' },
   { href: '/planner', label: 'Planner', icon: 'calendar' },
-  { href: '/agent', label: 'Nova', icon: 'sparkle', center: true },
+  { href: '/nova-v2', label: 'Nova', icon: 'sparkle', center: true },
   { href: '/recipes', label: 'Repas', icon: 'meal' },
   { href: '/profil', label: 'Moi', icon: 'user' },
 ]

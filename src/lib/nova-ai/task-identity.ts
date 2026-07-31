@@ -1,4 +1,4 @@
-﻿export type TaskIdentityRecord = {
+export type TaskIdentityRecord = {
   id?: string
   title: string
   description?: string | null
@@ -232,9 +232,9 @@ export function compareTaskIdentity(
   left: TaskIdentityRecord,
   right: TaskIdentityRecord
 ): TaskIdentityComparison {
-  // L'identitÃ© d'une tÃ¢che est portÃ©e d'abord par son titre.
-  // Une description longue ou formulÃ©e diffÃ©remment ne doit pas faire chuter
-  // artificiellement la similaritÃ© de deux intitulÃ©s Ã©quivalents.
+  // L'identité d'une tâche est portée d'abord par son titre.
+  // Une description longue ou formulée différemment ne doit pas faire chuter
+  // artificiellement la similarité de deux intitulés équivalents.
   const leftTitleTokens = taskSemanticTokens(left.title)
   const rightTitleTokens = taskSemanticTokens(right.title)
   const leftAllTokens = taskSemanticTokens(`${left.title} ${left.description || ''}`)
@@ -256,10 +256,10 @@ export function compareTaskIdentity(
   if (leftAction && rightAction) {
     if (leftAction === rightAction) {
       score += 0.15
-      reasons.push(`mÃªme action (${leftAction})`)
+      reasons.push(`même action (${leftAction})`)
     } else {
       score -= 0.25
-      reasons.push('actions diffÃ©rentes')
+      reasons.push('actions différentes')
     }
   }
 
@@ -275,10 +275,10 @@ export function compareTaskIdentity(
   )
   if (organizationOverlap > 0) {
     score += 0.12
-    reasons.push('mÃªme organisme ou contexte')
+    reasons.push('même organisme ou contexte')
   } else if (leftOrganizations.length > 0 && rightOrganizations.length > 0) {
     score -= 0.12
-    reasons.push('organismes diffÃ©rents')
+    reasons.push('organismes différents')
   }
 
   const sharedImportantTokens: string[] = []
@@ -290,7 +290,7 @@ export function compareTaskIdentity(
   })
   if (sharedImportantTokens.length >= 2) {
     score += 0.08
-    reasons.push('mÃªmes Ã©lÃ©ments principaux')
+    reasons.push('mêmes éléments principaux')
   } else if (sharedImportantTokens.length === 1) {
     score += 0.03
   }
@@ -314,22 +314,22 @@ export function compareTaskIdentity(
     (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft))
   ) {
     score += 0.08
-    reasons.push('un intitulÃ© contient lâ€™autre')
+    reasons.push('un intitulé contient l’autre')
   }
 
   if (datesCompatible(left.due_date, right.due_date)) {
     if (left.due_date && right.due_date) {
       score += 0.05
-      reasons.push('mÃªme Ã©chÃ©ance')
+      reasons.push('même échéance')
     }
   } else {
     score -= 0.18
-    reasons.push('Ã©chÃ©ances diffÃ©rentes')
+    reasons.push('échéances différentes')
   }
 
   if (!timesCompatible(left.due_time, right.due_time)) {
     score -= 0.08
-    reasons.push('heures diffÃ©rentes')
+    reasons.push('heures différentes')
   }
 
   if (left.category && right.category && left.category !== right.category) {

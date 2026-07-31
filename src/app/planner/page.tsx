@@ -1,5 +1,4 @@
 "use client";
-"use client";
 import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -671,6 +670,13 @@ export default function PlannerNovae() {
   const weekDates = getWeekDates(currentDate);
 
   useEffect(() => {
+    if (window.location.search.includes("tab=todo")) {
+      window.location.replace("/todo")
+      return
+    }
+  }, [])
+
+  useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
     window.addEventListener("resize", check);
@@ -915,7 +921,7 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
     const startDt = `${form.startDate}T${minutesToLabel(form.startMinutes)}:00`;
     const endDt = `${form.endDate}T${minutesToLabel(form.endMinutes)}:00`;
     await supabase.from("planner_events").insert({
-      user_id: user.id, title: form.title,
+      user_id: user.id, source_todo_id: planModal.id, title: form.title,
       start_date: startDt, end_date: endDt,
       start_minutes: form.startMinutes, end_minutes: form.endMinutes,
       category: CAT_TO_DB[form.cat],
@@ -923,8 +929,7 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
       reminder_minutes_before: form.reminderMinutes > 0 ? [form.reminderMinutes] : [],
       reminder_sent: false,
     });
-    await supabase.from("todo_list").delete().eq("id", planModal.id);
-    setTodos(p => p.filter(t => t.id !== planModal.id));
+    await supabase.from("todo_list").update({ status: "in_progress", due_date: form.startDate, due_time: minutesToLabel(form.startMinutes), estimated_duration_minutes: Math.max(5, form.endMinutes - form.startMinutes), updated_at: new Date().toISOString() }).eq("id", planModal.id);
     setPlanModal(null);
     await loadData(true);
   }
@@ -1044,7 +1049,7 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: `1px solid ${C.grisClair}`, background: C.blanc, flexShrink: 0 }}>
           <Link href="/" style={{ fontSize: 12, color: C.gris, textDecoration: "none", display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 20, border: `1px solid ${C.grisClair}`, background: C.cream }}>← Accueil</Link>
           <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, fontWeight: 700, color: C.noir, marginLeft: 4 }}>Planner</span>
-          {isMobile && mobileTab === "planner" && (
+          {isMobile && (
             <button onClick={() => openNewEvent()} style={{ ...btnStyle(C.roseDark), marginLeft: "auto", padding: "5px 12px", fontSize: 11 }}>+ Évén.</button>
           )}
         </div>
@@ -1065,40 +1070,10 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
           </div>
         )}
 
-        {isMobile === false && (
-          <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-            <div style={{ width: 300, minWidth: 260, borderRight: `1px solid ${C.grisClair}`, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              <TodoPanel todos={todos} newTask={newTask} setNewTask={setNewTask} newPriority={newPriority} setNewPriority={setNewPriority} onAdd={addTodo} onToggle={toggleTodo} onDelete={deleteTodo} onPlan={openPlanTodo} />
-            </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              {plannerHeader}
-              {plannerContent}
-            </div>
-          </div>
-        )}
-
-        {(isMobile === true || isMobile === null) && (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            {mobileTab === "todo" ? (
-              <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-                <TodoPanel todos={todos} newTask={newTask} setNewTask={setNewTask} newPriority={newPriority} setNewPriority={setNewPriority} onAdd={addTodo} onToggle={toggleTodo} onDelete={deleteTodo} onPlan={openPlanTodo} />
-              </div>
-            ) : (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                {plannerHeader}
-                {plannerContent}
-              </div>
-            )}
-            <div style={{ display: "flex", borderTop: `1px solid ${C.grisClair}`, background: C.blanc, flexShrink: 0 }}>
-              <button onClick={() => setMobileTab("todo")} style={{ flex: 1, padding: "12px 0", border: "none", background: mobileTab === "todo" ? C.roseLight : C.blanc, color: mobileTab === "todo" ? C.roseDark : C.gris, cursor: "pointer", fontSize: 12, fontWeight: mobileTab === "todo" ? 700 : 400, borderTop: `2px solid ${mobileTab === "todo" ? C.roseDark : "transparent"}` }}>
-                ✅ To-Do
-              </button>
-              <button onClick={() => setMobileTab("planner")} style={{ flex: 1, padding: "12px 0", border: "none", background: mobileTab === "planner" ? C.roseLight : C.blanc, color: mobileTab === "planner" ? C.roseDark : C.gris, cursor: "pointer", fontSize: 12, fontWeight: mobileTab === "planner" ? 700 : 400, borderTop: `2px solid ${mobileTab === "planner" ? C.roseDark : "transparent"}` }}>
-                📅 Planning
-              </button>
-            </div>
-          </div>
-        )}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {plannerHeader}
+          {plannerContent}
+        </div>
 
         {planModal   && <Modal title="📅 Planifier la tâche"   form={form} setForm={setForm} onConfirm={confirmPlanTodo} onCancel={() => setPlanModal(null)}   confirmLabel="Planifier" />}
         {eventModal  && <Modal title="+ Nouvel événement"       form={form} setForm={setForm} onConfirm={confirmNewEvent} onCancel={() => setEventModal(false)} confirmLabel="Ajouter" />}

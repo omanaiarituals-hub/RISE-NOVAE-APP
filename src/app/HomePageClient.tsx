@@ -50,80 +50,24 @@ type ModuleItem = {
   adminOnly?: boolean
 }
 
-const PRIMARY_MODULES: ModuleItem[] = [
-  {
-    key: 'admin',
-    href: '/admin-documents',
-    title: 'Documents',
-    description: 'Centralise et retrouve',
-    icon: 'document',
-  },
-  {
-    key: 'planner',
-    href: '/planner',
-    title: 'Planner',
-    description: 'Organise ta journée',
-    icon: 'calendar',
-  },
-  {
-    key: 'meals',
-    href: '/recipes',
-    title: 'Repas',
-    description: 'Inspire et régale',
-    icon: 'meal',
-  },
+const ALL_MODULES: ModuleItem[] = [
+  { key: 'planner', href: '/planner', title: 'Planner', description: 'Organise ta journée', icon: 'calendar' },
+  { key: 'todo', href: '/todo', title: 'To-do', description: 'Gère tes tâches', icon: 'check' },
+  { key: 'meals', href: '/recipes', title: 'Repas', description: 'Inspire et régale', icon: 'meal' },
+  { key: 'notes', href: '/notes', title: 'Notes', description: 'Idées et informations', icon: 'notes' },
+  { key: 'admin', href: '/admin-documents', title: 'Documents', description: 'Centralise et retrouve', icon: 'document' },
+  { key: 'family', href: '/family', title: 'Famille', description: 'Informations du foyer', icon: 'family' },
+  { key: 'routines', href: '/routines', title: 'Routines', description: 'Habitudes du quotidien', icon: 'routine' },
+  { key: 'tracker', href: '/tracker', title: 'Suivi', description: 'Tes indicateurs', icon: 'tracker' },
 ]
 
+const DEFAULT_PRIMARY_MODULE_KEYS = ['planner', 'todo', 'meals']
+const MODULES_CACHE_KEY = 'novae-primary-modules'
+
 const OTHER_MODULES: ModuleItem[] = [
-  {
-    key: 'notes',
-    href: '/notes',
-    title: 'Notes',
-    description: 'Idées et informations',
-    icon: 'notes',
-  },
-  {
-    key: 'family',
-    href: '/family',
-    title: 'Famille',
-    description: 'Informations du foyer',
-    icon: 'family',
-  },
-  {
-    key: 'routines',
-    href: '/routines',
-    title: 'Routines',
-    description: 'Habitudes du quotidien',
-    icon: 'routine',
-  },
-  {
-    key: 'tracker',
-    href: '/tracker',
-    title: 'Suivi',
-    description: 'Tes indicateurs',
-    icon: 'tracker',
-  },
-  {
-    key: 'astuces',
-    href: '/astuces',
-    title: 'Astuces',
-    description: 'Conseils pratiques',
-    icon: 'idea',
-  },
-  {
-    key: 'blog',
-    href: '/blog',
-    title: 'Ressources',
-    description: 'Articles et contenus',
-    icon: 'book',
-  },
-  {
-    key: 'finance',
-    href: '/settings',
-    title: 'Finances',
-    description: 'Bientôt disponible',
-    icon: 'wallet',
-  },
+  { key: 'astuces', href: '/astuces', title: 'Astuces', description: 'Conseils pratiques', icon: 'idea' },
+  { key: 'blog', href: '/blog', title: 'Ressources', description: 'Articles et contenus', icon: 'book' },
+  { key: 'finance', href: '/settings', title: 'Finances', description: 'Bientôt disponible', icon: 'wallet' },
 ]
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -212,6 +156,10 @@ export default function HomePageClient() {
   const [priorityItems, setPriorityItems] = useState<PriorityItem[]>([])
   const [documentCount, setDocumentCount] = useState(0)
   const [showAllModules, setShowAllModules] = useState(false)
+  const [showModulePicker, setShowModulePicker] = useState(false)
+  const [primaryModuleKeys, setPrimaryModuleKeys] = useState<string[]>(
+    DEFAULT_PRIMARY_MODULE_KEYS,
+  )
   const [novaPending, setNovaPending] = useState<{
     thread_id: string
   } | null>(null)
@@ -236,20 +184,52 @@ export default function HomePageClient() {
   const novaHref = useMemo(() => {
     if (isAdmin) return '/nova-v2'
     if (novaPending) {
-      return `/agent?nova_thread=${novaPending.thread_id}`
+      return '/nova-v2'
     }
-    return '/agent'
+    return '/nova-v2'
   }, [isAdmin, novaPending])
 
-  const visiblePrimaryModules = PRIMARY_MODULES
-
-  const visibleOtherModules = useMemo(
+  const visiblePrimaryModules = useMemo(
     () =>
-      OTHER_MODULES.filter(
-        (module) => !module.adminOnly || isAdmin,
-      ),
-    [isAdmin],
+      primaryModuleKeys
+        .map((key) => ALL_MODULES.find((module) => module.key === key))
+        .filter((module): module is ModuleItem => Boolean(module)),
+    [primaryModuleKeys],
   )
+
+  const visibleOtherModules = useMemo(() => {
+    const combined = [
+      ...ALL_MODULES.filter(
+        (module) => !primaryModuleKeys.includes(module.key),
+      ),
+      ...OTHER_MODULES,
+    ]
+
+    return combined.filter(
+      (module, index, list) =>
+        (!module.adminOnly || isAdmin) &&
+        list.findIndex((item) => item.key === module.key) === index,
+    )
+  }, [isAdmin, primaryModuleKeys])
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(MODULES_CACHE_KEY)
+      const parsed = saved ? JSON.parse(saved) : null
+
+      if (
+        Array.isArray(parsed) &&
+        parsed.length === 3 &&
+        parsed.every((key) =>
+          ALL_MODULES.some((module) => module.key === key),
+        )
+      ) {
+        setPrimaryModuleKeys(parsed)
+      }
+    } catch {
+      setPrimaryModuleKeys(DEFAULT_PRIMARY_MODULE_KEYS)
+    }
+  }, [])
 
   useEffect(() => {
     const syncTheme = (event?: Event) => {
@@ -586,8 +566,97 @@ export default function HomePageClient() {
     }
   }
 
+  const togglePrimaryModule = (moduleKey: string) => {
+    setPrimaryModuleKeys((current) => {
+      const selected = current.includes(moduleKey)
+      const next = selected
+        ? current.filter((key) => key !== moduleKey)
+        : current.length < 3
+          ? [...current, moduleKey]
+          : current
+
+      try {
+        window.localStorage.setItem(
+          MODULES_CACHE_KEY,
+          JSON.stringify(next),
+        )
+      } catch {}
+
+      return next
+    })
+  }
+
   return (
     <>
+      {showModulePicker && (
+        <div
+          className="modal-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setShowModulePicker(false)
+            }
+          }}
+        >
+          <div className="objective-modal">
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Accueil</span>
+                <h2>Choisis tes 3 modules principaux</h2>
+              </div>
+              <button
+                type="button"
+                className="close-button"
+                onClick={() => setShowModulePicker(false)}
+                aria-label="Fermer"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="module-picker-grid">
+              {ALL_MODULES.map((module) => {
+                const selected = primaryModuleKeys.includes(module.key)
+                const disabled =
+                  !selected && primaryModuleKeys.length >= 3
+
+                return (
+                  <button
+                    key={module.key}
+                    type="button"
+                    className={`module-picker-item ${
+                      selected ? 'selected' : ''
+                    }`}
+                    disabled={disabled}
+                    onClick={() => togglePrimaryModule(module.key)}
+                  >
+                    <span className="secondary-space-icon">
+                      <PremiumIcon
+                        name={module.icon}
+                        width={25}
+                        height={25}
+                      />
+                    </span>
+                    <strong>{module.title}</strong>
+                    <small>
+                      {selected ? 'Sélectionné' : 'Ajouter'}
+                    </small>
+                  </button>
+                )
+              })}
+            </div>
+
+            <button
+              type="button"
+              className="modal-primary"
+              disabled={primaryModuleKeys.length !== 3}
+              onClick={() => setShowModulePicker(false)}
+            >
+              Valider mes 3 modules
+            </button>
+          </div>
+        </div>
+      )}
+
       {showObjective && (
         <div
           className="modal-backdrop"
@@ -712,23 +781,12 @@ export default function HomePageClient() {
               <h2>
                 Qu’est-ce que je peux faire pour toi aujourd’hui ?
               </h2>
-              <p>
-                Nova est là pour t’aider à gagner du temps, y voir
-                plus clair et passer à l’essentiel.
-              </p>
             </div>
 
-            <span className="nova-monogram" aria-label="Nova" />
-
             <div className="nova-actions-row">
-              <Link href={novaHref}>
-                <PremiumIcon name="pen" width={23} height={23} />
-                <span>Écrire</span>
-              </Link>
-
-              <Link href="/agent?voice=1">
-                <PremiumIcon name="voice" width={23} height={23} />
-                <span>Parler</span>
+              <Link href="/nova-v2?voice=1">
+                <PremiumIcon name="sparkle" width={23} height={23} />
+                <span>Nova</span>
               </Link>
 
               <Link href="/admin-documents">
@@ -752,30 +810,22 @@ export default function HomePageClient() {
             </div>
 
             {pointMode === 'metrics' ? (
-              <div className="metrics-card">
-                <div className="metric">
+              <div className="metrics-card metrics-card-two">
+                <Link href="/planner" className="metric">
                   <span className="metric-icon">
                     <PremiumIcon name="calendar" />
                   </span>
                   <strong>{timeline.length}</strong>
                   <small>Événements aujourd’hui</small>
-                </div>
+                </Link>
 
-                <div className="metric">
+                <Link href="/todo" className="metric">
                   <span className="metric-icon">
                     <PremiumIcon name="check" />
                   </span>
                   <strong>{priorityItems.length}</strong>
                   <small>Tâches en cours</small>
-                </div>
-
-                <div className="metric">
-                  <span className="metric-icon">
-                    <PremiumIcon name="document" />
-                  </span>
-                  <strong>{documentCount}</strong>
-                  <small>Documents à traiter</small>
-                </div>
+                </Link>
               </div>
             ) : pointMode === 'timeline' ? (
               <div className="dashboard-grid">
@@ -818,33 +868,6 @@ export default function HomePageClient() {
                       </div>
                     ))}
                   </div>
-
-                  <Link href="/planner" className="nova-suggestion">
-                    <span className="nova-suggestion-icon">
-                      <PremiumIcon
-                        name="sparkle"
-                        width={18}
-                        height={18}
-                      />
-                    </span>
-
-                    <span className="nova-suggestion-copy">
-                      <strong>Suggestions de Nova</strong>
-                      <small>
-                        Actions proposées selon ton planning.
-                      </small>
-                    </span>
-
-                    <span className="nova-suggestion-cta">
-                      Voir tout
-                    </span>
-
-                    <PremiumIcon
-                      name="chevron"
-                      width={15}
-                      height={15}
-                    />
-                  </Link>
                 </div>
 
                 <div className="priorities-dashboard">
@@ -893,24 +916,6 @@ export default function HomePageClient() {
                         </button>
                       )}
                   </div>
-
-                  <button
-                    type="button"
-                    className="focus-row"
-                    onClick={openObjective}
-                  >
-                    <PremiumIcon
-                      name="sparkle"
-                      width={19}
-                      height={19}
-                    />
-                    <span>
-                      <strong>Focus du jour</strong>
-                      <small>
-                        Avancer sur ce qui compte vraiment.
-                      </small>
-                    </span>
-                  </button>
                 </div>
               </div>
             ) : (
@@ -1013,14 +1018,19 @@ export default function HomePageClient() {
           <section className="modules-section">
             <div className="section-heading">
               <h2>Mes modules</h2>
-              <Link href="/personnalisation">
-                Personnaliser
+              <button
+                type="button"
+                className="module-settings-button"
+                onClick={() => setShowModulePicker(true)}
+                aria-label="Choisir mes 3 modules principaux"
+                title="Choisir mes 3 modules principaux"
+              >
                 <PremiumIcon
                   name="sliders"
                   width={19}
                   height={19}
                 />
-              </Link>
+              </button>
             </div>
 
             <div className="home-primary-modules">
@@ -1242,7 +1252,7 @@ export default function HomePageClient() {
         .nova-hero {
           position: relative;
           overflow: hidden;
-          min-height: 310px;
+          min-height: 235px;
           padding: clamp(28px, 5vw, 45px);
           color: var(--novae-hero-text);
           background:
@@ -1352,7 +1362,7 @@ export default function HomePageClient() {
         .hero-copy {
           position: relative;
           z-index: 2;
-          width: min(62%, 590px);
+          width: min(100%, 720px);
         }
 
         .hero-copy h2 {
@@ -1391,40 +1401,17 @@ export default function HomePageClient() {
         }
 
 
-        .nova-monogram {
-          position: absolute;
-          z-index: 2;
-          top: 22%;
-          right: clamp(34px, 7vw, 88px);
-          display: block;
-          width: clamp(120px, 19vw, 205px);
-          aspect-ratio: 484 / 303;
-          background: var(--novae-metal);
-          filter: drop-shadow(
-            0 0 18px
-              color-mix(
-                in srgb,
-                var(--novae-metal) 30%,
-                transparent
-              )
-          );
-          -webkit-mask:
-            url('/nova-monogramme-no-mask.png')
-            center / contain no-repeat;
-          mask:
-            url('/nova-monogramme-no-mask.png')
-            center / contain no-repeat;
-        }
 
         .nova-actions-row {
           position: absolute;
           z-index: 3;
-          right: clamp(24px, 5vw, 44px);
-          bottom: 30px;
-          left: clamp(24px, 5vw, 44px);
+          bottom: 22px;
+          left: 50%;
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 13px;
+          width: min(520px, calc(100% - 48px));
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 18px;
+          transform: translateX(-50%);
         }
 
         .hero-actions a {
@@ -1453,8 +1440,29 @@ export default function HomePageClient() {
         }
 
         .nova-actions-row a {
-          width: min(100%, 220px);
-          justify-self: center;
+          display: flex;
+          width: 100%;
+          min-height: 52px;
+          align-items: center;
+          justify-content: center;
+          gap: 9px;
+          color: var(--novae-hero-text);
+          font-family: var(--novae-font-title);
+          font-size: 18px;
+          text-decoration: none;
+          background: color-mix(
+            in srgb,
+            var(--novae-hero-end) 68%,
+            transparent
+          );
+          border: 1px solid
+            color-mix(
+              in srgb,
+              var(--novae-metal) 55%,
+              transparent
+            );
+          border-radius: 15px;
+          backdrop-filter: blur(10px);
         }
 
         .nova-actions-row a :global(svg) {
@@ -1514,8 +1522,8 @@ export default function HomePageClient() {
 
         .next-hours-card,
         .priority-card {
-          min-height: 218px;
-          padding: 24px;
+          min-height: 170px;
+          padding: 18px;
         }
 
         .priority-card {
@@ -1573,7 +1581,7 @@ export default function HomePageClient() {
         .calm-message,
         .priority-content {
           margin-top: auto;
-          padding-top: 35px;
+          padding-top: 18px;
         }
 
         .calm-message strong,
@@ -1596,7 +1604,7 @@ export default function HomePageClient() {
         .next-list {
           display: grid;
           gap: 0;
-          margin-top: 24px;
+          margin-top: 14px;
         }
 
         .next-item {
@@ -1653,6 +1661,8 @@ export default function HomePageClient() {
 
         .metric {
           display: grid;
+          color: inherit;
+          text-decoration: none;
           min-height: 170px;
           place-items: center;
           align-content: center;
@@ -1874,36 +1884,61 @@ export default function HomePageClient() {
           cursor: pointer;
         }
 
-        .focus-row {
-          display: flex;
-          width: 100%;
+        .metrics-card-two {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .module-settings-button {
+          display: inline-flex;
+          width: 38px;
+          height: 38px;
           align-items: center;
-          gap: 11px;
-          padding: 14px 20px;
-          color: var(--novae-text-main);
-          text-align: left;
-          background: var(--novae-surface-alt);
-          border: 0;
-          border-top: 1px solid var(--novae-border);
+          justify-content: center;
+          color: var(--novae-primary);
+          background: var(--novae-surface);
+          border: 1px solid var(--novae-border);
+          border-radius: 50%;
           cursor: pointer;
         }
 
-        .focus-row :global(svg) {
-          color: var(--novae-metal);
-        }
-
-        .focus-row span {
+        .module-picker-grid {
           display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
         }
 
-        .focus-row strong {
-          font-size: 12px;
+        .module-picker-item {
+          display: grid;
+          grid-template-columns: 48px minmax(0, 1fr);
+          gap: 10px;
+          align-items: center;
+          padding: 12px;
+          color: var(--novae-text-main);
+          text-align: left;
+          background: var(--novae-surface);
+          border: 1px solid var(--novae-border);
+          border-radius: 14px;
+          cursor: pointer;
         }
 
-        .focus-row small {
-          margin-top: 2px;
+        .module-picker-item.selected {
+          border-color: var(--novae-metal);
+          box-shadow: inset 0 0 0 1px var(--novae-metal);
+        }
+
+        .module-picker-item:disabled {
+          cursor: not-allowed;
+          opacity: 0.45;
+        }
+
+        .module-picker-item strong,
+        .module-picker-item small {
+          grid-column: 2;
+        }
+
+        .module-picker-item small {
           color: var(--novae-text-muted);
-          font-size: 11px;
+          font-size: 10px;
         }
 
         .all-spaces-button {
@@ -2200,7 +2235,7 @@ export default function HomePageClient() {
           }
 
           .nova-hero {
-            min-height: 355px;
+            min-height: 285px;
             padding: 28px 23px;
           }
 
@@ -2222,24 +2257,14 @@ export default function HomePageClient() {
 
           :global(html[data-novae-preset='choice_4'])
             .nova-hero {
-            min-height: 388px;
+            min-height: 300px;
           }
 
-          .nova-monogram {
-            top: 43%;
-            right: 24px;
-            width: 118px;
-          }
 
           .nova-actions-row {
-            right: 18px;
             bottom: 18px;
-            left: 18px;
-            gap: 7px;
-          }
-
-          .nova-actions-row {
-            padding: 0 18px;
+            width: calc(100% - 36px);
+            gap: 8px;
           }
 
           .nova-actions-row a {
@@ -2372,7 +2397,7 @@ export default function HomePageClient() {
 
           :global(html[data-novae-preset='choice_4'])
             .nova-hero {
-            min-height: 402px;
+            min-height: 315px;
           }
 
           .hero-copy p {
@@ -2380,15 +2405,7 @@ export default function HomePageClient() {
             font-size: 12px;
           }
 
-          .nova-monogram {
-            top: 47%;
-            right: 20px;
-            width: 96px;
-          }
 
-          .nova-actions-row {
-            padding: 0 12px;
-          }
 
           .nova-actions-row a span {
             font-size: 13px;
