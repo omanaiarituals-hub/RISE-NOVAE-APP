@@ -1162,18 +1162,72 @@
   </footer>
 
   <script>
-    document.getElementById('waitlistForm').addEventListener('submit', function (event) {
+  (function () {
+    const form = document.getElementById('waitlistForm');
+    if (!form) return;
+
+    const button = form.querySelector('button[type="submit"]');
+    const emailInput = form.querySelector('input[name="email"]');
+
+    let status = document.getElementById('waitlistStatus');
+    if (!status) {
+      status = document.createElement('p');
+      status.id = 'waitlistStatus';
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      status.style.margin = '12px 0 0';
+      status.style.fontSize = '14px';
+      status.style.minHeight = '20px';
+      form.insertAdjacentElement('afterend', status);
+    }
+
+    form.addEventListener('submit', async function (event) {
       event.preventDefault();
-      const button = event.currentTarget.querySelector('button');
-      const initial = button.textContent;
-      button.textContent = 'Formulaire à connecter';
+
+      const email = emailInput.value.trim();
+      const initialText = button.textContent;
+
+      status.textContent = '';
       button.disabled = true;
+      button.textContent = 'Inscription en cours…';
+
+      try {
+        const response = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            source: 'landing',
+            consentMarketing: true
+          })
+        });
+
+        const data = await response.json().catch(function () {
+          return {};
+        });
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Impossible de valider ton inscription.');
+        }
+
+        form.reset();
+        status.style.color = '#2f6b4f';
+        status.textContent = 'Ton adresse est bien enregistrée. Tu recevras les prochaines nouvelles de NOVAÉ.';
+        button.textContent = 'Inscription confirmée';
+      } catch (error) {
+        status.style.color = '#9c3f3f';
+        status.textContent = error.message || 'Une erreur est survenue. Réessaie dans un instant.';
+        button.disabled = false;
+        button.textContent = initialText;
+        return;
+      }
 
       window.setTimeout(function () {
-        button.textContent = initial;
         button.disabled = false;
-      }, 2200);
+        button.textContent = initialText;
+      }, 3500);
     });
-  </script>
+  })();
+</script>
 </body>
 </html>
