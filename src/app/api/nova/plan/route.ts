@@ -64,18 +64,6 @@ type RequestTaskMatch = {
 
 type RequestCalendarMatch = CalendarIdentityMatch
 
-function labEnabled(): boolean {
-  return process.env.NOVA_V2_LAB_ENABLED === 'true'
-}
-
-function allowedEmails(): string[] {
-  return (process.env.NOVA_V2_LAB_ALLOWED_EMAILS || '')
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean)
-}
-
-
 function actionStartsTitle(title: string): boolean {
   const normalized = title
     .normalize('NFD')
@@ -222,11 +210,7 @@ function applyTaskIdentityGuard(
 }
 
 export async function POST(request: NextRequest) {
-  if (!labEnabled()) {
-    return NextResponse.json({ error: 'not_found' }, { status: 404 })
-  }
-
-  try {
+try {
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
 
@@ -253,18 +237,11 @@ export async function POST(request: NextRequest) {
     if (authError || !user) {
       return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
     }
-
-    const allowlist = allowedEmails()
-    const email = user.email?.toLowerCase() || ''
-    if (allowlist.length > 0 && !allowlist.includes(email)) {
-      return NextResponse.json({ error: 'Accès au laboratoire refusé.' }, { status: 403 })
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
 
-    const rl = await rateLimit(supabaseAdmin, user.id, 'nova_v2_lab', { max: 30, windowMinutes: 60 })
+    const rl = await rateLimit(supabaseAdmin, user.id, 'nova_v2', { max: 30, windowMinutes: 60 })
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'too_many_requests', message: 'Trop de tests en peu de temps. Réessaie plus tard.' },

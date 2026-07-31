@@ -18,9 +18,13 @@ type HouseholdType =
   | 'alone'
   | 'couple'
   | 'with_children'
+  | 'single_parent'
   | 'blended_family'
   | 'shared_home'
   | 'other'
+type CustodyMode = 'full_time' | 'shared' | 'other'
+type CustodyPattern = 'weekly' | 'every_two_weeks' | 'one_weekend_month' | 'two_weekends_month' | 'custom'
+
 type ThemeKey =
   | 'deep_emerald'
   | 'midnight_blue'
@@ -34,7 +38,15 @@ type Answers = {
   usage_mode: UsageMode | ''
   work_rhythm: WorkRhythm | ''
   household_type: HouseholdType | ''
+  household_context: HouseholdType[]
   has_children: boolean | null
+  custody_mode: CustodyMode | ''
+  custody_pattern: CustodyPattern | ''
+  custody_start_day: number | null
+  custody_end_day: number | null
+  custody_reference_date: string
+  custody_custom_interval: number | null
+  custody_custom_unit: 'week' | 'month' | ''
   preferred_modules: string[]
   theme_key: ThemeKey
   nova_mode: NovaMode
@@ -111,7 +123,15 @@ const initialAnswers: Answers = {
   usage_mode: '',
   work_rhythm: '',
   household_type: '',
+  household_context: [],
   has_children: null,
+  custody_mode: '',
+  custody_pattern: '',
+  custody_start_day: null,
+  custody_end_day: null,
+  custody_reference_date: '',
+  custody_custom_interval: null,
+  custody_custom_unit: '',
   preferred_modules: [],
   theme_key: 'deep_emerald',
   nova_mode: 'balanced',
@@ -175,8 +195,29 @@ export default function OnboardingPage() {
           usage_mode: data.usage_mode || '',
           work_rhythm: data.work_rhythm || '',
           household_type: data.household_type || '',
+          household_context: Array.isArray(data.household_context)
+            ? data.household_context
+            : data.household_type
+              ? [data.household_type]
+              : [],
           has_children:
             typeof data.has_children === 'boolean' ? data.has_children : null,
+          custody_mode: data.custody_mode || '',
+          custody_pattern: data.custody_pattern || '',
+          custody_start_day:
+            typeof data.custody_start_day === 'number'
+              ? data.custody_start_day
+              : null,
+          custody_end_day:
+            typeof data.custody_end_day === 'number'
+              ? data.custody_end_day
+              : null,
+          custody_reference_date: data.custody_reference_date || '',
+          custody_custom_interval:
+            typeof data.custody_custom_interval === 'number'
+              ? data.custody_custom_interval
+              : null,
+          custody_custom_unit: data.custody_custom_unit || '',
           preferred_modules: Array.isArray(data.preferred_modules)
             ? data.preferred_modules
             : [],
@@ -247,8 +288,40 @@ export default function OnboardingPage() {
       priorities: answers.priorities,
       usage_mode: answers.usage_mode || null,
       work_rhythm: answers.work_rhythm || null,
-      household_type: answers.household_type || null,
-      has_children: answers.has_children,
+      household_type:
+        answers.household_context[0] || answers.household_type || null,
+      household_context: answers.household_context,
+      has_children:
+        answers.household_context.includes('with_children') ||
+        answers.household_context.includes('single_parent') ||
+        answers.household_context.includes('blended_family'),
+      custody_mode: answers.custody_mode || null,
+      custody_pattern:
+        answers.custody_mode === 'shared'
+          ? answers.custody_pattern || null
+          : null,
+      custody_start_day:
+        answers.custody_mode === 'shared'
+          ? answers.custody_start_day
+          : null,
+      custody_end_day:
+        answers.custody_mode === 'shared'
+          ? answers.custody_end_day
+          : null,
+      custody_reference_date:
+        answers.custody_mode === 'shared' && answers.custody_reference_date
+          ? answers.custody_reference_date
+          : null,
+      custody_custom_interval:
+        answers.custody_mode === 'shared' &&
+        answers.custody_pattern === 'custom'
+          ? answers.custody_custom_interval
+          : null,
+      custody_custom_unit:
+        answers.custody_mode === 'shared' &&
+        answers.custody_pattern === 'custom'
+          ? answers.custody_custom_unit || null
+          : null,
       preferred_modules: answers.preferred_modules,
       theme_key: answers.theme_key,
       nova_mode: answers.nova_mode,
@@ -350,8 +423,17 @@ export default function OnboardingPage() {
         : step === 2
           ? Boolean(answers.usage_mode) && Boolean(answers.work_rhythm)
           : step === 3
-            ? Boolean(answers.household_type) &&
-              answers.has_children !== null
+            ? answers.household_context.length > 0 &&
+              (!answers.household_context.includes('single_parent') ||
+                (Boolean(answers.custody_mode) &&
+                  (answers.custody_mode !== 'shared' ||
+                    (Boolean(answers.custody_pattern) &&
+                      answers.custody_start_day !== null &&
+                      answers.custody_end_day !== null &&
+                      Boolean(answers.custody_reference_date) &&
+                      (answers.custody_pattern !== 'custom' ||
+                        (Boolean(answers.custody_custom_interval) &&
+                          Boolean(answers.custody_custom_unit)))))))
             : step === 4
               ? answers.preferred_modules.length === 3
               : step === 5
@@ -539,88 +621,329 @@ export default function OnboardingPage() {
 
         {step === 3 ? (
           <div className="step-screen">
-            <p className="eyebrow">Ton foyer</p>
+            <p className="eyebrow">Ton quotidien</p>
             <h2>Qui fait partie de ton quotidien&nbsp;?</h2>
             <p className="intro">
-              Une vue générale suffit. Aucun nom ni détail personnel
-              n’est demandé.
+              Choisis toutes les situations qui correspondent. Aucune
+              identité ni information personnelle n’est demandée.
             </p>
+
             <div className="choice-grid two-columns">
               {[
                 ['alone', 'Je vis seul·e'],
-                ['couple', 'En couple'],
-                ['with_children', 'Avec enfant(s)'],
-                ['blended_family', 'Famille recomposée'],
-                ['shared_home', 'Colocation ou foyer partagé'],
-                ['other', 'Autre'],
-              ].map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`choice-card ${
-                    answers.household_type === value ? 'selected' : ''
-                  }`}
-                  onClick={() =>
-                    setAnswers(current => ({
-                      ...current,
-                      household_type: value as HouseholdType,
-                      has_children:
-                        value === 'with_children' ||
-                        value === 'blended_family'
-                          ? true
-                          : current.has_children,
-                    }))
-                  }
-                >
-                  {label}
-                </button>
-              ))}
+                ['couple', 'Je vis en couple'],
+                ['with_children', 'Je vis avec enfant(s)'],
+                ['single_parent', 'Je suis parent solo'],
+                ['blended_family', 'Je vis dans une famille recomposée'],
+                ['shared_home', 'Je vis en colocation ou dans un foyer partagé'],
+                ['other', 'Une autre situation'],
+              ].map(([value, label]) => {
+                const householdValue = value as HouseholdType
+                const selected =
+                  answers.household_context.includes(householdValue)
+
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`choice-card ${selected ? 'selected' : ''}`}
+                    onClick={() =>
+                      setAnswers(current => {
+                        let nextContext = current.household_context
+
+                        if (selected) {
+                          nextContext = nextContext.filter(
+                            item => item !== householdValue,
+                          )
+                        } else if (householdValue === 'alone') {
+                          nextContext = ['alone']
+                        } else {
+                          nextContext = [
+                            ...nextContext.filter(item => item !== 'alone'),
+                            householdValue,
+                          ]
+                        }
+
+                        const isSingleParent =
+                          nextContext.includes('single_parent')
+
+                        return {
+                          ...current,
+                          household_context: nextContext,
+                          household_type: nextContext[0] || '',
+                          has_children:
+                            nextContext.includes('with_children') ||
+                            isSingleParent ||
+                            nextContext.includes('blended_family'),
+                          custody_mode: isSingleParent
+                            ? current.custody_mode
+                            : '',
+                          custody_pattern: isSingleParent
+                            ? current.custody_pattern
+                            : '',
+                          custody_start_day: isSingleParent
+                            ? current.custody_start_day
+                            : null,
+                          custody_end_day: isSingleParent
+                            ? current.custody_end_day
+                            : null,
+                          custody_reference_date: isSingleParent
+                            ? current.custody_reference_date
+                            : '',
+                          custody_custom_interval: isSingleParent
+                            ? current.custody_custom_interval
+                            : null,
+                          custody_custom_unit: isSingleParent
+                            ? current.custody_custom_unit
+                            : '',
+                        }
+                      })
+                    }
+                  >
+                    <span>{label}</span>
+                    <small>{selected ? 'Sélectionné' : 'Choisir'}</small>
+                  </button>
+                )
+              })}
             </div>
 
-            <h3>Ton organisation comprend-elle des enfants&nbsp;?</h3>
-            <div className="choice-grid three-columns">
-              <button
-                type="button"
-                className={`choice-card ${
-                  answers.has_children === true ? 'selected' : ''
-                }`}
-                onClick={() =>
-                  setAnswers(current => ({
-                    ...current,
-                    has_children: true,
-                  }))
-                }
-              >
-                Oui
-              </button>
-              <button
-                type="button"
-                className={`choice-card ${
-                  answers.has_children === false ? 'selected' : ''
-                }`}
-                onClick={() =>
-                  setAnswers(current => ({
-                    ...current,
-                    has_children: false,
-                  }))
-                }
-              >
-                Non
-              </button>
-              <button
-                type="button"
-                className={`choice-card ${
-                  answers.has_children === null ? 'selected' : ''
-                }`}
-                onClick={() =>
-                  setAnswers(current => ({
-                    ...current,
-                    has_children: null,
-                  }))
-                }
-              >
-                Je préfère ne pas répondre
-              </button>
+            <p className="selection-count">
+              {answers.household_context.length} choix sélectionné
+              {answers.household_context.length > 1 ? 's' : ''}
+            </p>
+
+            {answers.household_context.includes('single_parent') ? (
+              <div className="conditional-panel">
+                <h3>Quel est ton rythme de garde&nbsp;?</h3>
+                <p className="helper">
+                  Cela permettra plus tard d’afficher automatiquement les
+                  périodes avec enfants dans le Planner.
+                </p>
+
+                <div className="choice-grid three-columns">
+                  {[
+                    ['full_time', 'Avec moi à temps plein'],
+                    ['shared', 'Garde alternée'],
+                    ['other', 'Un autre rythme'],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`choice-card compact ${
+                        answers.custody_mode === value ? 'selected' : ''
+                      }`}
+                      onClick={() =>
+                        setAnswers(current => ({
+                          ...current,
+                          custody_mode: value as CustodyMode,
+                          custody_pattern:
+                            value === 'shared'
+                              ? current.custody_pattern
+                              : '',
+                          custody_start_day:
+                            value === 'shared'
+                              ? current.custody_start_day
+                              : null,
+                          custody_end_day:
+                            value === 'shared'
+                              ? current.custody_end_day
+                              : null,
+                          custody_reference_date:
+                            value === 'shared'
+                              ? current.custody_reference_date
+                              : '',
+                          custody_custom_interval:
+                            value === 'shared'
+                              ? current.custody_custom_interval
+                              : null,
+                          custody_custom_unit:
+                            value === 'shared'
+                              ? current.custody_custom_unit
+                              : '',
+                        }))
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {answers.custody_mode === 'shared' ? (
+                  <>
+                    <h3>À quelle fréquence as-tu les enfants&nbsp;?</h3>
+                    <div className="choice-grid two-columns">
+                      {[
+                        ['weekly', 'Chaque semaine'],
+                        ['every_two_weeks', 'Une semaine sur deux'],
+                        ['one_weekend_month', 'Un week-end par mois'],
+                        ['two_weekends_month', 'Deux week-ends par mois'],
+                        ['custom', 'Autre fréquence'],
+                      ].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          className={`choice-card compact ${
+                            answers.custody_pattern === value
+                              ? 'selected'
+                              : ''
+                          }`}
+                          onClick={() =>
+                            setAnswers(current => ({
+                              ...current,
+                              custody_pattern: value as CustodyPattern,
+                              custody_custom_interval:
+                                value === 'custom'
+                                  ? current.custody_custom_interval
+                                  : null,
+                              custody_custom_unit:
+                                value === 'custom'
+                                  ? current.custody_custom_unit
+                                  : '',
+                            }))
+                          }
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {answers.custody_pattern === 'custom' ? (
+                      <div className="custom-frequency-grid">
+                        <label>
+                          <span>Tous les</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="12"
+                            className="text-input"
+                            value={answers.custody_custom_interval ?? ''}
+                            onChange={event =>
+                              setAnswers(current => ({
+                                ...current,
+                                custody_custom_interval:
+                                  event.target.value === ''
+                                    ? null
+                                    : Math.max(
+                                        1,
+                                        Math.min(
+                                          12,
+                                          Number(event.target.value),
+                                        ),
+                                      ),
+                              }))
+                            }
+                          />
+                        </label>
+
+                        <label>
+                          <span>Période</span>
+                          <select
+                            className="text-input"
+                            value={answers.custody_custom_unit}
+                            onChange={event =>
+                              setAnswers(current => ({
+                                ...current,
+                                custody_custom_unit:
+                                  event.target.value as 'week' | 'month',
+                              }))
+                            }
+                          >
+                            <option value="">Choisir</option>
+                            <option value="week">semaine(s)</option>
+                            <option value="month">mois</option>
+                          </select>
+                        </label>
+                      </div>
+                    ) : null}
+
+                    <h3>Quel jour les récupères-tu généralement&nbsp;?</h3>
+                    <div className="day-grid">
+                      {[
+                        [1, 'Lun'],
+                        [2, 'Mar'],
+                        [3, 'Mer'],
+                        [4, 'Jeu'],
+                        [5, 'Ven'],
+                        [6, 'Sam'],
+                        [0, 'Dim'],
+                      ].map(([value, label]) => (
+                        <button
+                          key={`start-${value}`}
+                          type="button"
+                          className={`day-button ${
+                            answers.custody_start_day === value
+                              ? 'selected'
+                              : ''
+                          }`}
+                          onClick={() =>
+                            setAnswers(current => ({
+                              ...current,
+                              custody_start_day: value as number,
+                            }))
+                          }
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <h3>Quel jour repartent-ils généralement&nbsp;?</h3>
+                    <div className="day-grid">
+                      {[
+                        [1, 'Lun'],
+                        [2, 'Mar'],
+                        [3, 'Mer'],
+                        [4, 'Jeu'],
+                        [5, 'Ven'],
+                        [6, 'Sam'],
+                        [0, 'Dim'],
+                      ].map(([value, label]) => (
+                        <button
+                          key={`end-${value}`}
+                          type="button"
+                          className={`day-button ${
+                            answers.custody_end_day === value
+                              ? 'selected'
+                              : ''
+                          }`}
+                          onClick={() =>
+                            setAnswers(current => ({
+                              ...current,
+                              custody_end_day: value as number,
+                            }))
+                          }
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <h3>Quand commence ta prochaine période avec les enfants&nbsp;?</h3>
+                    <input
+                      type="date"
+                      className="text-input"
+                      value={answers.custody_reference_date}
+                      onChange={event =>
+                        setAnswers(current => ({
+                          ...current,
+                          custody_reference_date: event.target.value,
+                        }))
+                      }
+                    />
+
+                    <div className="validation-note">
+                      Exemple : « chaque semaine, du mercredi au samedi ».
+                      Cette date sert uniquement de point de départ pour
+                      générer les futurs bandeaux du Planner.
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="validation-note">
+              « Je vis seul·e » est exclusif. Les autres choix peuvent être
+              combinés, par exemple « En couple » et « Avec enfant(s) ».
             </div>
           </div>
         ) : null}
@@ -1289,6 +1612,53 @@ const styles = `
     font-size: 11px;
   }
 
+  .conditional-panel {
+    margin-top: 28px;
+    padding: 22px;
+    border: 1px solid rgba(23, 63, 52, 0.12);
+    border-radius: 20px;
+    background: rgba(23, 63, 52, 0.035);
+  }
+
+  .custom-frequency-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .custom-frequency-grid label {
+    display: grid;
+    gap: 7px;
+    color: rgba(36, 52, 47, 0.68);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .day-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .day-button {
+    min-height: 46px;
+    border: 1px solid rgba(23, 63, 52, 0.12);
+    border-radius: 12px;
+    background: white;
+    color: #24342f;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .day-button.selected {
+    border-color: #d09a59;
+    background: rgba(208, 154, 89, 0.12);
+    box-shadow: 0 0 0 3px rgba(208, 154, 89, 0.1);
+  }
+
   .step-footer {
     margin-top: 34px;
   }
@@ -1363,6 +1733,14 @@ const styles = `
 
     .theme-card {
       min-height: 170px;
+    }
+
+    .day-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .custom-frequency-grid {
+      grid-template-columns: 1fr;
     }
 
     h3 {
