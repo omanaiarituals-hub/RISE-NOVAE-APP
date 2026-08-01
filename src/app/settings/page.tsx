@@ -65,6 +65,11 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
+  const [showMemoryResetModal, setShowMemoryResetModal] = useState(false)
+  const [resettingMemory, setResettingMemory] = useState(false)
+  const [memoryResetError, setMemoryResetError] = useState('')
+  const [memoryResetDone, setMemoryResetDone] = useState(false)
+
   useEffect(() => {
     if (user && !authLoading) loadPrefs()
   }, [user, authLoading])
@@ -133,6 +138,30 @@ export default function SettingsPage() {
       console.error('[Settings] Erreur:', err)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleResetNovaMemory = async () => {
+    setResettingMemory(true)
+    setMemoryResetError('')
+    try {
+      const response = await fetch('/api/nova/memory/reset', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setMemoryResetError(data.error || 'Erreur lors de la réinitialisation')
+        setResettingMemory(false)
+        return
+      }
+      setResettingMemory(false)
+      setMemoryResetDone(true)
+      setShowMemoryResetModal(false)
+    } catch (err) {
+      console.error('[Settings] Erreur reset mémoire Nova:', err)
+      setMemoryResetError('Erreur de connexion. Réessaie.')
+      setResettingMemory(false)
     }
   }
 
@@ -290,7 +319,37 @@ export default function SettingsPage() {
               </div>
             </div>
           </Link>
-          
+
+          {/* SECTION MÉMOIRE NOVA */}
+          <div style={glassCard}>
+            <h2 style={sectionTitle}>Mémoire de Nova</h2>
+            <p style={sectionDesc}>
+              Nova retient ce que tu lui confies au fil des échanges pour t’aider de mieux en mieux. Tu peux effacer cette mémoire et son historique de conversation à tout moment. Tes documents, ta famille et tes autres données ne sont pas touchés.
+            </p>
+            {memoryResetDone ? (
+              <p style={{ margin: '8px 0 0', fontSize: 13, fontWeight: 700, color: C.copperDark }}>
+                La mémoire de Nova a été réinitialisée.
+              </p>
+            ) : (
+              <button
+                onClick={() => { setMemoryResetError(''); setShowMemoryResetModal(true) }}
+                style={{
+                  marginTop: 12,
+                  padding: '10px 18px',
+                  borderRadius: 12,
+                  border: `1px solid ${C.copperDark}`,
+                  background: 'transparent',
+                  color: C.copperDark,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Repartir de zéro
+              </button>
+            )}
+          </div>
+
           {/* SECTION NOTIFS */}
           <div style={glassCard}>
             <h2 style={sectionTitle}>Notifications</h2>
@@ -378,6 +437,61 @@ export default function SettingsPage() {
       </div>
 
       {/* MODAL CONFIRMATION SUPPRESSION */}
+      {showMemoryResetModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+          }}
+          onClick={() => !resettingMemory && setShowMemoryResetModal(false)}
+        >
+          <div
+            style={{
+              background: '#fff', borderRadius: 20, padding: 24,
+              maxWidth: 380, width: '100%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: C.brown }}>
+              Réinitialiser la mémoire de Nova ?
+            </h3>
+            <p style={{ margin: '10px 0 0', fontSize: 13, color: C.brownLight, lineHeight: 1.4 }}>
+              Nova oubliera ce qu’elle a appris et l’historique de vos échanges. Cette action est définitive. Tes documents, ta famille et tes autres données restent intacts.
+            </p>
+            {memoryResetError && (
+              <p style={{ margin: '10px 0 0', fontSize: 12, color: '#c0392b' }}>{memoryResetError}</p>
+            )}
+            <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+              <button
+                onClick={() => setShowMemoryResetModal(false)}
+                disabled={resettingMemory}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 12,
+                  border: `1px solid ${C.brownLight}`, background: 'transparent',
+                  color: C.brown, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleResetNovaMemory}
+                disabled={resettingMemory}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 12, border: 'none',
+                  background: C.copperDark, color: '#fff',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  opacity: resettingMemory ? 0.6 : 1,
+                }}
+              >
+                {resettingMemory ? 'Réinitialisation…' : 'Confirmer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDeleteModal && (
         <div
           onClick={() => !deleting && setShowDeleteModal(false)}

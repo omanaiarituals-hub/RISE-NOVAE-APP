@@ -243,6 +243,35 @@ function buildUserContextFromProfile(profile: Record<string, unknown> | null): s
   return lines.length > 0 ? lines.join('\n') : undefined
 }
 
+type NovaMemoryRow = { key: string | null; value: string | null; scope: string | null }
+
+function formatNovaMemories(rows: NovaMemoryRow[] | null): string | undefined {
+  if (!rows || rows.length === 0) return undefined
+  const lines = rows
+    .filter((r) => r.key && r.value)
+    .map((r) => `- ${r.key} : ${r.value}`)
+  return lines.length > 0 ? lines.join('\n') : undefined
+}
+
+type MemoryCandidateLike = {
+  key: string
+  value: string
+  scope: string
+  confidence: number
+}
+
+function selectDurableMemories(candidates: MemoryCandidateLike[]): MemoryCandidateLike[] {
+  const byKey = new Map<string, MemoryCandidateLike>()
+  for (const c of candidates) {
+    if (!c.key || !c.value) continue
+    if (c.scope === 'temporary') continue
+    if (typeof c.confidence === 'number' && c.confidence < 0.6) continue
+    const existing = byKey.get(c.key)
+    if (!existing || c.confidence > existing.confidence) byKey.set(c.key, c)
+  }
+  return Array.from(byKey.values())
+}
+
 export async function POST(request: NextRequest) {
 try {
     const authHeader = request.headers.get('authorization')
@@ -450,16 +479,30 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
 
     let userContext: string | undefined
     try {
-      const { data: novaProfile } = await supabaseAdmin
-        .from('onboarding_v2_profiles')
-        .select(
-          'display_name, usage_mode, priorities, work_rhythm, household_type, household_context, has_children, custody_mode'
-        )
-        .eq('user_id', user.id)
-        .maybeSingle()
-      userContext = buildUserContextFromProfile(novaProfile)
-    } catch (profileError) {
-      console.warn('[api/nova/plan] profil indisponible, poursuite sans contexte', profileError)
+      const [profileRes, memoriesRes] = await Promise.all([
+        supabaseAdmin
+          .from('onboarding_v2_profiles')
+          .select(
+            'display_name, usage_mode, priorities, work_rhythm, household_type, household_context, has_children, custody_mode'
+          )
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('nova_memories')
+          .select('key, value, scope')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(50),
+      ])
+
+      const profileText = buildUserContextFromProfile(profileRes.data)
+      const memoriesText = formatNovaMemories(memoriesRes.data as NovaMemoryRow[] | null)
+      const parts: string[] = []
+      if (profileText) parts.push(profileText)
+      if (memoriesText) parts.push(`Ce que Nova a appris au fil des échanges :\n${memoriesText}`)
+      userContext = parts.length > 0 ? parts.join('\n\n') : undefined
+    } catch (contextError) {
+      console.warn('[api/nova/plan] contexte indisponible, poursuite sans', contextError)
     }
 
     const result = await createNovaActionPlan(
@@ -479,6 +522,31 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       duplicatePairs,
       requestMatches
     )
+
+    // Mémoire épisodique : Nova enregistre automatiquement les faits durables.
+    // Non bloquant : un échec ici ne doit jamais empêcher la réponse à l'utilisatrice.
+    try {
+      const durable = selectDurableMemories(
+        result.plan.memory_candidates as MemoryCandidateLike[]
+      )
+      if (durable.length > 0) {
+        const nowIso = new Date().toISOString()
+        const rows = durable.map((m) => ({
+          user_id: user.id,
+          key: m.key,
+          value: m.value,
+          scope: m.scope,
+          confidence: m.confidence,
+          source: 'nova_auto',
+          updated_at: nowIso,
+        }))
+        await supabaseAdmin
+          .from('nova_memories')
+          .upsert(rows, { onConflict: 'user_id,key' })
+      }
+    } catch (memoryError) {
+      console.warn('[api/nova/plan] mémoire non enregistrée', memoryError)
+    }
 
     const hasConfirmableAction = result.plan.proposed_actions.some(
       (action) => action.requires_confirmation
