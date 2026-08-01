@@ -33,12 +33,24 @@ function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+function normalizeConfirmationInput(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\u2019/g, "'")
+    .replace(/[.,!?\u2026]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function isPositiveConfirmation(value: string): boolean {
-  return /^(oui|oui je confirme|je confirme|confirme|ok|d'accord|d’accord)$/i.test(value.trim())
+  const v = normalizeConfirmationInput(value)
+  return /^(oui( je confirme| je valide| confirme| valide| vas[- ]?y| c'est bon| ok| d'accord)?|je confirme|je valide|confirme|valide|c'est bon|c est bon|vas[- ]?y|ok|d'accord|d accord|parfait|go)$/.test(v)
 }
 
 function isNegativeConfirmation(value: string): boolean {
-  return /^(non|annule|annuler|je refuse|ne fais rien)$/i.test(value.trim())
+  const v = normalizeConfirmationInput(value)
+  return /^(non( merci| annule| je refuse)?|annule( tout)?|annuler|je refuse|ne fais rien|laisse tomber|stop)$/.test(v)
 }
 
 function formatConversationDate(value: string): string {
@@ -97,12 +109,26 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const lastNovaSpeechEndedAtRef = useRef(0)
   const endRef = useRef<HTMLDivElement | null>(null)
   const autoVoiceStartedRef = useRef(false)
+  const statusRef = useRef<ConversationStatus>('idle')
+  const confirmActionsRef = useRef<null | (() => Promise<void>)>(null)
+  const cancelActionsRef = useRef<null | (() => Promise<void>)>(null)
 
 
 
   useEffect(() => {
     voiceOverlayOpenRef.current = voiceOverlayOpen
   }, [voiceOverlayOpen])
+
+  useEffect(() => {
+    statusRef.current = status
+  }, [status])
+
+  // Toujours pointer vers les dernières versions des fonctions de validation,
+  // pour que le callback vocal (créé plus tôt) ne fige pas un état périmé.
+  useEffect(() => {
+    confirmActionsRef.current = confirmPreparedActions
+    cancelActionsRef.current = cancelPreparedActions
+  })
 
   useEffect(() => {
     pausedRef.current = paused
@@ -729,6 +755,19 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       setListening(false)
 
       if (!transcript || isLikelyNovaEcho(transcript)) return
+
+      // Validation orale : si une proposition attend, un « oui » dit à voix
+      // haute déclenche la même exécution que le bouton Confirmer.
+      if (statusRef.current === 'waiting_confirmation') {
+        if (isPositiveConfirmation(transcript)) {
+          void confirmActionsRef.current?.()
+          return
+        }
+        if (isNegativeConfirmation(transcript)) {
+          void cancelActionsRef.current?.()
+          return
+        }
+      }
 
       if (autoSubmit || voiceOverlayOpenRef.current) {
         void requestPlan(transcript)
