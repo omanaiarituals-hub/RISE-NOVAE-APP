@@ -73,17 +73,6 @@ const TASK_SELECT = [
   'created_at',
 ].join(',')
 
-function labEnabled(): boolean {
-  return process.env.NOVA_V2_LAB_ENABLED === 'true'
-}
-
-function allowedEmails(): string[] {
-  return (process.env.NOVA_V2_LAB_ALLOWED_EMAILS || '')
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean)
-}
-
 function buildUserClient(supabaseUrl: string, anonKey: string, token: string) {
   return createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
@@ -617,10 +606,6 @@ async function mergeAndVerifyTasks(
 }
 
 export async function POST(request: NextRequest) {
-  if (!labEnabled()) {
-    return NextResponse.json({ error: 'not_found' }, { status: 404 })
-  }
-
   try {
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
@@ -643,12 +628,6 @@ export async function POST(request: NextRequest) {
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
-    }
-
-    const allowlist = allowedEmails()
-    const email = user.email?.toLowerCase() || ''
-    if (allowlist.length > 0 && !allowlist.includes(email)) {
-      return NextResponse.json({ error: 'Accès au laboratoire refusé.' }, { status: 403 })
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
