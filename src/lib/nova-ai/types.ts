@@ -59,6 +59,7 @@ export interface NovaPlanInput {
   locale: string
   timezone: string
   nowIso: string
+  userContext?: string
 }
 
 export interface NovaExtractedDate {

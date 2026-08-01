@@ -209,6 +209,40 @@ function applyTaskIdentityGuard(
   }
 }
 
+function buildUserContextFromProfile(profile: Record<string, unknown> | null): string | undefined {
+  if (!profile) return undefined
+  const lines: string[] = []
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+  const arr = (v: unknown) =>
+    Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).join(', ') : null
+
+  const name = str(profile.display_name)
+  if (name) lines.push(`Prénom : ${name}`)
+
+  const usage = str(profile.usage_mode)
+  if (usage) lines.push(`Mode d’usage : ${usage}`)
+
+  const priorities = arr(profile.priorities)
+  if (priorities) lines.push(`Priorités : ${priorities}`)
+
+  const rhythm = str(profile.work_rhythm)
+  if (rhythm) lines.push(`Rythme : ${rhythm}`)
+
+  const household = str(profile.household_type)
+  if (household) lines.push(`Type de foyer : ${household}`)
+
+  const householdCtx = arr(profile.household_context)
+  if (householdCtx) lines.push(`Contexte du foyer : ${householdCtx}`)
+
+  if (profile.has_children === true) lines.push('A des enfants : oui')
+
+  if (str(profile.custody_mode)) {
+    lines.push('Situation de garde alternée : oui (tenir compte des périodes de présence des enfants)')
+  }
+
+  return lines.length > 0 ? lines.join('\n') : undefined
+}
+
 export async function POST(request: NextRequest) {
 try {
     const authHeader = request.headers.get('authorization')
@@ -414,12 +448,27 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       'Utilise ce contexte uniquement pour comprendre les références, éviter les doublons, retrouver précisément une tâche, un rappel ou un rendez-vous et préparer une création, modification ou annulation après validation.',
     ].join('\n')
 
+    let userContext: string | undefined
+    try {
+      const { data: novaProfile } = await supabaseAdmin
+        .from('onboarding_v2_profiles')
+        .select(
+          'display_name, usage_mode, priorities, work_rhythm, household_type, household_context, has_children, custody_mode'
+        )
+        .eq('user_id', user.id)
+        .maybeSingle()
+      userContext = buildUserContextFromProfile(novaProfile)
+    } catch (profileError) {
+      console.warn('[api/nova/plan] profil indisponible, poursuite sans contexte', profileError)
+    }
+
     const result = await createNovaActionPlan(
       {
         message: messageWithContext,
         locale: 'fr-FR',
         timezone: 'Europe/Paris',
         nowIso: new Date().toISOString(),
+        userContext,
       },
       provider
     )

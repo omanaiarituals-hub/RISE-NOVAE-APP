@@ -175,6 +175,9 @@ RÈGLES TEMPORELLES OBLIGATOIRES :
 - dans le message conversationnel, reprends exactement la même date que celle utilisée dans les actions structurées ;
 - ne devine jamais une année différente de l’année locale actuelle sans demande explicite.
 
-Demande à analyser :
+${input.userContext ? `Contexte de l’utilisatrice (mémoire de profil, à utiliser pour personnaliser sans jamais l’inventer) :
+${input.userContext}
+
+` : ''}Demande à analyser :
 ${input.message}`
 }
