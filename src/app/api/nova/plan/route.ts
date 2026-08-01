@@ -254,6 +254,99 @@ function formatNovaMemories(rows: NovaMemoryRow[] | null): string | undefined {
   return lines.length > 0 ? lines.join('\n') : undefined
 }
 
+type FamilyMemberRow = {
+  relation_to_user: string | null
+  is_primary_contact: boolean | null
+  notes: string | null
+  data: Record<string, unknown> | null
+}
+
+function formatFamilyContext(rows: FamilyMemberRow[] | null): string | undefined {
+  if (!rows || rows.length === 0) return undefined
+  const lines = rows.slice(0, 20).map((r) => {
+    const d = r.data || {}
+    const name = typeof d.firstName === 'string' && d.firstName ? d.firstName : (typeof d.name === 'string' ? d.name : 'Proche')
+    const parts: string[] = [name]
+    if (r.relation_to_user) parts.push(r.relation_to_user)
+    if (typeof d.birthDate === 'string' && d.birthDate) parts.push(`né(e) le ${d.birthDate}`)
+    const allergies = Array.isArray(d.allergies) ? d.allergies.filter((a) => typeof a === 'string' && a) : []
+    if (allergies.length > 0) parts.push(`allergies : ${allergies.join(', ')}`)
+    if (typeof d.healthNotes === 'string' && d.healthNotes.trim()) parts.push(`santé : ${d.healthNotes.trim()}`)
+    if (r.is_primary_contact) parts.push('contact principal')
+    return `- ${parts.join(' — ')}`
+  })
+  return lines.join('\n')
+}
+
+type AdminDocRow = {
+  title: string | null
+  sender: string | null
+  due_date: string | null
+  recommended_next_step: string | null
+  amount: number | null
+  processing_status: string | null
+}
+
+function formatAdminDocsContext(rows: AdminDocRow[] | null): string | undefined {
+  if (!rows || rows.length === 0) return undefined
+  const label = (s: string | null) => (s === 'in_progress' ? 'en cours' : 'à traiter')
+  const lines = rows.slice(0, 20).map((r) => {
+    const parts: string[] = [r.title || 'Document']
+    if (r.sender) parts.push(`de ${r.sender}`)
+    if (r.due_date) parts.push(`échéance ${r.due_date}`)
+    if (typeof r.amount === 'number') parts.push(`${r.amount} €`)
+    parts.push(label(r.processing_status))
+    if (r.recommended_next_step) parts.push(`prochaine étape : ${r.recommended_next_step}`)
+    return `- ${parts.join(' — ')}`
+  })
+  return lines.join('\n')
+}
+
+type NoteRow = { title: string | null; pinned: boolean | null }
+
+function formatNotesContext(rows: NoteRow[] | null): string | undefined {
+  if (!rows || rows.length === 0) return undefined
+  const lines = rows.slice(0, 8).map((r) => `- ${r.title || 'Note sans titre'}${r.pinned ? ' (épinglée)' : ''}`)
+  return lines.join('\n')
+}
+
+type MealRow = { day_of_week: string | null; meal_type: string | null; custom_meal: string | null; headcount: number | null }
+
+function formatMealsContext(rows: MealRow[] | null): string | undefined {
+  if (!rows || rows.length === 0) return undefined
+  const lines = rows.slice(0, 30).map((r) => {
+    const parts: string[] = [`${r.day_of_week || '?'} ${r.meal_type || ''}`.trim()]
+    parts.push(r.custom_meal || 'recette enregistrée')
+    if (typeof r.headcount === 'number' && r.headcount > 0) parts.push(`${r.headcount} pers.`)
+    return `- ${parts.join(' — ')}`
+  })
+  return lines.join('\n')
+}
+
+type ShoppingRow = { ingredient: string | null; quantity: string | null; unit: string | null; priority: string | null }
+
+function formatShoppingContext(rows: ShoppingRow[] | null): string | undefined {
+  if (!rows || rows.length === 0) return undefined
+  const lines = rows.slice(0, 30).map((r) => {
+    const qty = [r.quantity, r.unit].filter(Boolean).join(' ')
+    return `- ${r.ingredient || 'Article'}${qty ? ` (${qty})` : ''}${r.priority === 'high' ? ' — prioritaire' : ''}`
+  })
+  return lines.join('\n')
+}
+
+type RoutineRow = { title: string | null; frequency: string | null; preferred_time: string | null }
+
+function formatRoutinesContext(rows: RoutineRow[] | null): string | undefined {
+  if (!rows || rows.length === 0) return undefined
+  const lines = rows.slice(0, 15).map((r) => {
+    const parts: string[] = [r.title || 'Routine']
+    if (r.frequency) parts.push(r.frequency)
+    if (r.preferred_time) parts.push(`vers ${String(r.preferred_time).slice(0, 5)}`)
+    return `- ${parts.join(' — ')}`
+  })
+  return lines.join('\n')
+}
+
 type MemoryCandidateLike = {
   key: string
   value: string
@@ -485,11 +578,11 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
 
     let userContext: string | undefined
     try {
-      const [profileRes, memoriesRes] = await Promise.all([
+      const [profileRes, memoriesRes, familyRes, adminDocsRes, notesRes, mealsRes, shoppingRes, routinesRes] = await Promise.all([
         supabaseAdmin
           .from('onboarding_v2_profiles')
           .select(
-            'display_name, usage_mode, priorities, work_rhythm, household_type, household_context, has_children, custody_mode'
+            'display_name, usage_mode, priorities, work_rhythm, household_type, household_context, has_children, custody_mode, custody_pattern'
           )
           .eq('user_id', user.id)
           .maybeSingle(),
@@ -499,13 +592,64 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           .eq('user_id', user.id)
           .order('updated_at', { ascending: false })
           .limit(50),
+        supabaseAdmin
+          .from('family_data')
+          .select('relation_to_user, is_primary_contact, notes, data')
+          .eq('user_id', user.id)
+          .eq('data_type', 'member')
+          .eq('is_active', true)
+          .limit(20),
+        supabaseAdmin
+          .from('administrative_documents')
+          .select('title, sender, due_date, recommended_next_step, amount, processing_status')
+          .eq('user_id', user.id)
+          .eq('vault_protected', false)
+          .in('processing_status', ['todo', 'in_progress'])
+          .order('due_date', { ascending: true, nullsFirst: false })
+          .limit(20),
+        supabaseAdmin
+          .from('notes')
+          .select('title, pinned')
+          .eq('user_id', user.id)
+          .order('pinned', { ascending: false })
+          .order('updated_at', { ascending: false })
+          .limit(8),
+        supabaseAdmin
+          .from('meal_plan')
+          .select('day_of_week, meal_type, custom_meal, headcount')
+          .eq('user_id', user.id)
+          .limit(30),
+        supabaseAdmin
+          .from('shopping_list')
+          .select('ingredient, quantity, unit, priority')
+          .eq('user_id', user.id)
+          .eq('to_buy', true)
+          .limit(30),
+        supabaseAdmin
+          .from('routines')
+          .select('title, frequency, preferred_time')
+          .eq('user_id', user.id)
+          .limit(15),
       ])
 
       const profileText = buildUserContextFromProfile(profileRes.data)
       const memoriesText = formatNovaMemories(memoriesRes.data as NovaMemoryRow[] | null)
+      const familyText = formatFamilyContext(familyRes.data as FamilyMemberRow[] | null)
+      const adminDocsText = formatAdminDocsContext(adminDocsRes.data as AdminDocRow[] | null)
+      const notesText = formatNotesContext(notesRes.data as NoteRow[] | null)
+      const mealsText = formatMealsContext(mealsRes.data as MealRow[] | null)
+      const shoppingText = formatShoppingContext(shoppingRes.data as ShoppingRow[] | null)
+      const routinesText = formatRoutinesContext(routinesRes.data as RoutineRow[] | null)
+
       const parts: string[] = []
       if (profileText) parts.push(profileText)
       if (memoriesText) parts.push(`Ce que Nova a appris au fil des échanges :\n${memoriesText}`)
+      if (familyText) parts.push(`Famille et proches (fiches du module Famille) :\n${familyText}`)
+      if (adminDocsText) parts.push(`Documents administratifs en attente (métadonnées uniquement) :\n${adminDocsText}`)
+      if (notesText) parts.push(`Notes récentes (titres) :\n${notesText}`)
+      if (mealsText) parts.push(`Plan de repas de la semaine :\n${mealsText}`)
+      if (shoppingText) parts.push(`Liste de courses à acheter :\n${shoppingText}`)
+      if (routinesText) parts.push(`Routines actives :\n${routinesText}`)
       userContext = parts.length > 0 ? parts.join('\n\n') : undefined
     } catch (contextError) {
       console.warn('[api/nova/plan] contexte indisponible, poursuite sans', contextError)
