@@ -264,10 +264,12 @@ function selectDurableMemories(candidates: MemoryCandidateLike[]): MemoryCandida
   const byKey = new Map<string, MemoryCandidateLike>()
   for (const c of candidates) {
     if (!c.key || !c.value) continue
+    // On se fie au scope : tout ce qui n'est pas "temporary" est durable.
+    // La confiance est conservée mais ne sert plus de filtre (elle était trop
+    // stricte face aux valeurs basses que le modèle produit par défaut).
     if (c.scope === 'temporary') continue
-    if (typeof c.confidence === 'number' && c.confidence < 0.6) continue
     const existing = byKey.get(c.key)
-    if (!existing || c.confidence > existing.confidence) byKey.set(c.key, c)
+    if (!existing || (c.confidence ?? 0) > (existing.confidence ?? 0)) byKey.set(c.key, c)
   }
   return Array.from(byKey.values())
 }
