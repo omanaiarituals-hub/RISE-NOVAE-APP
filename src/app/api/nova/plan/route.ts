@@ -19,6 +19,7 @@ import {
 } from '@/lib/nova-ai/calendar-identity'
 
 export const runtime = 'nodejs'
+export const preferredRegion = 'dub1'
 export const maxDuration = 30
 
 type ActiveTaskContextRow = {
@@ -331,42 +332,45 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       ? (body.provider as NovaProviderPreference)
       : 'auto'
 
-    const { data: activeTasks, error: activeTasksError } = await supabaseAdmin
-      .from('todo_list')
-      .select('id,title,description,category,due_date,due_time,status,created_at')
-      .eq('user_id', user.id)
-      .in('status', ['pending', 'in_progress'])
-      .order('created_at', { ascending: false })
-      .limit(30)
+    const calendarWindowStart = new Date()
+    calendarWindowStart.setDate(calendarWindowStart.getDate() - 30)
+
+    // Les trois lectures de contexte sont indépendantes : on les lance en parallèle.
+    const [tasksRes, eventsRes, remindersRes] = await Promise.all([
+      supabaseAdmin
+        .from('todo_list')
+        .select('id,title,description,category,due_date,due_time,status,created_at')
+        .eq('user_id', user.id)
+        .in('status', ['pending', 'in_progress'])
+        .order('created_at', { ascending: false })
+        .limit(30),
+      supabaseAdmin
+        .from('planner_events')
+        .select('id,title,start_date,end_date,location,attendees,status,reminder_minutes_before')
+        .eq('user_id', user.id)
+        .neq('status', 'cancelled')
+        .gte('end_date', calendarWindowStart.toISOString())
+        .order('start_date', { ascending: true })
+        .limit(200),
+      supabaseAdmin
+        .from('task_reminders')
+        .select('id,todo_id,scheduled_for,status,message')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .order('scheduled_for', { ascending: true })
+        .limit(40),
+    ])
+
+    const { data: activeTasks, error: activeTasksError } = tasksRes
+    const { data: activeEvents, error: activeEventsError } = eventsRes
+    const { data: activeReminders, error: activeRemindersError } = remindersRes
 
     if (activeTasksError) {
       console.warn('[api/nova/plan] task context unavailable', activeTasksError.message)
     }
-
-    const calendarWindowStart = new Date()
-    calendarWindowStart.setDate(calendarWindowStart.getDate() - 30)
-
-    const { data: activeEvents, error: activeEventsError } = await supabaseAdmin
-      .from('planner_events')
-      .select('id,title,start_date,end_date,location,attendees,status,reminder_minutes_before')
-      .eq('user_id', user.id)
-      .neq('status', 'cancelled')
-      .gte('end_date', calendarWindowStart.toISOString())
-      .order('start_date', { ascending: true })
-      .limit(200)
-
     if (activeEventsError) {
       console.warn('[api/nova/plan] calendar context unavailable', activeEventsError.message)
     }
-
-    const { data: activeReminders, error: activeRemindersError } = await supabaseAdmin
-      .from('task_reminders')
-      .select('id,todo_id,scheduled_for,status,message')
-      .eq('user_id', user.id)
-      .eq('status', 'pending')
-      .order('scheduled_for', { ascending: true })
-      .limit(40)
-
     if (activeRemindersError) {
       console.warn('[api/nova/plan] reminder context unavailable', activeRemindersError.message)
     }

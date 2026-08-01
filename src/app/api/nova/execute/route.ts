@@ -28,6 +28,7 @@ import type {
 } from '@/lib/nova-ai/types'
 
 export const runtime = 'nodejs'
+export const preferredRegion = 'dub1'
 export const maxDuration = 30
 
 type StoredTask = {
