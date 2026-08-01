@@ -436,17 +436,26 @@ async function createAndVerifyCalendarEvent(
     }
   }
 
-  const { data: conflicts, error: conflictError } = await db.from('planner_events')
-    .select('id,title,start_date,end_date')
-    .eq('user_id', userId)
-    .lt('start_date', event.endAt)
-    .gt('end_date', event.startAt)
-    .neq('status', 'cancelled')
-    .limit(10)
-  if (conflictError) throw new Error(`Impossible de vérifier les conflits : ${conflictError.message}`)
-  if ((conflicts || []).length > 0) {
-    const list = (conflicts || []) as Array<{id:string;title:string;start_date:string;end_date:string}>
-    return { kind:'calendar_event', actionId:event.actionId, status:'conflict', event:null, conflicts:list, message:`Je n’ai rien ajouté : ce créneau chevauche « ${list[0].title} ». Modifie l’horaire ou confirme une exception dans un prochain échange.` }
+  // Un créneau court (≤ 15 min) est un rappel : il se superpose librement aux
+  // événements existants (ex. 3 appels à passer pendant une plage de travail).
+  // Seuls les vrais blocs de temps (> 15 min) sont protégés contre les chevauchements.
+  const eventDurationMinutes =
+    (new Date(event.endAt).getTime() - new Date(event.startAt).getTime()) / 60_000
+  const isShortReminderSlot = eventDurationMinutes <= 15
+
+  if (!isShortReminderSlot) {
+    const { data: conflicts, error: conflictError } = await db.from('planner_events')
+      .select('id,title,start_date,end_date')
+      .eq('user_id', userId)
+      .lt('start_date', event.endAt)
+      .gt('end_date', event.startAt)
+      .neq('status', 'cancelled')
+      .limit(10)
+    if (conflictError) throw new Error(`Impossible de vérifier les conflits : ${conflictError.message}`)
+    if ((conflicts || []).length > 0) {
+      const list = (conflicts || []) as Array<{id:string;title:string;start_date:string;end_date:string}>
+      return { kind:'calendar_event', actionId:event.actionId, status:'conflict', event:null, conflicts:list, message:`Je n’ai rien ajouté : ce créneau chevauche « ${list[0].title} ». Modifie l’horaire ou choisis un autre moment.` }
+    }
   }
 
   const startMinutes = parisMinutesFromIso(event.startAt)
