@@ -144,7 +144,7 @@ function singularize(token: string): string {
 export function normalizeTaskSemanticText(value: string): string {
   return removeDiacritics(value)
     .toLowerCase()
-    .replace(/[â€™']/g, ' ')
+    .replace(/['’ʼ]/g, ' ')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, ' ')

@@ -369,7 +369,7 @@ export default function HomePageClient() {
           .neq('status', 'done')
           .limit(4),
         supabase
-          .from('admin_documents')
+          .from('administrative_documents')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id),
       ])

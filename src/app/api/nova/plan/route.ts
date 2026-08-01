@@ -19,6 +19,17 @@ import {
 } from '@/lib/nova-ai/calendar-identity'
 
 export const runtime = 'nodejs'
+
+function labEnabled(): boolean {
+  return process.env.NOVA_V2_LAB_ENABLED === 'true'
+}
+
+function allowedEmails(): string[] {
+  return (process.env.NOVA_V2_LAB_ALLOWED_EMAILS || '')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean)
+}
 export const maxDuration = 30
 
 type ActiveTaskContextRow = {
@@ -120,7 +131,7 @@ function applyTaskIdentityGuard(
       ],
       proposed_actions: [],
       assistant_message:
-        'Jâ€™ai repéré une ressemblance entre ces tâches, mais pas assez pour proposer une fusion sécurisée. Je les laisse séparées pour le moment.',
+        'J’ai repéré une ressemblance entre ces tâches, mais pas assez pour proposer une fusion sécurisée. Je les laisse séparées pour le moment.',
     }
   }
 
@@ -170,12 +181,12 @@ function applyTaskIdentityGuard(
       missing_information: [
         {
           field: 'task_duplicate_dates',
-          question: `Les tâches « ${left.title} » et « ${right.title} » semblent proches, mais leurs échéances diffèrent. Sâ€™agit-il vraiment de la même démarche ?`,
+          question: `Les tâches « ${left.title} » et « ${right.title} » semblent proches, mais leurs échéances diffèrent. S’agit-il vraiment de la même démarche ?`,
           blocking: true,
         },
       ],
       proposed_actions: [],
-      assistant_message: `Jâ€™ai trouvé deux tâches très proches, mais elles n’ont pas la même échéance. Dis-moi si elles correspondent réellement à la même démarche avant que je propose une fusion.`,
+      assistant_message: `J’ai trouvé deux tâches très proches, mais elles n’ont pas la même échéance. Dis-moi si elles correspondent réellement à la même démarche avant que je propose une fusion.`,
     }
   }
 
@@ -205,12 +216,16 @@ function applyTaskIdentityGuard(
         ],
       },
     ],
-    assistant_message: `Jâ€™ai repéré que « ${left.title} » et « ${right.title} » semblent correspondre à la même tâche. Je te propose de conserver « ${keep.title} » et d’archiver l’autre. Tu confirmes ?`,
+    assistant_message: `J’ai repéré que « ${left.title} » et « ${right.title} » semblent correspondre à la même tâche. Je te propose de conserver « ${keep.title} » et d’archiver l’autre. Tu confirmes ?`,
   }
 }
 
 export async function POST(request: NextRequest) {
-try {
+  if (!labEnabled()) {
+    return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  }
+
+  try {
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
 
@@ -237,7 +252,14 @@ try {
     if (authError || !user) {
       return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
     }
-const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+
+    const allowlist = allowedEmails()
+    const email = user.email?.toLowerCase() || ''
+    if (allowlist.length > 0 && !allowlist.includes(email)) {
+      return NextResponse.json({ error: 'Accès au laboratoire refusé.' }, { status: 403 })
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
 

@@ -3,14 +3,13 @@ import { createHmac, timingSafeEqual } from 'crypto'
 const VAULT_UNLOCK_DURATION_MS = 5 * 60 * 1000
 
 function getVaultSecret(): string {
-  const secret =
-    process.env.VAULT_TOKEN_SECRET ||
-    process.env.NEXTAUTH_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.ANTHROPIC_API_KEY
+  const secret = process.env.VAULT_TOKEN_SECRET
 
-  if (!secret) {
-    throw new Error('Missing vault token secret.')
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      'VAULT_TOKEN_SECRET manquant ou trop court (32 caracteres minimum). ' +
+        'Definir cette variable sur Vercel avant de deployer.'
+    )
   }
 
   return secret

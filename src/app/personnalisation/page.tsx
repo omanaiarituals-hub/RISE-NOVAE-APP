@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
@@ -40,7 +40,7 @@ function PresetPreview({ preset }: { preset: UserInterfacePreset }) {
     <div className="preset-preview">
       <img
         src={imageByPreset[preset.id]}
-        alt={`AperÃ§u de lâ€™interface ${preset.label} â€” ${preset.description}`}
+        alt={`Aperçu de l’interface ${preset.label} — ${preset.description}`}
       />
 
       <style jsx>{`
