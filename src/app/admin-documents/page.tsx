@@ -1075,13 +1075,7 @@ setDocumentReminders(remindersByDocument)
     await requestVaultUnlock(action)
   }
 
-  const handleDeleteSavedDocument = async (documentId: string) => {
-    const confirmed = window.confirm(
-      'Supprimer ce document ? Le fichier et sa fiche seront supprimés définitivement.'
-    )
-
-    if (!confirmed) return
-
+  const performDeleteSavedDocument = async (documentId: string, vaultToken?: string) => {
     setDeletingDocumentId(documentId)
     setSavedDocumentsError(null)
 
@@ -1098,6 +1092,7 @@ setDocumentReminders(remindersByDocument)
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
+          ...(vaultToken ? { 'x-vault-access-token': vaultToken } : {}),
         },
         body: JSON.stringify({ documentId }),
       })
@@ -1122,6 +1117,26 @@ setDocumentReminders(remindersByDocument)
     } finally {
       setDeletingDocumentId(null)
     }
+  }
+
+  const handleDeleteSavedDocument = async (documentId: string) => {
+    const confirmed = window.confirm(
+      'Supprimer ce document ? Le fichier et sa fiche seront supprimés définitivement.'
+    )
+
+    if (!confirmed) return
+
+    const target = savedDocuments.find((document) => document.id === documentId)
+
+    if (target?.vault_protected) {
+      // Document du coffre : exiger le déverrouillage PIN avant suppression.
+      await requestVaultUnlock(async (token) => {
+        await performDeleteSavedDocument(documentId, token)
+      })
+      return
+    }
+
+    await performDeleteSavedDocument(documentId)
   }
 
   const eventButtonLabel = (() => {

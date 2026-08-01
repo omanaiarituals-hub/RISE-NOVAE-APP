@@ -4,6 +4,14 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
 
+function getServiceRoleClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+}
+
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
@@ -83,7 +91,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await getServiceRoleClient()
       .from('user_security_settings')
       .select('vault_pin_hash, vault_locked_until')
       .eq('user_id', user.id)

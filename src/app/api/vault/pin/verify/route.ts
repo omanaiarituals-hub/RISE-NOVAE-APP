@@ -64,6 +64,14 @@ function getSupabaseBearerClient(token: string) {
   )
 }
 
+function getServiceRoleClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+}
+
 function hashPin(pin: string, salt: string): Buffer {
   return scryptSync(pin, salt, 64)
 }
@@ -97,6 +105,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const adminClient = getServiceRoleClient()
+
     const body = await request.json().catch(() => null)
     const pin = body?.pin
 
@@ -107,7 +117,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data: settings, error: settingsError } = await supabase
+    const { data: settings, error: settingsError } = await adminClient
       .from('user_security_settings')
       .select('user_id, vault_pin_hash, vault_pin_salt, vault_failed_attempts, vault_locked_until')
       .eq('user_id', user.id)
@@ -153,7 +163,7 @@ export async function POST(request: NextRequest) {
       const shouldLock = failedAttempts >= MAX_FAILED_ATTEMPTS
       const lockedUntilValue = shouldLock ? addMinutes(new Date(), LOCK_DURATION_MINUTES) : null
 
-      await supabase
+      await adminClient
         .from('user_security_settings')
         .update({
           vault_failed_attempts: failedAttempts,
@@ -174,7 +184,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await supabase
+    await adminClient
       .from('user_security_settings')
       .update({
         vault_failed_attempts: 0,

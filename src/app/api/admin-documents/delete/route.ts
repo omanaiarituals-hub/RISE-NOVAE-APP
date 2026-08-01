@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
+import { verifyVaultAccessToken } from '@/lib/vault/tokens'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     const { data: document, error: documentError } = await supabase
       .from('administrative_documents')
-      .select('id, user_id, storage_bucket, storage_path')
+      .select('id, user_id, storage_bucket, storage_path, vault_protected')
       .eq('id', documentId)
       .eq('user_id', user.id)
       .single()
@@ -107,6 +108,16 @@ export async function POST(request: NextRequest) {
         { error: 'Document introuvable ou inaccessible.' },
         { status: 404 }
       )
+    }
+
+    if (document.vault_protected) {
+      const vaultAccessToken = request.headers.get('x-vault-access-token')
+      if (!verifyVaultAccessToken(vaultAccessToken, user.id)) {
+        return NextResponse.json(
+          { error: 'Ce document est dans le coffre. Déverrouille le coffre avec ton code PIN avant de le supprimer.' },
+          { status: 403 }
+        )
+      }
     }
 
     if (document.storage_bucket && document.storage_path) {

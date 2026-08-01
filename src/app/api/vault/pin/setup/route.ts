@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { randomBytes, scryptSync } from 'crypto'
+import { randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
+import { verifyVaultAccessToken } from '@/lib/vault/tokens'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -61,6 +62,14 @@ function getSupabaseBearerClient(token: string) {
   )
 }
 
+function getServiceRoleClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+}
+
 function hashPin(pin: string, salt: string): string {
   return scryptSync(pin, salt, 64).toString('hex')
 }
@@ -90,6 +99,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const adminClient = getServiceRoleClient()
+
     const body = await request.json().catch(() => null)
     const pin = body?.pin
     const confirmPin = body?.confirmPin
@@ -115,11 +126,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Si un PIN existe déjà, exiger l'ancien PIN ou un coffre déverrouillé
+    // (jeton valide). Sans cela, n'importe quelle session pouvait écraser le PIN.
+    const { data: existingSettings } = await adminClient
+      .from('user_security_settings')
+      .select('vault_pin_hash, vault_pin_salt')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (existingSettings?.vault_pin_hash && existingSettings?.vault_pin_salt) {
+      const vaultToken = request.headers.get('x-vault-access-token')
+      const hasValidToken = verifyVaultAccessToken(vaultToken, user.id)
+
+      let currentPinValid = false
+      const currentPin = body?.currentPin
+      if (typeof currentPin === 'string' && PIN_REGEX.test(currentPin)) {
+        const expected = Buffer.from(existingSettings.vault_pin_hash, 'hex')
+        const received = Buffer.from(hashPin(currentPin, existingSettings.vault_pin_salt), 'hex')
+        currentPinValid = expected.length === received.length && timingSafeEqual(expected, received)
+      }
+
+      if (!hasValidToken && !currentPinValid) {
+        return NextResponse.json(
+          { error: 'Un code PIN existe déjà. Fournis l’ancien code PIN ou déverrouille le coffre pour le modifier.' },
+          { status: 403 }
+        )
+      }
+    }
+
     const salt = randomBytes(32).toString('hex')
     const pinHash = hashPin(pin, salt)
     const now = new Date().toISOString()
 
-    const { error: upsertError } = await supabase
+    const { error: upsertError } = await adminClient
       .from('user_security_settings')
       .upsert({
         user_id: user.id,
