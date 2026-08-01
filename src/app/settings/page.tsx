@@ -145,9 +145,16 @@ export default function SettingsPage() {
     setResettingMemory(true)
     setMemoryResetError('')
     try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) {
+        setMemoryResetError('Ta session a expiré. Reconnecte-toi.')
+        setResettingMemory(false)
+        return
+      }
       const response = await fetch('/api/nova/memory/reset', {
         method: 'POST',
-        credentials: 'include',
+        headers: { authorization: `Bearer ${token}` },
       })
       const data = await response.json()
       if (!response.ok) {
