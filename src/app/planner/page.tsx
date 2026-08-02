@@ -734,6 +734,7 @@ export default function PlannerNovae() {
       .from("planner_events")
       .select("id, title, category, start_date, end_date, start_minutes, end_minutes, recurrence_days, reminder_minutes_before")
       .eq("user_id", user.id)
+      .neq("status", "cancelled")
       .order("start_date", { ascending: true });
 
     const baseNow = new Date();
