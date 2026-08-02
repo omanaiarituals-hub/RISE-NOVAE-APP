@@ -695,6 +695,9 @@ export async function POST(request: NextRequest) {
     const shoppingActions = confirmedActions.filter(
       (action) => action.type === 'add_shopping_item' && action.engine === 'meals'
     )
+    const mealActions = confirmedActions.filter(
+      (action) => action.type === 'set_meal' && action.engine === 'meals'
+    )
     const unsupportedActions = confirmedActions.filter(
       (action) =>
         !(
@@ -704,11 +707,12 @@ export async function POST(request: NextRequest) {
           (action.type === 'create_calendar_event' && action.engine === 'calendar') ||
           ['update_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type) ||
           (action.type === 'save_note' && action.engine === 'notes') ||
-          (action.type === 'add_shopping_item' && action.engine === 'meals')
+          (action.type === 'add_shopping_item' && action.engine === 'meals') ||
+          (action.type === 'set_meal' && action.engine === 'meals')
         )
     )
 
-    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + mealActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -723,12 +727,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || mealActions.length > 10) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
     type SimpleExecutionItem = {
-      kind: 'note' | 'shopping_item'
+      kind: 'note' | 'shopping_item' | 'meal'
       actionId: string
       status: 'created' | 'failed'
       entityId: string | null
@@ -856,6 +860,50 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    for (const action of mealActions) {
+      try {
+        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const day = typeof p.day === 'string' ? p.day.trim() : ''
+        const mealType = typeof p.meal_type === 'string' ? p.meal_type.trim() : ''
+        const mealName = typeof p.meal_name === 'string' ? p.meal_name.trim() : ''
+        const headcountRaw = typeof p.headcount === 'string' ? parseInt(p.headcount, 10) : NaN
+        if (!day || !mealType || !mealName) {
+          results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: 'Il me manque le jour, le moment ou le plat, je n’ai rien planifié.' })
+          continue
+        }
+        const now = new Date().toISOString()
+        // Un repas par (jour, créneau) : on remplace s'il existe déjà.
+        const { data: existing } = await userClient
+          .from('meal_plan')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('day_of_week', day)
+          .eq('meal_type', mealType)
+          .maybeSingle()
+        let entityId: string | null = null
+        if (existing?.id) {
+          const { error } = await userClient
+            .from('meal_plan')
+            .update({ custom_meal: mealName, headcount: Number.isFinite(headcountRaw) ? headcountRaw : null, updated_at: now })
+            .eq('id', existing.id)
+          if (error) throw new Error(error.message)
+          entityId = existing.id
+        } else {
+          const { data: inserted, error } = await userClient
+            .from('meal_plan')
+            .insert({ user_id: user.id, day_of_week: day, meal_type: mealType, custom_meal: mealName, headcount: Number.isFinite(headcountRaw) ? headcountRaw : null, created_at: now, updated_at: now })
+            .select('id')
+            .single()
+          if (error) throw new Error(error.message)
+          entityId = inserted?.id || null
+        }
+        const slotLabel = mealType === 'diner' ? 'dîner' : mealType === 'dejeuner' ? 'déjeuner' : mealType === 'petit_dejeuner' ? 'petit-déjeuner' : 'collation'
+        results.push({ kind: 'meal', actionId: action.id, status: 'created', entityId, message: `C’est planifié : ${mealName} pour le ${slotLabel} de ${day.toLowerCase()}.` })
+      } catch (error) {
+        results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'Le repas n’a pas pu être planifié.' })
+      }
+    }
+
     const tasksCreated = results.filter(
       (item) => item.kind === 'task' && item.status === 'created'
     ).length
@@ -875,6 +923,7 @@ export async function POST(request: NextRequest) {
     ).length
     const notesCreated = results.filter((item) => item.kind === 'note' && item.status === 'created').length
     const shoppingCreated = results.filter((item) => item.kind === 'shopping_item' && item.status === 'created').length
+    const mealsPlanned = results.filter((item) => item.kind === 'meal' && item.status === 'created').length
     const failed = results.filter((item) => item.status === 'failed' || item.status === 'conflict').length
 
     const messageParts = results.map((item) => item.message)
@@ -882,7 +931,7 @@ export async function POST(request: NextRequest) {
       messageParts.push('Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.')
     }
 
-    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
+    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
     return NextResponse.json(
       {
         ok: failed === 0,
