@@ -872,33 +872,44 @@ export async function POST(request: NextRequest) {
           continue
         }
         const now = new Date().toISOString()
-        // Un repas par (jour, créneau) : on remplace s'il existe déjà.
-        const { data: existing } = await userClient
-          .from('meal_plan')
+        const headcount = Number.isFinite(headcountRaw) ? headcountRaw : null
+
+        // Le module Repas affiche les créneaux via une recette liée (recipe_id).
+        // On crée donc une recette minimale (titre = nom du plat) et on relie le
+        // créneau à cette recette, pour que le repas soit visible dans l'app.
+        // On réutilise une recette existante du même titre si elle existe déjà.
+        let recipeId: string | null = null
+        const { data: existingRecipe } = await userClient
+          .from('recipes')
           .select('id')
           .eq('user_id', user.id)
-          .eq('day_of_week', day)
-          .eq('meal_type', mealType)
+          .eq('title', mealName)
           .maybeSingle()
-        let entityId: string | null = null
-        if (existing?.id) {
-          const { error } = await userClient
-            .from('meal_plan')
-            .update({ custom_meal: mealName, headcount: Number.isFinite(headcountRaw) ? headcountRaw : null, updated_at: now })
-            .eq('id', existing.id)
-          if (error) throw new Error(error.message)
-          entityId = existing.id
+        if (existingRecipe?.id) {
+          recipeId = existingRecipe.id
         } else {
-          const { data: inserted, error } = await userClient
-            .from('meal_plan')
-            .insert({ user_id: user.id, day_of_week: day, meal_type: mealType, custom_meal: mealName, headcount: Number.isFinite(headcountRaw) ? headcountRaw : null, created_at: now, updated_at: now })
+          const { data: newRecipe, error: recipeError } = await userClient
+            .from('recipes')
+            .insert({ user_id: user.id, title: mealName, meal_type: 'plat', category: 'express', servings: headcount || 4, emoji: '🍽️', source: 'nova', created_at: now, updated_at: now })
             .select('id')
             .single()
-          if (error) throw new Error(error.message)
-          entityId = inserted?.id || null
+          if (recipeError) throw new Error(recipeError.message)
+          recipeId = newRecipe?.id || null
         }
+
+        // Un repas par (jour, créneau) : upsert sur la contrainte existante.
+        const { data: upserted, error } = await userClient
+          .from('meal_plan')
+          .upsert(
+            { user_id: user.id, day_of_week: day, meal_type: mealType, recipe_id: recipeId, custom_meal: mealName, headcount, updated_at: now, created_at: now },
+            { onConflict: 'user_id,day_of_week,meal_type' }
+          )
+          .select('id')
+          .single()
+        if (error) throw new Error(error.message)
+
         const slotLabel = mealType === 'diner' ? 'dîner' : mealType === 'dejeuner' ? 'déjeuner' : mealType === 'petit_dejeuner' ? 'petit-déjeuner' : 'collation'
-        results.push({ kind: 'meal', actionId: action.id, status: 'created', entityId, message: `C’est planifié : ${mealName} pour le ${slotLabel} de ${day.toLowerCase()}.` })
+        results.push({ kind: 'meal', actionId: action.id, status: 'created', entityId: upserted?.id || null, message: `C’est planifié : ${mealName} pour le ${slotLabel} de ${day.toLowerCase()}.` })
       } catch (error) {
         results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'Le repas n’a pas pu être planifié.' })
       }
