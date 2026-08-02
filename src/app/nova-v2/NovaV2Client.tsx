@@ -126,6 +126,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const [conversationId, setConversationId] = useState<string | null>(null)
   const conversationRestoredRef = useRef(false)
   const conversationIdRef = useRef<string | null>(null)
+  const messagesRef = useRef<ChatMessage[]>([])
   const [conversations, setConversations] = useState<NovaConversationSummary[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -281,6 +282,10 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     conversationIdRef.current = conversationId
     persistActiveConversation(conversationId)
   }, [conversationId])
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   // Au montage : restaure le fil selon le contexte.
   // - vocal : on ne restaure QUE si le dernier fil est très récent (rechargement
@@ -568,9 +573,13 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   }
 
   function buildContextualRequest(userAnswer: string): string {
-    const transcript = messages
+    // On lit la ref (mise à jour en temps réel) et non le state : en vocal, le
+    // callback de reconnaissance a capturé une version figée de `messages`
+    // (souvent vide), ce qui privait Nova de l'historique de la conversation.
+    const liveMessages = messagesRef.current.length > 0 ? messagesRef.current : messages
+    const transcript = liveMessages
       .filter((message) => message.text !== WELCOME)
-      .slice(-12)
+      .slice(-10)
       .map((message) => `${message.role === 'user' ? 'Utilisateur' : 'Nova'} : ${message.text}`)
       .join('\n')
 
