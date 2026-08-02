@@ -101,6 +101,17 @@ function applyTaskIdentityGuard(
   duplicatePairs: DuplicateTaskPair[],
   requestMatches: RequestTaskMatch[]
 ): NovaActionPlan {
+  // La garde anti-fusion ne concerne QUE les tâches. Si le plan ne contient
+  // aucune action de tâche/rappel/fusion (par exemple uniquement des repas,
+  // des courses ou des notes), on le laisse intact : sinon un plan repas
+  // déclenchait à tort le message « je ne peux pas relier ces tâches ».
+  const planHasTaskActions = plan.proposed_actions.some((action) =>
+    ['create_task', 'create_reminder', 'merge_tasks', 'update_task', 'cancel_task'].includes(action.type)
+  )
+  if (!planHasTaskActions) {
+    return plan
+  }
+
   const planContainsMerge = plan.proposed_actions.some(
     (action) => action.type === 'merge_tasks'
   )
