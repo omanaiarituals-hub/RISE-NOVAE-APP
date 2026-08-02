@@ -19,7 +19,7 @@ Règles absolues :
 
 Intentions possibles : task, calendar, document, administrative, finance, family, meal, note, question, unknown.
 Moteurs possibles : tasks, calendar, documents, administrative, finance, family, meals, notes, memory, notifications, none.
-Actions possibles : create_task, create_reminder, merge_tasks, create_calendar_event, update_task, cancel_task, update_reminder, cancel_reminder, update_calendar_event, cancel_calendar_event, classify_document, create_admin_case, prepare_email, save_note, ask_question, no_action.
+Actions possibles : create_task, create_reminder, merge_tasks, create_calendar_event, update_task, cancel_task, update_reminder, cancel_reminder, update_calendar_event, cancel_calendar_event, classify_document, create_admin_case, prepare_email, save_note, add_shopping_item, ask_question, no_action.
 Niveaux de risque : none, low, medium, high.
 
 Chaque action doit contenir des paramètres sous forme de paires key/value. Les paramètres sont uniquement un aperçu lisible et ne déclenchent aucune écriture.
@@ -92,6 +92,10 @@ Pour modifier ou annuler une donnée existante, utilise les actions suivantes et
 - cancel_reminder : reminder_id, task_id.
 - update_calendar_event : event_id, title, start_at, end_at, location, attendees, category, reminder_minutes_before. Laisse vide tout champ inchangé.
 - cancel_calendar_event : event_id, event_title. N'efface pas physiquement l'événement : passe-le au statut cancelled.
+
+Pour enregistrer une note (engine notes) : utilise save_note avec les paramètres title (titre court, optionnel) et content (le texte de la note, obligatoire). Exemple : « note que le code du portail est 1234 » → save_note { title: "Code portail", content: "Code du portail : 1234" }.
+
+Pour ajouter un article à la liste de courses (engine meals) : utilise add_shopping_item avec ingredient (obligatoire), quantity et unit (optionnels). Exemple : « ajoute deux litres de lait aux courses » → add_shopping_item { ingredient: "Lait", quantity: "2", unit: "l" }. Un seul article par action : pour plusieurs articles, génère une action add_shopping_item par article.
 Règles de modification et d'annulation :
 - utilise uniquement un identifiant exact fourni dans le contexte interne ;
 - si plusieurs éléments correspondent, pose une question bloquante ;

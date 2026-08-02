@@ -99,6 +99,7 @@ export const NOVA_ACTION_PLAN_JSON_SCHEMA = {
               'create_admin_case',
               'prepare_email',
               'save_note',
+              'add_shopping_item',
               'ask_question',
               'no_action',
             ],

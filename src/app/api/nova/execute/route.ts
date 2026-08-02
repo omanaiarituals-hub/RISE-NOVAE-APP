@@ -28,7 +28,6 @@ import type {
 } from '@/lib/nova-ai/types'
 
 export const runtime = 'nodejs'
-export const preferredRegion = 'dub1'
 export const maxDuration = 30
 
 type StoredTask = {
@@ -690,6 +689,12 @@ export async function POST(request: NextRequest) {
     const lifecycleActions = confirmedActions.filter((action) =>
       ['update_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type)
     )
+    const noteActions = confirmedActions.filter(
+      (action) => action.type === 'save_note' && action.engine === 'notes'
+    )
+    const shoppingActions = confirmedActions.filter(
+      (action) => action.type === 'add_shopping_item' && action.engine === 'meals'
+    )
     const unsupportedActions = confirmedActions.filter(
       (action) =>
         !(
@@ -697,11 +702,13 @@ export async function POST(request: NextRequest) {
           (action.type === 'create_reminder' && action.engine === 'notifications') ||
           (action.type === 'merge_tasks' && action.engine === 'tasks') ||
           (action.type === 'create_calendar_event' && action.engine === 'calendar') ||
-          ['update_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type)
+          ['update_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type) ||
+          (action.type === 'save_note' && action.engine === 'notes') ||
+          (action.type === 'add_shopping_item' && action.engine === 'meals')
         )
     )
 
-    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -716,12 +723,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
+    type SimpleExecutionItem = {
+      kind: 'note' | 'shopping_item'
+      actionId: string
+      status: 'created' | 'failed'
+      entityId: string | null
+      message: string
+    }
     const results: Array<
-      NovaTaskExecutionItem | NovaReminderExecutionItem | NovaTaskMergeExecutionItem | NovaCalendarExecutionItem | NovaLifecycleExecutionItem
+      NovaTaskExecutionItem | NovaReminderExecutionItem | NovaTaskMergeExecutionItem | NovaCalendarExecutionItem | NovaLifecycleExecutionItem | SimpleExecutionItem
     > = []
 
     for (const action of taskActions) {
@@ -796,6 +810,52 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    for (const action of noteActions) {
+      try {
+        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const content = typeof p.content === 'string' ? p.content.trim() : ''
+        const title = typeof p.title === 'string' ? p.title.trim() : ''
+        if (!content) {
+          results.push({ kind: 'note', actionId: action.id, status: 'failed', entityId: null, message: 'La note est vide, je ne l’ai pas enregistrée.' })
+          continue
+        }
+        const now = new Date().toISOString()
+        const { data: inserted, error } = await userClient
+          .from('notes')
+          .insert({ user_id: user.id, title: title || null, content, pinned: false, created_at: now, updated_at: now })
+          .select('id')
+          .single()
+        if (error) throw new Error(error.message)
+        results.push({ kind: 'note', actionId: action.id, status: 'created', entityId: inserted?.id || null, message: `C’est noté${title ? ` : « ${title} »` : ''}.` })
+      } catch (error) {
+        results.push({ kind: 'note', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'La note n’a pas pu être enregistrée.' })
+      }
+    }
+
+    for (const action of shoppingActions) {
+      try {
+        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const ingredient = typeof p.ingredient === 'string' ? p.ingredient.trim() : ''
+        const quantity = typeof p.quantity === 'string' ? p.quantity.trim() : ''
+        const unit = typeof p.unit === 'string' ? p.unit.trim() : ''
+        if (!ingredient) {
+          results.push({ kind: 'shopping_item', actionId: action.id, status: 'failed', entityId: null, message: 'Article manquant, rien n’a été ajouté à la liste.' })
+          continue
+        }
+        const now = new Date().toISOString()
+        const { data: inserted, error } = await userClient
+          .from('shopping_list')
+          .insert({ user_id: user.id, ingredient, quantity: quantity || null, unit: unit || null, checked: false, in_stock: false, to_buy: true, created_at: now, updated_at: now })
+          .select('id')
+          .single()
+        if (error) throw new Error(error.message)
+        const label = [quantity, unit, ingredient].filter(Boolean).join(' ')
+        results.push({ kind: 'shopping_item', actionId: action.id, status: 'created', entityId: inserted?.id || null, message: `Ajouté à ta liste de courses : ${label}.` })
+      } catch (error) {
+        results.push({ kind: 'shopping_item', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'L’article n’a pas pu être ajouté.' })
+      }
+    }
+
     const tasksCreated = results.filter(
       (item) => item.kind === 'task' && item.status === 'created'
     ).length
@@ -813,6 +873,8 @@ export async function POST(request: NextRequest) {
     const alreadyExists = results.filter(
       (item) => item.status === 'already_exists' || item.status === 'already_merged'
     ).length
+    const notesCreated = results.filter((item) => item.kind === 'note' && item.status === 'created').length
+    const shoppingCreated = results.filter((item) => item.kind === 'shopping_item' && item.status === 'created').length
     const failed = results.filter((item) => item.status === 'failed' || item.status === 'conflict').length
 
     const messageParts = results.map((item) => item.message)
@@ -820,7 +882,7 @@ export async function POST(request: NextRequest) {
       messageParts.push('Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.')
     }
 
-    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
+    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
     return NextResponse.json(
       {
         ok: failed === 0,
