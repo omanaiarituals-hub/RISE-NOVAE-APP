@@ -45,12 +45,21 @@ function normalizeConfirmationInput(value: string): string {
 
 function isPositiveConfirmation(value: string): boolean {
   const v = normalizeConfirmationInput(value)
-  return /^(oui( je confirme| je valide| confirme| valide| vas[- ]?y| c'est bon| ok| d'accord)?|je confirme|je valide|confirme|valide|c'est bon|c est bon|vas[- ]?y|ok|d'accord|d accord|parfait|go)$/.test(v)
+  // Garde-fou : "aussi"/"également" ou une tournure interrogative trahissent une
+  // question de suivi ou une continuation, jamais une confirmation franche.
+  if (/\b(aussi|egalement|également)\b/.test(v)) return false
+  if (/(est-ce|est ce|\btu as\b|as-tu|as tu|\bquand\b|\bquoi\b|\bcomment\b|\bpourquoi\b)/.test(v)) return false
+  // Formes courtes exactes.
+  if (/^(oui|ouais|ok|okay|d'accord|d accord|dac|parfait|valide|confirme|go|nickel|super|c'est bon|c est bon|ca marche|ça marche|tres bien|très bien|impeccable)$/.test(v)) return true
+  // "oui / ok / d'accord / vas-y / c'est bon..." en tête, suivi de contexte
+  // (ex. "oui c'est bon pour la banque", "ok vas-y", "oui valide les deux").
+  if (/^(oui|ouais|ok|okay|d'accord|d accord|vas[- ]?y|allez|c'est bon|c est bon|confirme|valide|parfait|go)\b/.test(v)) return true
+  return false
 }
 
 function isNegativeConfirmation(value: string): boolean {
   const v = normalizeConfirmationInput(value)
-  return /^(non( merci| annule| je refuse)?|annule( tout)?|annuler|je refuse|ne fais rien|laisse tomber|stop)$/.test(v)
+  return /^(non|nan|annule|annuler|stop|laisse tomber|laisse beton|je refuse|ne fais rien|surtout pas|pas maintenant)\b/.test(v)
 }
 
 function formatConversationDate(value: string): string {
