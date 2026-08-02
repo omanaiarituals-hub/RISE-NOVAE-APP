@@ -33,6 +33,38 @@ function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+const CONV_STORAGE_KEY = 'novae-v2-active-conversation'
+// Fenêtre pendant laquelle un rechargement de page est considéré comme la
+// CONTINUATION de la même conversation (veille du téléphone, micro qui se
+// réactive) plutôt qu'un nouveau démarrage.
+const CONV_RESUME_WINDOW_MS = 10 * 60 * 1000 // 10 minutes (vocal, anti-veille)
+const CONV_TEXT_WINDOW_MS = 6 * 60 * 60 * 1000 // 6 heures (écrit, reprise du jour)
+
+function persistActiveConversation(id: string | null) {
+  try {
+    if (!id) {
+      window.localStorage.removeItem(CONV_STORAGE_KEY)
+      return
+    }
+    window.localStorage.setItem(CONV_STORAGE_KEY, JSON.stringify({ id, at: Date.now() }))
+  } catch {
+    // localStorage indisponible : on ignore, la persistance est un bonus.
+  }
+}
+
+function readPersistedConversation(maxAgeMs: number): string | null {
+  try {
+    const raw = window.localStorage.getItem(CONV_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { id?: string; at?: number }
+    if (!parsed?.id || typeof parsed.at !== 'number') return null
+    if (Date.now() - parsed.at > maxAgeMs) return null
+    return parsed.id
+  } catch {
+    return null
+  }
+}
+
 function normalizeConfirmationInput(value: string): string {
   return value
     .trim()
@@ -49,11 +81,12 @@ function isPositiveConfirmation(value: string): boolean {
   // question de suivi ou une continuation, jamais une confirmation franche.
   if (/\b(aussi|egalement|également)\b/.test(v)) return false
   if (/(est-ce|est ce|\btu as\b|as-tu|as tu|\bquand\b|\bquoi\b|\bcomment\b|\bpourquoi\b)/.test(v)) return false
+  // "merci" en fin n'empêche pas une confirmation ("c'est parfait merci").
+  const vv = v.replace(/\s+(merci|stp|s'il te plait|s il te plait)$/,'').trim()
   // Formes courtes exactes.
-  if (/^(oui|ouais|ok|okay|d'accord|d accord|dac|parfait|valide|confirme|go|nickel|super|c'est bon|c est bon|ca marche|ça marche|tres bien|très bien|impeccable)$/.test(v)) return true
-  // "oui / ok / d'accord / vas-y / c'est bon..." en tête, suivi de contexte
-  // (ex. "oui c'est bon pour la banque", "ok vas-y", "oui valide les deux").
-  if (/^(oui|ouais|ok|okay|d'accord|d accord|vas[- ]?y|allez|c'est bon|c est bon|confirme|valide|parfait|go)\b/.test(v)) return true
+  if (/^(oui|ouais|ok|okay|d'accord|d accord|dac|parfait|c'est parfait|c est parfait|valide|confirme|go|nickel|super|c'est bon|c est bon|ca marche|ça marche|tres bien|très bien|impeccable|c'est top|c est top)$/.test(vv)) return true
+  // "oui / ok / d'accord / vas-y / c'est bon / c'est parfait..." en tête, suivi de contexte.
+  if (/^(oui|ouais|ok|okay|d'accord|d accord|vas[- ]?y|allez|c'est bon|c est bon|c'est parfait|c est parfait|confirme|valide|parfait|go)\b/.test(vv)) return true
   return false
 }
 
@@ -91,6 +124,8 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const conversationRestoredRef = useRef(false)
+  const conversationIdRef = useRef<string | null>(null)
   const [conversations, setConversations] = useState<NovaConversationSummary[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -239,6 +274,43 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     // Le hook dépend uniquement de userId, déjà stable pour cette page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
+
+  // Sauvegarde l'identifiant de la conversation active à chaque changement,
+  // pour qu'elle survive aux rechargements de page (veille, navigation).
+  useEffect(() => {
+    conversationIdRef.current = conversationId
+    persistActiveConversation(conversationId)
+  }, [conversationId])
+
+  // Au montage : restaure le fil selon le contexte.
+  // - vocal : on ne restaure QUE si le dernier fil est très récent (rechargement
+  //   de veille en pleine session). Sinon, nouveau démarrage vocal = fil neuf.
+  // - écrit : on restaure la conversation du jour (fenêtre 6h) ; le choix
+  //   Nouvelle/Historique de l'utilisatrice reste prioritaire ensuite.
+  useEffect(() => {
+    if (conversationRestoredRef.current) return
+    conversationRestoredRef.current = true
+
+    const windowMs = voiceMode ? CONV_RESUME_WINDOW_MS : CONV_TEXT_WINDOW_MS
+    const persistedId = readPersistedConversation(windowMs)
+    if (!persistedId) return
+
+    // On recharge les messages de ce fil pour le reprendre là où il s'était arrêté.
+    void (async () => {
+      try {
+        const storedMessages = await history.loadMessages(persistedId)
+        if (storedMessages.length === 0) return
+        setConversationId(persistedId)
+        setMessages(storedMessages.map((message) => ({ id: message.id, role: message.role, text: message.text })))
+        const firstUserMessage = storedMessages.find((message) => message.role === 'user')
+        setRootRequest(firstUserMessage?.text || '')
+      } catch {
+        // Fil introuvable ou supprimé : on démarre normalement.
+      }
+    })()
+    // Au montage uniquement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!voiceMode || autoVoiceStartedRef.current) return
@@ -460,8 +532,13 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   }
 
   async function ensureConversation(firstMessage: string): Promise<string> {
-    if (conversationId) return conversationId
+    // On lit la ref (mise à jour en temps réel) et pas seulement l'état React :
+    // en vocal, deux phrases rapprochées lisaient une valeur périmée de
+    // conversationId (encore null), ce qui créait une conversation par phrase.
+    const current = conversationIdRef.current ?? conversationId
+    if (current) return current
     const created = await history.createConversation(firstMessage)
+    conversationIdRef.current = created.id
     setConversationId(created.id)
     setConversations((current) => [created, ...current])
     return created.id
@@ -531,6 +608,26 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
 
     if (status === 'waiting_confirmation' && isNegativeConfirmation(normalized)) {
       await cancelPreparedActions()
+      return
+    }
+
+    // Garde-fou anti-confusion : tant qu'une proposition attend, une réponse qui
+    // n'est ni un oui ni un non clairs ne part PAS à l'IA (qui confondrait les
+    // propositions). Nova redemande de confirmer ou annuler celle en cours, en la
+    // nommant, pour que l'utilisatrice sache exactement de quoi il s'agit.
+    if (status === 'waiting_confirmation' && result) {
+      const pendingTitle =
+        result.plan.proposed_actions.find((action) => action.requires_confirmation)?.title ||
+        result.plan.proposed_actions[0]?.title ||
+        'la proposition en cours'
+      setInput('')
+      const activeConversationId = conversationId
+      await addMessage('user', normalized, activeConversationId)
+      await addMessage(
+        'nova',
+        `J'ai encore une proposition en attente : « ${pendingTitle} ». Tu confirmes (dis « oui ») ou tu l'annules (dis « non ») ? On passe à la suite juste après.`,
+        activeConversationId
+      )
       return
     }
 
@@ -661,6 +758,8 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   }
 
   function startNewConversation() {
+    persistActiveConversation(null)
+    conversationIdRef.current = null
     setConversationId(null)
     setInput('')
     setResult(null)
@@ -676,6 +775,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     setError('')
     try {
       const storedMessages = await history.loadMessages(conversation.id)
+      conversationIdRef.current = conversation.id
       setConversationId(conversation.id)
       setMessages(storedMessages.length > 0
         ? storedMessages.map((message) => ({ id: message.id, role: message.role, text: message.text }))
