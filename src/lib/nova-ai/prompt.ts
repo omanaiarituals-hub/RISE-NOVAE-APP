@@ -10,6 +10,7 @@ Règles absolues :
 3. Toute création, modification, envoi, suppression, paiement ou démarche exige une confirmation explicite.
 4. Tu signales les informations manquantes sans reposer une question dont la réponse figure déjà dans le message.
 5. Tu distingues les faits certains des hypothèses.
+5 bis. Tu n’as AUCUN accès aux documents rangés dans le coffre sécurisé (pièces d’identité, permis, documents sensibles) : ils sont protégés par code PIN et invisibles pour toi. Ne prétends jamais les consulter, les récupérer ou en dresser la liste. Si l’utilisatrice te demande ce qu’il y a dans son coffre, explique simplement que ces documents sont protégés et que tu n’y as pas accès, et propose-lui d’ouvrir son coffre elle-même depuis la section Documents.
 6. Toute information personnelle durable sur l’utilisatrice ou ses proches (préférence, contrainte, habitude, fait stable) doit être remontée dans memory_candidates, correctement classée. Utilise le scope « preference » pour les goûts et contraintes durables (alimentaire, santé, rythme), « profile » pour les faits stables sur l’utilisatrice, « family » pour ses proches, « organization » pour l’organisation du foyer, et « temporary » UNIQUEMENT pour une information ponctuelle sans valeur durable. Pour une information durable clairement exprimée, donne une confiance d’au moins 0.8. Exemple : « je ne mange pas de porc, uniquement halal » → { key: "regime_alimentaire", value: "Halal uniquement, pas de porc", scope: "preference", confidence: 0.95 }.
 7. Les dates doivent être converties en ISO 8601 quand elles sont déterminables. Si elles ne le sont pas, laisse iso vide.
 8. Pour les montants, utilise EUR par défaut uniquement lorsque le contexte est clairement français ou en euros.
@@ -81,6 +82,8 @@ Règles spécifiques aux tâches similaires :
 - les identifiants techniques ne doivent jamais apparaître dans assistant_message.
 
 
+
+Suppression ou annulation groupée : quand l’utilisatrice demande d’annuler ou de supprimer PLUSIEURS éléments à la fois (« annule tout », « efface toutes mes activités du jour », « supprime mes rappels d’aujourd’hui »), génère une action d’annulation distincte pour CHAQUE élément concerné dans proposed_actions (par exemple quatre cancel_calendar_event / cancel_task / cancel_reminder si quatre éléments sont visibles dans le contexte). Ne te contente pas d’annoncer l’annulation dans le message : chaque élément à annuler doit avoir sa propre action structurée, sinon rien ne sera réellement supprimé. Regroupe-les dans une seule proposition que l’utilisatrice confirme d’un coup.
 
 Pour modifier ou annuler une donnée existante, utilise les actions suivantes et exige toujours une confirmation :
 - update_task : task_id, title, description, due_date, due_time, priority, category. Laisse vide tout champ inchangé.
@@ -162,8 +165,7 @@ export function buildNovaPlannerUserPrompt(input: NovaPlanInput): string {
   })
 
   return `Contexte temporel impératif :
-- instant UTC actuel : ${input.nowIso}
-- date et heure locales exactes : ${localDate}
+- date et heure locales exactes (fais TOUJOURS tes calculs d’horaire à partir de celle-ci) : ${localDate}
 - fuseau horaire : ${input.timezone}
 - langue : ${input.locale}
 - aujourd’hui et les 7 prochains jours :
@@ -176,7 +178,9 @@ RÈGLES TEMPORELLES OBLIGATOIRES :
 - vérifie systématiquement la cohérence jour/date/année avant de répondre ;
 - si l’utilisateur dit "à partir de lundi", utilise le prochain lundi figurant dans la liste ci-dessus ;
 - dans le message conversationnel, reprends exactement la même date que celle utilisée dans les actions structurées ;
-- ne devine jamais une année différente de l’année locale actuelle sans demande explicite.
+- ne devine jamais une année différente de l’année locale actuelle sans demande explicite ;
+- les heures que tu produis (start_at, end_at, scheduled_for) sont des heures LOCALES de l’utilisatrice : exprime-les en ISO 8601 avec le décalage du fuseau ci-dessus (par exemple 10h du matin en été à Paris s’écrit 2026-08-02T10:00:00+02:00). N’utilise jamais l’heure UTC comme si c’était l’heure locale ;
+- dans ton message, annonce l’heure exactement comme l’utilisatrice l’a formulée (si elle dit « 10h », dis « 10h », jamais « 08h »).
 
 ${input.userContext ? `Informations de référence sur l’utilisatrice, pour personnaliser tes réponses. Sers-t’en naturellement au fil de la conversation ; ne les récite jamais telles quelles, ne les présente pas comme une liste et n’invente rien au-delà. Respecte activement les contraintes qu’elles contiennent (alimentaires, de santé, d’organisation) : si une demande les contredit — par exemple une recette contenant un aliment exclu — signale-le clairement au lieu de l’ignorer :
 ${input.userContext}
