@@ -1128,11 +1128,10 @@ setDocumentReminders(remindersByDocument)
 
     const target = savedDocuments.find((document) => document.id === documentId)
 
+    // Pour un document du coffre, on est déjà entré (porte unique à l'ouverture
+    // de l'onglet). On transmet le jeton de session courant ; plus de PIN ici.
     if (target?.vault_protected) {
-      // Document du coffre : exiger le déverrouillage PIN avant suppression.
-      await requestVaultUnlock(async (token) => {
-        await performDeleteSavedDocument(documentId, token)
-      })
+      await performDeleteSavedDocument(documentId, vaultAccessToken || undefined)
       return
     }
 
@@ -1338,7 +1337,7 @@ Mes documents archivés ({archivedDocuments.length})
               cursor: 'pointer',
             }}
           >
-            🔐 Coffre ({vaultDocuments.length})
+            🔒 Coffre
           </button>
         </div>
 
@@ -1644,7 +1643,47 @@ Mes documents archivés ({archivedDocuments.length})
           />
         )}
 
-        {activeView === 'vault' && (
+        {activeView === 'vault' && !isVaultUnlocked() && (
+          <div style={{
+            border: '1px solid var(--novae-border, #EADDD2)',
+            borderRadius: 22,
+            padding: '40px 24px',
+            background: 'var(--novae-surface, #FFFFFF)',
+            textAlign: 'center',
+            maxWidth: 460,
+            margin: '0 auto',
+          }}>
+            <div style={{ fontSize: 44, marginBottom: 12 }}>🔒</div>
+            <h2 style={{ margin: '0 0 8px', color: 'var(--novae-primary, #4A1F1B)', fontSize: 21 }}>
+              Coffre verrouillé
+            </h2>
+            <p style={{ margin: '0 0 20px', color: 'var(--novae-text-muted, #6F625C)', lineHeight: 1.5 }}>
+              Entre ton code PIN pour accéder à tes documents sensibles. Rien n’est
+              affiché tant que le coffre est verrouillé.
+            </p>
+            <button
+              type="button"
+              onClick={() => { void requestVaultUnlock(async () => { await loadSavedDocuments() }) }}
+              style={{
+                border: 'none',
+                borderRadius: 14,
+                padding: '13px 26px',
+                background: 'var(--novae-primary, #7A2E2A)',
+                color: 'var(--novae-surface, #FFFFFF)',
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Déverrouiller le coffre
+            </button>
+            {savedDocumentsError && (
+              <p style={{ margin: '16px 0 0', color: '#B0281F', fontSize: 13 }}>{savedDocumentsError}</p>
+            )}
+          </div>
+        )}
+
+        {activeView === 'vault' && isVaultUnlocked() && (
           <SavedDocumentsSection
             documents={vaultDocuments}
             documentReminders={documentReminders}
