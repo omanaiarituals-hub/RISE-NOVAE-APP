@@ -17,6 +17,7 @@ import {
   findBestCalendarMatches,
   type CalendarIdentityMatch,
 } from '@/lib/nova-ai/calendar-identity'
+import { formatParisDateTime } from '@/lib/nova-ai/timezone'
 
 export const runtime = 'nodejs'
 export const preferredRegion = 'dub1'
@@ -368,6 +369,15 @@ function selectDurableMemories(candidates: MemoryCandidateLike[]): MemoryCandida
   return Array.from(byKey.values())
 }
 
+function frenchLocal(iso: string | null | undefined): string {
+  if (!iso) return 'heure inconnue'
+  try {
+    return formatParisDateTime(iso)
+  } catch {
+    return String(iso)
+  }
+}
+
 export async function POST(request: NextRequest) {
 try {
     const authHeader = request.headers.get('authorization')
@@ -489,7 +499,9 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
         `id=${event.id}`,
         `titre=${String(event.title || '').replace(/\s+/g, ' ').trim()}`,
         `debut=${event.start_date}`,
+        `debut_local=${frenchLocal(event.start_date)}`,
         `fin=${event.end_date}`,
+        `fin_local=${frenchLocal(event.end_date)}`,
         `lieu=${event.location || 'aucun'}`,
         `participants=${(event.attendees || []).join(', ') || 'aucun'}`,
         `rappel_minutes=${(event.reminder_minutes_before || []).join(',') || 'aucun'}`,
@@ -509,6 +521,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           `id=${event.id}`,
           `titre=${String(event.title || '').replace(/\s+/g, ' ').trim()}`,
           `debut=${event.start_date}`,
+          `debut_local=${frenchLocal(event.start_date)}`,
           `fin=${event.end_date}`,
           `raisons=${reasons.join(', ') || 'proximite semantique'}`,
         ].join(' ; ')
@@ -567,8 +580,10 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       '',
       'RÈGLE DE RÉSOLUTION DES RENDEZ-VOUS :',
       calendarMatches.length > 0 && (calendarMatches.length === 1 || calendarMatches[0].score - calendarMatches[1].score >= 0.12)
-        ? `Le rendez-vous prioritaire est id=${calendarMatches[0].event.id}, titre=${calendarMatches[0].event.title}, debut=${calendarMatches[0].event.start_date}, fin=${calendarMatches[0].event.end_date}. Considère-le comme identifié. Ne dis jamais qu'il est absent et ne redemande pas son identité. Pour une modification ou annulation, utilise obligatoirement cet id dans event_id. Demande seulement les informations réellement manquantes sur le nouvel horaire.`
+        ? `Le rendez-vous prioritaire est id=${calendarMatches[0].event.id}, titre=${calendarMatches[0].event.title}, debut=${frenchLocal(calendarMatches[0].event.start_date)} (ISO ${calendarMatches[0].event.start_date}), fin=${frenchLocal(calendarMatches[0].event.end_date)}. Considère-le comme identifié. Ne dis jamais qu'il est absent et ne redemande pas son identité. Pour une modification ou annulation, utilise obligatoirement cet id dans event_id. Demande seulement les informations réellement manquantes sur le nouvel horaire.`
         : 'Plusieurs rendez-vous restent plausibles : demande lequel utiliser sans prétendre qu’aucun rendez-vous n’existe.',
+      '',
+      'Quand tu parles d’un événement à l’utilisatrice, utilise TOUJOURS l’heure locale (champ debut_local / heure de Paris), jamais l’heure ISO/UTC brute.',
       '',
       'Rappels de tâches encore en attente :',
       reminderContext || 'aucun rappel en attente',
