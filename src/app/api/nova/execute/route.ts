@@ -695,14 +695,8 @@ export async function POST(request: NextRequest) {
     const shoppingActions = confirmedActions.filter(
       (action) => action.type === 'add_shopping_item' && action.engine === 'meals'
     )
-    const shoppingRemovalActions = confirmedActions.filter(
-      (action) => ['remove_shopping_item', 'clear_shopping_list'].includes(action.type) && action.engine === 'meals'
-    )
     const mealActions = confirmedActions.filter(
       (action) => action.type === 'set_meal' && action.engine === 'meals'
-    )
-    const mealCancellationActions = confirmedActions.filter(
-      (action) => action.type === 'cancel_meal' && action.engine === 'meals'
     )
     const unsupportedActions = confirmedActions.filter(
       (action) =>
@@ -714,13 +708,11 @@ export async function POST(request: NextRequest) {
           ['update_task','complete_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type) ||
           (action.type === 'save_note' && action.engine === 'notes') ||
           (action.type === 'add_shopping_item' && action.engine === 'meals') ||
-          (['remove_shopping_item', 'clear_shopping_list'].includes(action.type) && action.engine === 'meals') ||
-          (action.type === 'set_meal' && action.engine === 'meals') ||
-          (action.type === 'cancel_meal' && action.engine === 'meals')
+          (action.type === 'set_meal' && action.engine === 'meals')
         )
     )
 
-    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + shoppingRemovalActions.length + mealActions.length + mealCancellationActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + mealActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -735,14 +727,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || shoppingRemovalActions.length > 10 || mealActions.length > 10 || mealCancellationActions.length > 10) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || mealActions.length > 10) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
     type SimpleExecutionItem = {
-      kind: 'note' | 'shopping_item' | 'shopping_list' | 'meal'
+      kind: 'note' | 'shopping_item' | 'meal'
       actionId: string
-      status: 'created' | 'deleted' | 'cleared' | 'already_empty' | 'failed'
+      status: 'created' | 'failed'
       entityId: string | null
       message: string
     }
@@ -877,115 +869,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    for (const action of shoppingRemovalActions) {
-      try {
-        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
-
-        if (action.type === 'remove_shopping_item') {
-          const itemId = typeof p.item_id === 'string' ? p.item_id.trim() : ''
-          const ingredient = typeof p.ingredient === 'string' ? p.ingredient.trim() : ''
-          if (!itemId) {
-            results.push({ kind: 'shopping_item', actionId: action.id, status: 'failed', entityId: null, message: 'L’article à retirer n’est pas identifié avec assez de certitude.' })
-            continue
-          }
-          const { data: current, error: readError } = await userClient
-            .from('shopping_list')
-            .select('id,ingredient')
-            .eq('id', itemId)
-            .eq('user_id', user.id)
-            .maybeSingle()
-          if (readError) throw new Error(readError.message)
-          if (!current) {
-            results.push({ kind: 'shopping_item', actionId: action.id, status: 'deleted', entityId: itemId, message: `L’article${ingredient ? ` « ${ingredient} »` : ''} n’était déjà plus dans ta liste.` })
-            continue
-          }
-          const { error: deleteError } = await userClient
-            .from('shopping_list')
-            .delete()
-            .eq('id', itemId)
-            .eq('user_id', user.id)
-          if (deleteError) throw new Error(deleteError.message)
-          const { data: verified } = await userClient
-            .from('shopping_list')
-            .select('id')
-            .eq('id', itemId)
-            .eq('user_id', user.id)
-            .maybeSingle()
-          if (verified) throw new Error('L’article semble encore présent après la suppression.')
-          results.push({ kind: 'shopping_item', actionId: action.id, status: 'deleted', entityId: itemId, message: `C’est fait. J’ai retiré « ${current.ingredient} » de ta liste de courses.` })
-          continue
-        }
-
-        const expectedRaw = typeof p.expected_count === 'string' ? Number.parseInt(p.expected_count, 10) : NaN
-        const { count: beforeCount, error: countError } = await userClient
-          .from('shopping_list')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-        if (countError) throw new Error(countError.message)
-        const actualBefore = beforeCount || 0
-        if (actualBefore === 0) {
-          results.push({ kind: 'shopping_list', actionId: action.id, status: 'already_empty', entityId: null, message: 'Ta liste de courses était déjà vide.' })
-          continue
-        }
-        if (Number.isFinite(expectedRaw) && expectedRaw >= 0 && expectedRaw !== actualBefore) {
-          throw new Error(`Ta liste a changé depuis la confirmation : elle contient maintenant ${actualBefore} article${actualBefore > 1 ? 's' : ''}. Je n’ai rien supprimé.`)
-        }
-        const { error: clearError } = await userClient
-          .from('shopping_list')
-          .delete()
-          .eq('user_id', user.id)
-        if (clearError) throw new Error(clearError.message)
-        const { count: afterCount, error: verifyError } = await userClient
-          .from('shopping_list')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-        if (verifyError || (afterCount || 0) !== 0) throw new Error(verifyError?.message || 'La liste n’a pas pu être vérifiée comme vide.')
-        results.push({ kind: 'shopping_list', actionId: action.id, status: 'cleared', entityId: null, message: `C’est fait. J’ai supprimé les ${actualBefore} articles et ta liste de courses est maintenant vide.` })
-      } catch (error) {
-        results.push({ kind: action.type === 'clear_shopping_list' ? 'shopping_list' : 'shopping_item', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'La suppression dans la liste de courses a échoué.' })
-      }
-    }
-
-    for (const action of mealCancellationActions) {
-      try {
-        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
-        const mealId = typeof p.meal_id === 'string' ? p.meal_id.trim() : ''
-        const mealName = typeof p.meal_name === 'string' ? p.meal_name.trim() : ''
-        if (!mealId) {
-          results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: 'Le repas à annuler n’est pas identifié avec assez de certitude.' })
-          continue
-        }
-        const { data: current, error: readError } = await userClient
-          .from('meal_plan')
-          .select('id,day_of_week,meal_type,custom_meal')
-          .eq('id', mealId)
-          .eq('user_id', user.id)
-          .maybeSingle()
-        if (readError) throw new Error(readError.message)
-        if (!current) {
-          results.push({ kind: 'meal', actionId: action.id, status: 'deleted', entityId: mealId, message: `Le repas${mealName ? ` « ${mealName} »` : ''} n’était déjà plus planifié.` })
-          continue
-        }
-        const { error: deleteError } = await userClient
-          .from('meal_plan')
-          .delete()
-          .eq('id', mealId)
-          .eq('user_id', user.id)
-        if (deleteError) throw new Error(deleteError.message)
-        const { data: verified } = await userClient
-          .from('meal_plan')
-          .select('id')
-          .eq('id', mealId)
-          .eq('user_id', user.id)
-          .maybeSingle()
-        if (verified) throw new Error('Le repas semble encore présent après l’annulation.')
-        const label = current.custom_meal || mealName || 'ce repas'
-        results.push({ kind: 'meal', actionId: action.id, status: 'deleted', entityId: mealId, message: `C’est fait. J’ai retiré « ${label} » du planning Repas. Les articles de courses restent inchangés.` })
-      } catch (error) {
-        results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'Le repas n’a pas pu être retiré.' })
-      }
-    }
-
     for (const action of mealActions) {
       try {
         const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
@@ -1070,7 +953,6 @@ export async function POST(request: NextRequest) {
     const notesCreated = results.filter((item) => item.kind === 'note' && item.status === 'created').length
     const shoppingCreated = results.filter((item) => item.kind === 'shopping_item' && item.status === 'created').length
     const mealsPlanned = results.filter((item) => item.kind === 'meal' && item.status === 'created').length
-    const deletionsCompleted = results.filter((item) => ['deleted', 'cleared', 'already_empty'].includes(item.status)).length
     const failed = results.filter((item) => item.status === 'failed' || item.status === 'conflict').length
 
     const messageParts = results.map((item) => item.message)
@@ -1078,7 +960,7 @@ export async function POST(request: NextRequest) {
       messageParts.push('Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.')
     }
 
-    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned + deletionsCompleted > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
+    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
     return NextResponse.json(
       {
         ok: failed === 0,
@@ -1093,7 +975,6 @@ export async function POST(request: NextRequest) {
           actionsCancelled,
           alreadyExists,
           failed,
-          deletionsCompleted,
           unsupported: unsupportedActions.length,
         },
       },
