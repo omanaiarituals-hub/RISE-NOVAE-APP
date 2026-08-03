@@ -37,6 +37,7 @@ export const NOVA_ACTION_TYPES = [
   'merge_tasks',
   'create_calendar_event',
   'update_task',
+  'complete_task',
   'cancel_task',
   'update_reminder',
   'cancel_reminder',
@@ -232,7 +233,7 @@ export interface NovaTaskMergeExecutionItem {
 export interface NovaLifecycleExecutionItem {
   kind: 'task_update' | 'task_cancel' | 'reminder_update' | 'reminder_cancel' | 'calendar_update' | 'calendar_cancel'
   actionId: string
-  status: 'updated' | 'cancelled' | 'already_cancelled' | 'failed'
+  status: 'updated' | 'cancelled' | 'already_cancelled' | 'already_completed' | 'failed'
   entityId: string | null
   message: string
 }

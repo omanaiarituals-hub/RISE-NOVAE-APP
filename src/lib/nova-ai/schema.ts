@@ -90,6 +90,7 @@ export const NOVA_ACTION_PLAN_JSON_SCHEMA = {
               'merge_tasks',
               'create_calendar_event',
               'update_task',
+              'complete_task',
               'cancel_task',
               'update_reminder',
               'cancel_reminder',

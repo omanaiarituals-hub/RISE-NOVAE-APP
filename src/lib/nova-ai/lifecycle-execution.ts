@@ -61,6 +61,22 @@ export async function executeLifecycleAction(
     return { kind: 'task_update', actionId: action.id, status: 'updated', entityId: taskId, message: `C’est fait. J’ai modifié la tâche « ${verified.title} ».` }
   }
 
+  if (action.type === 'complete_task') {
+    const taskId = nonEmpty(p.task_id)
+    if (!taskId) throw new Error('La tâche à clôturer est introuvable.')
+    const current = await readTask(db, userId, taskId)
+    if (!current) throw new Error('La tâche à clôturer est introuvable.')
+    if (current.status === 'completed') return { kind: 'task_update', actionId: action.id, status: 'already_completed', entityId: taskId, message: `La tâche « ${current.title} » était déjà terminée.` }
+    if (current.status === 'cancelled') throw new Error('Cette tâche est annulée et ne peut pas être marquée comme terminée.')
+    const now = new Date().toISOString()
+    const { error } = await db.from('todo_list').update({ status: 'completed', completed_at: now, updated_at: now }).eq('id', taskId).eq('user_id', userId)
+    if (error) throw new Error(`Impossible de clôturer la tâche : ${error.message}`)
+    await db.from('task_reminders').update({ status: 'cancelled', cancelled_at: now, updated_at: now, failure_reason: 'task_completed_by_user' }).eq('todo_id', taskId).eq('user_id', userId).eq('status', 'pending')
+    const verified = await readTask(db, userId, taskId)
+    if (!verified || verified.status !== 'completed') throw new Error('La tâche a été mise à jour mais sa clôture n’a pas pu être vérifiée.')
+    return { kind: 'task_update', actionId: action.id, status: 'updated', entityId: taskId, message: `C’est fait. J’ai marqué la tâche « ${current.title} » comme terminée.` }
+  }
+
   if (action.type === 'cancel_task') {
     const taskId = nonEmpty(p.task_id)
     if (!taskId) throw new Error('La tâche à annuler est introuvable.')

@@ -687,7 +687,7 @@ export async function POST(request: NextRequest) {
       (action) => action.type === 'create_calendar_event' && action.engine === 'calendar'
     )
     const lifecycleActions = confirmedActions.filter((action) =>
-      ['update_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type)
+      ['update_task','complete_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type)
     )
     const noteActions = confirmedActions.filter(
       (action) => action.type === 'save_note' && action.engine === 'notes'
@@ -705,7 +705,7 @@ export async function POST(request: NextRequest) {
           (action.type === 'create_reminder' && action.engine === 'notifications') ||
           (action.type === 'merge_tasks' && action.engine === 'tasks') ||
           (action.type === 'create_calendar_event' && action.engine === 'calendar') ||
-          ['update_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type) ||
+          ['update_task','complete_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type) ||
           (action.type === 'save_note' && action.engine === 'notes') ||
           (action.type === 'add_shopping_item' && action.engine === 'meals') ||
           (action.type === 'set_meal' && action.engine === 'meals')
@@ -804,7 +804,7 @@ export async function POST(request: NextRequest) {
       try {
         results.push(await executeLifecycleAction(userClient, user.id, action, payload.plan))
       } catch (error) {
-        const kind = action.type.startsWith('update_task') ? 'task_update'
+        const kind = action.type === 'complete_task' || action.type.startsWith('update_task') ? 'task_update'
           : action.type.startsWith('cancel_task') ? 'task_cancel'
           : action.type.startsWith('update_reminder') ? 'reminder_update'
           : action.type.startsWith('cancel_reminder') ? 'reminder_cancel'
@@ -852,9 +852,18 @@ export async function POST(request: NextRequest) {
           .insert({ user_id: user.id, ingredient, quantity: quantity || null, unit: unit || null, checked: false, in_stock: false, to_buy: true, created_at: now, updated_at: now })
           .select('id')
           .single()
-        if (error) throw new Error(error.message)
+        if (error || !inserted?.id) throw new Error(error?.message || 'L’article n’a pas pu être ajouté.')
+        const { data: verified, error: verifyError } = await userClient
+          .from('shopping_list')
+          .select('id,ingredient,quantity,unit,to_buy')
+          .eq('id', inserted.id)
+          .eq('user_id', user.id)
+          .single()
+        if (verifyError || !verified || verified.ingredient !== ingredient || verified.to_buy !== true) {
+          throw new Error(verifyError?.message || 'L’article a été écrit mais sa présence dans la liste n’a pas pu être vérifiée.')
+        }
         const label = [quantity, unit, ingredient].filter(Boolean).join(' ')
-        results.push({ kind: 'shopping_item', actionId: action.id, status: 'created', entityId: inserted?.id || null, message: `Ajouté à ta liste de courses : ${label}.` })
+        results.push({ kind: 'shopping_item', actionId: action.id, status: 'created', entityId: inserted.id, message: `Ajouté à ta liste de courses : ${label}.` })
       } catch (error) {
         results.push({ kind: 'shopping_item', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'L’article n’a pas pu être ajouté.' })
       }
@@ -906,7 +915,16 @@ export async function POST(request: NextRequest) {
           )
           .select('id')
           .single()
-        if (error) throw new Error(error.message)
+        if (error || !upserted?.id) throw new Error(error?.message || 'Le repas n’a pas pu être planifié.')
+        const { data: verifiedMeal, error: verifyMealError } = await userClient
+          .from('meal_plan')
+          .select('id,day_of_week,meal_type,custom_meal,recipe_id')
+          .eq('id', upserted.id)
+          .eq('user_id', user.id)
+          .single()
+        if (verifyMealError || !verifiedMeal || verifiedMeal.day_of_week !== day || verifiedMeal.meal_type !== mealType || verifiedMeal.custom_meal !== mealName) {
+          throw new Error(verifyMealError?.message || 'Le repas a été écrit mais son affichage dans le planning n’a pas pu être vérifié.')
+        }
 
         const slotLabel = mealType === 'diner' ? 'dîner' : mealType === 'dejeuner' ? 'déjeuner' : mealType === 'petit_dejeuner' ? 'petit-déjeuner' : 'collation'
         results.push({ kind: 'meal', actionId: action.id, status: 'created', entityId: upserted?.id || null, message: `C’est planifié : ${mealName} pour le ${slotLabel} de ${day.toLowerCase()}.` })
