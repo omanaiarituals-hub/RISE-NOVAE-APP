@@ -285,7 +285,7 @@ function formatFamilyContext(rows: FamilyMemberRow[] | null): string | undefined
     if (allergies.length > 0) parts.push(`allergies : ${allergies.join(', ')}`)
     if (typeof d.healthNotes === 'string' && d.healthNotes.trim()) parts.push(`santé : ${d.healthNotes.trim()}`)
     if (r.is_primary_contact) parts.push('contact principal')
-    return `- ${parts.join(' — ')}`
+    return `- [meal_id=${r.id}] ${parts.join(' — ')}`
   })
   return lines.join('\n')
 }
@@ -309,7 +309,7 @@ function formatAdminDocsContext(rows: AdminDocRow[] | null): string | undefined 
     if (typeof r.amount === 'number') parts.push(`${r.amount} €`)
     parts.push(label(r.processing_status))
     if (r.recommended_next_step) parts.push(`prochaine étape : ${r.recommended_next_step}`)
-    return `- ${parts.join(' — ')}`
+    return `- [meal_id=${r.id}] ${parts.join(' — ')}`
   })
   return lines.join('\n')
 }
@@ -322,7 +322,7 @@ function formatNotesContext(rows: NoteRow[] | null): string | undefined {
   return lines.join('\n')
 }
 
-type MealRow = { day_of_week: string | null; meal_type: string | null; custom_meal: string | null; headcount: number | null }
+type MealRow = { id: string; day_of_week: string | null; meal_type: string | null; custom_meal: string | null; headcount: number | null }
 
 function formatMealsContext(rows: MealRow[] | null): string | undefined {
   if (!rows || rows.length === 0) return undefined
@@ -330,18 +330,18 @@ function formatMealsContext(rows: MealRow[] | null): string | undefined {
     const parts: string[] = [`${r.day_of_week || '?'} ${r.meal_type || ''}`.trim()]
     parts.push(r.custom_meal || 'recette enregistrée')
     if (typeof r.headcount === 'number' && r.headcount > 0) parts.push(`${r.headcount} pers.`)
-    return `- ${parts.join(' — ')}`
+    return `- [meal_id=${r.id}] ${parts.join(' — ')}`
   })
   return lines.join('\n')
 }
 
-type ShoppingRow = { ingredient: string | null; quantity: string | null; unit: string | null; priority: string | null }
+type ShoppingRow = { id: string; ingredient: string | null; quantity: string | null; unit: string | null; priority: string | null }
 
 function formatShoppingContext(rows: ShoppingRow[] | null): string | undefined {
   if (!rows || rows.length === 0) return undefined
   const lines = rows.slice(0, 30).map((r) => {
     const qty = [r.quantity, r.unit].filter(Boolean).join(' ')
-    return `- ${r.ingredient || 'Article'}${qty ? ` (${qty})` : ''}${r.priority === 'high' ? ' — prioritaire' : ''}`
+    return `- [item_id=${r.id}] ${r.ingredient || 'Article'}${qty ? ` (${qty})` : ''}${r.priority === 'high' ? ' — prioritaire' : ''}`
   })
   return lines.join('\n')
 }
@@ -354,7 +354,7 @@ function formatRoutinesContext(rows: RoutineRow[] | null): string | undefined {
     const parts: string[] = [r.title || 'Routine']
     if (r.frequency) parts.push(r.frequency)
     if (r.preferred_time) parts.push(`vers ${String(r.preferred_time).slice(0, 5)}`)
-    return `- ${parts.join(' — ')}`
+    return `- [meal_id=${r.id}] ${parts.join(' — ')}`
   })
   return lines.join('\n')
 }
@@ -695,12 +695,12 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           .limit(8),
         supabaseAdmin
           .from('meal_plan')
-          .select('day_of_week, meal_type, custom_meal, headcount')
+          .select('id, day_of_week, meal_type, custom_meal, headcount')
           .eq('user_id', user.id)
           .limit(30),
         supabaseAdmin
           .from('shopping_list')
-          .select('ingredient, quantity, unit, priority')
+          .select('id, ingredient, quantity, unit, priority')
           .eq('user_id', user.id)
           .eq('to_buy', true)
           .limit(30),
