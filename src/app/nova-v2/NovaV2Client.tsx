@@ -126,6 +126,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const [conversationId, setConversationId] = useState<string | null>(null)
   const conversationRestoredRef = useRef(false)
   const conversationIdRef = useRef<string | null>(null)
+  const conversationCreationRef = useRef<Promise<string> | null>(null)
   const messagesRef = useRef<ChatMessage[]>([])
   const [conversations, setConversations] = useState<NovaConversationSummary[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -307,8 +308,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
         if (storedMessages.length === 0) return
         setConversationId(persistedId)
         setMessages(storedMessages.map((message) => ({ id: message.id, role: message.role, text: message.text })))
-        const firstUserMessage = storedMessages.find((message) => message.role === 'user')
-        setRootRequest(firstUserMessage?.text || '')
+        setRootRequest('')
       } catch {
         // Fil introuvable ou supprimé : on démarre normalement.
       }
@@ -537,16 +537,29 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   }
 
   async function ensureConversation(firstMessage: string): Promise<string> {
-    // On lit la ref (mise à jour en temps réel) et pas seulement l'état React :
-    // en vocal, deux phrases rapprochées lisaient une valeur périmée de
-    // conversationId (encore null), ce qui créait une conversation par phrase.
     const current = conversationIdRef.current ?? conversationId
     if (current) return current
-    const created = await history.createConversation(firstMessage)
-    conversationIdRef.current = created.id
-    setConversationId(created.id)
-    setConversations((current) => [created, ...current])
-    return created.id
+
+    // Verrou asynchrone : deux transcriptions vocales rapprochées doivent attendre
+    // la même création au lieu d'insérer deux conversations en parallèle.
+    if (conversationCreationRef.current) return conversationCreationRef.current
+
+    const creation = history.createConversation(firstMessage).then((created) => {
+      conversationIdRef.current = created.id
+      setConversationId(created.id)
+      setConversations((currentRows) => [
+        created,
+        ...currentRows.filter((row) => row.id !== created.id),
+      ])
+      return created.id
+    })
+
+    conversationCreationRef.current = creation
+    try {
+      return await creation
+    } finally {
+      conversationCreationRef.current = null
+    }
   }
 
   async function addMessage(
@@ -572,19 +585,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     }
   }
 
-  function buildContextualRequest(userAnswer: string): string {
-    // On lit la ref (mise à jour en temps réel) et non le state : en vocal, le
-    // callback de reconnaissance a capturé une version figée de `messages`
-    // (souvent vide), ce qui privait Nova de l'historique de la conversation.
-    const liveMessages = messagesRef.current.length > 0 ? messagesRef.current : messages
-    const transcript = liveMessages
-      .filter((message) => message.text !== WELCOME)
-      .slice(-10)
-      .map((message) => `${message.role === 'user' ? 'Utilisateur' : 'Nova'} : ${message.text}`)
-      .join('\n')
-
-    if (!result && !transcript) return userAnswer
-
+  function buildWorkflowContext(): string {
     const missing = result?.plan.missing_information
       .map((item) => `${item.field}: ${item.question}`)
       .join(' | ')
@@ -593,15 +594,13 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       .map((action) => `${action.type}: ${action.title}`)
       .join(' | ')
 
+    if (!rootRequest && !result) return ''
+
     return [
-      'Tu poursuis une conversation avec l’utilisateur.',
-      rootRequest ? `Demande initiale : ${rootRequest}` : '',
-      transcript ? `Historique récent :\n${transcript}` : '',
-      result?.plan.summary ? `Résumé actuel : ${result.plan.summary}` : '',
+      rootRequest ? `Sujet actif : ${rootRequest}` : '',
+      result?.plan.summary ? `Résumé du sujet actif : ${result.plan.summary}` : '',
       `Informations encore manquantes : ${missing || 'aucune'}`,
       `Actions déjà proposées : ${actions || 'aucune'}`,
-      `Nouvelle réponse de l’utilisateur : ${userAnswer}`,
-      'Recalcule le plan complet en tenant compte du contexte. Ne prétends jamais avoir exécuté une action.',
     ].filter(Boolean).join('\n')
   }
 
@@ -660,7 +659,12 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
           'content-type': 'application/json',
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: buildContextualRequest(normalized), provider: 'auto' }),
+        body: JSON.stringify({
+          message: normalized,
+          conversationId: activeConversationId,
+          workflowContext: buildWorkflowContext(),
+          provider: 'auto',
+        }),
       })
 
       const payload = await response.json()
@@ -728,6 +732,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
             type: 'execution_result', success: false, requires_modification: true,
           })
           setResult(null)
+          setRootRequest('')
           setStatus('completed')
           return
         }
@@ -739,6 +744,8 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
         type: 'execution_result',
         success: true,
       })
+      setResult(null)
+      setRootRequest('')
       setStatus('completed')
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : 'L’action n’a pas pu être exécutée.'
@@ -756,6 +763,8 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   async function cancelPreparedActions() {
     await addMessage('user', 'Non, annule.', conversationId)
     await addMessage('nova', 'D’accord. Je n’exécute rien et je laisse cette proposition de côté.', conversationId)
+    setResult(null)
+    setRootRequest('')
     setStatus('cancelled')
   }
 
@@ -790,8 +799,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
         ? storedMessages.map((message) => ({ id: message.id, role: message.role, text: message.text }))
         : [{ id: createId('empty'), role: 'nova', text: 'Cette conversation est vide.' }]
       )
-      const firstUserMessage = storedMessages.find((message) => message.role === 'user')
-      setRootRequest(firstUserMessage?.text || '')
+      setRootRequest('')
       setResult(null)
       setStatus('idle')
       setInput('')

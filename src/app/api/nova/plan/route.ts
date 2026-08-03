@@ -429,8 +429,17 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       )
     }
 
-    const body = (await request.json()) as { message?: unknown; provider?: unknown }
+    const body = (await request.json()) as {
+      message?: unknown
+      provider?: unknown
+      conversationId?: unknown
+      workflowContext?: unknown
+    }
     const message = typeof body.message === 'string' ? body.message.trim() : ''
+    const conversationId =
+      typeof body.conversationId === 'string' ? body.conversationId.trim() : ''
+    const workflowContext =
+      typeof body.workflowContext === 'string' ? body.workflowContext.trim().slice(0, 4_000) : ''
 
     if (!message) {
       return NextResponse.json({ error: 'Le message est obligatoire.' }, { status: 400 })
@@ -445,6 +454,50 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
     const provider: NovaProviderPreference = providerIsKnown
       ? (body.provider as NovaProviderPreference)
       : 'auto'
+
+    let conversationHistory = ''
+    if (conversationId) {
+      const { data: ownedConversation } = await supabaseAdmin
+        .from('nova_conversations')
+        .select('id')
+        .eq('id', conversationId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (ownedConversation) {
+        const { data: storedMessages, error: historyError } = await supabaseAdmin
+          .from('nova_conversation_messages')
+          .select('role,content,created_at')
+          .eq('conversation_id', conversationId)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(31)
+
+        if (historyError) {
+          console.warn('[api/nova/plan] historique conversation indisponible', historyError.message)
+        } else {
+          const chronological = [...(storedMessages || [])].reverse()
+          // Le client sauvegarde le message utilisateur juste avant l'appel API.
+          // On retire cette dernière copie identique pour ne pas le présenter deux fois au modèle.
+          const last = chronological[chronological.length - 1]
+          if (last?.role === 'user' && String(last.content || '').trim() === message) {
+            chronological.pop()
+          }
+          conversationHistory = chronological
+            .slice(-30)
+            .map((row) => `${row.role === 'assistant' ? 'Nova' : row.role === 'user' ? 'Utilisateur' : 'Système'} : ${String(row.content || '').trim()}`)
+            .filter(Boolean)
+            .join('\n')
+        }
+      }
+    }
+
+    const conversationalRequest = [
+      conversationHistory ? `Historique récent de cette conversation :\n${conversationHistory}` : '',
+      workflowContext ? `État du sujet actif :\n${workflowContext}` : '',
+      `Nouveau message de l’utilisatrice : ${message}`,
+      'Poursuis naturellement le même fil. Distingue le sujet actif des sujets déjà terminés et ne prétends jamais avoir exécuté une action.',
+    ].filter(Boolean).join('\n\n')
 
     const calendarWindowStart = new Date()
     calendarWindowStart.setDate(calendarWindowStart.getDate() - 30)
@@ -571,7 +624,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       .join('\n')
 
     const messageWithContext = [
-      message,
+      conversationalRequest,
       '',
       'CONTEXTE INTERNE NOVAÉ - ne jamais réciter les identifiants techniques à l’utilisatrice :',
       'TÃ¢ches actives connues :',
