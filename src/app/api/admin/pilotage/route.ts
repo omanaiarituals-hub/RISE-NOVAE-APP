@@ -228,7 +228,7 @@ export async function GET(request: NextRequest) {
     waitlist.map((row) => row.email_normalized?.toLowerCase()).filter(Boolean)
   )
   const userEmails = new Set(users.map((row) => row.email?.toLowerCase()).filter(Boolean))
-  const betaConverted = [...waitlistEmails].filter((email) => userEmails.has(email)).length
+  const betaConverted = Array.from(waitlistEmails).filter((email) => userEmails.has(email)).length
 
   const recentWaitlist = waitlist
     .slice(0, 50)
@@ -277,16 +277,16 @@ export async function GET(request: NextRequest) {
       visitorToClickRate: pct(clickingSessions.size, visitorSessions.size),
       pageViews24h: pageViews.filter((row) => row.created_at >= since24h).length,
       pageViews7d: pageViews.filter((row) => row.created_at >= since7d).length,
-      scroll50Rate: pct([...sessionDepth.values()].filter((depth) => depth >= 50).length, visitorSessions.size),
-      scroll75Rate: pct([...sessionDepth.values()].filter((depth) => depth >= 75).length, visitorSessions.size),
-      scroll100Rate: pct([...sessionDepth.values()].filter((depth) => depth >= 100).length, visitorSessions.size),
-      ctaBreakdown: [...ctaMap.entries()]
+      scroll50Rate: pct(Array.from(sessionDepth.values()).filter((depth) => depth >= 50).length, visitorSessions.size),
+      scroll75Rate: pct(Array.from(sessionDepth.values()).filter((depth) => depth >= 75).length, visitorSessions.size),
+      scroll100Rate: pct(Array.from(sessionDepth.values()).filter((depth) => depth >= 100).length, visitorSessions.size),
+      ctaBreakdown: Array.from(ctaMap.entries())
         .map(([label, count]) => ({ label, count }))
         .sort((a, b) => b.count - a.count),
-      sources: [...sourceMap.entries()]
+      sources: Array.from(sourceMap.entries())
         .map(([source, count]) => ({ source, count }))
         .sort((a, b) => b.count - a.count),
-      referrers: [...referrerMap.entries()]
+      referrers: Array.from(referrerMap.entries())
         .map(([referrer, count]) => ({ referrer, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 10),
@@ -306,7 +306,7 @@ export async function GET(request: NextRequest) {
       ),
       convertedToAccount: betaConverted,
       betaToAccountRate: pct(betaConverted, waitlistEmails.size),
-      sources: [...waitlistSources.entries()]
+      sources: Array.from(waitlistSources.entries())
         .map(([source, count]) => ({ source, count }))
         .sort((a, b) => b.count - a.count),
       recent: recentWaitlist,
