@@ -1100,8 +1100,8 @@ export default function HomePageClient() {
 
                 {isAdmin && (
                   <Link
-                    href="/admin"
-                    className="secondary-space-link"
+                    href="/admin/pilotage"
+                    className="secondary-space-link admin-dashboard-link"
                   >
                     <span className="secondary-space-icon">
                       <PremiumIcon
@@ -1111,7 +1111,7 @@ export default function HomePageClient() {
                       />
                     </span>
 
-                    <strong>Administration</strong>
+                    <strong>Tableau de bord administrateur</strong>
                   </Link>
                 )}
               </div>
@@ -2091,6 +2091,17 @@ export default function HomePageClient() {
           border: 1px solid var(--novae-border);
           border-radius: 16px;
           box-shadow: 0 8px 22px var(--novae-shadow);
+        }
+
+        .admin-dashboard-link {
+          grid-column: 1 / -1;
+          width: 100%;
+          margin-top: 6px;
+          padding: 16px 18px;
+        }
+
+        .admin-dashboard-link > strong {
+          white-space: normal;
         }
 
         .secondary-space-icon {
