@@ -160,6 +160,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const endRef = useRef<HTMLDivElement | null>(null)
   const autoVoiceStartedRef = useRef(false)
   const statusRef = useRef<ConversationStatus>('idle')
+  const resultRef = useRef<NovaPlanResult | null>(null)
   const confirmActionsRef = useRef<null | (() => Promise<void>)>(null)
   const cancelActionsRef = useRef<null | (() => Promise<void>)>(null)
 
@@ -172,6 +173,10 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   useEffect(() => {
     statusRef.current = status
   }, [status])
+
+  useEffect(() => {
+    resultRef.current = result
+  }, [result])
 
   // Toujours pointer vers les dernières versions des fonctions de validation,
   // pour que le callback vocal (créé plus tôt) ne fige pas un état périmé.
@@ -623,13 +628,15 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     ) return
 
     const normalized = visibleMessage.trim()
+    const currentStatus = statusRef.current
+    const currentResult = resultRef.current
 
-    if (status === 'waiting_confirmation' && isPositiveConfirmation(normalized)) {
+    if (currentStatus === 'waiting_confirmation' && isPositiveConfirmation(normalized)) {
       await confirmPreparedActions()
       return
     }
 
-    if (status === 'waiting_confirmation' && isNegativeConfirmation(normalized)) {
+    if (currentStatus === 'waiting_confirmation' && isNegativeConfirmation(normalized)) {
       await cancelPreparedActions()
       return
     }
@@ -638,10 +645,10 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     // n'est ni un oui ni un non clairs ne part PAS à l'IA (qui confondrait les
     // propositions). Nova redemande de confirmer ou annuler celle en cours, en la
     // nommant, pour que l'utilisatrice sache exactement de quoi il s'agit.
-    if (status === 'waiting_confirmation' && result) {
+    if (currentStatus === 'waiting_confirmation' && currentResult) {
       const pendingTitle =
-        result.plan.proposed_actions.find((action) => action.requires_confirmation)?.title ||
-        result.plan.proposed_actions[0]?.title ||
+        currentResult.plan.proposed_actions.find((action) => action.requires_confirmation)?.title ||
+        currentResult.plan.proposed_actions[0]?.title ||
         'la proposition en cours'
       setInput('')
       const activeConversationId = conversationId
@@ -689,6 +696,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       }
 
       const nextResult = payload as NovaPlanResult
+      resultRef.current = nextResult
       setResult(nextResult)
       if (!rootRequest) setRootRequest(normalized)
 
@@ -699,6 +707,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       })
 
       if (nextResult.plan.missing_information.length > 0) {
+        statusRef.current = 'waiting_information'
         setStatus('waiting_information')
       } else if (nextResult.plan.proposed_actions.some((action) => action.requires_confirmation)) {
         setStatus('waiting_confirmation')
@@ -711,6 +720,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
           recognitionRef.current?.stop?.()
         } catch {}
       } else {
+        statusRef.current = 'idle'
         setStatus('idle')
       }
     } catch (caught) {
@@ -724,8 +734,9 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   }
 
   async function confirmPreparedActions() {
+    const currentResult = resultRef.current
     if (
-      !result ||
+      !currentResult ||
       loadingRef.current ||
       requestInFlightRef.current ||
       statusRef.current === 'executing'
@@ -742,7 +753,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     setError('')
 
     try {
-      if (!result.executionToken) {
+      if (!currentResult.executionToken) {
         throw new Error('La validation est reçue, mais l’exécution n’est pas encore configurée sur ce serveur.')
       }
 
@@ -756,7 +767,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
           'content-type': 'application/json',
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ executionToken: result.executionToken }),
+        body: JSON.stringify({ executionToken: currentResult.executionToken }),
       })
 
       const payload = (await response.json()) as Partial<NovaExecutionResult> & { message?: string }
@@ -765,8 +776,10 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
           await addMessage('nova', payload.message, activeConversationId, {
             type: 'execution_result', success: false, requires_modification: true,
           })
+          resultRef.current = null
           setResult(null)
           setRootRequest('')
+          statusRef.current = 'completed'
           setStatus('completed')
           return
         }
@@ -776,14 +789,15 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       const finalMessage = payload.message || 'C’est fait. L’action a été exécutée.'
       setPaused(false)
       pausedRef.current = false
+      resultRef.current = null
+      setResult(null)
+      setRootRequest('')
       statusRef.current = 'completed'
+      setStatus('completed')
       await addMessage('nova', finalMessage, activeConversationId, {
         type: 'execution_result',
         success: true,
       })
-      setResult(null)
-      setRootRequest('')
-      setStatus('completed')
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : 'L’action n’a pas pu être exécutée.'
       setError(message)
@@ -805,6 +819,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   async function cancelPreparedActions() {
     if (loadingRef.current || requestInFlightRef.current) return
     await addMessage('user', 'Non, annule.', conversationId)
+    resultRef.current = null
     setResult(null)
     setRootRequest('')
     setStatus('cancelled')
@@ -830,8 +845,10 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     conversationIdRef.current = null
     setConversationId(null)
     setInput('')
+    resultRef.current = null
     setResult(null)
     setRootRequest('')
+    statusRef.current = 'idle'
     setStatus('idle')
     setError('')
     setMessages([{ id: createId('welcome'), role: 'nova', text: 'Nouvelle conversation. Que veux-tu me confier ?' }])
@@ -850,7 +867,9 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
         : [{ id: createId('empty'), role: 'nova', text: 'Cette conversation est vide.' }]
       )
       setRootRequest('')
+      resultRef.current = null
       setResult(null)
+      statusRef.current = 'idle'
       setStatus('idle')
       setInput('')
       setHistoryOpen(false)
