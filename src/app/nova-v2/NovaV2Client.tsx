@@ -127,6 +127,10 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const conversationRestoredRef = useRef(false)
   const conversationIdRef = useRef<string | null>(null)
   const conversationCreationRef = useRef<Promise<string> | null>(null)
+  const requestInFlightRef = useRef(false)
+  const pendingVoiceTranscriptRef = useRef('')
+  const voiceSubmitTimerRef = useRef<number | null>(null)
+  const lastVoiceSubmissionRef = useRef({ text: '', submittedAt: 0 })
   const messagesRef = useRef<ChatMessage[]>([])
   const [conversations, setConversations] = useState<NovaConversationSummary[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -254,6 +258,9 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     } catch {}
 
     return () => {
+      if (voiceSubmitTimerRef.current !== null) {
+        window.clearTimeout(voiceSubmitTimerRef.current)
+      }
       window.speechSynthesis.onvoiceschanged = null
       window.speechSynthesis.cancel()
     }
@@ -414,7 +421,10 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
             voiceOverlayOpenRef.current &&
             !pausedRef.current &&
             !speakingRef.current &&
-            !loadingRef.current
+            !loadingRef.current &&
+            !requestInFlightRef.current &&
+            statusRef.current !== 'waiting_confirmation' &&
+            statusRef.current !== 'executing'
           ) {
             toggleVoiceInput(true)
           }
@@ -605,7 +615,12 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   }
 
   async function requestPlan(visibleMessage: string) {
-    if (!visibleMessage.trim() || loading || status === 'executing') return
+    if (
+      !visibleMessage.trim() ||
+      loadingRef.current ||
+      requestInFlightRef.current ||
+      statusRef.current === 'executing'
+    ) return
 
     const normalized = visibleMessage.trim()
 
@@ -639,6 +654,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       return
     }
 
+    requestInFlightRef.current = true
     setInput('')
     setLoading(true)
     setError('')
@@ -686,6 +702,14 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
         setStatus('waiting_information')
       } else if (nextResult.plan.proposed_actions.some((action) => action.requires_confirmation)) {
         setStatus('waiting_confirmation')
+        statusRef.current = 'waiting_confirmation'
+        setPaused(true)
+        pausedRef.current = true
+        setListening(false)
+        try {
+          recognitionRef.current?.abort?.()
+          recognitionRef.current?.stop?.()
+        } catch {}
       } else {
         setStatus('idle')
       }
@@ -694,12 +718,22 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       setError(message)
       await addMessage('system', message, activeConversationId)
     } finally {
+      requestInFlightRef.current = false
       setLoading(false)
     }
   }
 
   async function confirmPreparedActions() {
-    if (!result || loading || status === 'executing') return
+    if (
+      !result ||
+      loadingRef.current ||
+      requestInFlightRef.current ||
+      statusRef.current === 'executing'
+    ) return
+
+    loadingRef.current = true
+    requestInFlightRef.current = true
+    statusRef.current = 'executing'
 
     const activeConversationId = conversationId
     await addMessage('user', 'Oui, je confirme.', activeConversationId)
@@ -740,6 +774,9 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       }
 
       const finalMessage = payload.message || 'C’est fait. L’action a été exécutée.'
+      setPaused(false)
+      pausedRef.current = false
+      statusRef.current = 'completed'
       await addMessage('nova', finalMessage, activeConversationId, {
         type: 'execution_result',
         success: true,
@@ -755,24 +792,37 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
         success: false,
       })
       setStatus('waiting_confirmation')
+      statusRef.current = 'waiting_confirmation'
+      setPaused(true)
+      pausedRef.current = true
     } finally {
+      loadingRef.current = false
+      requestInFlightRef.current = false
       setLoading(false)
     }
   }
 
   async function cancelPreparedActions() {
+    if (loadingRef.current || requestInFlightRef.current) return
     await addMessage('user', 'Non, annule.', conversationId)
-    await addMessage('nova', 'D’accord. Je n’exécute rien et je laisse cette proposition de côté.', conversationId)
     setResult(null)
     setRootRequest('')
     setStatus('cancelled')
+    statusRef.current = 'cancelled'
+    setPaused(false)
+    pausedRef.current = false
+    await addMessage('nova', 'D’accord, je n’exécute rien.', conversationId)
   }
 
   async function askForModification() {
+    if (loadingRef.current || requestInFlightRef.current) return
     await addMessage('user', 'Je veux modifier la proposition.', conversationId)
-    await addMessage('nova', 'Très bien. Dis-moi précisément ce que tu veux changer.', conversationId)
     setStatus('waiting_information')
+    statusRef.current = 'waiting_information'
+    setPaused(false)
+    pausedRef.current = false
     setInput('')
+    await addMessage('nova', 'D’accord. Dis-moi ce que tu veux changer.', conversationId)
   }
 
   function startNewConversation() {
@@ -824,12 +874,68 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     }
   }
 
+  function queueVoiceTranscript(rawTranscript: string) {
+    const transcript = rawTranscript.replace(/\s+/g, ' ').trim()
+    if (
+      !transcript ||
+      loadingRef.current ||
+      requestInFlightRef.current ||
+      statusRef.current === 'waiting_confirmation' ||
+      statusRef.current === 'executing'
+    ) return
+
+    const pending = pendingVoiceTranscriptRef.current
+    const incomingLower = transcript.toLocaleLowerCase('fr-FR')
+    const pendingLower = pending.toLocaleLowerCase('fr-FR')
+
+    if (!pending || incomingLower.startsWith(pendingLower)) {
+      pendingVoiceTranscriptRef.current = transcript
+    } else if (!pendingLower.startsWith(incomingLower) && incomingLower !== pendingLower) {
+      pendingVoiceTranscriptRef.current = `${pending} ${transcript}`.replace(/\s+/g, ' ').trim()
+    }
+
+    if (voiceSubmitTimerRef.current !== null) {
+      window.clearTimeout(voiceSubmitTimerRef.current)
+    }
+
+    voiceSubmitTimerRef.current = window.setTimeout(() => {
+      const finalTranscript = pendingVoiceTranscriptRef.current.trim()
+      pendingVoiceTranscriptRef.current = ''
+      voiceSubmitTimerRef.current = null
+
+      if (
+        !finalTranscript ||
+        loadingRef.current ||
+        requestInFlightRef.current ||
+        statusRef.current === 'waiting_confirmation' ||
+        statusRef.current === 'executing'
+      ) return
+
+      const previous = lastVoiceSubmissionRef.current
+      const normalized = finalTranscript.toLocaleLowerCase('fr-FR')
+      const previousNormalized = previous.text.toLocaleLowerCase('fr-FR')
+      const elapsed = Date.now() - previous.submittedAt
+
+      if (
+        (normalized === previousNormalized && elapsed < 15_000) ||
+        (elapsed < 6_000 && previousNormalized.length >= 8 &&
+          (normalized.startsWith(previousNormalized) || previousNormalized.startsWith(normalized)))
+      ) return
+
+      lastVoiceSubmissionRef.current = { text: finalTranscript, submittedAt: Date.now() }
+      void requestPlan(finalTranscript)
+    }, 1400)
+  }
+
   function toggleVoiceInput(autoSubmit = false) {
     if (
       listening ||
       speakingRef.current ||
       pausedRef.current ||
-      loadingRef.current
+      loadingRef.current ||
+      requestInFlightRef.current ||
+      statusRef.current === 'waiting_confirmation' ||
+      statusRef.current === 'executing'
     ) {
       return
     }
@@ -896,7 +1002,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       }
 
       if (autoSubmit || voiceOverlayOpenRef.current) {
-        void requestPlan(transcript)
+        queueVoiceTranscript(transcript)
         return
       }
 
@@ -1038,6 +1144,63 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
               ? 'Touche le micro pour reprendre.'
               : 'Le micro se réactive après chaque réponse.'}
           </p>
+
+
+          {result && status === 'waiting_confirmation' ? (
+            <section
+              className="nova-voice-validation-card"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Proposition de Nova à valider"
+            >
+              <p className="nova-voice-validation-eyebrow">Proposition à valider</p>
+              <strong className="nova-voice-validation-title">
+                {confirmableActions.length === 1
+                  ? confirmableActions[0].title
+                  : `${confirmableActions.length} actions proposées`}
+              </strong>
+
+              {confirmableActions.length === 1 ? (
+                <p className="nova-voice-validation-description">
+                  {confirmableActions[0].reason}
+                </p>
+              ) : (
+                <div className="nova-voice-validation-list">
+                  {confirmableActions.slice(0, 3).map((action) => (
+                    <span key={action.id}>{action.title}</span>
+                  ))}
+                </div>
+              )}
+
+              <div className="nova-voice-validation-actions">
+                <button
+                  type="button"
+                  className="nova-voice-validation-confirm"
+                  onClick={() => void confirmPreparedActions()}
+                  disabled={loading}
+                >
+                  Valider
+                </button>
+                <button
+                  type="button"
+                  className="nova-voice-validation-modify"
+                  onClick={() => void askForModification()}
+                  disabled={loading}
+                >
+                  Modifier
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="nova-voice-validation-cancel"
+                onClick={() => void cancelPreparedActions()}
+                disabled={loading}
+              >
+                Annuler
+              </button>
+            </section>
+          ) : null}
 
           {showVoiceSettings ? (
             <section className="nova-voice-settings-panel">
@@ -1390,6 +1553,125 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
           color: var(--novae-text-muted);
           font-size: 12px;
           text-align: center;
+        }
+
+        .nova-voice-validation-card {
+          position: fixed;
+          left: 50%;
+          bottom: max(22px, env(safe-area-inset-bottom));
+          z-index: 145;
+          width: min(calc(100vw - 28px), 440px);
+          transform: translateX(-50%);
+          padding: 18px;
+          color: var(--novae-text-main);
+          text-align: left;
+          background: color-mix(in srgb, var(--novae-surface) 97%, transparent);
+          border: 1px solid var(--novae-border);
+          border-radius: 22px;
+          box-shadow: 0 24px 60px var(--novae-shadow);
+          animation: novaValidationRise 220ms ease-out;
+        }
+
+        .nova-voice-validation-eyebrow {
+          margin: 0 0 7px;
+          color: var(--novae-text-muted);
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 0.17em;
+          text-transform: uppercase;
+        }
+
+        .nova-voice-validation-title {
+          display: block;
+          color: var(--novae-primary);
+          font-family: var(--novae-font-title);
+          font-size: 19px;
+          line-height: 1.25;
+        }
+
+        .nova-voice-validation-description {
+          display: -webkit-box;
+          margin: 8px 0 0;
+          overflow: hidden;
+          color: var(--novae-text-muted);
+          font-size: 13px;
+          line-height: 1.45;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 3;
+        }
+
+        .nova-voice-validation-list {
+          display: grid;
+          gap: 5px;
+          margin-top: 9px;
+          color: var(--novae-text-muted);
+          font-size: 13px;
+        }
+
+        .nova-voice-validation-list span::before {
+          content: '•';
+          margin-right: 7px;
+          color: var(--novae-primary);
+        }
+
+        .nova-voice-validation-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          margin-top: 16px;
+        }
+
+        .nova-voice-validation-confirm,
+        .nova-voice-validation-modify {
+          min-height: 46px;
+          padding: 10px 14px;
+          border-radius: 999px;
+          font-size: 14px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .nova-voice-validation-confirm {
+          color: var(--novae-background);
+          background: var(--novae-primary);
+          border: 1px solid var(--novae-primary);
+        }
+
+        .nova-voice-validation-modify {
+          color: var(--novae-primary);
+          background: transparent;
+          border: 1px solid var(--novae-primary);
+        }
+
+        .nova-voice-validation-cancel {
+          display: block;
+          margin: 12px auto 0;
+          padding: 4px 10px;
+          color: var(--novae-text-muted);
+          background: transparent;
+          border: 0;
+          font-size: 12px;
+          text-decoration: underline;
+          text-underline-offset: 3px;
+          cursor: pointer;
+        }
+
+        .nova-voice-validation-confirm:disabled,
+        .nova-voice-validation-modify:disabled,
+        .nova-voice-validation-cancel:disabled {
+          cursor: not-allowed;
+          opacity: 0.55;
+        }
+
+        @keyframes novaValidationRise {
+          from {
+            opacity: 0;
+            transform: translate(-50%, 12px);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
         }
 
         .nova-voice-settings-panel {
