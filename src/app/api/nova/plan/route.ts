@@ -471,7 +471,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           .eq('conversation_id', conversationId)
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
-          .limit(31)
+          .limit(17)
 
         if (historyError) {
           console.warn('[api/nova/plan] historique conversation indisponible', historyError.message)
@@ -484,7 +484,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
             chronological.pop()
           }
           conversationHistory = chronological
-            .slice(-30)
+            .slice(-16)
             .map((row) => `${row.role === 'assistant' ? 'Nova' : row.role === 'user' ? 'Utilisateur' : 'Système'} : ${String(row.content || '').trim()}`)
             .filter(Boolean)
             .join('\n')
@@ -496,7 +496,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       conversationHistory ? `Historique récent de cette conversation :\n${conversationHistory}` : '',
       workflowContext ? `État du sujet actif :\n${workflowContext}` : '',
       `Nouveau message de l’utilisatrice : ${message}`,
-      'Poursuis naturellement le même fil. Distingue le sujet actif des sujets déjà terminés et ne prétends jamais avoir exécuté une action.',
+      'Réponds uniquement au nouveau message. Utilise l’historique et les données connues silencieusement. Ne récite jamais le programme complet sauf demande explicite, ne répète pas les informations déjà établies, ne ramène pas automatiquement un ancien sujet et ne pose qu’une question à la fois. Une réponse courante doit rester courte et naturelle. Ne prétends jamais avoir exécuté une action avant le résultat réel du moteur.',
     ].filter(Boolean).join('\n\n')
 
     const calendarWindowStart = new Date()
@@ -627,13 +627,13 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       conversationalRequest,
       '',
       'CONTEXTE INTERNE NOVAÉ - ne jamais réciter les identifiants techniques à l’utilisatrice :',
-      'TÃ¢ches actives connues :',
+      'Tâches actives connues :',
       taskContext || 'aucune tâche active',
       '',
       'Correspondances probables entre la demande et les tâches actives :',
       requestMatchContext || 'aucune correspondance suffisamment proche',
       '',
-      'Groupes de tâches déjà  existantes qui semblent être des doublons :',
+      'Groupes de tâches déjà existantes qui semblent être des doublons :',
       duplicateContext || 'aucun doublon probable détecté',
       '',
       'Rendez-vous actifs connus :',
