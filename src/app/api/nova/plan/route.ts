@@ -300,7 +300,20 @@ function formatFamilyContext(rows: FamilyMemberRow[] | null): string | undefined
       if (typeof d.healthNotes === 'string' && d.healthNotes.trim()) {
         parts.push(`santé : ${d.healthNotes.trim()}`)
       }
-      if (r.is_primary_contact) parts.push('contact principal')
+      if (typeof d.dietaryRegime === 'string' && d.dietaryRegime.trim()) {
+        parts.push(`régime/habitudes alimentaires : ${d.dietaryRegime.trim()}`)
+      }
+      const foodPreferences = Array.isArray(d.foodPreferences)
+        ? d.foodPreferences.filter((value) => typeof value === 'string' && value)
+        : []
+      if (foodPreferences.length > 0) parts.push(`aime : ${foodPreferences.join(', ')}`)
+      const foodDislikes = Array.isArray(d.foodDislikes)
+        ? d.foodDislikes.filter((value) => typeof value === 'string' && value)
+        : []
+      if (foodDislikes.length > 0) parts.push(`n’aime pas : ${foodDislikes.join(', ')}`)
+      if (typeof d.phone === 'string' && d.phone.trim()) parts.push(`téléphone : ${d.phone.trim()}`)
+      if (typeof d.email === 'string' && d.email.trim()) parts.push(`e-mail : ${d.email.trim()}`)
+      if (r.is_primary_contact || d.isPrimaryContact === true) parts.push('contact principal')
       return `- ${parts.join(' — ')}`
     })
 

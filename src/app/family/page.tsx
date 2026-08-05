@@ -28,6 +28,11 @@ interface FamilyMember {
   allergies: string
   healthNotes: string
   phone: string
+  email: string
+  isPrimaryContact: boolean
+  dietaryRegime: string
+  foodPreferences: string
+  foodDislikes: string
   giftIdeas: string
   notes: string
   supabaseId?: string
@@ -149,6 +154,11 @@ function fromSupabase(row: any): FamilyMember {
     allergies: Array.isArray(d.allergies) ? d.allergies.join(', ') : (d.allergies || d.healthNotes || ''),
     healthNotes: d.healthNotes || '',
     phone: d.phone || '',
+    email: d.email || '',
+    isPrimaryContact: row.is_primary_contact === true || d.isPrimaryContact === true,
+    dietaryRegime: d.dietaryRegime || '',
+    foodPreferences: Array.isArray(d.foodPreferences) ? d.foodPreferences.join(', ') : (d.foodPreferences || ''),
+    foodDislikes: Array.isArray(d.foodDislikes) ? d.foodDislikes.join(', ') : (d.foodDislikes || ''),
     giftIdeas: d.giftIdeas || '',
     notes: d.notes || '',
     relation_to_user: row.relation_to_user || '',
@@ -159,10 +169,17 @@ function toSupabase(m: FamilyMember, userId: string) {
   const allergiesList = m.allergies
     ? m.allergies.split(',').map(a => a.trim()).filter(Boolean)
     : []
+  const foodPreferencesList = m.foodPreferences
+    ? m.foodPreferences.split(',').map(value => value.trim()).filter(Boolean)
+    : []
+  const foodDislikesList = m.foodDislikes
+    ? m.foodDislikes.split(',').map(value => value.trim()).filter(Boolean)
+    : []
   return {
     user_id: userId,
     data_type: 'member',
     relation_to_user: RELATIONS[m.relation] || m.relation,
+    is_primary_contact: m.isPrimaryContact,
     is_active: true,
     data: {
       firstName: m.firstName,
@@ -180,6 +197,11 @@ function toSupabase(m: FamilyMember, userId: string) {
       allergies: allergiesList,
       healthNotes: m.healthNotes,
       phone: m.phone,
+      email: m.email,
+      isPrimaryContact: m.isPrimaryContact,
+      dietaryRegime: m.dietaryRegime,
+      foodPreferences: foodPreferencesList,
+      foodDislikes: foodDislikesList,
       giftIdeas: m.giftIdeas,
       notes: m.notes,
     },
@@ -432,6 +454,11 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
   const [allergies, setAllergies] = useState(initial?.allergies || '')
   const [healthNotes, setHealthNotes] = useState(initial?.healthNotes || '')
   const [phone, setPhone] = useState(initial?.phone || '')
+  const [email, setEmail] = useState(initial?.email || '')
+  const [isPrimaryContact, setIsPrimaryContact] = useState(initial?.isPrimaryContact || false)
+  const [dietaryRegime, setDietaryRegime] = useState(initial?.dietaryRegime || '')
+  const [foodPreferences, setFoodPreferences] = useState(initial?.foodPreferences || '')
+  const [foodDislikes, setFoodDislikes] = useState(initial?.foodDislikes || '')
   const [giftIdeas, setGiftIdeas] = useState(initial?.giftIdeas || '')
   const [notes, setNotes] = useState(initial?.notes || '')
   const [showAvatars, setShowAvatars] = useState(false)
@@ -459,7 +486,8 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
       supabaseId: initial?.supabaseId,
       firstName: firstName.trim(), lastName: lastName.trim(),
       relation, category, isHouseholdMember, birthDate, photo, photoUrl,
-      clothingSize, shoeSize, allergies, healthNotes, phone, giftIdeas, notes,
+      clothingSize, shoeSize, allergies, healthNotes, phone, email, isPrimaryContact,
+      dietaryRegime, foodPreferences, foodDislikes, giftIdeas, notes,
     })
     onClose()
   }
@@ -567,6 +595,7 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
               {[
                 { label: 'Téléphone', value: phone, set: setPhone, placeholder: '06 12 34 56 78' },
+                { label: 'E-mail', value: email, set: setEmail, placeholder: 'prenom@email.fr' },
                 { label: 'Taille vêtements', value: clothingSize, set: setClothingSize, placeholder: 'M, L, 38...' },
                 { label: 'Pointure', value: shoeSize, set: setShoeSize, placeholder: '38, 42...' },
               ].map(({ label, value, set, placeholder }) => (
@@ -586,6 +615,25 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
                 <input value={healthNotes} onChange={e => setHealthNotes(e.target.value)} placeholder="Diabétique, végétarien..."
                   style={{ width: '100%', border: `1.5px solid ${C.grisClair}`, borderRadius: 10, padding: '8px 12px', fontSize: 13, outline: 'none', color: C.noir, background: C.cream, boxSizing: 'border-box' as const }} />
               </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 4 }}>Régime ou habitudes alimentaires</label>
+                <input value={dietaryRegime} onChange={e => setDietaryRegime(e.target.value)} placeholder="Végétarien, sans porc, halal, repas peu épicés..."
+                  style={{ width: '100%', border: `1.5px solid ${C.grisClair}`, borderRadius: 10, padding: '8px 12px', fontSize: 13, outline: 'none', color: C.noir, background: C.cream, boxSizing: 'border-box' as const }} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 4 }}>Aliments et plats appréciés <span style={{ fontWeight: 400 }}>(séparés par des virgules)</span></label>
+                <input value={foodPreferences} onChange={e => setFoodPreferences(e.target.value)} placeholder="pâtes, couscous, poulet, légumes croquants..."
+                  style={{ width: '100%', border: `1.5px solid ${C.grisClair}`, borderRadius: 10, padding: '8px 12px', fontSize: 13, outline: 'none', color: C.noir, background: C.cream, boxSizing: 'border-box' as const }} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 4 }}>Aliments et plats non appréciés <span style={{ fontWeight: 400 }}>(séparés par des virgules)</span></label>
+                <input value={foodDislikes} onChange={e => setFoodDislikes(e.target.value)} placeholder="champignons, poisson, plats très épicés..."
+                  style={{ width: '100%', border: `1.5px solid ${C.grisClair}`, borderRadius: 10, padding: '8px 12px', fontSize: 13, outline: 'none', color: C.noir, background: C.cream, boxSizing: 'border-box' as const }} />
+              </div>
+              <label style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: C.cream, border: `1px solid ${C.grisClair}`, fontSize: 12, color: C.noir, cursor: 'pointer' }}>
+                <input type="checkbox" checked={isPrimaryContact} onChange={e => setIsPrimaryContact(e.target.checked)} style={{ accentColor: C.rose }} />
+                Définir comme contact principal de ce cercle
+              </label>
             </div>
           )}
 
@@ -895,6 +943,7 @@ export default function FamilyPage() {
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.noir }}>{member.firstName} {member.lastName}</p>
                                 {hasBirthdayAlert && <span style={{ fontSize: 14 }}>🎂</span>}
+                                {member.isPrimaryContact && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 6, background: C.roseLight, color: C.deep, border: `1px solid ${C.rose}` }}>Contact principal</span>}
                                 {member.allergies && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 6, background: 'rgba(232,100,100,0.1)', color: '#C04040', border: '1px solid rgba(232,100,100,0.25)' }}>⚠️ Allergie</span>}
                               </div>
                               <p style={{ margin: '1px 0 0', fontSize: 11, color: C.gris }}>
@@ -924,6 +973,12 @@ export default function FamilyPage() {
                                     <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.noir }}>{member.phone}</p>
                                   </div>
                                 )}
+                                {member.email && (
+                                  <div style={{ padding: '8px 10px', background: C.blanc, borderRadius: 10, border: `1px solid ${C.grisClair}` }}>
+                                    <p style={{ margin: '0 0 2px', fontSize: 10, color: C.gris }}>✉️ E-mail</p>
+                                    <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: C.noir, overflowWrap: 'anywhere' }}>{member.email}</p>
+                                  </div>
+                                )}
                                 {member.clothingSize && (
                                   <div style={{ padding: '8px 10px', background: C.blanc, borderRadius: 10, border: `1px solid ${C.grisClair}` }}>
                                     <p style={{ margin: '0 0 2px', fontSize: 10, color: C.gris }}>👕 Taille</p>
@@ -947,6 +1002,24 @@ export default function FamilyPage() {
                                 <div style={{ padding: '8px 12px', background: 'rgba(255,200,100,0.08)', borderRadius: 10, border: '1px solid rgba(255,200,100,0.25)', marginBottom: 6 }}>
                                   <p style={{ margin: '0 0 2px', fontSize: 10, color: '#8A6010', fontWeight: 600 }}>⚕️ Santé</p>
                                   <p style={{ margin: 0, fontSize: 12, color: C.noir }}>{member.healthNotes}</p>
+                                </div>
+                              )}
+                              {member.dietaryRegime && (
+                                <div style={{ padding: '8px 12px', background: C.roseLight, borderRadius: 10, border: `1px solid ${C.rose}`, marginBottom: 6 }}>
+                                  <p style={{ margin: '0 0 2px', fontSize: 10, color: C.deep, fontWeight: 700 }}>🍽️ Régime et habitudes</p>
+                                  <p style={{ margin: 0, fontSize: 12, color: C.noir }}>{member.dietaryRegime}</p>
+                                </div>
+                              )}
+                              {member.foodPreferences && (
+                                <div style={{ padding: '8px 12px', background: 'rgba(100,180,120,0.08)', borderRadius: 10, border: '1px solid rgba(100,180,120,0.24)', marginBottom: 6 }}>
+                                  <p style={{ margin: '0 0 2px', fontSize: 10, color: '#477A52', fontWeight: 700 }}>👍 Aime</p>
+                                  <p style={{ margin: 0, fontSize: 12, color: C.noir }}>{member.foodPreferences}</p>
+                                </div>
+                              )}
+                              {member.foodDislikes && (
+                                <div style={{ padding: '8px 12px', background: 'rgba(220,120,100,0.06)', borderRadius: 10, border: '1px solid rgba(220,120,100,0.2)', marginBottom: 6 }}>
+                                  <p style={{ margin: '0 0 2px', fontSize: 10, color: '#A65345', fontWeight: 700 }}>👎 N’aime pas</p>
+                                  <p style={{ margin: 0, fontSize: 12, color: C.noir }}>{member.foodDislikes}</p>
                                 </div>
                               )}
                               {member.giftIdeas && (
