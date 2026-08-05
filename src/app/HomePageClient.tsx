@@ -56,7 +56,7 @@ const ALL_MODULES: ModuleItem[] = [
   { key: 'meals', href: '/recipes', title: 'Repas', description: 'Inspire et régale', icon: 'meal' },
   { key: 'notes', href: '/notes', title: 'Notes', description: 'Idées et informations', icon: 'notes' },
   { key: 'admin', href: '/admin-documents', title: 'Documents', description: 'Centralise et retrouve', icon: 'document' },
-  { key: 'family', href: '/family', title: 'Famille', description: 'Informations du foyer', icon: 'family' },
+  { key: 'family', href: '/family', title: 'Entourage', description: 'Foyer, proches et réseau', icon: 'family' },
   { key: 'routines', href: '/routines', title: 'Routines', description: 'Habitudes du quotidien', icon: 'routine' },
   { key: 'tracker', href: '/tracker', title: 'Suivi', description: 'Tes indicateurs', icon: 'tracker' },
 ]

@@ -10,7 +10,7 @@ import { DemoBanner } from '@/components/DemoBanner'
 import { logEvent } from '@/lib/events'
 
 
-type MemberCategory = 'foyer' | 'famille' | 'amis' | 'autres'
+type MemberCategory = 'foyer' | 'famille' | 'proches' | 'professionnel'
 type MemberRelation = 'conjoint' | 'enfant' | 'parent' | 'frere_soeur' | 'neveu_niece' | 'cousin' | 'grand_parent' | 'ami' | 'collegue' | 'autre'
 
 interface FamilyMember {
@@ -19,6 +19,7 @@ interface FamilyMember {
   lastName: string
   relation: MemberRelation
   category: MemberCategory
+  isHouseholdMember: boolean
   birthDate: string
   photo: string       // avatar emoji (fallback)
   photoUrl: string    // photo importée (data URL) — prioritaire si présente
@@ -56,13 +57,13 @@ const RELATIONS: Record<MemberRelation, string> = {
 //  • "repas de famille"              → ['foyer','famille']
 //  • "gros repas" / "invités"        → toutes les catégories
 const CATEGORIES: Record<MemberCategory, { label: string; emoji: string; color: string; bg: string }> = {
-  foyer:   { label: 'Foyer',   emoji: '🏡', color: '#5E9A82', bg: 'rgba(185,215,203,0.28)' },
-  famille: { label: 'Famille', emoji: '👨‍👩‍👧‍👦', color: '#C77E52', bg: 'rgba(243,205,182,0.32)' },
-  amis:    { label: 'Amis',    emoji: '🤝', color: '#8A6FB0', bg: 'rgba(212,196,226,0.32)' },
-  autres:  { label: 'Autres',  emoji: '⭐', color: '#C9A96E', bg: 'rgba(232,208,128,0.22)' },
+  foyer:          { label: 'Mon foyer',      emoji: '🏡', color: '#5E9A82', bg: 'rgba(185,215,203,0.28)' },
+  famille:        { label: 'Ma famille',      emoji: '👨‍👩‍👧‍👦', color: '#C77E52', bg: 'rgba(243,205,182,0.32)' },
+  proches:        { label: 'Mes proches',     emoji: '🤝', color: '#8A6FB0', bg: 'rgba(212,196,226,0.32)' },
+  professionnel:  { label: 'Mon réseau pro', emoji: '💼', color: '#8A6A45', bg: 'rgba(232,208,128,0.22)' },
 }
 
-const CATEGORY_KEYS: MemberCategory[] = ['foyer', 'famille', 'amis', 'autres']
+const CATEGORY_KEYS: MemberCategory[] = ['foyer', 'famille', 'proches', 'professionnel']
 
 const AVATARS = ['👩','👨','👧','👦','👶','🧑','👩‍🦱','👨‍🦱','👩‍🦰','👨‍🦰','🧒','👴','👵','🧔','👩‍🦳','👨‍🦳']
 
@@ -124,10 +125,13 @@ function fromSupabase(row: any): FamilyMember {
   const d = row.data || {}
   const relation: MemberRelation = d.relation || 'autre'
   // Migration douce des anciennes catégories → nouveau modèle (au chargement, sans toucher la BDD)
-  let category: MemberCategory = d.category || 'famille'
-  if ((category as string) === 'collegues') category = 'autres'
+  let category = String(d.category || 'famille') as MemberCategory
+  if (category === ('amis' as MemberCategory)) category = 'proches'
+  if (category === ('collegues' as MemberCategory) || category === ('autres' as MemberCategory)) {
+    category = relation === 'collegue' ? 'professionnel' : 'proches'
+  }
   if (category === 'famille' && (relation === 'conjoint' || relation === 'enfant')) category = 'foyer'
-  if (!CATEGORY_KEYS.includes(category)) category = 'autres'
+  if (!CATEGORY_KEYS.includes(category)) category = relation === 'collegue' ? 'professionnel' : 'proches'
 
   return {
     id: row.id,
@@ -136,6 +140,7 @@ function fromSupabase(row: any): FamilyMember {
     lastName: d.lastName || '',
     relation,
     category,
+    isHouseholdMember: typeof d.isHouseholdMember === 'boolean' ? d.isHouseholdMember : category === 'foyer',
     birthDate: d.birthDate || d.birthday || '',
     photo: d.photo || '👤',
     photoUrl: d.photoUrl || '',
@@ -165,6 +170,7 @@ function toSupabase(m: FamilyMember, userId: string) {
       name: m.firstName + (m.lastName ? ' ' + m.lastName : ''),
       relation: m.relation,
       category: m.category,
+      isHouseholdMember: m.isHouseholdMember,
       birthDate: m.birthDate,
       birthday: m.birthDate,
       photo: m.photo,
@@ -181,6 +187,234 @@ function toSupabase(m: FamilyMember, userId: string) {
   }
 }
 
+
+type CustodyMode = 'full_time' | 'alternate_weeks' | 'fixed_days' | 'custom'
+
+interface CustodyConfig {
+  supabaseId?: string
+  mode: CustodyMode
+  referenceDate: string
+  fixedDays: number[]
+  note: string
+}
+
+interface CustodyException {
+  id: string
+  supabaseId?: string
+  startDate: string
+  endDate: string
+  withChildren: boolean
+  note: string
+}
+
+const CUSTODY_LABELS: Record<CustodyMode, string> = {
+  full_time: 'Enfants avec moi à temps plein',
+  alternate_weeks: 'Une semaine sur deux',
+  fixed_days: 'Jours fixes chaque semaine',
+  custom: 'Organisation personnalisée',
+}
+
+const WEEK_DAYS = [
+  { value: 1, label: 'Lun' },
+  { value: 2, label: 'Mar' },
+  { value: 3, label: 'Mer' },
+  { value: 4, label: 'Jeu' },
+  { value: 5, label: 'Ven' },
+  { value: 6, label: 'Sam' },
+  { value: 0, label: 'Dim' },
+]
+
+function custodyConfigFromRow(row: any): CustodyConfig {
+  const d = row?.data || {}
+  return {
+    supabaseId: row?.id,
+    mode: (d.mode || 'alternate_weeks') as CustodyMode,
+    referenceDate: d.referenceDate || '',
+    fixedDays: Array.isArray(d.fixedDays) ? d.fixedDays.map(Number) : [],
+    note: d.note || '',
+  }
+}
+
+function custodyExceptionFromRow(row: any): CustodyException {
+  const d = row?.data || {}
+  return {
+    id: row.id,
+    supabaseId: row.id,
+    startDate: d.startDate || '',
+    endDate: d.endDate || d.startDate || '',
+    withChildren: d.withChildren !== false,
+    note: d.note || '',
+  }
+}
+
+function CustodyPanel({
+  config,
+  exceptions,
+  onSaveConfig,
+  onAddException,
+  onDeleteException,
+}: {
+  config: CustodyConfig
+  exceptions: CustodyException[]
+  onSaveConfig: (config: CustodyConfig) => Promise<void>
+  onAddException: (exception: Omit<CustodyException, 'id'>) => Promise<void>
+  onDeleteException: (id: string) => Promise<void>
+}) {
+  const [draft, setDraft] = useState(config)
+  const [showException, setShowException] = useState(false)
+  const [exceptionStart, setExceptionStart] = useState('')
+  const [exceptionEnd, setExceptionEnd] = useState('')
+  const [exceptionWithChildren, setExceptionWithChildren] = useState(true)
+  const [exceptionNote, setExceptionNote] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => setDraft(config), [config])
+
+  const saveConfig = async () => {
+    setSaving(true)
+    try {
+      await onSaveConfig(draft)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const addException = async () => {
+    if (!exceptionStart) return
+    await onAddException({
+      startDate: exceptionStart,
+      endDate: exceptionEnd || exceptionStart,
+      withChildren: exceptionWithChildren,
+      note: exceptionNote.trim(),
+    })
+    setExceptionStart('')
+    setExceptionEnd('')
+    setExceptionNote('')
+    setExceptionWithChildren(true)
+    setShowException(false)
+  }
+
+  return (
+    <section style={{ marginBottom: 24, background: C.blanc, border: `1.5px solid ${C.grisClair}`, borderRadius: 18, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+        <div>
+          <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.rose, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Organisation du foyer</p>
+          <h2 style={{ margin: '3px 0 0', fontFamily: "'Cormorant Garamond',serif", fontSize: 24, color: C.noir }}>Présence des enfants</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: C.gris }}>Cette information aide Nova, les repas et le Planner. Elle ne bloque jamais tes journées.</p>
+        </div>
+        <span style={{ fontSize: 28 }}>🗓️</span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 8, marginBottom: 12 }}>
+        {(Object.entries(CUSTODY_LABELS) as [CustodyMode, string][]).map(([mode, label]) => (
+          <button
+            key={mode}
+            onClick={() => setDraft(current => ({ ...current, mode }))}
+            style={{ padding: '10px 12px', borderRadius: 12, border: `1.5px solid ${draft.mode === mode ? C.rose : C.grisClair}`, background: draft.mode === mode ? C.roseLight : C.cream, color: draft.mode === mode ? C.deep : C.gris, fontSize: 12, fontWeight: draft.mode === mode ? 700 : 500, textAlign: 'left', cursor: 'pointer' }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {draft.mode === 'alternate_weeks' && (
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 11, color: C.gris, display: 'block', marginBottom: 4 }}>Premier jour d’une semaine avec les enfants</label>
+          <input
+            type="date"
+            value={draft.referenceDate}
+            onChange={event => setDraft(current => ({ ...current, referenceDate: event.target.value }))}
+            style={{ width: '100%', maxWidth: 280, border: `1.5px solid ${C.grisClair}`, borderRadius: 10, padding: '9px 12px', background: C.cream, color: C.noir }}
+          />
+        </div>
+      )}
+
+      {draft.mode === 'fixed_days' && (
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 11, color: C.gris, display: 'block', marginBottom: 6 }}>Jours habituels avec les enfants</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {WEEK_DAYS.map(day => {
+              const selected = draft.fixedDays.includes(day.value)
+              return (
+                <button
+                  key={day.value}
+                  onClick={() => setDraft(current => ({
+                    ...current,
+                    fixedDays: selected ? current.fixedDays.filter(value => value !== day.value) : [...current.fixedDays, day.value],
+                  }))}
+                  style={{ width: 46, height: 36, borderRadius: 10, border: `1.5px solid ${selected ? C.rose : C.grisClair}`, background: selected ? C.roseLight : C.cream, color: selected ? C.deep : C.gris, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  {day.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {draft.mode === 'custom' && (
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 11, color: C.gris, display: 'block', marginBottom: 4 }}>Décris simplement le rythme habituel</label>
+          <textarea
+            value={draft.note}
+            onChange={event => setDraft(current => ({ ...current, note: event.target.value }))}
+            rows={2}
+            placeholder="Ex. du mercredi soir au samedi après-midi une semaine sur deux"
+            style={{ width: '100%', border: `1.5px solid ${C.grisClair}`, borderRadius: 10, padding: '9px 12px', background: C.cream, color: C.noir, resize: 'vertical', boxSizing: 'border-box' }}
+          />
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: exceptions.length ? 14 : 0 }}>
+        <button onClick={saveConfig} disabled={saving} style={{ padding: '10px 16px', borderRadius: 11, border: 'none', background: C.deep, color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          {saving ? 'Enregistrement…' : '✓ Enregistrer le rythme'}
+        </button>
+        <button onClick={() => setShowException(value => !value)} style={{ padding: '10px 16px', borderRadius: 11, border: `1.5px solid ${C.rose}`, background: C.roseLight, color: C.deep, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          + Ajouter une exception
+        </button>
+      </div>
+
+      {showException && (
+        <div style={{ marginTop: 12, padding: 12, background: C.cream, borderRadius: 14, border: `1px solid ${C.grisClair}` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8, marginBottom: 8 }}>
+            <div>
+              <label style={{ fontSize: 10, color: C.gris, display: 'block', marginBottom: 3 }}>Début</label>
+              <input type="date" value={exceptionStart} onChange={event => { setExceptionStart(event.target.value); if (!exceptionEnd) setExceptionEnd(event.target.value) }} style={{ width: '100%', padding: '8px', borderRadius: 8, border: `1px solid ${C.grisClair}`, background: C.blanc }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: C.gris, display: 'block', marginBottom: 3 }}>Fin</label>
+              <input type="date" min={exceptionStart} value={exceptionEnd} onChange={event => setExceptionEnd(event.target.value)} style={{ width: '100%', padding: '8px', borderRadius: 8, border: `1px solid ${C.grisClair}`, background: C.blanc }} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <button onClick={() => setExceptionWithChildren(true)} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1.5px solid ${exceptionWithChildren ? C.rose : C.grisClair}`, background: exceptionWithChildren ? C.roseLight : C.blanc, color: C.deep, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Avec les enfants</button>
+            <button onClick={() => setExceptionWithChildren(false)} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1.5px solid ${!exceptionWithChildren ? '#C77E52' : C.grisClair}`, background: !exceptionWithChildren ? 'rgba(243,205,182,0.32)' : C.blanc, color: C.noir, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Sans les enfants</button>
+          </div>
+          <input value={exceptionNote} onChange={event => setExceptionNote(event.target.value)} placeholder="Note facultative : échange de semaine, nuit supplémentaire…" style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.grisClair}`, background: C.blanc, boxSizing: 'border-box', marginBottom: 8 }} />
+          <button onClick={addException} disabled={!exceptionStart} style={{ width: '100%', padding: '9px', borderRadius: 9, border: 'none', background: exceptionStart ? C.deep : C.grisClair, color: exceptionStart ? 'white' : C.gris, fontWeight: 700, cursor: 'pointer' }}>Valider l’exception</button>
+        </div>
+      )}
+
+      {exceptions.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <p style={{ margin: '0 0 6px', fontSize: 10, color: C.gris, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Exceptions enregistrées</p>
+          {exceptions.slice(0, 6).map(exception => (
+            <div key={exception.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: `1px solid ${C.grisClair}` }}>
+              <span style={{ fontSize: 15 }}>{exception.withChildren ? '👧' : '🌿'}</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.noir }}>{exception.withChildren ? 'Avec les enfants' : 'Sans les enfants'} · {exception.startDate}{exception.endDate !== exception.startDate ? ` → ${exception.endDate}` : ''}</p>
+                {exception.note && <p style={{ margin: '2px 0 0', fontSize: 11, color: C.gris }}>{exception.note}</p>}
+              </div>
+              <button onClick={() => onDeleteException(exception.supabaseId || exception.id)} style={{ border: 'none', background: 'rgba(220,80,80,0.07)', color: '#DC5050', borderRadius: 8, width: 28, height: 28, cursor: 'pointer' }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+
 // ─── MODAL MEMBRE ─────────────────────────────────────────────────────────────
 function MemberModal({ initial, defaultCategory, onSave, onClose }: {
   initial?: FamilyMember; defaultCategory?: MemberCategory; onSave: (m: FamilyMember) => void; onClose: () => void
@@ -189,6 +423,7 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
   const [lastName, setLastName] = useState(initial?.lastName || '')
   const [relation, setRelation] = useState<MemberRelation>(initial?.relation || 'enfant')
   const [category, setCategory] = useState<MemberCategory>(initial?.category || defaultCategory || 'foyer')
+  const [isHouseholdMember, setIsHouseholdMember] = useState(initial?.isHouseholdMember ?? ((initial?.category || defaultCategory || 'foyer') === 'foyer'))
   const [birthDate, setBirthDate] = useState(initial?.birthDate || '')
   const [photo, setPhoto] = useState(initial?.photo || '👩')
   const [photoUrl, setPhotoUrl] = useState(initial?.photoUrl || '')
@@ -218,12 +453,12 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
   }
 
   const handleSave = () => {
-    if (!firstName.trim() || !birthDate) return
+    if (!firstName.trim()) return
     onSave({
       id: initial?.id || Math.random().toString(36).slice(2),
       supabaseId: initial?.supabaseId,
       firstName: firstName.trim(), lastName: lastName.trim(),
-      relation, category, birthDate, photo, photoUrl,
+      relation, category, isHouseholdMember, birthDate, photo, photoUrl,
       clothingSize, shoeSize, allergies, healthNotes, phone, giftIdeas, notes,
     })
     onClose()
@@ -236,7 +471,7 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
           <div style={{ width: 40, height: 4, background: C.grisClair, borderRadius: 4, margin: '0 auto 20px' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
             <h3 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: C.noir }}>
-              {initial ? 'Modifier' : 'Ajouter un proche'}
+              {initial ? 'Modifier' : 'Ajouter une personne'}
             </h3>
             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.gris, fontSize: 20 }}>×</button>
           </div>
@@ -284,13 +519,26 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
             {CATEGORY_KEYS.map(k => {
               const v = CATEGORIES[k]
               return (
-                <button key={k} onClick={() => setCategory(k)}
+                <button key={k} onClick={() => { setCategory(k); if (k !== 'foyer') setIsHouseholdMember(false); if (k === 'foyer') setIsHouseholdMember(true) }}
                   style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `2px solid ${category === k ? v.color : C.grisClair}`, background: category === k ? v.bg : 'white', fontSize: 11, fontWeight: category === k ? 700 : 400, color: category === k ? v.color : C.gris, cursor: 'pointer' }}>
                   {v.emoji}<br />{v.label}
                 </button>
               )
             })}
           </div>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', margin: '0 0 14px', borderRadius: 12, background: C.cream, border: `1px solid ${C.grisClair}`, fontSize: 12, color: C.noir, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={isHouseholdMember}
+              onChange={e => {
+                setIsHouseholdMember(e.target.checked)
+                if (e.target.checked) setCategory('foyer')
+              }}
+              style={{ accentColor: C.rose }}
+            />
+            Cette personne vit dans mon foyer
+          </label>
 
           <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Relation</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 14 }}>
@@ -302,7 +550,7 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
             ))}
           </div>
 
-          <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Date de naissance *</p>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Date de naissance <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>(facultative)</span></p>
           <input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)}
             style={{ width: '100%', border: `1.5px solid ${birthDate ? C.rose : C.grisClair}`, borderRadius: 12, padding: '10px 14px', fontSize: 14, outline: 'none', color: C.noir, background: C.cream, boxSizing: 'border-box' as const, marginBottom: 14 }} />
 
@@ -352,9 +600,9 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
             </div>
           )}
 
-          <button onClick={handleSave} disabled={!firstName.trim() || !birthDate}
-            style={{ width: '100%', padding: '14px 0', borderRadius: 14, border: 'none', background: firstName.trim() && birthDate ? C.deep : C.grisClair, color: firstName.trim() && birthDate ? 'white' : '#aaa', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
-            {initial ? '✓ Enregistrer' : '+ Ajouter ce proche'}
+          <button onClick={handleSave} disabled={!firstName.trim()}
+            style={{ width: '100%', padding: '14px 0', borderRadius: 14, border: 'none', background: firstName.trim() ? C.deep : C.grisClair, color: firstName.trim() ? 'white' : '#aaa', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+            {initial ? '✓ Enregistrer' : '+ Ajouter cette personne'}
           </button>
         </div>
       </div>
@@ -367,10 +615,12 @@ export default function FamilyPage() {
   const router = useRouter()
   const { user } = useSupabaseAuth()
   const [members, setMembers] = useState<FamilyMember[]>([])
+  const [custodyConfig, setCustodyConfig] = useState<CustodyConfig>({ mode: 'alternate_weeks', referenceDate: '', fixedDays: [], note: '' })
+  const [custodyExceptions, setCustodyExceptions] = useState<CustodyException[]>([])
   const [showModal, setShowModal] = useState(false)
   const [addCategory, setAddCategory] = useState<MemberCategory | null>(null)
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null)
-  const [expandedCategories, setExpandedCategories] = useState<MemberCategory[]>(['foyer', 'famille', 'amis', 'autres'])
+  const [expandedCategories, setExpandedCategories] = useState<MemberCategory[]>(['foyer', 'famille', 'proches', 'professionnel'])
   const [expandedMember, setExpandedMember] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -392,7 +642,11 @@ export default function FamilyPage() {
       .eq('user_id', user.id)
       .eq('is_active', true)
       .order('created_at', { ascending: true })
-    setMembers((data || []).map(fromSupabase))
+    const rows = data || []
+    setMembers(rows.filter((row: any) => !row.data_type || row.data_type === 'member').map(fromSupabase))
+    const configRow = rows.find((row: any) => row.data_type === 'custody_config')
+    if (configRow) setCustodyConfig(custodyConfigFromRow(configRow))
+    setCustodyExceptions(rows.filter((row: any) => row.data_type === 'custody_exception').map(custodyExceptionFromRow))
     setLoading(false)
   }
 
@@ -409,6 +663,65 @@ export default function FamilyPage() {
       }).select().single()
       if (data) setMembers(prev => [...prev, fromSupabase(data)])
     }
+  }
+
+
+  const saveCustodyConfig = async (config: CustodyConfig) => {
+    if (!user) return
+    const payload = {
+      user_id: user.id,
+      data_type: 'custody_config',
+      relation_to_user: 'organisation du foyer',
+      is_active: true,
+      data: {
+        mode: config.mode,
+        referenceDate: config.referenceDate,
+        fixedDays: config.fixedDays,
+        note: config.note,
+      },
+      updated_at: new Date().toISOString(),
+    }
+
+    if (config.supabaseId) {
+      const { error } = await supabase.from('family_data').update(payload).eq('id', config.supabaseId).eq('user_id', user.id)
+      if (error) throw error
+      setCustodyConfig(config)
+      return
+    }
+
+    const { data, error } = await supabase.from('family_data').insert({
+      ...payload,
+      created_at: new Date().toISOString(),
+    }).select().single()
+    if (error) throw error
+    if (data) setCustodyConfig(custodyConfigFromRow(data))
+  }
+
+  const addCustodyException = async (exception: Omit<CustodyException, 'id'>) => {
+    if (!user) return
+    const { data, error } = await supabase.from('family_data').insert({
+      user_id: user.id,
+      data_type: 'custody_exception',
+      relation_to_user: 'exception de garde',
+      is_active: true,
+      data: {
+        startDate: exception.startDate,
+        endDate: exception.endDate,
+        withChildren: exception.withChildren,
+        note: exception.note,
+      },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).select().single()
+    if (error) throw error
+    if (data) setCustodyExceptions(current => [...current, custodyExceptionFromRow(data)].sort((a, b) => a.startDate.localeCompare(b.startDate)))
+  }
+
+  const deleteCustodyException = async (id: string) => {
+    if (!user) return
+    const { error } = await supabase.from('family_data').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', user.id)
+    if (error) throw error
+    setCustodyExceptions(current => current.filter(exception => (exception.supabaseId || exception.id) !== id))
   }
 
   const deleteMember = async (id: string) => {
@@ -455,7 +768,7 @@ export default function FamilyPage() {
                 <p style={{ fontSize: 11, fontWeight: 600, color: C.rose, textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 4px' }}>
                   {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
                 </p>
-                <h1 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 36, color: C.noir }}>Famille & Proches</h1>
+                <h1 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 36, color: C.noir }}>Entourage</h1>
               </div>
               <span style={{ fontSize: 40 }}>🏠</span>
             </div>
@@ -506,9 +819,17 @@ export default function FamilyPage() {
             </div>
           )}
 
+          <CustodyPanel
+            config={custodyConfig}
+            exceptions={custodyExceptions}
+            onSaveConfig={saveCustodyConfig}
+            onAddException={addCustodyException}
+            onDeleteException={deleteCustodyException}
+          />
+
           <button onClick={() => openAdd(null)}
             style={{ width: '100%', maxWidth: 420, padding: '13px 0', borderRadius: 14, border: 'none', background: C.deep, color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
-            <Plus size={18} /> Ajouter un proche
+            <Plus size={18} /> Ajouter une personne
           </button>
 
           {loading && <p style={{ textAlign: 'center', color: C.gris, fontSize: 13 }}>Chargement...</p>}
@@ -559,7 +880,7 @@ export default function FamilyPage() {
                   <div style={{ background: C.blanc, border: `1.5px solid ${info.color}`, borderTop: 'none', borderRadius: '0 0 16px 16px', overflow: 'hidden' }}>
                     <div style={{ maxHeight: 380, overflowY: 'auto' }}>
                     {catMembers.map((member, i) => {
-                      const days = daysUntilBirthday(member.birthDate)
+                      const days = member.birthDate ? daysUntilBirthday(member.birthDate) : 9999
                       const isExpanded = expandedMember === member.id
                       const hasBirthdayAlert = days <= 7
 
@@ -577,8 +898,9 @@ export default function FamilyPage() {
                                 {member.allergies && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 6, background: 'rgba(232,100,100,0.1)', color: '#C04040', border: '1px solid rgba(232,100,100,0.25)' }}>⚠️ Allergie</span>}
                               </div>
                               <p style={{ margin: '1px 0 0', fontSize: 11, color: C.gris }}>
-                                {RELATIONS[member.relation]} · {calculateAge(member.birthDate)} ans · {formatBirthday(member.birthDate)}
-                                {days === 0 ? ' 🎉 Aujourd\'hui !' : days <= 7 ? ` · dans ${days}j` : ''}
+                                {RELATIONS[member.relation]}
+                                {member.birthDate ? ` · ${calculateAge(member.birthDate)} ans · ${formatBirthday(member.birthDate)}` : ''}
+                                {member.birthDate ? (days === 0 ? ' 🎉 Aujourd\'hui !' : days <= 7 ? ` · dans ${days}j` : '') : ''}
                               </p>
                             </div>
                             <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>

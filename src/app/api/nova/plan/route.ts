@@ -267,6 +267,7 @@ function formatNovaMemories(rows: NovaMemoryRow[] | null): string | undefined {
 }
 
 type FamilyMemberRow = {
+  data_type: string | null
   relation_to_user: string | null
   is_primary_contact: boolean | null
   notes: string | null
@@ -275,19 +276,75 @@ type FamilyMemberRow = {
 
 function formatFamilyContext(rows: FamilyMemberRow[] | null): string | undefined {
   if (!rows || rows.length === 0) return undefined
-  const lines = rows.slice(0, 20).map((r) => {
-    const d = r.data || {}
-    const name = typeof d.firstName === 'string' && d.firstName ? d.firstName : (typeof d.name === 'string' ? d.name : 'Proche')
-    const parts: string[] = [name]
-    if (r.relation_to_user) parts.push(r.relation_to_user)
-    if (typeof d.birthDate === 'string' && d.birthDate) parts.push(`né(e) le ${d.birthDate}`)
-    const allergies = Array.isArray(d.allergies) ? d.allergies.filter((a) => typeof a === 'string' && a) : []
-    if (allergies.length > 0) parts.push(`allergies : ${allergies.join(', ')}`)
-    if (typeof d.healthNotes === 'string' && d.healthNotes.trim()) parts.push(`santé : ${d.healthNotes.trim()}`)
-    if (r.is_primary_contact) parts.push('contact principal')
-    return `- ${parts.join(' — ')}`
-  })
-  return lines.join('\n')
+
+  const memberLines = rows
+    .filter((row) => !row.data_type || row.data_type === 'member')
+    .slice(0, 30)
+    .map((r) => {
+      const d = r.data || {}
+      const name =
+        typeof d.firstName === 'string' && d.firstName
+          ? d.firstName
+          : typeof d.name === 'string'
+            ? d.name
+            : 'Proche'
+      const parts: string[] = [name]
+      if (r.relation_to_user) parts.push(r.relation_to_user)
+      if (typeof d.category === 'string' && d.category) parts.push(`cercle : ${d.category}`)
+      if (d.isHouseholdMember === true) parts.push('membre du foyer')
+      if (typeof d.birthDate === 'string' && d.birthDate) parts.push(`né(e) le ${d.birthDate}`)
+      const allergies = Array.isArray(d.allergies)
+        ? d.allergies.filter((a) => typeof a === 'string' && a)
+        : []
+      if (allergies.length > 0) parts.push(`allergies : ${allergies.join(', ')}`)
+      if (typeof d.healthNotes === 'string' && d.healthNotes.trim()) {
+        parts.push(`santé : ${d.healthNotes.trim()}`)
+      }
+      if (r.is_primary_contact) parts.push('contact principal')
+      return `- ${parts.join(' — ')}`
+    })
+
+  const custodyConfigRow = rows.find((row) => row.data_type === 'custody_config')
+  const custodyLines: string[] = []
+  if (custodyConfigRow?.data) {
+    const d = custodyConfigRow.data
+    const modeLabels: Record<string, string> = {
+      full_time: 'enfants avec l’utilisatrice à temps plein',
+      alternate_weeks: 'une semaine sur deux',
+      fixed_days: 'jours fixes chaque semaine',
+      custom: 'organisation personnalisée',
+    }
+    const mode = typeof d.mode === 'string' ? d.mode : ''
+    custodyLines.push(`- Rythme habituel : ${modeLabels[mode] || mode || 'non précisé'}`)
+    if (typeof d.referenceDate === 'string' && d.referenceDate) {
+      custodyLines.push(`- Date de référence d’une période avec les enfants : ${d.referenceDate}`)
+    }
+    if (Array.isArray(d.fixedDays) && d.fixedDays.length > 0) {
+      custodyLines.push(`- Jours fixes (0=dimanche, 1=lundi...) : ${d.fixedDays.join(', ')}`)
+    }
+    if (typeof d.note === 'string' && d.note.trim()) {
+      custodyLines.push(`- Précision sur la garde : ${d.note.trim()}`)
+    }
+  }
+
+  const exceptionLines = rows
+    .filter((row) => row.data_type === 'custody_exception')
+    .slice(0, 20)
+    .map((row) => {
+      const d = row.data || {}
+      const start = typeof d.startDate === 'string' ? d.startDate : '?'
+      const end = typeof d.endDate === 'string' && d.endDate ? d.endDate : start
+      const presence = d.withChildren === false ? 'sans les enfants' : 'avec les enfants'
+      const note = typeof d.note === 'string' && d.note.trim() ? ` — ${d.note.trim()}` : ''
+      return `- Exception ${start}${end !== start ? ` au ${end}` : ''} : ${presence}${note}`
+    })
+
+  const sections: string[] = []
+  if (memberLines.length > 0) sections.push(`Personnes connues :\n${memberLines.join('\n')}`)
+  if (custodyLines.length > 0) sections.push(`Organisation de garde :\n${custodyLines.join('\n')}`)
+  if (exceptionLines.length > 0) sections.push(`Exceptions de garde :\n${exceptionLines.join('\n')}`)
+
+  return sections.length > 0 ? sections.join('\n\n') : undefined
 }
 
 type AdminDocRow = {
@@ -673,9 +730,9 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           .limit(50),
         supabaseAdmin
           .from('family_data')
-          .select('relation_to_user, is_primary_contact, notes, data')
+          .select('data_type, relation_to_user, is_primary_contact, notes, data')
           .eq('user_id', user.id)
-          .eq('data_type', 'member')
+          .in('data_type', ['member', 'custody_config', 'custody_exception'])
           .eq('is_active', true)
           .limit(20),
         supabaseAdmin
@@ -723,7 +780,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       const parts: string[] = []
       if (profileText) parts.push(profileText)
       if (memoriesText) parts.push(`Ce que Nova a appris au fil des échanges :\n${memoriesText}`)
-      if (familyText) parts.push(`Famille et proches (fiches du module Famille) :\n${familyText}`)
+      if (familyText) parts.push(`Entourage et organisation du foyer :\n${familyText}`)
       if (adminDocsText) parts.push(`Documents administratifs en attente (métadonnées uniquement) :\n${adminDocsText}`)
       if (notesText) parts.push(`Notes récentes (titres) :\n${notesText}`)
       if (mealsText) parts.push(`Plan de repas de la semaine :\n${mealsText}`)
@@ -805,4 +862,3 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
     )
   }
 }
-

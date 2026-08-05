@@ -47,6 +47,20 @@ interface FormData {
   reminderMinutes: number;
 }
 
+interface CustodyConfig {
+  mode: 'full_time' | 'alternate_weeks' | 'fixed_days' | 'custom';
+  referenceDate: string;
+  fixedDays: number[];
+  note: string;
+}
+
+interface CustodyException {
+  startDate: string;
+  endDate: string;
+  withChildren: boolean;
+  note: string;
+}
+
 // ─── PALETTE ───────────────────────────────────────────────
 const C = {
   cream: "#F8F1E5", roseLight: "#E3EEF5", rose: "#C2D7E8",
@@ -117,6 +131,29 @@ function masterId(id: string): string {
   if (id.startsWith('recur::')) return id.split('::')[1];
   if (id.startsWith('multiday::')) return id.split('::')[1];
   return id;
+}
+
+function custodyStatusForDate(
+  date: Date,
+  config: CustodyConfig | null,
+  exceptions: CustodyException[],
+): { withChildren: boolean | null; source: 'exception' | 'rhythm' | 'unknown'; note?: string } {
+  const dateStr = fmtDate(date);
+  const exception = exceptions.find(item => item.startDate <= dateStr && item.endDate >= dateStr);
+  if (exception) {
+    return { withChildren: exception.withChildren, source: 'exception', note: exception.note };
+  }
+  if (!config) return { withChildren: null, source: 'unknown' };
+  if (config.mode === 'full_time') return { withChildren: true, source: 'rhythm' };
+  if (config.mode === 'fixed_days') return { withChildren: config.fixedDays.includes(date.getDay()), source: 'rhythm' };
+  if (config.mode === 'alternate_weeks' && config.referenceDate) {
+    const reference = new Date(`${config.referenceDate}T12:00:00`);
+    const target = new Date(`${dateStr}T12:00:00`);
+    const dayDifference = Math.floor((target.getTime() - reference.getTime()) / 86400000);
+    const weekDifference = Math.floor(dayDifference / 7);
+    return { withChildren: ((weekDifference % 2) + 2) % 2 === 0, source: 'rhythm' };
+  }
+  return { withChildren: null, source: 'unknown', note: config.note };
 }
 
 // ─── STYLE HELPERS ─────────────────────────────────────────
@@ -667,6 +704,8 @@ export default function PlannerNovae() {
   const [routineEvents, setRoutineEvents] = useState<CalEvent[]>([]);
   const [plannerConflicts, setPlannerConflicts] = useState<{ routine: string; event: string; hour: number }[]>([]);
   const [showConflictBanner, setShowConflictBanner] = useState(false);
+  const [custodyConfig, setCustodyConfig] = useState<CustodyConfig | null>(null);
+  const [custodyExceptions, setCustodyExceptions] = useState<CustodyException[]>([]);
   const weekDates = getWeekDates(currentDate);
 
   useEffect(() => {
@@ -712,6 +751,36 @@ export default function PlannerNovae() {
     if (!silent) setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { if (!silent) setLoading(false); return; }
+
+    const { data: custodyRows } = await supabase
+      .from("family_data")
+      .select("data_type,data")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .in("data_type", ["custody_config", "custody_exception"]);
+
+    const configRow = (custodyRows || []).find((row: any) => row.data_type === "custody_config");
+    if (configRow?.data) {
+      setCustodyConfig({
+        mode: configRow.data.mode || "alternate_weeks",
+        referenceDate: configRow.data.referenceDate || "",
+        fixedDays: Array.isArray(configRow.data.fixedDays) ? configRow.data.fixedDays.map(Number) : [],
+        note: configRow.data.note || "",
+      });
+    } else {
+      setCustodyConfig(null);
+    }
+    setCustodyExceptions(
+      (custodyRows || [])
+        .filter((row: any) => row.data_type === "custody_exception")
+        .map((row: any) => ({
+          startDate: row.data?.startDate || "",
+          endDate: row.data?.endDate || row.data?.startDate || "",
+          withChildren: row.data?.withChildren !== false,
+          note: row.data?.note || "",
+        }))
+        .filter((row: CustodyException) => row.startDate),
+    );
 
     // Todos
     const { data: todosData } = await supabase
@@ -1016,6 +1085,24 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
   }
 
   // ─── RENDER ───────────────────────────────────────────────
+  const selectedCustody = custodyStatusForDate(currentDate, custodyConfig, custodyExceptions);
+  const weekCustodyDays = weekDates
+    .map((date, index) => ({ date, index, status: custodyStatusForDate(date, custodyConfig, custodyExceptions) }))
+    .filter(item => item.status.withChildren === true);
+  const custodySummary = view === "week"
+    ? weekCustodyDays.length === 7
+      ? "Enfants avec moi toute la semaine"
+      : weekCustodyDays.length > 0
+        ? `Enfants avec moi : ${weekCustodyDays.map(item => DAYS_SHORT[item.index].toLowerCase()).join(", ")}`
+        : custodyConfig
+          ? "Semaine sans les enfants"
+          : "Organisation de garde non renseignée"
+    : selectedCustody.withChildren === true
+      ? "Enfants avec moi"
+      : selectedCustody.withChildren === false
+        ? "Sans les enfants"
+        : "Organisation de garde non renseignée";
+
   const plannerHeader = (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: `1px solid ${C.grisClair}`, background: C.blanc, flexWrap: "wrap" }}>
       <button onClick={() => navigate(-1)} style={navBtn()}>‹</button>
@@ -1070,6 +1157,21 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
             <button onClick={() => setShowConflictBanner(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: 18, flexShrink: 0, lineHeight: 1 }}>×</button>
           </div>
         )}
+
+        <div style={{ padding: "8px 16px", background: selectedCustody.withChildren === false && view !== "week" ? "#F4EFE8" : "rgba(185,215,203,0.22)", borderBottom: `1px solid ${C.grisClair}`, display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
+          <span style={{ fontSize: 16 }}>{selectedCustody.withChildren === false && view !== "week" ? "🌿" : custodyConfig ? "👧" : "ℹ️"}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.noir }}>{custodySummary}</p>
+            <p style={{ margin: "1px 0 0", fontSize: 10, color: C.gris }}>
+              {selectedCustody.source === "exception"
+                ? `Exception ponctuelle${selectedCustody.note ? ` · ${selectedCustody.note}` : ""}`
+                : custodyConfig
+                  ? "Contexte familial non bloquant pour ton planning"
+                  : "À configurer dans Entourage"}
+            </p>
+          </div>
+          <Link href="/family" style={{ fontSize: 10, fontWeight: 700, color: C.roseDark, textDecoration: "none", whiteSpace: "nowrap" }}>Gérer</Link>
+        </div>
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {plannerHeader}
