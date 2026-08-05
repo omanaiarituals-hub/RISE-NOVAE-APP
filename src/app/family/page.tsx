@@ -224,7 +224,9 @@ interface CustodyException {
   id: string
   supabaseId?: string
   startDate: string
+  startTime: string
   endDate: string
+  endTime: string
   withChildren: boolean
   note: string
 }
@@ -263,7 +265,9 @@ function custodyExceptionFromRow(row: any): CustodyException {
     id: row.id,
     supabaseId: row.id,
     startDate: d.startDate || '',
+    startTime: d.startTime || '',
     endDate: d.endDate || d.startDate || '',
+    endTime: d.endTime || '',
     withChildren: d.withChildren !== false,
     note: d.note || '',
   }
@@ -285,7 +289,9 @@ function CustodyPanel({
   const [draft, setDraft] = useState(config)
   const [showException, setShowException] = useState(false)
   const [exceptionStart, setExceptionStart] = useState('')
+  const [exceptionStartTime, setExceptionStartTime] = useState('')
   const [exceptionEnd, setExceptionEnd] = useState('')
+  const [exceptionEndTime, setExceptionEndTime] = useState('')
   const [exceptionWithChildren, setExceptionWithChildren] = useState(true)
   const [exceptionNote, setExceptionNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -305,12 +311,16 @@ function CustodyPanel({
     if (!exceptionStart) return
     await onAddException({
       startDate: exceptionStart,
+      startTime: exceptionStartTime,
       endDate: exceptionEnd || exceptionStart,
+      endTime: exceptionEndTime,
       withChildren: exceptionWithChildren,
       note: exceptionNote.trim(),
     })
     setExceptionStart('')
+    setExceptionStartTime('')
     setExceptionEnd('')
+    setExceptionEndTime('')
     setExceptionNote('')
     setExceptionWithChildren(true)
     setShowException(false)
@@ -398,16 +408,25 @@ function CustodyPanel({
 
       {showException && (
         <div style={{ marginTop: 12, padding: 12, background: C.cream, borderRadius: 14, border: `1px solid ${C.grisClair}` }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8, marginBottom: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(135px,1fr))', gap: 8, marginBottom: 8 }}>
             <div>
-              <label style={{ fontSize: 10, color: C.gris, display: 'block', marginBottom: 3 }}>Début</label>
+              <label style={{ fontSize: 10, color: C.gris, display: 'block', marginBottom: 3 }}>Date de début</label>
               <input type="date" value={exceptionStart} onChange={event => { setExceptionStart(event.target.value); if (!exceptionEnd) setExceptionEnd(event.target.value) }} style={{ width: '100%', padding: '8px', borderRadius: 8, border: `1px solid ${C.grisClair}`, background: C.blanc }} />
             </div>
             <div>
-              <label style={{ fontSize: 10, color: C.gris, display: 'block', marginBottom: 3 }}>Fin</label>
+              <label style={{ fontSize: 10, color: C.gris, display: 'block', marginBottom: 3 }}>Heure de début</label>
+              <input type="time" value={exceptionStartTime} onChange={event => setExceptionStartTime(event.target.value)} style={{ width: '100%', padding: '8px', borderRadius: 8, border: `1px solid ${C.grisClair}`, background: C.blanc }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: C.gris, display: 'block', marginBottom: 3 }}>Date de fin</label>
               <input type="date" min={exceptionStart} value={exceptionEnd} onChange={event => setExceptionEnd(event.target.value)} style={{ width: '100%', padding: '8px', borderRadius: 8, border: `1px solid ${C.grisClair}`, background: C.blanc }} />
             </div>
+            <div>
+              <label style={{ fontSize: 10, color: C.gris, display: 'block', marginBottom: 3 }}>Heure de fin</label>
+              <input type="time" value={exceptionEndTime} onChange={event => setExceptionEndTime(event.target.value)} style={{ width: '100%', padding: '8px', borderRadius: 8, border: `1px solid ${C.grisClair}`, background: C.blanc }} />
+            </div>
           </div>
+          <p style={{ margin: '-2px 0 8px', fontSize: 10, color: C.gris }}>Les heures sont facultatives. Elles permettent au Planner et à Nova de comprendre une reprise ou un départ en cours de journée.</p>
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <button onClick={() => setExceptionWithChildren(true)} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1.5px solid ${exceptionWithChildren ? C.rose : C.grisClair}`, background: exceptionWithChildren ? C.roseLight : C.blanc, color: C.deep, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Avec les enfants</button>
             <button onClick={() => setExceptionWithChildren(false)} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1.5px solid ${!exceptionWithChildren ? '#C77E52' : C.grisClair}`, background: !exceptionWithChildren ? 'rgba(243,205,182,0.32)' : C.blanc, color: C.noir, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Sans les enfants</button>
@@ -424,7 +443,7 @@ function CustodyPanel({
             <div key={exception.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: `1px solid ${C.grisClair}` }}>
               <span style={{ fontSize: 15 }}>{exception.withChildren ? '👧' : '🌿'}</span>
               <div style={{ flex: 1 }}>
-                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.noir }}>{exception.withChildren ? 'Avec les enfants' : 'Sans les enfants'} · {exception.startDate}{exception.endDate !== exception.startDate ? ` → ${exception.endDate}` : ''}</p>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.noir }}>{exception.withChildren ? 'Avec les enfants' : 'Sans les enfants'} · {exception.startDate}{exception.startTime ? ` à ${exception.startTime}` : ''}{exception.endDate !== exception.startDate || exception.endTime ? ` → ${exception.endDate}${exception.endTime ? ` à ${exception.endTime}` : ''}` : ''}</p>
                 {exception.note && <p style={{ margin: '2px 0 0', fontSize: 11, color: C.gris }}>{exception.note}</p>}
               </div>
               <button onClick={() => onDeleteException(exception.supabaseId || exception.id)} style={{ border: 'none', background: 'rgba(220,80,80,0.07)', color: '#DC5050', borderRadius: 8, width: 28, height: 28, cursor: 'pointer' }}>×</button>
@@ -754,7 +773,9 @@ export default function FamilyPage() {
       is_active: true,
       data: {
         startDate: exception.startDate,
+        startTime: exception.startTime,
         endDate: exception.endDate,
+        endTime: exception.endTime,
         withChildren: exception.withChildren,
         note: exception.note,
       },

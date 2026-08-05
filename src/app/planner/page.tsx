@@ -56,7 +56,9 @@ interface CustodyConfig {
 
 interface CustodyException {
   startDate: string;
+  startTime: string;
   endDate: string;
+  endTime: string;
   withChildren: boolean;
   note: string;
 }
@@ -133,26 +135,191 @@ function masterId(id: string): string {
   return id;
 }
 
+
+type CustomCustodyPattern = {
+  startDay: number;
+  startTime: string;
+  endDay: number;
+  endTime: string;
+};
+
+function normalizeFrench(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[’']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseTimeToken(hour: string, minute?: string): string {
+  return `${hour.padStart(2, "0")}:${(minute || "00").padStart(2, "0")}`;
+}
+
+function parseCustomCustodyPattern(note: string): CustomCustodyPattern | null {
+  const normalized = normalizeFrench(note);
+  if (!normalized) return null;
+
+  const dayMap: Record<string, number> = {
+    dimanche: 0,
+    lundi: 1,
+    mardi: 2,
+    mercredi: 3,
+    jeudi: 4,
+    vendredi: 5,
+    samedi: 6,
+  };
+
+  const dayPattern = "(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)s?";
+  const timePattern = "(?:a|vers)\\s*(\\d{1,2})(?:\\s*[h:]\\s*(\\d{1,2}))?";
+  const clauses = normalized.split(/\s+(?:et|puis|ensuite)\s+|[,;.]/).map(item => item.trim()).filter(Boolean);
+
+  let start: { day: number; time: string } | null = null;
+  let end: { day: number; time: string } | null = null;
+
+  for (const clause of clauses) {
+    const match = clause.match(new RegExp(`${dayPattern}.*?${timePattern}`));
+    if (!match) continue;
+
+    const day = dayMap[match[1]];
+    const time = parseTimeToken(match[2], match[3]);
+
+    const isStart = /\b(recupere|reprend|reviennent|revient|arrivent|arrive|commence|debut)\b/.test(clause);
+    const isEnd = /\b(repartent|repart|retournent|retourne|rentre|rentrent|fin|termine|pere .*recupere|papa .*recupere)\b/.test(clause);
+
+    if (isStart && !start) start = { day, time };
+    if (isEnd && !end) end = { day, time };
+  }
+
+  if (!start || !end) {
+    const matches = Array.from(normalized.matchAll(new RegExp(`${dayPattern}.*?${timePattern}`, "g")));
+    if (matches.length >= 2) {
+      start = start || { day: dayMap[matches[0][1]], time: parseTimeToken(matches[0][2], matches[0][3]) };
+      end = end || { day: dayMap[matches[1][1]], time: parseTimeToken(matches[1][2], matches[1][3]) };
+    }
+  }
+
+  if (!start || !end) return null;
+  return { startDay: start.day, startTime: start.time, endDay: end.day, endTime: end.time };
+}
+
+function customCustodyForDate(date: Date, note: string) {
+  const pattern = parseCustomCustodyPattern(note);
+  if (!pattern) return null;
+
+  const day = date.getDay();
+  const start = pattern.startDay;
+  const end = pattern.endDay;
+
+  const inRange = start <= end
+    ? day >= start && day <= end
+    : day >= start || day <= end;
+
+  if (day === start) {
+    return {
+      withChildren: true,
+      source: 'rhythm' as const,
+      note,
+      transition: `Tu récupères les filles à ${pattern.startTime}`,
+      phase: 'start' as const,
+    };
+  }
+
+  if (day === end) {
+    return {
+      withChildren: true,
+      source: 'rhythm' as const,
+      note,
+      transition: `Les filles repartent à ${pattern.endTime}`,
+      phase: 'end' as const,
+    };
+  }
+
+  return {
+    withChildren: inRange,
+    source: 'rhythm' as const,
+    note,
+    transition: inRange ? 'Les filles sont avec toi' : 'Les filles ne sont pas avec toi',
+    phase: inRange ? 'with' as const : 'without' as const,
+  };
+}
+
+function custodyVisual(status: ReturnType<typeof custodyStatusForDate>) {
+  if (status.phase === 'start') return { bg: "#EAF3EE", border: "#4E8B70", text: "#356B55", label: status.transition || "Reprise" };
+  if (status.phase === 'end') return { bg: "#FFF0E4", border: "#D4956A", text: "#8A4A1A", label: status.transition || "Départ" };
+  if (status.withChildren === true) return { bg: "#EAF3EE", border: "#7BAE96", text: "#356B55", label: "Avec les filles" };
+  if (status.withChildren === false) return { bg: "#F4EFE8", border: "#C9BBAA", text: "#75685B", label: "Sans les filles" };
+  return { bg: C.blanc, border: C.grisClair, text: C.gris, label: "" };
+}
+
 function custodyStatusForDate(
   date: Date,
   config: CustodyConfig | null,
   exceptions: CustodyException[],
-): { withChildren: boolean | null; source: 'exception' | 'rhythm' | 'unknown'; note?: string } {
+): {
+  withChildren: boolean | null;
+  source: 'exception' | 'rhythm' | 'unknown';
+  note?: string;
+  transition?: string;
+  phase?: 'start' | 'end' | 'with' | 'without';
+} {
   const dateStr = fmtDate(date);
   const exception = exceptions.find(item => item.startDate <= dateStr && item.endDate >= dateStr);
+
   if (exception) {
-    return { withChildren: exception.withChildren, source: 'exception', note: exception.note };
+    let transition = '';
+    let phase: 'start' | 'end' | 'with' | 'without' = exception.withChildren ? 'with' : 'without';
+
+    if (exception.startDate === dateStr && exception.startTime) {
+      transition = exception.withChildren
+        ? `Tu récupères les filles à ${exception.startTime}`
+        : `Les filles repartent à ${exception.startTime}`;
+      phase = exception.withChildren ? 'start' : 'end';
+    } else if (exception.endDate === dateStr && exception.endTime) {
+      transition = `Fin de l’exception à ${exception.endTime}`;
+    }
+
+    return {
+      withChildren: exception.withChildren,
+      source: 'exception',
+      note: exception.note,
+      transition,
+      phase,
+    };
   }
+
   if (!config) return { withChildren: null, source: 'unknown' };
-  if (config.mode === 'full_time') return { withChildren: true, source: 'rhythm' };
-  if (config.mode === 'fixed_days') return { withChildren: config.fixedDays.includes(date.getDay()), source: 'rhythm' };
+  if (config.mode === 'full_time') {
+    return { withChildren: true, source: 'rhythm', transition: 'Les filles sont avec toi', phase: 'with' };
+  }
+  if (config.mode === 'fixed_days') {
+    const withChildren = config.fixedDays.includes(date.getDay());
+    return {
+      withChildren,
+      source: 'rhythm',
+      transition: withChildren ? 'Les filles sont avec toi' : 'Les filles ne sont pas avec toi',
+      phase: withChildren ? 'with' : 'without',
+    };
+  }
   if (config.mode === 'alternate_weeks' && config.referenceDate) {
     const reference = new Date(`${config.referenceDate}T12:00:00`);
     const target = new Date(`${dateStr}T12:00:00`);
     const dayDifference = Math.floor((target.getTime() - reference.getTime()) / 86400000);
     const weekDifference = Math.floor(dayDifference / 7);
-    return { withChildren: ((weekDifference % 2) + 2) % 2 === 0, source: 'rhythm' };
+    const withChildren = ((weekDifference % 2) + 2) % 2 === 0;
+    return {
+      withChildren,
+      source: 'rhythm',
+      transition: withChildren ? 'Les filles sont avec toi' : 'Les filles ne sont pas avec toi',
+      phase: withChildren ? 'with' : 'without',
+    };
   }
+  if (config.mode === 'custom') {
+    return customCustodyForDate(date, config.note)
+      || { withChildren: null, source: 'unknown', note: config.note };
+  }
+
   return { withChildren: null, source: 'unknown', note: config.note };
 }
 
@@ -474,9 +641,11 @@ function DayView({ currentDate, events, onNewEvent, onToggle, onReplan, onEdit }
 }
 
 // ─── WEEK VIEW ─────────────────────────────────────────────
-function WeekView({ weekDates, events, onDayClick }: {
+function WeekView({ weekDates, events, custodyConfig, custodyExceptions, onDayClick }: {
   weekDates: Date[];
   events: CalEvent[];
+  custodyConfig: CustodyConfig | null;
+  custodyExceptions: CustodyException[];
   onDayClick: (d: Date) => void;
 }) {
   const START_H = 6, END_H = 23;
@@ -504,14 +673,20 @@ function WeekView({ weekDates, events, onDayClick }: {
       <div style={{ minWidth: 620 }}>
         <div style={{ display: "grid", gridTemplateColumns: "44px repeat(7,1fr)", position: "sticky", top: 0, background: C.blanc, zIndex: 5 }}>
           <div style={{ borderBottom: `1px solid ${C.grisClair}`, borderRight: `1px solid ${C.grisClair}` }} />
-          {weekDates.map((d, i) => (
-            <div key={i} onClick={() => onDayClick(d)} style={{ padding: "6px 2px", textAlign: "center", cursor: "pointer", borderBottom: `1px solid ${C.grisClair}`, borderRight: `1px solid ${C.grisClair}`, background: isToday(d) ? C.roseLight : C.blanc }}>
-              <div style={{ fontSize: 9, color: C.gris, letterSpacing: 1, textTransform: "uppercase" }}>{DAYS_SHORT[i]}</div>
-              <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'Cormorant Garamond',serif", background: isToday(d) ? C.roseDark : "transparent", color: isToday(d) ? C.blanc : C.noir, borderRadius: "50%", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto 0" }}>
-                {d.getDate()}
+          {weekDates.map((d, i) => {
+            const custody = custodyStatusForDate(d, custodyConfig, custodyExceptions);
+            return (
+              <div key={i} onClick={() => onDayClick(d)} title={custody.transition || custody.note || undefined} style={{ padding: "6px 2px", textAlign: "center", cursor: "pointer", borderBottom: `1px solid ${C.grisClair}`, borderRight: `1px solid ${C.grisClair}`, background: isToday(d) ? C.roseLight : custody.withChildren === true ? "rgba(185,215,203,0.18)" : C.blanc }}>
+                <div style={{ fontSize: 9, color: C.gris, letterSpacing: 1, textTransform: "uppercase" }}>{DAYS_SHORT[i]}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'Cormorant Garamond',serif", background: isToday(d) ? C.roseDark : "transparent", color: isToday(d) ? C.blanc : C.noir, borderRadius: "50%", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto 0" }}>
+                  {d.getDate()}
+                </div>
+                <div style={{ minHeight: 13, marginTop: 1, fontSize: 9, color: custody.withChildren === true ? "#4E7D6A" : C.gris, fontWeight: 700 }}>
+                  {custody.transition || (custody.withChildren === true ? "Avec" : custody.withChildren === false ? "Sans" : "")}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "44px repeat(7,1fr)" }}>
           <div style={{ position: "relative", height: totalH, borderRight: `1px solid ${C.grisClair}` }}>
@@ -559,9 +734,11 @@ function WeekView({ weekDates, events, onDayClick }: {
 }
 
 // ─── MONTH VIEW ────────────────────────────────────────────
-function MonthView({ currentDate, events, onDayClick }: {
+function MonthView({ currentDate, events, custodyConfig, custodyExceptions, onDayClick }: {
   currentDate: Date;
   events: CalEvent[];
+  custodyConfig: CustodyConfig | null;
+  custodyExceptions: CustodyException[];
   onDayClick: (d: Date) => void;
 }) {
   const y = currentDate.getFullYear();
@@ -583,15 +760,101 @@ function MonthView({ currentDate, events, onDayClick }: {
           const ds = fmtDate(d);
           const dayEvs = events.filter(e => e.date === ds);
           const tod = isToday(d);
+          const custody = custodyStatusForDate(d, custodyConfig, custodyExceptions);
+          const visual = custodyVisual(custody);
           return (
-            <div key={i} onClick={() => onDayClick(d)} style={{ minWidth: 0, overflow: "hidden", minHeight: 72, border: `1px solid ${tod ? C.roseDark : C.grisClair}`, borderRadius: 8, padding: 4, cursor: "pointer", background: tod ? C.roseLight : C.blanc }}>
-              <div style={{ fontSize: 13, fontWeight: tod ? 700 : 400, color: tod ? C.roseDark : C.noir, fontFamily: "'Cormorant Garamond',serif", marginBottom: 3 }}>{d.getDate()}</div>
-              {dayEvs.slice(0, 3).map(ev => {
+            <div
+              key={i}
+              onClick={() => onDayClick(d)}
+              title={custody.transition || custody.note || undefined}
+              style={{
+                minWidth: 0,
+                overflow: "hidden",
+                minHeight: 82,
+                border: `1px solid ${tod ? C.roseDark : visual.border}`,
+                borderRadius: 8,
+                padding: 4,
+                cursor: "pointer",
+                background: tod ? C.roseLight : C.blanc,
+                boxShadow: custody.withChildren !== null ? `inset 0 4px 0 ${visual.border}` : "none",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4, marginBottom: 3 }}>
+                <div style={{ fontSize: 13, fontWeight: tod ? 700 : 400, color: tod ? C.roseDark : C.noir, fontFamily: "'Cormorant Garamond',serif" }}>{d.getDate()}</div>
+                {custody.withChildren !== null && (
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: visual.border, flexShrink: 0 }} />
+                )}
+              </div>
+              {custody.transition && (
+                <div style={{ background: visual.bg, borderLeft: `3px solid ${visual.border}`, borderRadius: 3, padding: "2px 4px", fontSize: 8, color: visual.text, fontWeight: 700, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {custody.transition}
+                </div>
+              )}
+              {dayEvs.slice(0, 2).map(ev => {
                 const cat = CATEGORIES[ev.cat];
                 return <div key={ev.id} style={{ background: cat.bg, borderRadius: 3, padding: "1px 4px", fontSize: 10, color: cat.text, marginBottom: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat.emoji} {ev.title}</div>;
               })}
-              {dayEvs.length > 3 && <div style={{ fontSize: 10, color: C.gris }}>+{dayEvs.length - 3}</div>}
+              {dayEvs.length > 2 && <div style={{ fontSize: 10, color: C.gris }}>+{dayEvs.length - 2}</div>}
             </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function YearView({ currentDate, custodyConfig, custodyExceptions, onMonthClick }: {
+  currentDate: Date;
+  custodyConfig: CustodyConfig | null;
+  custodyExceptions: CustodyException[];
+  onMonthClick: (month: number) => void;
+}) {
+  const year = currentDate.getFullYear();
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "12px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(235px,1fr))", gap: 12 }}>
+        {MONTHS.map((monthLabel, month) => {
+          const firstDow = (new Date(year, month, 1).getDay() + 6) % 7;
+          const days = getDaysInMonth(year, month);
+          const cells: (Date | null)[] = [
+            ...Array.from({ length: firstDow }, () => null),
+            ...Array.from({ length: days }, (_, index) => new Date(year, month, index + 1)),
+          ];
+          while (cells.length % 7 !== 0) cells.push(null);
+
+          return (
+            <button key={monthLabel} onClick={() => onMonthClick(month)} style={{ border: `1px solid ${C.grisClair}`, borderRadius: 12, background: C.blanc, padding: 10, textAlign: "left", cursor: "pointer" }}>
+              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 17, fontWeight: 700, color: C.noir, marginBottom: 8 }}>{monthLabel}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3 }}>
+                {DAYS_SHORT.map(day => <span key={day} style={{ fontSize: 8, color: C.gris, textAlign: "center", fontWeight: 700 }}>{day.slice(0, 1)}</span>)}
+                {cells.map((date, index) => {
+                  if (!date) return <span key={index} />;
+                  const status = custodyStatusForDate(date, custodyConfig, custodyExceptions);
+                  const visual = custodyVisual(status);
+                  return (
+                    <span
+                      key={index}
+                      title={status.transition || status.note || undefined}
+                      style={{
+                        height: 20,
+                        borderRadius: 5,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 9,
+                        fontWeight: status.phase === "start" || status.phase === "end" ? 800 : 500,
+                        color: status.withChildren === null ? C.gris : visual.text,
+                        background: status.withChildren === null ? C.cream : visual.bg,
+                        border: `1px solid ${status.withChildren === null ? C.grisClair : visual.border}`,
+                      }}
+                    >
+                      {date.getDate()}
+                    </span>
+                  );
+                })}
+              </div>
+            </button>
           );
         })}
       </div>
@@ -752,14 +1015,21 @@ export default function PlannerNovae() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { if (!silent) setLoading(false); return; }
 
-    const { data: custodyRows } = await supabase
+    // Même stratégie de lecture que la page Entourage : on récupère les lignes
+    // de garde puis on filtre côté client. Cela évite qu'une valeur historique
+    // ou nullable de is_active masque une organisation pourtant enregistrée.
+    const { data: custodyRows, error: custodyError } = await supabase
       .from("family_data")
-      .select("data_type,data")
+      .select("*")
       .eq("user_id", user.id)
-      .eq("is_active", true)
       .in("data_type", ["custody_config", "custody_exception"]);
 
-    const configRow = (custodyRows || []).find((row: any) => row.data_type === "custody_config");
+    if (custodyError) {
+      console.error("Planner: impossible de charger la garde", custodyError);
+    }
+
+    const activeCustodyRows = (custodyRows || []).filter((row: any) => row.is_active !== false);
+    const configRow = activeCustodyRows.find((row: any) => row.data_type === "custody_config");
     if (configRow?.data) {
       setCustodyConfig({
         mode: configRow.data.mode || "alternate_weeks",
@@ -771,11 +1041,13 @@ export default function PlannerNovae() {
       setCustodyConfig(null);
     }
     setCustodyExceptions(
-      (custodyRows || [])
+      activeCustodyRows
         .filter((row: any) => row.data_type === "custody_exception")
         .map((row: any) => ({
           startDate: row.data?.startDate || "",
+          startTime: row.data?.startTime || "",
           endDate: row.data?.endDate || row.data?.startDate || "",
+          endTime: row.data?.endTime || "",
           withChildren: row.data?.withChildren !== false,
           note: row.data?.note || "",
         }))
@@ -1081,27 +1353,39 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
     if (view === "day") d.setDate(d.getDate() + dir);
     if (view === "week") d.setDate(d.getDate() + dir * 7);
     if (view === "month") d.setMonth(d.getMonth() + dir);
+    if (view === "year") d.setFullYear(d.getFullYear() + dir);
     setCurrentDate(d);
   }
 
   // ─── RENDER ───────────────────────────────────────────────
   const selectedCustody = custodyStatusForDate(currentDate, custodyConfig, custodyExceptions);
+  const selectedVisual = custodyVisual(selectedCustody);
   const weekCustodyDays = weekDates
     .map((date, index) => ({ date, index, status: custodyStatusForDate(date, custodyConfig, custodyExceptions) }))
     .filter(item => item.status.withChildren === true);
-  const custodySummary = view === "week"
-    ? weekCustodyDays.length === 7
-      ? "Enfants avec moi toute la semaine"
-      : weekCustodyDays.length > 0
-        ? `Enfants avec moi : ${weekCustodyDays.map(item => DAYS_SHORT[item.index].toLowerCase()).join(", ")}`
-        : custodyConfig
-          ? "Semaine sans les enfants"
-          : "Organisation de garde non renseignée"
-    : selectedCustody.withChildren === true
-      ? "Enfants avec moi"
+
+  const dayCustodySummary = selectedCustody.transition
+    || (selectedCustody.withChildren === true
+      ? "Les filles sont avec toi aujourd’hui"
       : selectedCustody.withChildren === false
-        ? "Sans les enfants"
-        : "Organisation de garde non renseignée";
+        ? "Les filles ne sont pas avec toi aujourd’hui"
+        : "Organisation de garde non renseignée");
+
+  const custodySummary = view === "day"
+    ? dayCustodySummary
+    : view === "week"
+      ? weekCustodyDays.length === 7
+        ? "Les filles sont avec toi toute la semaine"
+        : weekCustodyDays.length > 0
+          ? `Avec les filles : ${weekCustodyDays.map(item => DAYS_SHORT[item.index].toLowerCase()).join(", ")}`
+          : custodyConfig
+            ? "Semaine sans les filles"
+            : "Organisation de garde non renseignée"
+      : view === "month"
+        ? "Repères de garde visibles sur chaque journée du mois"
+        : view === "year"
+          ? "Vue annuelle de la garde : vert avec les filles, beige sans les filles"
+          : dayCustodySummary;
 
   const plannerHeader = (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: `1px solid ${C.grisClair}`, background: C.blanc, flexWrap: "wrap" }}>
@@ -1112,8 +1396,9 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
         {view === "day" && `${DAYS_FULL[(currentDate.getDay() + 6) % 7]} ${currentDate.getDate()} ${MONTHS[currentDate.getMonth()]}`}
         {view === "week" && `Sem. du ${weekDates[0].getDate()} ${MONTHS[weekDates[0].getMonth()]}`}
         {view === "month" && `${MONTHS[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
+        {view === "year" && `${currentDate.getFullYear()}`}
       </span>
-      {[["day", "Jour"], ["week", "Sem."], ["month", "Mois"]].map(([v, l]) => (
+      {[["day", "Jour"], ["week", "Sem."], ["month", "Mois"], ["year", "Année"]].map(([v, l]) => (
         <button key={v} onClick={() => setView(v)} style={{ padding: "5px 10px", borderRadius: 16, border: "none", background: view === v ? C.roseDark : C.grisClair, color: view === v ? C.blanc : C.gris, cursor: "pointer", fontSize: 11, fontWeight: view === v ? 600 : 400 }}>{l}</button>
       ))}
       {!isMobile && <button onClick={() => openNewEvent()} style={btnStyle(C.roseDark)}>+ Évén.</button>}
@@ -1123,8 +1408,9 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
   const plannerContent = (
     <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
       {view === "day" && <DayView currentDate={currentDate} events={[...events, ...routineEvents]} onNewEvent={openNewEvent} onToggle={toggleEvent} onReplan={openReplan} onEdit={openEdit} />}
-      {view === "week" && <WeekView weekDates={weekDates} events={[...events, ...routineEvents]} onDayClick={d => { setCurrentDate(d); setView("day"); }} />}
-      {view === "month" && <MonthView currentDate={currentDate} events={[...events, ...routineEvents]} onDayClick={d => { setCurrentDate(d); setView("day"); }} />}
+      {view === "week" && <WeekView weekDates={weekDates} events={[...events, ...routineEvents]} custodyConfig={custodyConfig} custodyExceptions={custodyExceptions} onDayClick={d => { setCurrentDate(d); setView("day"); }} />}
+      {view === "month" && <MonthView currentDate={currentDate} events={[...events, ...routineEvents]} custodyConfig={custodyConfig} custodyExceptions={custodyExceptions} onDayClick={d => { setCurrentDate(d); setView("day"); }} />}
+      {view === "year" && <YearView currentDate={currentDate} custodyConfig={custodyConfig} custodyExceptions={custodyExceptions} onMonthClick={month => { const next = new Date(currentDate); next.setMonth(month); setCurrentDate(next); setView("month"); }} />}
     </div>
   );
 
@@ -1158,15 +1444,17 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
           </div>
         )}
 
-        <div style={{ padding: "8px 16px", background: selectedCustody.withChildren === false && view !== "week" ? "#F4EFE8" : "rgba(185,215,203,0.22)", borderBottom: `1px solid ${C.grisClair}`, display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
-          <span style={{ fontSize: 16 }}>{selectedCustody.withChildren === false && view !== "week" ? "🌿" : custodyConfig ? "👧" : "ℹ️"}</span>
+        <div style={{ padding: "8px 16px", background: view === "day" ? selectedVisual.bg : "rgba(185,215,203,0.16)", borderBottom: `1px solid ${view === "day" ? selectedVisual.border : C.grisClair}`, display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
+          <span style={{ fontSize: 16 }}>{view === "day" && selectedCustody.phase === "end" ? "🕖" : view === "day" && selectedCustody.phase === "start" ? "👧" : selectedCustody.withChildren === false && view === "day" ? "🌿" : custodyConfig ? "👧" : "ℹ️"}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.noir }}>{custodySummary}</p>
             <p style={{ margin: "1px 0 0", fontSize: 10, color: C.gris }}>
-              {selectedCustody.source === "exception"
+              {view === "day" && selectedCustody.source === "exception"
                 ? `Exception ponctuelle${selectedCustody.note ? ` · ${selectedCustody.note}` : ""}`
                 : custodyConfig
-                  ? "Contexte familial non bloquant pour ton planning"
+                  ? view === "day"
+                    ? "Contexte familial non bloquant pour ton planning"
+                    : "Les couleurs permettent de comprendre la garde d’un coup d’œil"
                   : "À configurer dans Entourage"}
             </p>
           </div>

@@ -346,10 +346,12 @@ function formatFamilyContext(rows: FamilyMemberRow[] | null): string | undefined
     .map((row) => {
       const d = row.data || {}
       const start = typeof d.startDate === 'string' ? d.startDate : '?'
+      const startTime = typeof d.startTime === 'string' && d.startTime ? ` à ${d.startTime}` : ''
       const end = typeof d.endDate === 'string' && d.endDate ? d.endDate : start
+      const endTime = typeof d.endTime === 'string' && d.endTime ? ` à ${d.endTime}` : ''
       const presence = d.withChildren === false ? 'sans les enfants' : 'avec les enfants'
       const note = typeof d.note === 'string' && d.note.trim() ? ` — ${d.note.trim()}` : ''
-      return `- Exception ${start}${end !== start ? ` au ${end}` : ''} : ${presence}${note}`
+      return `- Exception ${start}${startTime}${end !== start || endTime ? ` au ${end}${endTime}` : ''} : ${presence}${note}`
     })
 
   const sections: string[] = []
