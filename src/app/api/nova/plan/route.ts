@@ -354,10 +354,52 @@ function formatFamilyContext(rows: FamilyMemberRow[] | null): string | undefined
       return `- Exception ${start}${startTime}${end !== start || endTime ? ` au ${end}${endTime}` : ''} : ${presence}${note}`
     })
 
+  const locationConfigRow = rows.find((row) => row.data_type === 'location_config')
+  const locationLines: string[] = []
+  if (locationConfigRow?.data) {
+    const d = locationConfigRow.data
+    const transportLabels: Record<string, string> = {
+      car: 'voiture', walk: 'à pied', bike: 'vélo', public_transport: 'transports en commun', other: 'autre',
+    }
+    const defaultTransport = typeof d.defaultTransportMode === 'string' ? d.defaultTransportMode : 'car'
+    const defaultMargin = Math.max(0, Number(d.defaultSafetyMarginMinutes) || 0)
+    locationLines.push(`- Transport habituel : ${transportLabels[defaultTransport] || defaultTransport}`)
+    locationLines.push(`- Marge de sécurité habituelle : ${defaultMargin} min`)
+    if (Array.isArray(d.places)) {
+      const placeKindLabels: Record<string, string> = {
+        home: 'domicile', work: 'travail', school: 'école', daycare: 'crèche / garde', activity: 'activité', other: 'autre lieu',
+      }
+      const explicitReferenceIndex = d.places.findIndex((place: any) => place?.isReference === true)
+      const fallbackHomeIndex = d.places.findIndex((place: any) => place?.kind === 'home')
+      const referenceIndex = explicitReferenceIndex >= 0 ? explicitReferenceIndex : fallbackHomeIndex
+      d.places.slice(0, 20).forEach((place: any, index: number) => {
+        const label = typeof place?.label === 'string' && place.label.trim() ? place.label.trim() : 'Lieu récurrent'
+        const address = typeof place?.address === 'string' && place.address.trim() ? ` — ${place.address.trim()}` : ''
+        const approximate = place?.approximate === true ? ' (approximatif)' : ''
+        const transport = typeof place?.transportMode === 'string' ? place.transportMode : defaultTransport
+        const travel = Math.max(0, Number(place?.travelMinutes) || 0)
+        const margin = Math.max(0, Number(place?.safetyMarginMinutes) || defaultMargin)
+        const kind = placeKindLabels[String(place?.kind || 'other')] || 'lieu'
+        const reference = index === referenceIndex ? ' — POINT DE DÉPART PRINCIPAL' : ''
+        locationLines.push(`- ${label} [${kind}]${address}${approximate}${reference} — ${transportLabels[transport] || transport}, trajet ${travel} min, marge ${margin} min`)
+      })
+      if (referenceIndex < 0) locationLines.push('- Aucun domicile principal n’est défini : ne pas inventer de point de départ.')
+    }
+  }
+
   const sections: string[] = []
   if (memberLines.length > 0) sections.push(`Personnes connues :\n${memberLines.join('\n')}`)
   if (custodyLines.length > 0) sections.push(`Organisation de garde :\n${custodyLines.join('\n')}`)
   if (exceptionLines.length > 0) sections.push(`Exceptions de garde :\n${exceptionLines.join('\n')}`)
+  if (locationLines.length > 0) sections.push([
+    'Lieux et trajets habituels :',
+    ...locationLines,
+    'RÈGLES LIEUX ET TRAJETS :',
+    '- Répondre avec le nom et l’adresse enregistrés quand l’utilisatrice demande où elle travaille ou quels lieux sont connus.',
+    '- Pour une heure de départ, calculer : heure d’arrivée moins trajet moins marge de sécurité.',
+    '- Utiliser le POINT DE DÉPART PRINCIPAL comme origine par défaut. S’il manque, demander le point de départ au lieu d’inventer.',
+    '- Exemple : arrivée 06:00, trajet 30 min, marge 15 min => départ 05:15.',
+  ].join('\n'))
 
   return sections.length > 0 ? sections.join('\n\n') : undefined
 }
@@ -747,7 +789,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           .from('family_data')
           .select('data_type, relation_to_user, is_primary_contact, notes, data')
           .eq('user_id', user.id)
-          .in('data_type', ['member', 'custody_config', 'custody_exception'])
+          .in('data_type', ['member', 'custody_config', 'custody_exception', 'location_config'])
           .eq('is_active', true)
           .limit(20),
         supabaseAdmin

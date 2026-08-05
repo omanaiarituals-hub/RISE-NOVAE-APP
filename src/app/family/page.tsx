@@ -210,6 +210,72 @@ function toSupabase(m: FamilyMember, userId: string) {
 }
 
 
+
+type TransportMode = 'car' | 'walk' | 'bike' | 'public_transport' | 'other'
+type PlaceKind = 'home' | 'work' | 'school' | 'daycare' | 'activity' | 'other'
+
+interface RecurringPlace {
+  id: string
+  kind: PlaceKind
+  label: string
+  address: string
+  approximate: boolean
+  transportMode: TransportMode
+  travelMinutes: number
+  safetyMarginMinutes: number
+  isReference: boolean
+}
+
+interface LocationConfig {
+  supabaseId?: string
+  defaultTransportMode: TransportMode
+  defaultSafetyMarginMinutes: number
+  places: RecurringPlace[]
+}
+
+const TRANSPORT_LABELS: Record<TransportMode, string> = {
+  car: 'Voiture',
+  walk: 'À pied',
+  bike: 'Vélo',
+  public_transport: 'Transports en commun',
+  other: 'Autre',
+}
+
+const PLACE_KIND_LABELS: Record<PlaceKind, string> = {
+  home: 'Domicile',
+  work: 'Travail',
+  school: 'École',
+  daycare: 'Crèche / garde',
+  activity: 'Activité',
+  other: 'Autre lieu',
+}
+
+function locationConfigFromRow(row: any): LocationConfig {
+  const d = row?.data || {}
+  const rawPlaces = Array.isArray(d.places) ? d.places : []
+  const explicitReferenceIndex = rawPlaces.findIndex((place: any) => place?.isReference === true)
+  const fallbackHomeIndex = rawPlaces.findIndex((place: any) => place?.kind === 'home')
+  const referenceIndex = explicitReferenceIndex >= 0 ? explicitReferenceIndex : fallbackHomeIndex
+  const places = rawPlaces.map((place: any, index: number) => ({
+    id: String(place?.id || `place-${index + 1}`),
+    kind: (place?.kind || 'other') as PlaceKind,
+    label: String(place?.label || ''),
+    address: String(place?.address || ''),
+    approximate: place?.approximate === true,
+    transportMode: (place?.transportMode || d.defaultTransportMode || 'car') as TransportMode,
+    travelMinutes: Math.max(0, Number(place?.travelMinutes) || 0),
+    safetyMarginMinutes: Math.max(0, Number(place?.safetyMarginMinutes) || Number(d.defaultSafetyMarginMinutes) || 15),
+    isReference: index === referenceIndex,
+  }))
+
+  return {
+    supabaseId: row?.id,
+    defaultTransportMode: (d.defaultTransportMode || 'car') as TransportMode,
+    defaultSafetyMarginMinutes: Math.max(0, Number(d.defaultSafetyMarginMinutes) || 15),
+    places,
+  }
+}
+
 type CustodyMode = 'full_time' | 'alternate_weeks' | 'fixed_days' | 'custom'
 
 interface CustodyConfig {
@@ -457,6 +523,161 @@ function CustodyPanel({
 
 
 // ─── MODAL MEMBRE ─────────────────────────────────────────────────────────────
+function LocationsPanel({
+  config,
+  onSave,
+}: {
+  config: LocationConfig
+  onSave: (config: LocationConfig) => Promise<void>
+}) {
+  const [draft, setDraft] = useState<LocationConfig>(config)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => setDraft(config), [config])
+
+  const addPlace = () => {
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `place-${Date.now()}`
+    setDraft(current => ({
+      ...current,
+      places: [...current.places, {
+        id,
+        kind: 'other',
+        label: '',
+        address: '',
+        approximate: false,
+        transportMode: current.defaultTransportMode,
+        travelMinutes: 0,
+        safetyMarginMinutes: current.defaultSafetyMarginMinutes,
+        isReference: false,
+      }],
+    }))
+    setExpanded(true)
+  }
+
+  const updatePlace = (id: string, patch: Partial<RecurringPlace>) => {
+    setDraft(current => ({
+      ...current,
+      places: current.places.map(place => {
+        if (patch.isReference === true) return { ...place, isReference: place.id === id }
+        return place.id === id ? { ...place, ...patch } : place
+      }),
+    }))
+  }
+
+  const updatePlaceKind = (id: string, kind: PlaceKind) => {
+    setDraft(current => {
+      const hasReference = current.places.some(place => place.isReference)
+      return {
+        ...current,
+        places: current.places.map(place => place.id === id
+          ? { ...place, kind, isReference: kind === 'home' && !hasReference ? true : place.isReference }
+          : place),
+      }
+    })
+  }
+
+  const removePlace = (id: string) => {
+    setDraft(current => ({ ...current, places: current.places.filter(place => place.id !== id) }))
+  }
+
+  const save = async () => {
+    const keptPlaces = draft.places
+      .map(place => ({ ...place, label: place.label.trim(), address: place.address.trim() }))
+      .filter(place => place.label || place.address)
+    const explicitReference = keptPlaces.find(place => place.isReference)
+    const fallbackHome = keptPlaces.find(place => place.kind === 'home')
+    const referenceId = explicitReference?.id || fallbackHome?.id
+    const cleaned = {
+      ...draft,
+      places: keptPlaces.map(place => ({ ...place, isReference: Boolean(referenceId && place.id === referenceId) })),
+    }
+    setSaveError('')
+    setSaving(true)
+    try {
+      await onSave(cleaned)
+      setDraft(cleaned)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Impossible d’enregistrer les lieux pour le moment.'
+      console.error('[family/locations] enregistrement impossible', error)
+      setSaveError(message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section style={{ marginBottom: 24, background: C.blanc, border: `1.5px solid ${C.grisClair}`, borderRadius: 18, padding: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.rose, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Organisation quotidienne</p>
+          <h2 style={{ margin: '3px 0 0', fontFamily: "'Cormorant Garamond',serif", fontSize: 24, color: C.noir }}>Lieux et trajets</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: C.gris }}>Nova utilise ces repères pour estimer tes déplacements et éviter les journées irréalistes.</p>
+        </div>
+        <span style={{ fontSize: 28 }}>📍</span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 8, marginTop: 14 }}>
+        <label style={{ fontSize: 11, color: C.gris }}>
+          Transport habituel
+          <select value={draft.defaultTransportMode} onChange={event => setDraft(current => ({ ...current, defaultTransportMode: event.target.value as TransportMode }))} style={{ width: '100%', marginTop: 4, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.cream, color: C.noir }}>
+            {(Object.entries(TRANSPORT_LABELS) as [TransportMode, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
+        <label style={{ fontSize: 11, color: C.gris }}>
+          Marge de sécurité par défaut
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+            <input type="number" min={0} max={180} value={draft.defaultSafetyMarginMinutes} onChange={event => setDraft(current => ({ ...current, defaultSafetyMarginMinutes: Math.max(0, Number(event.target.value) || 0) }))} style={{ width: 90, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.cream, color: C.noir }} />
+            <span style={{ fontSize: 12, color: C.gris }}>minutes</span>
+          </div>
+        </label>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+        <button onClick={() => setExpanded(value => !value)} style={{ padding: '9px 14px', borderRadius: 11, border: `1.5px solid ${C.rose}`, background: C.roseLight, color: C.deep, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          {expanded ? 'Masquer les lieux' : `Voir les lieux (${draft.places.length})`}
+        </button>
+        <button onClick={addPlace} style={{ padding: '9px 14px', borderRadius: 11, border: 'none', background: C.deep, color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Ajouter un lieu</button>
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+          {draft.places.length === 0 && <p style={{ margin: 0, padding: 12, borderRadius: 12, background: C.cream, color: C.gris, fontSize: 12 }}>Ajoute ton domicile, ton travail, les écoles ou les activités récurrentes.</p>}
+          {draft.places.map(place => (
+            <div key={place.id} style={{ border: `1px solid ${C.grisClair}`, borderRadius: 14, padding: 12, background: C.cream }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8 }}>
+                <select value={place.kind} onChange={event => updatePlaceKind(place.id, event.target.value as PlaceKind)} style={{ padding: '8px 9px', borderRadius: 9, border: `1px solid ${C.grisClair}`, background: C.blanc }}>
+                  {(Object.entries(PLACE_KIND_LABELS) as [PlaceKind, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                <input value={place.label} onChange={event => updatePlace(place.id, { label: event.target.value })} placeholder="Nom : Domicile, Lidl, école d’Inaya…" style={{ padding: '8px 9px', borderRadius: 9, border: `1px solid ${C.grisClair}`, background: C.blanc }} />
+                <input value={place.address} onChange={event => updatePlace(place.id, { address: event.target.value })} placeholder="Adresse ou zone approximative" style={{ padding: '8px 9px', borderRadius: 9, border: `1px solid ${C.grisClair}`, background: C.blanc }} />
+                <select value={place.transportMode} onChange={event => updatePlace(place.id, { transportMode: event.target.value as TransportMode })} style={{ padding: '8px 9px', borderRadius: 9, border: `1px solid ${C.grisClair}`, background: C.blanc }}>
+                  {(Object.entries(TRANSPORT_LABELS) as [TransportMode, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
+                <label style={{ fontSize: 11, color: C.gris }}>Trajet habituel <input type="number" min={0} max={300} value={place.travelMinutes} onChange={event => updatePlace(place.id, { travelMinutes: Math.max(0, Number(event.target.value) || 0) })} style={{ width: 62, marginLeft: 5, padding: '6px', borderRadius: 8, border: `1px solid ${C.grisClair}` }} /> min</label>
+                <label style={{ fontSize: 11, color: C.gris }}>Marge <input type="number" min={0} max={180} value={place.safetyMarginMinutes} onChange={event => updatePlace(place.id, { safetyMarginMinutes: Math.max(0, Number(event.target.value) || 0) })} style={{ width: 62, marginLeft: 5, padding: '6px', borderRadius: 8, border: `1px solid ${C.grisClair}` }} /> min</label>
+                <label style={{ fontSize: 11, color: C.gris, display: 'flex', alignItems: 'center', gap: 5 }}><input type="checkbox" checked={place.approximate} onChange={event => updatePlace(place.id, { approximate: event.target.checked })} /> Lieu approximatif</label>
+                <label style={{ fontSize: 11, color: place.isReference ? C.deep : C.gris, display: 'flex', alignItems: 'center', gap: 5, fontWeight: place.isReference ? 700 : 500 }}><input type="checkbox" checked={place.isReference} onChange={event => updatePlace(place.id, { isReference: event.target.checked })} /> Point de départ principal</label>
+                {place.isReference && <span style={{ padding: '4px 8px', borderRadius: 999, background: C.roseLight, color: C.deep, fontSize: 10, fontWeight: 700 }}>⌂ Domicile principal</span>}
+                <button onClick={() => removePlace(place.id)} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: '#C66', cursor: 'pointer', fontSize: 12 }}>Supprimer</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p style={{ margin: '12px 0 0', fontSize: 11, color: C.gris }}>Définis un domicile comme point de départ principal. Nova l’utilisera par défaut pour calculer tes heures de départ.</p>
+      <button onClick={save} disabled={saving} style={{ marginTop: 10, padding: '10px 16px', borderRadius: 11, border: 'none', background: C.deep, color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+        {saving ? 'Enregistrement…' : '✓ Enregistrer les lieux et trajets'}
+      </button>
+      {saveError && <p role="alert" style={{ margin: '8px 0 0', color: '#B64646', fontSize: 12 }}>Enregistrement impossible : {saveError}</p>}
+    </section>
+  )
+}
+
 function MemberModal({ initial, defaultCategory, onSave, onClose }: {
   initial?: FamilyMember; defaultCategory?: MemberCategory; onSave: (m: FamilyMember) => void; onClose: () => void
 }) {
@@ -684,6 +905,7 @@ export default function FamilyPage() {
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [custodyConfig, setCustodyConfig] = useState<CustodyConfig>({ mode: 'alternate_weeks', referenceDate: '', fixedDays: [], note: '' })
   const [custodyExceptions, setCustodyExceptions] = useState<CustodyException[]>([])
+  const [locationConfig, setLocationConfig] = useState<LocationConfig>({ defaultTransportMode: 'car', defaultSafetyMarginMinutes: 15, places: [] })
   const [showModal, setShowModal] = useState(false)
   const [addCategory, setAddCategory] = useState<MemberCategory | null>(null)
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null)
@@ -714,6 +936,8 @@ export default function FamilyPage() {
     const configRow = rows.find((row: any) => row.data_type === 'custody_config')
     if (configRow) setCustodyConfig(custodyConfigFromRow(configRow))
     setCustodyExceptions(rows.filter((row: any) => row.data_type === 'custody_exception').map(custodyExceptionFromRow))
+    const locationRow = rows.find((row: any) => row.data_type === 'location_config')
+    if (locationRow) setLocationConfig(locationConfigFromRow(locationRow))
     setLoading(false)
   }
 
@@ -762,6 +986,33 @@ export default function FamilyPage() {
     }).select().single()
     if (error) throw error
     if (data) setCustodyConfig(custodyConfigFromRow(data))
+  }
+
+  const saveLocationConfig = async (config: LocationConfig) => {
+    if (!user) return
+    const payload = {
+      user_id: user.id,
+      data_type: 'location_config',
+      relation_to_user: 'lieux et trajets',
+      is_active: true,
+      data: {
+        defaultTransportMode: config.defaultTransportMode,
+        defaultSafetyMarginMinutes: config.defaultSafetyMarginMinutes,
+        places: config.places,
+      },
+      updated_at: new Date().toISOString(),
+    }
+
+    if (config.supabaseId) {
+      const { error } = await supabase.from('family_data').update(payload).eq('id', config.supabaseId).eq('user_id', user.id)
+      if (error) throw error
+      setLocationConfig(config)
+      return
+    }
+
+    const { data, error } = await supabase.from('family_data').insert({ ...payload, created_at: new Date().toISOString() }).select().single()
+    if (error) throw error
+    if (data) setLocationConfig(locationConfigFromRow(data))
   }
 
   const addCustodyException = async (exception: Omit<CustodyException, 'id'>) => {
@@ -894,6 +1145,11 @@ export default function FamilyPage() {
             onSaveConfig={saveCustodyConfig}
             onAddException={addCustodyException}
             onDeleteException={deleteCustodyException}
+          />
+
+          <LocationsPanel
+            config={locationConfig}
+            onSave={saveLocationConfig}
           />
 
           <button onClick={() => openAdd(null)}
