@@ -701,6 +701,12 @@ export async function POST(request: NextRequest) {
     const recipeActions = confirmedActions.filter(
       (action) => action.type === 'create_recipe' && action.engine === 'meals'
     )
+    const routineActions = confirmedActions.filter(
+      (action) => action.type === 'create_routine' && action.engine === 'routines'
+    )
+    const deleteRoutineActions = confirmedActions.filter(
+      (action) => action.type === 'delete_routine' && action.engine === 'routines'
+    )
     const unsupportedActions = confirmedActions.filter(
       (action) =>
         !(
@@ -712,11 +718,13 @@ export async function POST(request: NextRequest) {
           (action.type === 'save_note' && action.engine === 'notes') ||
           (action.type === 'add_shopping_item' && action.engine === 'meals') ||
           (action.type === 'set_meal' && action.engine === 'meals') ||
-          (action.type === 'create_recipe' && action.engine === 'meals')
+          (action.type === 'create_recipe' && action.engine === 'meals') ||
+          (action.type === 'create_routine' && action.engine === 'routines') ||
+          (action.type === 'delete_routine' && action.engine === 'routines')
         )
     )
 
-    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + mealActions.length + recipeActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + mealActions.length + recipeActions.length + routineActions.length + deleteRoutineActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -731,14 +739,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || mealActions.length > 10 || recipeActions.length > 5) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || mealActions.length > 10 || recipeActions.length > 5 || routineActions.length > 5 || deleteRoutineActions.length > 5) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
     type SimpleExecutionItem = {
-      kind: 'note' | 'shopping_item' | 'meal' | 'recipe'
+      kind: 'note' | 'shopping_item' | 'meal' | 'recipe' | 'routine'
       actionId: string
-      status: 'created' | 'updated' | 'already_exists' | 'failed'
+      status: 'created' | 'already_exists' | 'failed' | 'updated' | 'cancelled'
       entityId: string | null
       message: string
     }
@@ -1047,6 +1055,231 @@ export async function POST(request: NextRequest) {
       }
     }
 
+
+    for (const action of routineActions) {
+      try {
+        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const title = typeof p.title === 'string' ? p.title.trim() : ''
+        const category = p.category === 'evening' ? 'evening' : 'morning'
+        const allowedDays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+        const days = String(p.days || '')
+          .split(',')
+          .map((day) => day.trim().toLowerCase())
+          .filter((day, index, values) => allowedDays.includes(day) && values.indexOf(day) === index)
+        const preferredTime = String(p.preferred_time || '').trim()
+        const durationMinutes = Number.parseInt(String(p.duration_minutes || '15'), 10)
+        const reminderEnabled = String(p.reminder_enabled || 'true').toLowerCase() !== 'false'
+        const reminderMinutesBefore = Number.parseInt(String(p.reminder_minutes_before || '15'), 10)
+        const emoji = typeof p.emoji === 'string' && p.emoji.trim() ? p.emoji.trim() : '✨'
+
+        if (!title) {
+          results.push({ kind: 'routine', actionId: action.id, status: 'failed', entityId: null, message: 'Le nom de la routine est manquant.' })
+          continue
+        }
+        if (days.length === 0) {
+          results.push({ kind: 'routine', actionId: action.id, status: 'failed', entityId: null, message: 'Les jours de la routine sont manquants.' })
+          continue
+        }
+        if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(preferredTime)) {
+          results.push({ kind: 'routine', actionId: action.id, status: 'failed', entityId: null, message: 'L’heure de la routine est invalide.' })
+          continue
+        }
+        if (!Number.isFinite(durationMinutes) || durationMinutes < 5 || durationMinutes > 240) {
+          results.push({ kind: 'routine', actionId: action.id, status: 'failed', entityId: null, message: 'La durée de la routine doit être comprise entre 5 et 240 minutes.' })
+          continue
+        }
+
+        const frequency = days.length === 7 ? 'daily' : 'custom'
+        const customDays = `{${days.join(',')}}`
+
+        const { data: existingRows, error: existingError } = await userClient
+          .from('routines')
+          .select('id,title,preferred_time,frequency,custom_days')
+          .eq('user_id', user.id)
+          .ilike('title', title)
+          .limit(10)
+
+        if (existingError) throw new Error(existingError.message)
+
+        const duplicate = (existingRows || []).find((row: any) =>
+          String(row.title || '').trim().toLocaleLowerCase('fr-FR') === title.toLocaleLowerCase('fr-FR') &&
+          String(row.preferred_time || '').slice(0, 5) === preferredTime
+        )
+
+        if (duplicate?.id) {
+          results.push({
+            kind: 'routine',
+            actionId: action.id,
+            status: 'already_exists',
+            entityId: duplicate.id,
+            message: `La routine « ${title} » existe déjà à ${preferredTime}. Je n’ai pas créé de doublon.`,
+          })
+          continue
+        }
+
+        const now = new Date().toISOString()
+        const { data: inserted, error } = await userClient
+          .from('routines')
+          .insert({
+            user_id: user.id,
+            title,
+            description: emoji,
+            category,
+            frequency,
+            custom_days: customDays,
+            completed: false,
+            streak_count: 0,
+            reminder_enabled: reminderEnabled,
+            reminder_minutes_before: Number.isFinite(reminderMinutesBefore) ? Math.max(0, reminderMinutesBefore) : 15,
+            preferred_time: preferredTime,
+            duration_minutes: durationMinutes,
+            created_at: now,
+            updated_at: now,
+          })
+          .select('id')
+          .single()
+
+        if (error || !inserted?.id) throw new Error(error?.message || 'La routine n’a pas pu être créée.')
+
+        const { data: verified, error: verifyError } = await userClient
+          .from('routines')
+          .select('id,title,category,frequency,custom_days,preferred_time,duration_minutes,reminder_enabled')
+          .eq('id', inserted.id)
+          .eq('user_id', user.id)
+          .single()
+
+        if (
+          verifyError ||
+          !verified ||
+          verified.title !== title ||
+          verified.category !== category ||
+          String(verified.preferred_time || '').slice(0, 5) !== preferredTime ||
+          verified.duration_minutes !== durationMinutes
+        ) {
+          throw new Error(verifyError?.message || 'La routine a été écrite mais sa vérification a échoué.')
+        }
+
+        results.push({
+          kind: 'routine',
+          actionId: action.id,
+          status: 'created',
+          entityId: inserted.id,
+          message: `C’est fait. Ta routine « ${title} » est programmée à ${preferredTime} et apparaîtra automatiquement dans ton Planner.`,
+        })
+      } catch (error) {
+        results.push({
+          kind: 'routine',
+          actionId: action.id,
+          status: 'failed',
+          entityId: null,
+          message: error instanceof Error ? error.message : 'La routine n’a pas pu être créée.',
+        })
+      }
+    }
+
+
+    for (const action of deleteRoutineActions) {
+      try {
+        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const title = typeof p.title === 'string' ? p.title.trim() : ''
+        const preferredTime = typeof p.preferred_time === 'string' ? p.preferred_time.trim() : ''
+
+        if (!title) {
+          results.push({
+            kind: 'routine',
+            actionId: action.id,
+            status: 'failed',
+            entityId: null,
+            message: 'Le nom de la routine à supprimer est manquant.',
+          })
+          continue
+        }
+
+        let query = userClient
+          .from('routines')
+          .select('id,title,preferred_time')
+          .eq('user_id', user.id)
+          .ilike('title', `%${title}%`)
+          .limit(10)
+
+        if (preferredTime && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(preferredTime)) {
+          query = query.eq('preferred_time', preferredTime)
+        }
+
+        const { data: matches, error: searchError } = await query
+
+        if (searchError) throw new Error(searchError.message)
+
+        const normalizedTitle = title.toLocaleLowerCase('fr-FR')
+        const exactMatches = (matches || []).filter(
+          (row: any) => String(row.title || '').trim().toLocaleLowerCase('fr-FR') === normalizedTitle
+        )
+        const candidates = exactMatches.length > 0 ? exactMatches : (matches || [])
+
+        if (candidates.length === 0) {
+          results.push({
+            kind: 'routine',
+            actionId: action.id,
+            status: 'failed',
+            entityId: null,
+            message: `Je n’ai trouvé aucune routine correspondant à « ${title} ».`,
+          })
+          continue
+        }
+
+        if (candidates.length > 1) {
+          const details = candidates
+            .map((row: any) => `${row.title}${row.preferred_time ? ` à ${String(row.preferred_time).slice(0, 5)}` : ''}`)
+            .join(', ')
+
+          results.push({
+            kind: 'routine',
+            actionId: action.id,
+            status: 'failed',
+            entityId: null,
+            message: `Plusieurs routines correspondent : ${details}. Précise celle que tu veux supprimer.`,
+          })
+          continue
+        }
+
+        const target = candidates[0] as any
+
+        const { error: deleteError } = await userClient
+          .from('routines')
+          .delete()
+          .eq('id', target.id)
+          .eq('user_id', user.id)
+
+        if (deleteError) throw new Error(deleteError.message)
+
+        const { data: verified, error: verifyError } = await userClient
+          .from('routines')
+          .select('id')
+          .eq('id', target.id)
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (verifyError) throw new Error(verifyError.message)
+        if (verified) throw new Error('La routine est toujours présente après la suppression.')
+
+        results.push({
+          kind: 'routine',
+          actionId: action.id,
+          status: 'cancelled',
+          entityId: target.id,
+          message: `C’est fait. La routine « ${target.title} » a été supprimée et n’apparaîtra plus dans le Planner.`,
+        })
+      } catch (error) {
+        results.push({
+          kind: 'routine',
+          actionId: action.id,
+          status: 'failed',
+          entityId: null,
+          message: error instanceof Error ? error.message : 'La routine n’a pas pu être supprimée.',
+        })
+      }
+    }
+
     const tasksCreated = results.filter(
       (item) => item.kind === 'task' && item.status === 'created'
     ).length
@@ -1069,6 +1302,8 @@ export async function POST(request: NextRequest) {
     const mealsPlanned = results.filter((item) => item.kind === 'meal' && item.status === 'created').length
     const recipesCreated = results.filter((item) => item.kind === 'recipe' && item.status === 'created').length
     const recipesUpdated = results.filter((item) => item.kind === 'recipe' && item.status === 'updated').length
+    const routinesCreated = results.filter((item) => item.kind === 'routine' && item.status === 'created').length
+    const routinesDeleted = results.filter((item) => item.kind === 'routine' && item.status === 'cancelled').length
     const failed = results.filter((item) => item.status === 'failed' || item.status === 'conflict').length
 
     const messageParts = results.map((item) => item.message)
@@ -1076,7 +1311,7 @@ export async function POST(request: NextRequest) {
       messageParts.push('Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.')
     }
 
-    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned + recipesCreated + recipesUpdated > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
+    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned + recipesCreated + recipesUpdated + routinesCreated + routinesDeleted > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
     return NextResponse.json(
       {
         ok: failed === 0,
@@ -1094,6 +1329,8 @@ export async function POST(request: NextRequest) {
           unsupported: unsupportedActions.length,
           recipesCreated,
           recipesUpdated,
+          routinesCreated,
+          routinesDeleted,
         },
       },
       { status: httpStatus }

@@ -11,6 +11,7 @@ export const NOVA_INTENTS = [
   'family',
   'meal',
   'note',
+  'routine',
   'question',
   'unknown',
 ] as const
@@ -25,6 +26,7 @@ export const NOVA_ENGINES = [
   'family',
   'meals',
   'notes',
+  'routines',
   'memory',
   'notifications',
   'none',
@@ -50,6 +52,8 @@ export const NOVA_ACTION_TYPES = [
   'add_shopping_item',
   'set_meal',
   'create_recipe',
+  'create_routine',
+  'delete_routine',
   'ask_question',
   'no_action',
 ] as const

@@ -17,7 +17,7 @@ export const NOVA_ACTION_PLAN_JSON_SCHEMA = {
     summary: { type: 'string' },
     intent: {
       type: 'string',
-      enum: ['task', 'calendar', 'document', 'administrative', 'finance', 'family', 'meal', 'note', 'question', 'unknown'],
+      enum: ['task', 'calendar', 'document', 'administrative', 'finance', 'family', 'meal', 'note', 'routine', 'question', 'unknown'],
     },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
     extracted_data: {
@@ -103,6 +103,8 @@ export const NOVA_ACTION_PLAN_JSON_SCHEMA = {
               'add_shopping_item',
               'set_meal',
               'create_recipe',
+              'create_routine',
+              'delete_routine',
               'ask_question',
               'no_action',
             ],
@@ -118,6 +120,7 @@ export const NOVA_ACTION_PLAN_JSON_SCHEMA = {
               'family',
               'meals',
               'notes',
+              'routines',
               'memory',
               'notifications',
               'none',

@@ -1,625 +1,531 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase/client'
+import {
+  ArrowLeft,
+  BookOpen,
+  BriefcaseBusiness,
+  Check,
+  ChevronRight,
+  Clock3,
+  Dumbbell,
+  Edit3,
+  HeartPulse,
+  Leaf,
+  Loader2,
+  Plus,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react'
 import Navigation from '@/components/Navigation'
-import { Plus, Check, Sparkles, Flame, Star, Wind, ArrowLeft, Loader2, Edit2, Sun, Moon, X, Clock } from 'lucide-react'
+import { supabase } from '@/lib/supabase/client'
 import { logEvent } from '@/lib/events'
 
-// ─── TYPES ────────────────────────────────────────────────────────────────────
-interface Routine {
+type Moment = 'morning' | 'evening'
+
+type Routine = {
   id: string
   title: string
-  description: string
-  category: 'morning' | 'evening'
+  description: string | null
+  category: Moment
   frequency: string
-  custom_days: string
+  custom_days: string | string[] | null
   completed: boolean
   last_completed_at: string | null
   streak_count: number
   reminder_enabled: boolean
-  reminder_minutes: number
+  reminder_minutes_before: number
   preferred_time: string | null
   duration_minutes: number | null
   user_id?: string
 }
 
-interface LocalReflection {
-  morningIntention: string
-  eveningGratitude: string
-  eveningHighlight: string
-  morningMood: string | null
+type RoutineTemplate = {
+  key: string
+  label: string
+  emoji: string
+  title: string
+  subtitle: string
+  icon: typeof Dumbbell
+  examples: string[]
+  defaultDuration: number
+  defaultMoment: Moment
 }
 
-interface ConflictAlert {
-  routineTitle: string
-  conflictTitle: string
-  hour: number
+const COLORS = {
+  background: 'var(--novae-background, #F8F1E5)',
+  surface: 'var(--novae-surface, #FFFFFF)',
+  surfaceAlt: 'var(--novae-surface-alt, #F5EFE6)',
+  ink: 'var(--novae-text-main, #3D2618)',
+  muted: 'var(--novae-text-muted, #786A5F)',
+  border: 'var(--novae-border, rgba(61,38,24,0.10))',
+  gold: 'var(--novae-metal, #B78A3D)',
+  goldSoft: 'var(--novae-primary-soft, rgba(183,138,61,0.12))',
+  success: '#5F8C70',
+  successSoft: 'rgba(95,140,112,0.12)',
+  danger: '#B05D5D',
+  shadow: 'var(--novae-shadow, rgba(61,38,24,0.10))',
 }
 
-// ─── CONSTS ───────────────────────────────────────────────────────────────────
 const DAYS = [
-  { key: 'mon', label: 'L' }, { key: 'tue', label: 'M' }, { key: 'wed', label: 'M' },
-  { key: 'thu', label: 'J' }, { key: 'fri', label: 'V' }, { key: 'sat', label: 'S' }, { key: 'sun', label: 'D' },
+  { key: 'mon', short: 'L', label: 'Lundi' },
+  { key: 'tue', short: 'M', label: 'Mardi' },
+  { key: 'wed', short: 'M', label: 'Mercredi' },
+  { key: 'thu', short: 'J', label: 'Jeudi' },
+  { key: 'fri', short: 'V', label: 'Vendredi' },
+  { key: 'sat', short: 'S', label: 'Samedi' },
+  { key: 'sun', short: 'D', label: 'Dimanche' },
 ]
-const DAY_NAMES: Record<string, string> = { mon: 'Lun', tue: 'Mar', wed: 'Mer', thu: 'Jeu', fri: 'Ven', sat: 'Sam', sun: 'Dim' }
-const TODAY_KEY = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()]
-const MOODS = [
-  { emoji: '🌟', label: 'Énergique' }, { emoji: '😌', label: 'Sereine' }, { emoji: '💪', label: 'Motivée' },
-  { emoji: '🌿', label: 'Calme' }, { emoji: '🔥', label: 'Déterminée' }, { emoji: '💤', label: 'Fatiguée' },
-]
-const EMOJIS = ['✨','🎯','💆','📖','🏃','🧘','💧','🍵','📝','🌸','🌞','💫','🎵','🌙','☀️','🏆','💊','🥗']
-const DURATIONS = [15, 20, 30, 45, 60, 90, 120]
 
-// Univers Routines = safran (matin) · le soir garde sa teinte lavande
-const C = {
-  morning: { primary: '#C79A3A', bg: 'rgba(245,216,155,0.22)', light: 'rgba(245,216,155,0.5)' },
-  evening: { primary: '#7B6FA0', bg: 'rgba(123,111,160,0.08)', light: 'rgba(123,111,160,0.18)' },
-}
-const BEIGE = '#F8F1E5'
-const ENCRE = '#3D2618'
-const ENCRE_DOUCE = '#6B5B4E'
-
-function fmtDate(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+const DAY_NAMES: Record<string, string> = {
+  mon: 'lun.', tue: 'mar.', wed: 'mer.', thu: 'jeu.', fri: 'ven.', sat: 'sam.', sun: 'dim.',
 }
 
-function parseDays(custom_days: any): string[] {
-  if (!custom_days) return ['mon','tue','wed','thu','fri','sat','sun']
-  if (Array.isArray(custom_days)) return custom_days
-  if (typeof custom_days !== 'string' || custom_days === '' || custom_days === 'null') return ['mon','tue','wed','thu','fri','sat','sun']
-  if (custom_days.startsWith('{')) {
-    return custom_days.replace(/[{}]/g, '').split(',').map((d: string) => d.trim()).filter(Boolean)
+const TODAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date().getDay()]
+const DURATIONS = [10, 15, 20, 30, 45, 60, 90]
+
+const TEMPLATES: RoutineTemplate[] = [
+  {
+    key: 'sport', label: 'Sport', emoji: '🏃', title: 'Bouger régulièrement', subtitle: 'Créer un rendez-vous réaliste avec ton corps',
+    icon: Dumbbell, examples: ['Marche rapide', 'Yoga', 'Renforcement', 'Course'], defaultDuration: 30, defaultMoment: 'morning',
+  },
+  {
+    key: 'wellbeing', label: 'Bien-être', emoji: '🧘', title: 'Prendre une vraie pause', subtitle: 'Respiration, méditation ou moment calme',
+    icon: Leaf, examples: ['Respiration', 'Méditation', 'Étirements', 'Pause sans écran'], defaultDuration: 10, defaultMoment: 'morning',
+  },
+  {
+    key: 'health', label: 'Santé', emoji: '💧', title: 'Prendre soin de ma santé', subtitle: 'Une action simple, répétée au bon moment',
+    icon: HeartPulse, examples: ['Boire de l’eau', 'Prendre mes vitamines', 'Préparer mes médicaments', 'Me coucher plus tôt'], defaultDuration: 10, defaultMoment: 'morning',
+  },
+  {
+    key: 'learning', label: 'Lecture', emoji: '📖', title: 'Lire ou apprendre', subtitle: 'Un temps protégé pour nourrir ton esprit',
+    icon: BookOpen, examples: ['Lire 20 minutes', 'Apprendre une langue', 'Formation', 'Journal'], defaultDuration: 20, defaultMoment: 'evening',
+  },
+  {
+    key: 'organisation', label: 'Organisation', emoji: '🗂️', title: 'Alléger la semaine', subtitle: 'Une petite routine pour ne plus tout garder en tête',
+    icon: BriefcaseBusiness, examples: ['Préparer demain', 'Ranger 15 minutes', 'Trier les papiers', 'Planifier la semaine'], defaultDuration: 15, defaultMoment: 'evening',
+  },
+]
+
+function parseDays(value: Routine['custom_days']): string[] {
+  if (Array.isArray(value)) return value
+  if (!value || value === 'null') return DAYS.map(day => day.key)
+  if (value.startsWith('{')) return value.replace(/[{}]/g, '').split(',').map(item => item.trim()).filter(Boolean)
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : DAYS.map(day => day.key)
+  } catch {
+    return value.split(',').map(item => item.trim()).filter(Boolean)
   }
-  try { return JSON.parse(custom_days) } catch { return custom_days.split(',').map((d: string) => d.trim()) }
 }
 
 function isScheduledToday(routine: Routine): boolean {
   if (routine.frequency === 'daily') return true
   const days = parseDays(routine.custom_days)
-  if (days.length === 0 || days.length === 7) return true
-  return days.includes(TODAY_KEY)
+  return days.length === 0 || days.length === 7 || days.includes(TODAY_KEY)
 }
 
-function getFrequencyLabel(routine: Routine): string {
-  if (routine.frequency === 'daily') return 'Chaque jour'
+function formatDays(routine: Routine): string {
   const days = parseDays(routine.custom_days)
-  if (days.length === 0 || days.length === 7) return 'Chaque jour'
-  return days.map(d => DAY_NAMES[d]).join(', ')
+  if (routine.frequency === 'daily' || days.length === 0 || days.length === 7) return 'Tous les jours'
+  return days.map(day => DAY_NAMES[day] || day).join(' · ')
 }
 
-function getTimeLabel(routine: Routine): string {
-  if (!routine.preferred_time) return ''
-  const dur = routine.duration_minutes ? ` · ${routine.duration_minutes}min` : ''
-  return `${routine.preferred_time.slice(0,5)}${dur}`
+function formatTime(routine: Routine): string {
+  const time = routine.preferred_time?.slice(0, 5)
+  const duration = routine.duration_minutes ? `${routine.duration_minutes} min` : null
+  return [time, duration].filter(Boolean).join(' · ') || 'Horaire libre'
 }
 
-// ─── MODAL ────────────────────────────────────────────────────────────────────
-function RoutineModal({ initial, defaultCategory, onSave, onDelete, onClose }: {
-  initial?: Routine
-  defaultCategory?: 'morning' | 'evening'
-  onSave: (data: Partial<Routine>) => Promise<void>
-  onDelete?: (id: string) => void
+function inferTemplate(routine: Routine): RoutineTemplate | null {
+  return TEMPLATES.find(template => routine.description === template.emoji) || null
+}
+
+function RoutineForm({
+  initial,
+  template,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  initial?: Routine | null
+  template?: RoutineTemplate | null
   onClose: () => void
+  onSave: (data: Partial<Routine>) => Promise<void>
+  onDelete?: () => Promise<void>
 }) {
-  const [title, setTitle] = useState(initial?.title || '')
-  const [emoji, setEmoji] = useState(initial?.description || '✨')
-  const [category, setCategory] = useState<'morning' | 'evening'>(initial?.category || defaultCategory || 'morning')
-  const [selectedDays, setSelectedDays] = useState<string[]>(() => {
-    if (!initial?.custom_days) return ['mon','tue','wed','thu','fri','sat','sun']
-    return parseDays(initial.custom_days)
-  })
-  const [preferredTime, setPreferredTime] = useState(initial?.preferred_time?.slice(0,5) || '')
-  const [durationMinutes, setDurationMinutes] = useState<number | null>(initial?.duration_minutes || null)
-  const [showEmoji, setShowEmoji] = useState(false)
+  const [title, setTitle] = useState(initial?.title || template?.examples[0] || '')
+  const [emoji, setEmoji] = useState(initial?.description || template?.emoji || '✨')
+  const [moment, setMoment] = useState<Moment>(initial?.category || template?.defaultMoment || 'morning')
+  const [days, setDays] = useState<string[]>(initial ? parseDays(initial.custom_days) : ['mon', 'wed', 'fri'])
+  const [time, setTime] = useState(initial?.preferred_time?.slice(0, 5) || (moment === 'morning' ? '07:30' : '19:00'))
+  const [duration, setDuration] = useState(initial?.duration_minutes || template?.defaultDuration || 20)
+  const [reminder, setReminder] = useState(initial?.reminder_enabled ?? true)
   const [saving, setSaving] = useState(false)
-  const colors = C[category]
+  const [deleting, setDeleting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
-  const toggleDay = (key: string) =>
-    setSelectedDays(prev => prev.includes(key) ? prev.filter(d => d !== key) : [...prev, key])
+  const canSave = title.trim().length > 1 && days.length > 0
 
-  const handleSave = async () => {
-    if (!title.trim() || selectedDays.length === 0) return
+  const toggleDay = (key: string) => {
+    setDays(current => current.includes(key) ? current.filter(day => day !== key) : [...current, key])
+  }
+
+  const save = async () => {
+    if (!canSave) return
     setSaving(true)
-    await onSave({
-      title: title.trim(),
-      description: emoji,
-      category,
-      frequency: selectedDays.length === 7 ? 'daily' : 'custom',
-      custom_days: '{' + selectedDays.join(',') + '}',
-      preferred_time: preferredTime || null,
-      duration_minutes: durationMinutes,
-    })
-    setSaving(false)
+    setFormError(null)
+    try {
+      await onSave({
+        title: title.trim(),
+        description: emoji,
+        category: moment,
+        frequency: days.length === 7 ? 'daily' : 'custom',
+        custom_days: `{${days.join(',')}}`,
+        preferred_time: time || null,
+        duration_minutes: duration,
+        reminder_enabled: reminder,
+        reminder_minutes_before: 15,
+      })
+    } catch (error) {
+      console.error('[routines] save failed', error)
+      setFormError("La routine n'a pas pu être enregistrée. Réessaie dans un instant.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!onDelete || !window.confirm('Supprimer cette routine ?')) return
+    setDeleting(true)
+    try {
+      await onDelete()
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div style={{ background: 'white', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 600, padding: '20px 20px 40px', maxHeight: '92vh', overflowY: 'auto' }}>
-        <div style={{ width: 40, height: 4, background: '#E8E4DF', borderRadius: 4, margin: '0 auto 20px' }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <h3 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: ENCRE }}>
-            {initial ? 'Modifier le rituel' : 'Nouveau rituel'}
-          </h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999' }}><X size={20} /></button>
-        </div>
-
-        {/* Emoji + Titre */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-          <button onClick={() => setShowEmoji(!showEmoji)}
-            style={{ width: 52, height: 52, borderRadius: 14, border: `2px solid ${showEmoji ? colors.primary : '#E8E4DF'}`, background: BEIGE, fontSize: 24, cursor: 'pointer', flexShrink: 0 }}>
-            {emoji}
-          </button>
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Nom du rituel..." autoFocus
-            style={{ flex: 1, border: '1.5px solid #E8E4DF', borderRadius: 12, padding: '0 14px', fontSize: 15, outline: 'none', color: ENCRE, background: BEIGE, fontFamily: "'DM Sans',sans-serif" }} />
-        </div>
-
-        {showEmoji && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, padding: 10, background: BEIGE, borderRadius: 12 }}>
-            {EMOJIS.map(e => (
-              <button key={e} onClick={() => { setEmoji(e); setShowEmoji(false) }}
-                style={{ fontSize: 22, width: 38, height: 38, borderRadius: 10, border: 'none', background: emoji === e ? colors.bg : 'transparent', cursor: 'pointer' }}>
-                {e}
-              </button>
-            ))}
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/45 md:items-center md:p-6" role="dialog" aria-modal="true">
+      <div className="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-t-[28px] px-5 pb-8 pt-4 shadow-2xl md:rounded-[28px] md:p-7" style={{ background: COLORS.surface, color: COLORS.ink }}>
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-stone-200 md:hidden" />
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: COLORS.gold }}>
+              {initial ? 'Modifier' : 'Nouvelle routine'}
+            </p>
+            <h2 className="m-0 font-serif text-3xl" style={{ color: COLORS.ink }}>
+              {initial ? initial.title : template?.label || 'Ma routine'}
+            </h2>
           </div>
-        )}
-
-        {/* Catégorie */}
-        <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Moment</p>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-          {(['morning', 'evening'] as const).map(cat => (
-            <button key={cat} onClick={() => setCategory(cat)}
-              style={{ flex: 1, padding: '10px 0', borderRadius: 12, border: `2px solid ${category === cat ? C[cat].primary : '#E8E4DF'}`, background: category === cat ? C[cat].bg : 'white', cursor: 'pointer', fontSize: 13, fontWeight: category === cat ? 700 : 400, color: category === cat ? C[cat].primary : '#666' }}>
-              {cat === 'morning' ? '☀️ Matin' : '🌙 Soir'}
-            </button>
-          ))}
+          <button onClick={onClose} className="rounded-full p-2 hover:bg-stone-100" aria-label="Fermer"><X size={20} /></button>
         </div>
 
-        {/* Jours */}
-        <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>Récurrence</p>
-        <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
-          {DAYS.map(d => (
-            <button key={d.key} onClick={() => toggleDay(d.key)}
-              style={{ flex: 1, height: 38, borderRadius: 10, border: `2px solid ${selectedDays.includes(d.key) ? colors.primary : '#E8E4DF'}`, background: selectedDays.includes(d.key) ? colors.bg : 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: selectedDays.includes(d.key) ? colors.primary : '#bbb' }}>
-              {d.label}
-            </button>
-          ))}
-        </div>
-        <p style={{ fontSize: 11, color: '#bbb', margin: '0 0 18px' }}>
-          {selectedDays.length === 7 ? 'Tous les jours' : selectedDays.length === 0 ? 'Sélectionne au moins un jour' : selectedDays.map(d => DAY_NAMES[d]).join(' · ')}
-        </p>
-
-        {/* Heure + Durée */}
-        <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>
-          Heure & durée <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>(optionnel — apparaît dans le Planner)</span>
-        </p>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 4 }}>Heure de début</label>
-            <div style={{ position: 'relative' }}>
-              <Clock size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: preferredTime ? colors.primary : '#bbb' }} />
-              <input
-                type="time"
-                value={preferredTime}
-                onChange={e => setPreferredTime(e.target.value)}
-                style={{ width: '100%', border: `1.5px solid ${preferredTime ? colors.primary : '#E8E4DF'}`, borderRadius: 10, padding: '9px 10px 9px 30px', fontSize: 14, outline: 'none', color: ENCRE, background: preferredTime ? colors.bg : BEIGE, boxSizing: 'border-box' as const }}
-              />
-            </div>
-            {preferredTime && (
-              <button onClick={() => setPreferredTime('')} style={{ fontSize: 10, color: '#bbb', background: 'none', border: 'none', cursor: 'pointer', marginTop: 3 }}>
-                ✕ Retirer l'heure
-              </button>
-            )}
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 4 }}>Durée</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-              {DURATIONS.map(d => (
-                <button key={d} onClick={() => setDurationMinutes(durationMinutes === d ? null : d)}
-                  style={{ padding: '6px 10px', borderRadius: 8, border: `1.5px solid ${durationMinutes === d ? colors.primary : '#E8E4DF'}`, background: durationMinutes === d ? colors.bg : 'white', fontSize: 11, fontWeight: durationMinutes === d ? 700 : 400, color: durationMinutes === d ? colors.primary : '#aaa', cursor: 'pointer' }}>
-                  {d < 60 ? `${d}min` : `${d/60}h`}
+        {template && !initial && (
+          <div className="mb-5 rounded-2xl p-4" style={{ background: COLORS.goldSoft }}>
+            <p className="mb-2 text-sm font-semibold" style={{ color: COLORS.ink }}>Une idée pour commencer</p>
+            <div className="flex flex-wrap gap-2">
+              {template.examples.map(example => (
+                <button key={example} onClick={() => setTitle(example)} className="rounded-full px-3 py-2 text-xs font-medium shadow-sm" style={{ color: COLORS.ink, background: COLORS.surface, border: `1px solid ${COLORS.border}` }}>
+                  {example}
                 </button>
               ))}
             </div>
           </div>
+        )}
+
+        <label className="mb-5 block">
+          <span className="mb-2 block text-sm font-semibold" style={{ color: COLORS.ink }}>Qu’est-ce que tu veux faire ?</span>
+          <div className="flex gap-2">
+            <input value={emoji} onChange={event => setEmoji(event.target.value.slice(0, 2))} className="h-12 w-14 rounded-xl border text-center text-xl" style={{ borderColor: COLORS.border, color: COLORS.ink, background: COLORS.surface, colorScheme: 'light' }} aria-label="Emoji" />
+            <input value={title} onChange={event => setTitle(event.target.value)} className="h-12 flex-1 rounded-xl border px-4 text-sm outline-none focus:ring-2" style={{ borderColor: COLORS.border, color: COLORS.ink, background: COLORS.surface, colorScheme: 'light' }} placeholder="Ex. Marche rapide" autoFocus />
+          </div>
+        </label>
+
+        <div className="mb-5">
+          <p className="mb-2 text-sm font-semibold" style={{ color: COLORS.ink }}>À quel moment ?</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(['morning', 'evening'] as Moment[]).map(value => (
+              <button key={value} onClick={() => { setMoment(value); if (!initial) setTime(value === 'morning' ? '07:30' : '19:00') }} className="rounded-xl border px-4 py-3 text-sm font-semibold" style={{ borderColor: moment === value ? COLORS.gold : COLORS.border, background: moment === value ? COLORS.goldSoft : COLORS.surface, color: COLORS.ink }}>
+                {value === 'morning' ? '☀️ Matin' : '🌙 Soir'}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Aperçu Planner */}
-        {preferredTime && (
-          <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 12, background: colors.bg, border: `1px solid ${colors.light}` }}>
-            <p style={{ margin: 0, fontSize: 12, color: colors.primary, fontWeight: 600 }}>
-              📅 Apparaîtra dans le Planner à {preferredTime}
-              {durationMinutes ? ` · ${durationMinutes} min` : ''}
-            </p>
-            <p style={{ margin: '2px 0 0', fontSize: 11, color: '#aaa' }}>
-              {selectedDays.length === 7 ? 'Tous les jours' : selectedDays.map(d => DAY_NAMES[d]).join(', ')}
-            </p>
+        <div className="mb-5">
+          <p className="mb-2 text-sm font-semibold" style={{ color: COLORS.ink }}>Quels jours ?</p>
+          <div className="grid grid-cols-7 gap-1.5">
+            {DAYS.map(day => {
+              const active = days.includes(day.key)
+              return (
+                <button key={day.key} onClick={() => toggleDay(day.key)} title={day.label} className="aspect-square rounded-xl border text-xs font-bold" style={{ borderColor: active ? COLORS.gold : COLORS.border, background: active ? COLORS.gold : COLORS.surface, color: active ? 'white' : COLORS.muted }}>
+                  {day.short}
+                </button>
+              )
+            })}
           </div>
-        )}
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => setDays(DAYS.slice(0, 5).map(day => day.key))} className="text-xs font-semibold" style={{ color: COLORS.gold }}>En semaine</button>
+            <span className="text-stone-300">·</span>
+            <button onClick={() => setDays(DAYS.map(day => day.key))} className="text-xs font-semibold" style={{ color: COLORS.gold }}>Tous les jours</button>
+          </div>
+        </div>
 
-        <button onClick={handleSave} disabled={saving || !title.trim() || selectedDays.length === 0}
-          style={{ width: '100%', padding: '14px 0', borderRadius: 14, border: 'none', background: title.trim() && selectedDays.length > 0 ? colors.primary : '#E8E4DF', color: title.trim() && selectedDays.length > 0 ? 'white' : '#aaa', fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          {saving ? <Loader2 size={18} /> : (initial ? '✓ Enregistrer' : '+ Créer le rituel')}
+        <div className="mb-5 grid grid-cols-2 gap-3">
+          <label>
+            <span className="mb-2 block text-sm font-semibold" style={{ color: COLORS.ink }}>Heure</span>
+            <input type="time" value={time} onChange={event => setTime(event.target.value)} className="h-12 w-full rounded-xl border px-3 text-sm" style={{ borderColor: COLORS.border, color: COLORS.ink, background: COLORS.surface, colorScheme: 'light' }} />
+          </label>
+          <div>
+            <p className="mb-2 text-sm font-semibold" style={{ color: COLORS.ink }}>Durée</p>
+            <select value={duration} onChange={event => setDuration(Number(event.target.value))} className="h-12 w-full rounded-xl border px-3 text-sm" style={{ borderColor: COLORS.border, color: COLORS.ink, background: COLORS.surface, colorScheme: 'light' }}>
+              {DURATIONS.map(value => <option key={value} value={value}>{value} min</option>)}
+            </select>
+          </div>
+        </div>
+
+        <button onClick={() => setReminder(value => !value)} className="mb-6 flex w-full items-center justify-between rounded-2xl border p-4 text-left" style={{ borderColor: COLORS.border, background: COLORS.surfaceAlt }}>
+          <div>
+            <p className="m-0 text-sm font-semibold" style={{ color: COLORS.ink }}>Me le rappeler</p>
+            <p className="m-0 mt-1 text-xs" style={{ color: COLORS.muted }}>Un rappel doux 15 minutes avant</p>
+          </div>
+          <span className="relative h-7 w-12 rounded-full transition" style={{ background: reminder ? COLORS.success : '#D6D1CC' }}>
+            <span className="absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all" style={{ left: reminder ? 24 : 4 }} />
+          </span>
         </button>
 
-        {initial?.id && onDelete && (
-          <button onClick={() => onDelete(initial.id)}
-            style={{ width: '100%', marginTop: 10, padding: '12px 0', borderRadius: 14, border: '1.5px solid rgba(220,50,50,0.2)', background: 'rgba(220,50,50,0.06)', color: '#c0392b', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-            🗑 Supprimer ce rituel
-          </button>
+        {formError && (
+          <p className="mb-3 rounded-xl px-3 py-2 text-sm" style={{ background: 'rgba(176,93,93,.10)', color: COLORS.danger }}>
+            {formError}
+          </p>
         )}
+
+        <div className="flex gap-3">
+          {onDelete && (
+            <button onClick={remove} disabled={deleting} className="flex h-12 w-12 items-center justify-center rounded-xl border" style={{ borderColor: 'rgba(176,93,93,.25)', color: COLORS.danger }} aria-label="Supprimer">
+              {deleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+            </button>
+          )}
+          <button onClick={save} disabled={!canSave || saving} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl text-sm font-bold text-white disabled:opacity-40" style={{ background: COLORS.gold }}>
+            {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+            {initial ? 'Enregistrer les modifications' : 'Créer ma routine'}
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
-// ─── PAGE ─────────────────────────────────────────────────────────────────────
 export default function RoutinesPage() {
   const router = useRouter()
   const [routines, setRoutines] = useState<Routine[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'morning' | 'evening'>('morning')
-  const [showModal, setShowModal] = useState(false)
-  const [modalCategory, setModalCategory] = useState<'morning' | 'evening'>('morning')
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<RoutineTemplate | null>(null)
   const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null)
-  const [reflectionOpen, setReflectionOpen] = useState<{ morning: boolean; evening: boolean }>({ morning: false, evening: false })
-  const [savedFeedback, setSavedFeedback] = useState<'morning' | 'evening' | null>(null)
-  const [conflicts, setConflicts] = useState<ConflictAlert[]>([])
-  const [reflection, setReflection] = useState<LocalReflection>({ morningIntention: '', eveningGratitude: '', eveningHighlight: '', morningMood: null })
+  const [customOpen, setCustomOpen] = useState(false)
 
   useEffect(() => {
-    setActiveTab(new Date().getHours() >= 17 ? 'evening' : 'morning')
-    loadRoutines()
-    const today = fmtDate(new Date())
-    const saved = localStorage.getItem(`novae-reflection-${today}`)
-    if (saved) { try { setReflection(JSON.parse(saved)) } catch {} }
+    void loadRoutines()
   }, [])
-
-  useEffect(() => {
-  supabase.auth.getUser().then(({ data: { user } }) => {
-    if (user) logEvent(supabase, user.id, 'module_routines')
-  })
-}, [])
 
   const loadRoutines = async () => {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoading(false); return }
-    const today = fmtDate(new Date())
-
-    const { data } = await supabase.from('routines').select('*').eq('user_id', user.id).order('created_at', { ascending: true })
-    if (data) {
-      const processed = data.map((r: any) => ({
-        ...r,
-        completed: r.last_completed_at ? fmtDate(new Date(r.last_completed_at)) === today && r.completed : false,
-      })) as Routine[]
-      setRoutines(processed)
-
-      const { data: tasks } = await supabase
-        .from('tasks')
-        .select('title, start_hour, duration_hours')
-        .eq('user_id', user.id)
-        .eq('date', today)
-
-      if (tasks && tasks.length > 0) {
-        const newConflicts: ConflictAlert[] = []
-        processed.forEach(routine => {
-          if (!routine.preferred_time || !isScheduledToday(routine)) return
-          const rHour = parseInt(routine.preferred_time.split(':')[0])
-          const rDurH = (routine.duration_minutes || 60) / 60
-          const rEnd = rHour + rDurH
-
-          tasks.forEach((task: any) => {
-            const tStart = task.start_hour
-            const tEnd = tStart + (task.duration_hours || 1)
-            const overlaps = rHour < tEnd && rEnd > tStart
-            if (overlaps) {
-              newConflicts.push({ routineTitle: routine.title, conflictTitle: task.title, hour: rHour })
-            }
-          })
-        })
-        setConflicts(newConflicts)
-      }
+    if (!user) {
+      router.push('/login')
+      return
     }
+    logEvent(supabase, user.id, 'module_routines')
+    const { data, error } = await supabase.from('routines').select('*').eq('user_id', user.id).order('created_at', { ascending: true })
+    if (!error) setRoutines((data || []) as Routine[])
     setLoading(false)
   }
 
-  const toggleRoutine = async (routine: Routine) => {
-    const newCompleted = !routine.completed
-    const now = new Date().toISOString()
-    const today = fmtDate(new Date())
-    const lastDate = routine.last_completed_at ? fmtDate(new Date(routine.last_completed_at)) : null
-    const yesterday = fmtDate(new Date(Date.now() - 86400000))
-    const newStreak = newCompleted
-      ? (lastDate === yesterday || lastDate === today ? routine.streak_count + 1 : 1)
-      : Math.max(0, routine.streak_count - 1)
+  const todayRoutines = useMemo(
+    () => routines.filter(isScheduledToday).sort((a, b) => (a.preferred_time || '99:99').localeCompare(b.preferred_time || '99:99')),
+    [routines],
+  )
+  const completedCount = todayRoutines.filter(routine => routine.completed).length
+  const progress = todayRoutines.length ? Math.round((completedCount / todayRoutines.length) * 100) : 0
 
-    setRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, completed: newCompleted, last_completed_at: newCompleted ? now : r.last_completed_at, streak_count: newStreak } : r))
-    await supabase.from('routines').update({ completed: newCompleted, last_completed_at: newCompleted ? now : routine.last_completed_at, streak_count: newStreak, updated_at: now }).eq('id', routine.id)
+  const toggleRoutine = async (routine: Routine) => {
+    setBusyId(routine.id)
+    const completed = !routine.completed
+    const now = new Date().toISOString()
+    const previous = routines
+    setRoutines(current => current.map(item => item.id === routine.id ? {
+      ...item,
+      completed,
+      last_completed_at: completed ? now : item.last_completed_at,
+      streak_count: completed ? Math.max(1, item.streak_count || 0) : Math.max(0, (item.streak_count || 0) - 1),
+    } : item))
+
+    const { error } = await supabase.from('routines').update({
+      completed,
+      last_completed_at: completed ? now : routine.last_completed_at,
+      streak_count: completed ? Math.max(1, routine.streak_count || 0) : Math.max(0, (routine.streak_count || 0) - 1),
+      updated_at: now,
+    }).eq('id', routine.id)
+    if (error) setRoutines(previous)
+    setBusyId(null)
   }
 
   const createRoutine = async (data: Partial<Routine>) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data: inserted } = await supabase.from('routines').insert({
-      user_id: user.id, title: data.title, description: data.description,
-      category: data.category, frequency: data.frequency, custom_days: data.custom_days,
+    const { data: inserted, error } = await supabase.from('routines').insert({
+      user_id: user.id,
+      title: data.title,
+      description: data.description,
+      category: data.category,
+      frequency: data.frequency,
+      custom_days: data.custom_days,
+      completed: false,
+      streak_count: 0,
+      reminder_enabled: data.reminder_enabled ?? true,
+      reminder_minutes_before: data.reminder_minutes_before ?? 15,
       preferred_time: data.preferred_time || null,
       duration_minutes: data.duration_minutes || null,
-      completed: false, streak_count: 0,
     }).select().single()
-    if (inserted) setRoutines(prev => [...prev, inserted as Routine])
-    setShowModal(false)
+    if (error) throw error
+    setRoutines(current => [...current, inserted as Routine])
+    setSelectedTemplate(null)
+    setCustomOpen(false)
   }
 
   const updateRoutine = async (data: Partial<Routine>) => {
     if (!editingRoutine) return
-    setRoutines(prev => prev.map(r => r.id === editingRoutine.id ? { ...r, ...data } : r))
-    await supabase.from('routines').update({
-      title: data.title, description: data.description, category: data.category,
-      frequency: data.frequency, custom_days: data.custom_days,
+    const { data: updated, error } = await supabase.from('routines').update({
+      title: data.title,
+      description: data.description,
+      category: data.category,
+      frequency: data.frequency,
+      custom_days: data.custom_days,
+      reminder_enabled: data.reminder_enabled,
+      reminder_minutes_before: data.reminder_minutes_before,
       preferred_time: data.preferred_time || null,
       duration_minutes: data.duration_minutes || null,
       updated_at: new Date().toISOString(),
-    }).eq('id', editingRoutine.id)
+    }).eq('id', editingRoutine.id).select().single()
+    if (error) throw error
+    setRoutines(current => current.map(item => item.id === editingRoutine.id ? updated as Routine : item))
     setEditingRoutine(null)
   }
 
-  const deleteRoutine = async (id: string) => {
-    setRoutines(prev => prev.filter(r => r.id !== id))
-    await supabase.from('routines').delete().eq('id', id)
+  const deleteRoutine = async () => {
+    if (!editingRoutine) return
+    const { error } = await supabase.from('routines').delete().eq('id', editingRoutine.id)
+    if (error) throw error
+    setRoutines(current => current.filter(item => item.id !== editingRoutine.id))
     setEditingRoutine(null)
-  }
-
-  const saveReflection = async (category: 'morning' | 'evening') => {
-    const isM = category === 'morning'
-    const today = fmtDate(new Date())
-    localStorage.setItem(`novae-reflection-${today}`, JSON.stringify(reflection))
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const entry = isM
-      ? { type: 'intention', text: reflection.morningIntention, mood: reflection.morningMood, date: today }
-      : { type: 'gratitude', text: reflection.eveningGratitude, highlight: reflection.eveningHighlight, date: today }
-    const { data: prog } = await supabase.from('program_progress').select('mission_responses').eq('user_id', user.id).single()
-    const existing = prog?.mission_responses || []
-    const filtered = existing.filter((r: any) => !(r.date === today && r.type === entry.type))
-    await supabase.from('program_progress').update({ mission_responses: [...filtered, entry], updated_at: new Date().toISOString() }).eq('user_id', user.id)
-    setSavedFeedback(category)
-    setTimeout(() => { setSavedFeedback(null); setReflectionOpen(s => ({ ...s, [category]: false })) }, 1500)
-  }
-
-  const nowEvening = new Date().getHours() >= 17
-
-  // ─── Rendu d'une colonne (Matin ou Soir) ──────────────────────────────────
-  const renderColumn = (category: 'morning' | 'evening') => {
-    const colors = C[category]
-    const isM = category === 'morning'
-    const todayR = routines.filter(r => r.category === category && isScheduledToday(r))
-    const otherR = routines.filter(r => r.category === category && !isScheduledToday(r))
-    const prog = todayR.length > 0 ? Math.round((todayR.filter(r => r.completed).length / todayR.length) * 100) : 0
-    const open = reflectionOpen[category]
-    const visClass = `${activeTab === category ? 'block' : 'hidden'} md:block`
-
-    return (
-      <section className={visClass}>
-        {/* Titre colonne */}
-        <div className="flex items-center gap-2 mb-4">
-          <span style={{ fontSize: 24 }}>{isM ? '☀️' : '🌙'}</span>
-          <h2 className="font-serif" style={{ fontSize: 22, color: ENCRE, margin: 0 }}>{isM ? 'Matin' : 'Soir'}</h2>
-          {todayR.length > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: colors.primary, color: 'white', fontSize: 11 }}>
-              {todayR.filter(r => r.completed).length}/{todayR.length}
-            </span>
-          )}
-        </div>
-
-        {/* Progress */}
-        {todayR.length > 0 && (
-          <div className="mb-4">
-            <div className="flex justify-between text-xs mb-1.5" style={{ color: ENCRE_DOUCE }}>
-              <span>{todayR.filter(r => r.completed).length}/{todayR.length} rituels aujourd'hui</span>
-              <span>{prog}%{prog === 100 ? ' 🎉' : ''}</span>
-            </div>
-            <div className="h-2 rounded-full overflow-hidden" style={{ background: colors.light }}>
-              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${prog}%`, background: `linear-gradient(90deg, ${colors.primary}, ${isM ? '#E8C97A' : '#A99CC4'})` }} />
-            </div>
-          </div>
-        )}
-
-        {/* Liste */}
-        <div className="mb-4 rounded-2xl overflow-hidden" style={{ background: 'white', boxShadow: '0 2px 14px rgba(61,38,24,0.05)' }}>
-          {loading ? (
-            <div className="flex justify-center py-10"><Loader2 size={22} className="animate-spin" style={{ color: colors.primary }} /></div>
-          ) : todayR.length === 0 ? (
-            <div className="text-center py-10">
-              <div style={{ fontSize: 36 }} className="mb-2">{isM ? '🌄' : '🌃'}</div>
-              <p className="text-sm" style={{ color: ENCRE_DOUCE }}>Aucun rituel prévu aujourd'hui</p>
-              <p className="text-xs mt-1" style={{ color: ENCRE_DOUCE, opacity: 0.6 }}>Crée tes premiers rituels ↓</p>
-            </div>
-          ) : (
-            todayR.map((routine, i) => {
-              const hasConflict = conflicts.some(c => c.routineTitle === routine.title)
-              return (
-                <div key={routine.id} className="flex items-center gap-3 px-4 py-3.5 transition-all"
-                  style={{ borderBottom: i < todayR.length - 1 ? '1px solid rgba(61,38,24,0.06)' : 'none', background: hasConflict ? 'rgba(212,149,106,0.06)' : routine.completed ? colors.bg : 'transparent' }}>
-                  <button onClick={() => toggleRoutine(routine)}
-                    className="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200"
-                    style={{ borderColor: routine.completed ? colors.primary : 'rgba(61,38,24,0.2)', background: routine.completed ? colors.primary : 'transparent' }}>
-                    {routine.completed && <Check size={12} color="white" strokeWidth={3} />}
-                  </button>
-                  <span style={{ fontSize: 20, flexShrink: 0 }}>{routine.description || '✨'}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p className="text-sm font-medium" style={{ color: ENCRE, opacity: routine.completed ? 0.4 : 1, textDecoration: routine.completed ? 'line-through' : 'none', margin: 0 }}>
-                      {routine.title}
-                      {hasConflict && <span style={{ marginLeft: 6, fontSize: 12 }}>⚠️</span>}
-                    </p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-xs" style={{ color: ENCRE_DOUCE, opacity: 0.7, margin: 0 }}>{getFrequencyLabel(routine)}</p>
-                      {routine.preferred_time && (
-                        <span className="text-xs flex items-center gap-1" style={{ color: colors.primary }}>
-                          <Clock size={10} /> {getTimeLabel(routine)}
-                          <span style={{ fontSize: 9, background: colors.bg, padding: '1px 5px', borderRadius: 6, color: colors.primary }}>📅 Planner</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {routine.streak_count > 1 && (
-                    <span className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#FBF0CC', color: '#7A6010', border: '1px solid #E8D080' }}>🔥{routine.streak_count}</span>
-                  )}
-                  <button onClick={() => setEditingRoutine(routine)} className="flex-shrink-0 p-1.5 rounded-lg opacity-30 hover:opacity-70 transition-opacity" style={{ color: ENCRE }}>
-                    <Edit2 size={14} />
-                  </button>
-                </div>
-              )
-            })
-          )}
-
-          {otherR.length > 0 && (
-            <div style={{ borderTop: '1px solid rgba(61,38,24,0.06)', padding: '10px 16px' }}>
-              <p className="text-xs mb-2" style={{ color: ENCRE_DOUCE, opacity: 0.6 }}>Pas prévus aujourd'hui</p>
-              {otherR.map(routine => (
-                <div key={routine.id} className="flex items-center gap-3 py-1.5 opacity-50">
-                  <span style={{ fontSize: 16 }}>{routine.description || '✨'}</span>
-                  <span className="text-xs flex-1" style={{ color: ENCRE }}>{routine.title}</span>
-                  <span className="text-xs" style={{ color: ENCRE_DOUCE }}>{getFrequencyLabel(routine)}</span>
-                  <button onClick={() => setEditingRoutine(routine)} className="p-1 opacity-50"><Edit2 size={12} /></button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-3 mb-4">
-          <button onClick={() => { setModalCategory(category); setShowModal(true) }}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold"
-            style={{ background: colors.primary, color: 'white' }}>
-            <Plus size={18} /> Nouveau rituel
-          </button>
-          <button onClick={() => setReflectionOpen(s => ({ ...s, [category]: !s[category] }))}
-            className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-sm font-semibold"
-            style={{ background: open ? colors.bg : 'white', color: colors.primary, border: `1.5px solid ${colors.light}` }}>
-            {isM ? <Sparkles size={16} /> : <Star size={16} />}
-            {isM ? 'Intention' : 'Gratitude'}
-          </button>
-        </div>
-
-        {/* Réflexion */}
-        {open && (
-          <div className="mb-4 p-5 rounded-2xl" style={{ background: 'white', boxShadow: '0 2px 14px rgba(61,38,24,0.05)' }}>
-            {isM ? (
-              <>
-                <div className="mb-4">
-                  <p className="text-xs font-semibold mb-2" style={{ color: ENCRE_DOUCE, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Mon énergie ce matin</p>
-                  <div className="flex flex-wrap gap-2">
-                    {MOODS.map(m => (
-                      <button key={m.emoji} onClick={() => setReflection(s => ({ ...s, morningMood: m.emoji }))}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all"
-                        style={{ background: reflection.morningMood === m.emoji ? colors.primary : colors.bg, color: reflection.morningMood === m.emoji ? 'white' : ENCRE, border: `1.5px solid ${reflection.morningMood === m.emoji ? colors.primary : 'transparent'}` }}>
-                        {m.emoji} {m.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 mb-2"><Sparkles size={14} style={{ color: colors.primary }} /><p className="text-sm font-semibold" style={{ color: ENCRE, margin: 0 }}>Mon intention du jour</p></div>
-                {reflection.morningIntention && (
-                  <div className="mb-2 px-3 py-2 rounded-xl text-sm italic" style={{ background: colors.bg, color: ENCRE }}>"{reflection.morningIntention}"</div>
-                )}
-                <textarea value={reflection.morningIntention} onChange={e => setReflection(s => ({ ...s, morningIntention: e.target.value }))} placeholder="Je veux aujourd'hui ressentir, accomplir, être..." rows={3} className="w-full text-sm px-4 py-3 rounded-xl border-0 outline-none resize-none" style={{ background: colors.bg, color: ENCRE }} />
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2 mb-2"><Star size={14} style={{ color: colors.primary }} /><p className="text-sm font-semibold" style={{ color: ENCRE, margin: 0 }}>Ma gratitude du soir</p></div>
-                <textarea value={reflection.eveningGratitude} onChange={e => setReflection(s => ({ ...s, eveningGratitude: e.target.value }))} placeholder="Aujourd'hui je suis reconnaissante pour..." rows={3} className="w-full text-sm px-4 py-3 rounded-xl border-0 outline-none resize-none mb-3" style={{ background: colors.bg, color: ENCRE }} />
-                <div className="flex items-center gap-2 mb-2"><Flame size={14} style={{ color: colors.primary }} /><p className="text-sm font-semibold" style={{ color: ENCRE, margin: 0 }}>Le moment fort du jour</p></div>
-                <textarea value={reflection.eveningHighlight} onChange={e => setReflection(s => ({ ...s, eveningHighlight: e.target.value }))} placeholder="Ce qui m'a rendue fière ou heureuse aujourd'hui..." rows={2} className="w-full text-sm px-4 py-3 rounded-xl border-0 outline-none resize-none" style={{ background: colors.bg, color: ENCRE }} />
-              </>
-            )}
-            <button onClick={() => saveReflection(category)} className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold transition-all" style={{ background: savedFeedback === category ? '#7BAF8E' : colors.primary, color: 'white' }}>
-              {savedFeedback === category ? '✓ Enregistré !' : isM ? 'Valider mon intention' : 'Valider ma soirée'}
-            </button>
-          </div>
-        )}
-
-        {/* Quote */}
-        <div className="p-4 rounded-2xl text-center" style={{ background: `linear-gradient(135deg, ${colors.bg}, rgba(255,255,255,0))` }}>
-          <Wind size={14} className="mx-auto mb-1.5" style={{ color: colors.primary, opacity: 0.5 }} />
-          <p className="text-sm font-serif italic" style={{ color: ENCRE_DOUCE }}>
-            {isM ? '"Chaque matin, tu renaîs. Ce que tu fais aujourd\'hui est ce qui compte."' : '"La nuit est un repos mérité. Demain, une nouvelle page t\'attend."'}
-          </p>
-        </div>
-      </section>
-    )
   }
 
   return (
-    <div className="min-h-screen" style={{ background: BEIGE }}>
+    <div className="min-h-screen" style={{ background: COLORS.background, color: COLORS.ink }}>
       <Navigation />
-      <div className="pb-28">
-        <main className="px-4 md:px-8 pt-6 max-w-xl md:max-w-5xl mx-auto">
+      <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 md:px-8 md:pt-10">
+        <button onClick={() => router.push('/')} className="mb-5 flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium" style={{ background: COLORS.surfaceAlt, color: COLORS.muted }}>
+          <ArrowLeft size={15} /> Accueil
+        </button>
 
-          {/* Header */}
-          <header className="mb-6">
-            <button onClick={() => router.push('/')} className="flex items-center gap-2 mb-4 text-sm px-3 py-1.5 rounded-full" style={{ color: ENCRE, opacity: 0.5, background: 'rgba(61,38,24,0.05)' }}>
-              <ArrowLeft size={13} /> Accueil
-            </button>
-            <div className="flex items-start justify-between">
-              <div>
-                <p style={{ fontSize: 11, fontWeight: 600, color: '#C79A3A', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>
-                  {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </p>
-                <h1 className="font-serif" style={{ fontSize: 36, color: ENCRE, lineHeight: 1.1, margin: 0 }}>Routines</h1>
+        <header className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: COLORS.gold }}>
+              {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+            <h1 className="m-0 font-serif text-4xl md:text-5xl">Mes routines</h1>
+            <p className="mb-0 mt-2 max-w-xl text-sm leading-6" style={{ color: COLORS.muted }}>
+              Planifie ce qui te fait du bien. Tes routines apparaissent automatiquement dans le Planner.
+            </p>
+          </div>
+          <button onClick={() => setCustomOpen(true)} className="flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-sm" style={{ background: COLORS.gold }}>
+            <Plus size={18} /> Créer ma routine
+          </button>
+        </header>
+
+        <section className="mb-8 rounded-[26px] border p-5 shadow-sm md:p-7" style={{ borderColor: COLORS.border, background: COLORS.surface, boxShadow: `0 13px 34px ${COLORS.shadow}` }}>
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <div className="mb-1 flex items-center gap-2">
+                <Sparkles size={17} style={{ color: COLORS.gold }} />
+                <h2 className="m-0 font-serif text-2xl">Aujourd’hui</h2>
               </div>
-              <span style={{ fontSize: 40 }}>{nowEvening ? '🌙' : '☀️'}</span>
+              <p className="m-0 text-sm" style={{ color: COLORS.muted }}>
+                {todayRoutines.length === 0 ? 'Aucune routine prévue. Ta journée reste libre.' : `${completedCount} réalisée${completedCount > 1 ? 's' : ''} sur ${todayRoutines.length}`}
+              </p>
             </div>
-          </header>
+            {todayRoutines.length > 0 && <span className="rounded-full px-3 py-1 text-xs font-bold" style={{ background: COLORS.successSoft, color: COLORS.success }}>{progress}%</span>}
+          </div>
 
-          {/* Alertes conflits (commun aux deux moments) */}
-          {conflicts.length > 0 && (
-            <div className="mb-5 p-4 rounded-2xl" style={{ background: 'rgba(212,149,106,0.1)', border: '1.5px solid rgba(212,149,106,0.3)' }}>
-              <p className="text-sm font-semibold mb-2" style={{ color: '#C4956A', margin: '0 0 8px' }}>⚠️ Conflits détectés aujourd'hui</p>
-              {conflicts.map((c, i) => (
-                <div key={i} className="text-xs" style={{ color: ENCRE, opacity: 0.7, marginBottom: 4 }}>
-                  <strong>{c.routineTitle}</strong> à {String(c.hour).padStart(2,'0')}h chevauche <strong>{c.conflictTitle}</strong>
-                </div>
-              ))}
-              <p className="text-xs mt-2" style={{ color: '#aaa' }}>Pense à reporter ou annuler l'un des deux.</p>
+          {todayRoutines.length > 0 && (
+            <div className="mb-5 h-2 overflow-hidden rounded-full bg-stone-100">
+              <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: COLORS.success }} />
             </div>
           )}
 
-          {/* Onglets Matin / Soir — mobile uniquement */}
-          <div className="flex gap-2 mb-5 p-1 rounded-2xl md:hidden" style={{ background: 'rgba(245,216,155,0.2)' }}>
-            {(['morning', 'evening'] as const).map(tab => {
-              const isActive = activeTab === tab
-              const c = C[tab]
-              const todayCount = routines.filter(r => r.category === tab && isScheduledToday(r))
-              const doneCount = todayCount.filter(r => r.completed).length
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="animate-spin" style={{ color: COLORS.gold }} /></div>
+          ) : todayRoutines.length === 0 ? (
+            <button onClick={() => setCustomOpen(true)} className="flex w-full items-center justify-between rounded-2xl border border-dashed p-4 text-left" style={{ borderColor: 'rgba(183,138,61,.35)', background: COLORS.goldSoft }}>
+              <div><p className="m-0 text-sm font-bold">Ajouter une première routine</p><p className="m-0 mt-1 text-xs" style={{ color: COLORS.muted }}>Commence petit : 10 à 20 minutes suffisent.</p></div>
+              <ChevronRight size={18} />
+            </button>
+          ) : (
+            <div className="space-y-3">
+              {todayRoutines.map(routine => {
+                const template = inferTemplate(routine)
+                return (
+                  <div key={routine.id} className="flex items-center gap-3 rounded-2xl border p-3.5 transition" style={{ borderColor: routine.completed ? 'rgba(95,140,112,.25)' : COLORS.border, background: routine.completed ? COLORS.successSoft : COLORS.surfaceAlt }}>
+                    <button onClick={() => void toggleRoutine(routine)} disabled={busyId === routine.id} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 transition" style={{ borderColor: routine.completed ? COLORS.success : 'rgba(61,38,24,.18)', background: routine.completed ? COLORS.success : COLORS.surface, color: 'white' }} aria-label={routine.completed ? 'Marquer comme non réalisée' : 'Marquer comme réalisée'}>
+                      {busyId === routine.id ? <Loader2 size={18} className="animate-spin" style={{ color: routine.completed ? 'white' : COLORS.gold }} /> : routine.completed ? <Check size={21} strokeWidth={3} /> : <span className="text-xl">{routine.description || template?.emoji || '✨'}</span>}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className="m-0 truncate text-sm font-bold" style={{ textDecoration: routine.completed ? 'line-through' : 'none', opacity: routine.completed ? .55 : 1 }}>{routine.title}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: COLORS.muted }}>
+                        <span className="flex items-center gap-1"><Clock3 size={12} /> {formatTime(routine)}</span>
+                        <span>{routine.category === 'morning' ? 'Matin' : 'Soir'}</span>
+                        {(routine.streak_count || 0) > 1 && <span>🔥 {routine.streak_count} jours</span>}
+                      </div>
+                    </div>
+                    <button onClick={() => setEditingRoutine(routine)} className="rounded-xl p-2" aria-label="Modifier"><Edit3 size={17} style={{ color: COLORS.muted }} /></button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="mb-8">
+          <div className="mb-4">
+            <h2 className="m-0 font-serif text-2xl">Choisis une idée</h2>
+            <p className="m-0 mt-1 text-sm" style={{ color: COLORS.muted }}>Une base simple que tu peux entièrement personnaliser.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {TEMPLATES.map(template => {
+              const Icon = template.icon
               return (
-                <button key={tab} onClick={() => setActiveTab(tab)}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-200"
-                  style={{ background: isActive ? 'white' : 'transparent', color: isActive ? c.primary : ENCRE, opacity: isActive ? 1 : 0.5, boxShadow: isActive ? '0 2px 10px rgba(61,38,24,0.08)' : 'none' }}>
-                  {tab === 'morning' ? <Sun size={14} /> : <Moon size={14} />}
-                  {tab === 'morning' ? 'Matin' : 'Soir'}
-                  {todayCount.length > 0 && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: c.primary, color: 'white', fontSize: 10 }}>{doneCount}/{todayCount.length}</span>}
+                <button key={template.key} onClick={() => setSelectedTemplate(template)} className="group rounded-[22px] border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" style={{ borderColor: COLORS.border, background: COLORS.surface, color: COLORS.ink }}>
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl" style={{ background: COLORS.goldSoft, color: COLORS.gold }}><Icon size={21} /></div>
+                  <p className="m-0 text-sm font-bold">{template.label}</p>
+                  <p className="mb-0 mt-1 text-xs leading-5" style={{ color: COLORS.muted }}>{template.subtitle}</p>
+                  <span className="mt-4 flex items-center gap-1 text-xs font-bold" style={{ color: COLORS.gold }}>Créer <ChevronRight size={14} /></span>
                 </button>
               )
             })}
           </div>
+        </section>
 
-          {/* Colonnes : empilées/tab sur mobile, côte à côte sur ordinateur */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderColumn('morning')}
-            {renderColumn('evening')}
-          </div>
+      </main>
 
-        </main>
-      </div>
-
-      {showModal && <RoutineModal defaultCategory={modalCategory} onSave={createRoutine} onClose={() => setShowModal(false)} />}
+      {(selectedTemplate || customOpen) && (
+        <RoutineForm template={selectedTemplate} onClose={() => { setSelectedTemplate(null); setCustomOpen(false) }} onSave={createRoutine} />
+      )}
       {editingRoutine && (
-        <RoutineModal initial={editingRoutine} onSave={updateRoutine} onDelete={(id) => { deleteRoutine(id); setEditingRoutine(null) }} onClose={() => setEditingRoutine(null)} />
+        <RoutineForm initial={editingRoutine} onClose={() => setEditingRoutine(null)} onSave={updateRoutine} onDelete={deleteRoutine} />
       )}
     </div>
   )
