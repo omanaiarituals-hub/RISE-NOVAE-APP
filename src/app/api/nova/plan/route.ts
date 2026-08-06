@@ -462,6 +462,27 @@ function formatShoppingContext(rows: ShoppingRow[] | null): string | undefined {
 
 type RoutineRow = { title: string | null; frequency: string | null; preferred_time: string | null }
 
+type RecipeContextRow = {
+  id: string
+  title: string | null
+  description: string | null
+  prep_time: string | null
+  cook_time: string | null
+  servings: number | null
+  ingredients: unknown
+  steps: unknown
+}
+
+function formatRecipesContext(rows: RecipeContextRow[] | null): string | undefined {
+  if (!rows || rows.length === 0) return undefined
+  return rows.slice(0, 40).map((r) => {
+    const ingredients = Array.isArray(r.ingredients) ? r.ingredients.length : 0
+    const steps = Array.isArray(r.steps) ? r.steps.length : 0
+    const complete = ingredients >= 3 && steps >= 2
+    return `- id=${r.id} ; titre=${r.title || 'Recette'} ; portions=${r.servings || '?'} ; préparation=${r.prep_time || '0'} min ; cuisson=${r.cook_time || '0'} min ; ingrédients=${ingredients} ; étapes=${steps} ; état=${complete ? 'complète' : 'incomplète'}`
+  }).join('\n')
+}
+
 function formatRoutinesContext(rows: RoutineRow[] | null): string | undefined {
   if (!rows || rows.length === 0) return undefined
   const lines = rows.slice(0, 15).map((r) => {
@@ -771,7 +792,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
 
     let userContext: string | undefined
     try {
-      const [profileRes, memoriesRes, familyRes, adminDocsRes, notesRes, mealsRes, shoppingRes, routinesRes] = await Promise.all([
+      const [profileRes, memoriesRes, familyRes, adminDocsRes, notesRes, mealsRes, shoppingRes, routinesRes, recipesRes] = await Promise.all([
         supabaseAdmin
           .from('onboarding_v2_profiles')
           .select(
@@ -823,6 +844,12 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           .select('title, frequency, preferred_time')
           .eq('user_id', user.id)
           .limit(15),
+        supabaseAdmin
+          .from('recipes')
+          .select('id,title,description,prep_time,cook_time,servings,ingredients,steps')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(40),
       ])
 
       const profileText = buildUserContextFromProfile(profileRes.data)
@@ -833,6 +860,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       const mealsText = formatMealsContext(mealsRes.data as MealRow[] | null)
       const shoppingText = formatShoppingContext(shoppingRes.data as ShoppingRow[] | null)
       const routinesText = formatRoutinesContext(routinesRes.data as RoutineRow[] | null)
+      const recipesText = formatRecipesContext(recipesRes.data as RecipeContextRow[] | null)
 
       const parts: string[] = []
       if (profileText) parts.push(profileText)
@@ -843,6 +871,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       if (mealsText) parts.push(`Plan de repas de la semaine :\n${mealsText}`)
       if (shoppingText) parts.push(`Liste de courses à acheter :\n${shoppingText}`)
       if (routinesText) parts.push(`Routines actives :\n${routinesText}`)
+      if (recipesText) parts.push(`Recettes déjà enregistrées (identifiants internes, ne jamais les afficher) :\n${recipesText}`)
       userContext = parts.length > 0 ? parts.join('\n\n') : undefined
     } catch (contextError) {
       console.warn('[api/nova/plan] contexte indisponible, poursuite sans', contextError)

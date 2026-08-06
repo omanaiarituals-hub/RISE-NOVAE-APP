@@ -698,6 +698,9 @@ export async function POST(request: NextRequest) {
     const mealActions = confirmedActions.filter(
       (action) => action.type === 'set_meal' && action.engine === 'meals'
     )
+    const recipeActions = confirmedActions.filter(
+      (action) => action.type === 'create_recipe' && action.engine === 'meals'
+    )
     const unsupportedActions = confirmedActions.filter(
       (action) =>
         !(
@@ -708,11 +711,12 @@ export async function POST(request: NextRequest) {
           ['update_task','complete_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type) ||
           (action.type === 'save_note' && action.engine === 'notes') ||
           (action.type === 'add_shopping_item' && action.engine === 'meals') ||
-          (action.type === 'set_meal' && action.engine === 'meals')
+          (action.type === 'set_meal' && action.engine === 'meals') ||
+          (action.type === 'create_recipe' && action.engine === 'meals')
         )
     )
 
-    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + mealActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + mealActions.length + recipeActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -727,14 +731,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || mealActions.length > 10) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || mealActions.length > 10 || recipeActions.length > 5) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
     type SimpleExecutionItem = {
-      kind: 'note' | 'shopping_item' | 'meal'
+      kind: 'note' | 'shopping_item' | 'meal' | 'recipe'
       actionId: string
-      status: 'created' | 'failed'
+      status: 'created' | 'updated' | 'already_exists' | 'failed'
       entityId: string | null
       message: string
     }
@@ -933,6 +937,116 @@ export async function POST(request: NextRequest) {
       }
     }
 
+
+    for (const action of recipeActions) {
+      try {
+        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const title = String(p.title || '').trim()
+        const description = String(p.description || '').trim()
+        const emoji = String(p.emoji || '🍽️').trim() || '🍽️'
+        const prepTime = String(p.prep_time || '0').trim()
+        const cookTime = String(p.cook_time || '0').trim()
+        const category = String(p.category || 'express').trim()
+        const mealType = String(p.meal_type || 'plat').trim()
+        const difficulty = String(p.difficulty || 'facile').trim()
+        const servings = Math.max(1, parseInt(String(p.servings || '4'), 10) || 4)
+        const caloriesRaw = parseInt(String(p.calories || ''), 10)
+        const calories = Number.isFinite(caloriesRaw) ? caloriesRaw : null
+
+        let ingredients: Array<{ name: string; quantity: string }>
+        let steps: string[]
+        try {
+          const parsedIngredients = JSON.parse(String(p.ingredients_json || '[]'))
+          const parsedSteps = JSON.parse(String(p.steps_json || '[]'))
+          ingredients = Array.isArray(parsedIngredients)
+            ? parsedIngredients.map((item) => ({
+                name: String(item?.name || '').trim(),
+                quantity: String(item?.quantity || '').trim(),
+              })).filter((item) => item.name)
+            : []
+          steps = Array.isArray(parsedSteps)
+            ? parsedSteps.map((item) => String(item || '').trim()).filter(Boolean)
+            : []
+        } catch {
+          throw new Error(`La recette « ${title || 'sans titre'} » contient des ingrédients ou des étapes invalides.`)
+        }
+
+        if (!title || ingredients.length < 2 || steps.length < 2) {
+          throw new Error('La fiche recette est incomplète : titre, ingrédients et étapes sont obligatoires.')
+        }
+        if (!['express','healthy','family','vegetarian','vegan','gourmet'].includes(category)) {
+          throw new Error(`Catégorie invalide pour « ${title} ».`)
+        }
+        if (!['entree','plat','dessert','accompagnement','boisson'].includes(mealType)) {
+          throw new Error(`Type de repas invalide pour « ${title} ».`)
+        }
+        if (!['facile','moyen','difficile'].includes(difficulty)) {
+          throw new Error(`Difficulté invalide pour « ${title} ».`)
+        }
+
+        const { data: existingRows, error: existingError } = await userClient
+          .from('recipes')
+          .select('id,title,ingredients,steps')
+          .eq('user_id', user.id)
+          .ilike('title', title)
+          .limit(1)
+        if (existingError) throw new Error(existingError.message)
+
+        const existing = (existingRows || [])[0] as { id:string; title:string; ingredients:unknown; steps:unknown } | undefined
+        const existingComplete = existing &&
+          Array.isArray(existing.ingredients) && existing.ingredients.length >= 3 &&
+          Array.isArray(existing.steps) && existing.steps.length >= 2
+
+        if (existingComplete) {
+          results.push({ kind:'recipe', actionId:action.id, status:'already_exists', entityId:existing.id, message:`La recette « ${existing.title} » existe déjà avec ses ingrédients et ses étapes. Je n’ai pas créé de doublon.` })
+          continue
+        }
+
+        const now = new Date().toISOString()
+        const payloadRecipe = {
+          title, description: description || null, emoji,
+          prep_time: prepTime, cook_time: cookTime,
+          category, meal_type: mealType, difficulty, servings,
+          ingredients, steps, calories,
+          is_favorite: false, is_public: false, source: 'nova',
+          updated_at: now,
+        }
+
+        let recipeId: string | null = null
+        let status: 'created' | 'updated' = 'created'
+        if (existing?.id) {
+          const { data, error } = await userClient.from('recipes')
+            .update(payloadRecipe).eq('id', existing.id).eq('user_id', user.id).select('id').single()
+          if (error || !data?.id) throw new Error(error?.message || 'La recette incomplète n’a pas pu être complétée.')
+          recipeId = data.id
+          status = 'updated'
+        } else {
+          const { data, error } = await userClient.from('recipes')
+            .insert({ ...payloadRecipe, user_id:user.id, created_at:now }).select('id').single()
+          if (error || !data?.id) throw new Error(error?.message || 'La recette n’a pas pu être créée.')
+          recipeId = data.id
+        }
+
+        const { data: verified, error: verifyError } = await userClient.from('recipes')
+          .select('id,title,servings,ingredients,steps').eq('id', recipeId).eq('user_id', user.id).single()
+        if (verifyError || !verified || verified.title !== title ||
+            !Array.isArray(verified.ingredients) || verified.ingredients.length !== ingredients.length ||
+            !Array.isArray(verified.steps) || verified.steps.length !== steps.length ||
+            verified.servings !== servings) {
+          throw new Error(`La recette « ${title} » a été écrite mais sa fiche complète n’a pas pu être vérifiée.`)
+        }
+
+        results.push({
+          kind:'recipe', actionId:action.id, status, entityId:recipeId,
+          message: status === 'updated'
+            ? `C’est fait. J’ai complété la fiche « ${title} » dans Mes recettes.`
+            : `C’est fait. J’ai créé la fiche complète « ${title} » pour ${servings} personnes dans Mes recettes.`
+        })
+      } catch (error) {
+        results.push({ kind:'recipe', actionId:action.id, status:'failed', entityId:null, message:error instanceof Error ? error.message : 'La recette n’a pas pu être créée.' })
+      }
+    }
+
     const tasksCreated = results.filter(
       (item) => item.kind === 'task' && item.status === 'created'
     ).length
@@ -953,6 +1067,8 @@ export async function POST(request: NextRequest) {
     const notesCreated = results.filter((item) => item.kind === 'note' && item.status === 'created').length
     const shoppingCreated = results.filter((item) => item.kind === 'shopping_item' && item.status === 'created').length
     const mealsPlanned = results.filter((item) => item.kind === 'meal' && item.status === 'created').length
+    const recipesCreated = results.filter((item) => item.kind === 'recipe' && item.status === 'created').length
+    const recipesUpdated = results.filter((item) => item.kind === 'recipe' && item.status === 'updated').length
     const failed = results.filter((item) => item.status === 'failed' || item.status === 'conflict').length
 
     const messageParts = results.map((item) => item.message)
@@ -960,7 +1076,7 @@ export async function POST(request: NextRequest) {
       messageParts.push('Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.')
     }
 
-    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
+    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned + recipesCreated + recipesUpdated > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
     return NextResponse.json(
       {
         ok: failed === 0,
@@ -976,6 +1092,8 @@ export async function POST(request: NextRequest) {
           alreadyExists,
           failed,
           unsupported: unsupportedActions.length,
+          recipesCreated,
+          recipesUpdated,
         },
       },
       { status: httpStatus }
