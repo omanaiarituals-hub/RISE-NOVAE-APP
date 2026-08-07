@@ -222,6 +222,149 @@ function applyTaskIdentityGuard(
   }
 }
 
+type DeterministicDateParts = { year: number; month: number; day: number }
+
+function getLocalDateParts(timezone = 'Europe/Paris', now = new Date()): DeterministicDateParts {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now)
+
+  const value = (type: string) => Number(parts.find((part) => part.type === type)?.value || 0)
+  return { year: value('year'), month: value('month'), day: value('day') }
+}
+
+function parseIsoBirthDate(value: unknown): DeterministicDateParts | null {
+  if (typeof value !== 'string') return null
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) return null
+  return { year, month, day }
+}
+
+function calculateDeterministicAge(
+  birthDate: unknown,
+  timezone = 'Europe/Paris',
+  now = new Date()
+): number | null {
+  const birth = parseIsoBirthDate(birthDate)
+  if (!birth) return null
+
+  const today = getLocalDateParts(timezone, now)
+  let age = today.year - birth.year
+  const birthdayPassed =
+    today.month > birth.month || (today.month === birth.month && today.day >= birth.day)
+
+  if (!birthdayPassed) age -= 1
+  return age >= 0 ? age : null
+}
+
+function getNextBirthdayFacts(
+  birthDate: unknown,
+  timezone = 'Europe/Paris',
+  now = new Date()
+): { nextBirthdayIso: string; turningAge: number; daysUntil: number } | null {
+  const birth = parseIsoBirthDate(birthDate)
+  if (!birth) return null
+
+  const today = getLocalDateParts(timezone, now)
+  const thisYearBirthday = new Date(Date.UTC(today.year, birth.month - 1, birth.day))
+  const todayUtc = new Date(Date.UTC(today.year, today.month - 1, today.day))
+  const nextBirthday =
+    thisYearBirthday.getTime() >= todayUtc.getTime()
+      ? thisYearBirthday
+      : new Date(Date.UTC(today.year + 1, birth.month - 1, birth.day))
+
+  const nextYear = nextBirthday.getUTCFullYear()
+  const daysUntil = Math.round((nextBirthday.getTime() - todayUtc.getTime()) / 86400000)
+
+  return {
+    nextBirthdayIso: `${nextYear}-${String(birth.month).padStart(2, '0')}-${String(birth.day).padStart(2, '0')}`,
+    turningAge: nextYear - birth.year,
+    daysUntil,
+  }
+}
+
+function normalizeFactKey(value: unknown): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('fr-FR')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function findMemoryFact(
+  rows: NovaMemoryRow[] | null,
+  acceptedKeys: string[]
+): string | null {
+  if (!rows) return null
+  const accepted = new Set(acceptedKeys.map(normalizeFactKey))
+  const row = rows.find((item) => accepted.has(normalizeFactKey(item.key)) && item.value)
+  return row?.value?.trim() || null
+}
+
+function buildDeterministicOwnProfileContext(
+  memories: NovaMemoryRow[] | null,
+  userEmail: string | null | undefined,
+  timezone = 'Europe/Paris'
+): string | undefined {
+  const lines: string[] = []
+
+  const birthDate = findMemoryFact(memories, [
+    'date_naissance',
+    'date_de_naissance',
+    'birth_date',
+    'birthdate',
+    'birthday',
+  ])
+  const gender = findMemoryFact(memories, [
+    'genre',
+    'sexe',
+    'gender',
+  ])
+
+  if (gender) lines.push(`Genre déclaré : ${gender}`)
+
+  if (birthDate) {
+    const age = calculateDeterministicAge(birthDate, timezone)
+    const birthday = getNextBirthdayFacts(birthDate, timezone)
+    lines.push(`Date de naissance déclarée : ${birthDate}`)
+    if (age !== null) lines.push(`Âge actuel CALCULÉ PAR LE CODE : ${age} ans`)
+    if (birthday) {
+      lines.push(
+        `Prochain anniversaire CALCULÉ PAR LE CODE : ${birthday.nextBirthdayIso} — aura ${birthday.turningAge} ans — dans ${birthday.daysUntil} jour${birthday.daysUntil > 1 ? 's' : ''}`
+      )
+    }
+  }
+
+  const creatorEmail = String(process.env.NOVAE_CREATOR_EMAIL || '').trim().toLocaleLowerCase('fr-FR')
+  const isCreator =
+    !!creatorEmail &&
+    !!userEmail &&
+    userEmail.trim().toLocaleLowerCase('fr-FR') === creatorEmail
+
+  if (isCreator) {
+    lines.push(
+      'Rôle produit permanent : cette utilisatrice est la créatrice de NOVAÉ et pilote la conception et l’évolution de Nova.'
+    )
+    lines.push(
+      'Interprétation : quand elle parle de « mon application », « mon app », « mon produit » ou de l’évolution de Nova, il s’agit de NOVAÉ sauf indication contraire.'
+    )
+    lines.push(
+      'Consigne de ton : utilise ce fait uniquement pour comprendre le contexte. Ne lui dis pas spontanément « tu es ma créatrice » et ne le répète pas sans raison.'
+    )
+  }
+
+  return lines.length > 0 ? lines.join('\n') : undefined
+}
+
 function buildUserContextFromProfile(profile: Record<string, unknown> | null): string | undefined {
   if (!profile) return undefined
   const lines: string[] = []
@@ -274,7 +417,7 @@ type FamilyMemberRow = {
   data: Record<string, unknown> | null
 }
 
-function formatFamilyContext(rows: FamilyMemberRow[] | null): string | undefined {
+function formatFamilyContext(rows: FamilyMemberRow[] | null, timezone = 'Europe/Paris'): string | undefined {
   if (!rows || rows.length === 0) return undefined
 
   const memberLines = rows
@@ -292,7 +435,17 @@ function formatFamilyContext(rows: FamilyMemberRow[] | null): string | undefined
       if (r.relation_to_user) parts.push(r.relation_to_user)
       if (typeof d.category === 'string' && d.category) parts.push(`cercle : ${d.category}`)
       if (d.isHouseholdMember === true) parts.push('membre du foyer')
-      if (typeof d.birthDate === 'string' && d.birthDate) parts.push(`né(e) le ${d.birthDate}`)
+      if (typeof d.birthDate === 'string' && d.birthDate) {
+        parts.push(`né(e) le ${d.birthDate}`)
+        const age = calculateDeterministicAge(d.birthDate, timezone)
+        const birthday = getNextBirthdayFacts(d.birthDate, timezone)
+        if (age !== null) parts.push(`âge actuel CALCULÉ PAR LE CODE : ${age} ans`)
+        if (birthday) {
+          parts.push(
+            `prochain anniversaire CALCULÉ PAR LE CODE : ${birthday.nextBirthdayIso}, aura ${birthday.turningAge} ans, dans ${birthday.daysUntil} jour${birthday.daysUntil > 1 ? 's' : ''}`
+          )
+        }
+      }
       const allergies = Array.isArray(d.allergies)
         ? d.allergies.filter((a) => typeof a === 'string' && a)
         : []
@@ -946,8 +1099,10 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       ])
 
       const profileText = buildUserContextFromProfile(profileRes.data)
-      const memoriesText = formatNovaMemories(memoriesRes.data as NovaMemoryRow[] | null)
-      const familyText = formatFamilyContext(familyRes.data as FamilyMemberRow[] | null)
+      const memoryRows = memoriesRes.data as NovaMemoryRow[] | null
+      const ownProfileText = buildDeterministicOwnProfileContext(memoryRows, user.email, 'Europe/Paris')
+      const memoriesText = formatNovaMemories(memoryRows)
+      const familyText = formatFamilyContext(familyRes.data as FamilyMemberRow[] | null, 'Europe/Paris')
       const adminDocsText = formatAdminDocsContext(adminDocsRes.data as AdminDocRow[] | null)
       const notesText = formatNotesContext(notesRes.data as NoteRow[] | null, message)
       const mealsText = formatMealsContext(mealsRes.data as MealRow[] | null)
@@ -957,6 +1112,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
 
       const parts: string[] = []
       if (profileText) parts.push(profileText)
+      if (ownProfileText) parts.push(`Profil factuel déterministe de l’utilisatrice :\n${ownProfileText}`)
       if (memoriesText) parts.push(`Ce que Nova a appris au fil des échanges :\n${memoriesText}`)
       if (familyText) parts.push(`Entourage et organisation du foyer :\n${familyText}`)
       if (adminDocsText) parts.push(`Documents administratifs en attente (métadonnées uniquement) :\n${adminDocsText}`)
