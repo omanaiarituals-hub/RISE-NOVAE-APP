@@ -49,6 +49,8 @@ export const NOVA_ACTION_TYPES = [
   'create_admin_case',
   'prepare_email',
   'save_note',
+  'update_note',
+  'delete_note',
   'add_shopping_item',
   'set_meal',
   'update_meal',

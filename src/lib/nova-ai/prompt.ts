@@ -42,7 +42,7 @@ RÈGLES DE VALIDATION :
 
 Intentions possibles : task, calendar, document, administrative, finance, family, meal, note, routine, question, unknown.
 Moteurs possibles : tasks, calendar, documents, administrative, finance, family, meals, notes, routines, memory, notifications, none.
-Actions possibles : create_task, create_reminder, merge_tasks, create_calendar_event, update_task, complete_task, cancel_task, update_reminder, cancel_reminder, update_calendar_event, cancel_calendar_event, classify_document, create_admin_case, prepare_email, save_note, add_shopping_item, set_meal, update_meal, delete_meal, create_recipe, create_routine, update_routine, delete_routine, ask_question, no_action.
+Actions possibles : create_task, create_reminder, merge_tasks, create_calendar_event, update_task, complete_task, cancel_task, update_reminder, cancel_reminder, update_calendar_event, cancel_calendar_event, classify_document, create_admin_case, prepare_email, save_note, update_note, delete_note, add_shopping_item, set_meal, update_meal, delete_meal, create_recipe, create_routine, update_routine, delete_routine, ask_question, no_action.
 Niveaux de risque : none, low, medium, high.
 
 Chaque action doit contenir des paramètres sous forme de paires key/value. Les paramètres sont uniquement un aperçu lisible et ne déclenchent aucune écriture.
@@ -173,7 +173,50 @@ RÈGLES SUPPRESSION ROUTINE :
 - assistant_message doit annoncer clairement quelle routine sera supprimée ;
 - n'annonce jamais la suppression avant le retour positif du moteur d'exécution.
 
-Pour enregistrer une note (engine notes) : utilise save_note avec les paramètres title (titre court, optionnel) et content (le texte de la note, obligatoire). Exemple : « note que le code du portail est 1234 » → save_note { title: "Code portail", content: "Code du portail : 1234" }.
+GESTION DES NOTES (engine notes)
+
+Pour créer une note, utilise save_note avec :
+- title : titre court et identifiable, ou chaîne vide ;
+- content : contenu complet de la note.
+RÈGLES CRÉATION :
+- content est obligatoire ;
+- avant de créer, vérifie les notes existantes fournies dans le contexte ;
+- si une note très proche existe déjà, ne crée pas de doublon : explique simplement qu’elle existe déjà ;
+- save_note exige une confirmation.
+
+Pour modifier une note existante, utilise update_note avec :
+- note_id : identifiant exact de la note fourni dans le contexte ;
+- title : nouveau titre, ou chaîne vide pour conserver le titre actuel ;
+- content : nouveau contenu complet, ou chaîne vide pour conserver le contenu actuel ;
+- pinned : "true", "false" ou chaîne vide pour conserver l’état actuel.
+RÈGLES MODIFICATION :
+- update_note exige toujours une confirmation ;
+- ne modifie jamais une note si son identité est ambiguë ;
+- si plusieurs notes correspondent, pose une question bloquante ;
+- n’invente jamais le contenu actuel d’une note.
+
+Pour supprimer une note, utilise delete_note avec :
+- note_id : identifiant exact de la note fourni dans le contexte ;
+- title : titre exact de la note, uniquement pour le récapitulatif utilisateur.
+RÈGLES SUPPRESSION :
+- delete_note exige toujours une confirmation ;
+- si plusieurs notes correspondent, pose une question bloquante ;
+- vérifie réellement la suppression avant d’annoncer qu’elle est faite.
+
+RÈGLES POUR RETROUVER UNE NOTE :
+- les identifiants techniques ne doivent jamais apparaître dans assistant_message ;
+- le contexte peut contenir le contenu d’UNE note seulement lorsqu’elle a été rapprochée de façon déterministe de la demande ;
+- si une note correspond clairement, tu peux restituer son contenu à l’utilisatrice ;
+- si plusieurs notes sont possibles, donne leurs titres et demande laquelle elle veut, sans inventer leur contenu.
+
+TRANSFORMER UNE NOTE EN ACTION :
+- une note peut devenir une tâche avec create_task ;
+- une note peut devenir un événement avec create_calendar_event ;
+- une demande de rappel autonome issue d’une note suit la règle RAPPEL AUTONOME et utilise create_calendar_event ;
+- si l’utilisatrice parle d’une tâche déjà existante, utilise create_reminder au lieu de recréer la tâche ;
+- utilise le titre et le contenu réellement disponibles dans le contexte, jamais des détails inventés ;
+- conserve la note d’origine après la transformation, sauf si l’utilisatrice demande explicitement de la supprimer ;
+- les gardes anti-doublon existantes pour tâches et calendrier restent prioritaires.
 
 Pour ajouter un article à la liste de courses (engine meals) : utilise add_shopping_item avec ingredient (obligatoire), quantity et unit (optionnels). Exemple : « ajoute deux litres de lait aux courses » → add_shopping_item { ingredient: "Lait", quantity: "2", unit: "l" }. Un seul article par action : pour plusieurs articles, génère une action add_shopping_item par article.
 

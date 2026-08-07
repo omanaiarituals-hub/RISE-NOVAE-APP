@@ -833,6 +833,12 @@ export async function POST(request: NextRequest) {
     const noteActions = confirmedActions.filter(
       (action) => action.type === 'save_note' && action.engine === 'notes'
     )
+    const updateNoteActions = confirmedActions.filter(
+      (action) => action.type === 'update_note' && action.engine === 'notes'
+    )
+    const deleteNoteActions = confirmedActions.filter(
+      (action) => action.type === 'delete_note' && action.engine === 'notes'
+    )
     const shoppingActions = confirmedActions.filter(
       (action) => action.type === 'add_shopping_item' && action.engine === 'meals'
     )
@@ -866,6 +872,8 @@ export async function POST(request: NextRequest) {
           (action.type === 'create_calendar_event' && action.engine === 'calendar') ||
           ['update_task','complete_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type) ||
           (action.type === 'save_note' && action.engine === 'notes') ||
+          (action.type === 'update_note' && action.engine === 'notes') ||
+          (action.type === 'delete_note' && action.engine === 'notes') ||
           (action.type === 'add_shopping_item' && action.engine === 'meals') ||
           (action.type === 'set_meal' && action.engine === 'meals') ||
           (action.type === 'update_meal' && action.engine === 'meals') ||
@@ -877,7 +885,7 @@ export async function POST(request: NextRequest) {
         )
     )
 
-    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + mealActions.length + updateMealActions.length + deleteMealActions.length + recipeActions.length + routineActions.length + updateRoutineActions.length + deleteRoutineActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + updateNoteActions.length + deleteNoteActions.length + shoppingActions.length + mealActions.length + updateMealActions.length + deleteMealActions.length + recipeActions.length + routineActions.length + updateRoutineActions.length + deleteRoutineActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -892,7 +900,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || mealActions.length > 10 || updateMealActions.length > 10 || deleteMealActions.length > 10 || recipeActions.length > 5 || routineActions.length > 5 || updateRoutineActions.length > 10 || deleteRoutineActions.length > 20) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || updateNoteActions.length > 10 || deleteNoteActions.length > 20 || shoppingActions.length > 20 || mealActions.length > 10 || updateMealActions.length > 10 || deleteMealActions.length > 10 || recipeActions.length > 5 || routineActions.length > 5 || updateRoutineActions.length > 10 || deleteRoutineActions.length > 20) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
@@ -984,20 +992,192 @@ export async function POST(request: NextRequest) {
         const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
         const content = typeof p.content === 'string' ? p.content.trim() : ''
         const title = typeof p.title === 'string' ? p.title.trim() : ''
+
         if (!content) {
           results.push({ kind: 'note', actionId: action.id, status: 'failed', entityId: null, message: 'La note est vide, je ne l’ai pas enregistrée.' })
           continue
         }
+
+        const { data: existing, error: existingError } = await userClient
+          .from('notes')
+          .select('id,title,content')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(100)
+
+        if (existingError) throw new Error(existingError.message)
+
+        const normalizeNoteValue = (value: unknown) =>
+          String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLocaleLowerCase('fr-FR')
+            .replace(/\s+/g, ' ')
+            .trim()
+
+        const normalizedTitle = normalizeNoteValue(title)
+        const normalizedContent = normalizeNoteValue(content)
+        const duplicate = (existing || []).find((note: any) => {
+          const sameContent = normalizeNoteValue(note.content) === normalizedContent
+          const sameTitle = normalizedTitle && normalizeNoteValue(note.title) === normalizedTitle
+          return sameContent || (sameTitle && normalizedContent && normalizeNoteValue(note.content).includes(normalizedContent))
+        })
+
+        if (duplicate) {
+          results.push({
+            kind: 'note',
+            actionId: action.id,
+            status: 'already_exists',
+            entityId: duplicate.id,
+            message: `Cette note existe déjà${duplicate.title ? ` : « ${duplicate.title} »` : ''}. Je n’ai pas créé de doublon.`,
+          })
+          continue
+        }
+
         const now = new Date().toISOString()
         const { data: inserted, error } = await userClient
           .from('notes')
           .insert({ user_id: user.id, title: title || null, content, pinned: false, created_at: now, updated_at: now })
-          .select('id')
+          .select('id,title,content,pinned')
           .single()
-        if (error) throw new Error(error.message)
-        results.push({ kind: 'note', actionId: action.id, status: 'created', entityId: inserted?.id || null, message: `C’est noté${title ? ` : « ${title} »` : ''}.` })
+
+        if (error || !inserted?.id) throw new Error(error?.message || 'La note n’a pas pu être enregistrée.')
+
+        const { data: verified, error: verifyError } = await userClient
+          .from('notes')
+          .select('id,title,content,pinned')
+          .eq('id', inserted.id)
+          .eq('user_id', user.id)
+          .single()
+
+        if (verifyError || !verified || verified.content !== content || (title && verified.title !== title)) {
+          throw new Error(verifyError?.message || 'La note a été écrite mais sa vérification a échoué.')
+        }
+
+        results.push({
+          kind: 'note',
+          actionId: action.id,
+          status: 'created',
+          entityId: inserted.id,
+          message: `C’est noté${title ? ` : « ${title} »` : ''}.`,
+        })
       } catch (error) {
         results.push({ kind: 'note', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'La note n’a pas pu être enregistrée.' })
+      }
+    }
+
+    for (const action of updateNoteActions) {
+      try {
+        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const noteId = String(p.note_id || '').trim()
+        if (!noteId) {
+          results.push({ kind: 'note', actionId: action.id, status: 'failed', entityId: null, message: 'La note à modifier n’a pas été identifiée avec certitude.' })
+          continue
+        }
+
+        const { data: current, error: currentError } = await userClient
+          .from('notes')
+          .select('id,title,content,pinned')
+          .eq('id', noteId)
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (currentError) throw new Error(currentError.message)
+        if (!current) throw new Error('Cette note n’existe plus.')
+
+        const changes: Record<string, unknown> = { updated_at: new Date().toISOString() }
+        const titleProvided = typeof p.title === 'string' && p.title.trim() !== ''
+        const contentProvided = typeof p.content === 'string' && p.content.trim() !== ''
+        const pinnedProvided = p.pinned === 'true' || p.pinned === 'false'
+
+        if (titleProvided) changes.title = p.title.trim()
+        if (contentProvided) changes.content = p.content.trim()
+        if (pinnedProvided) changes.pinned = p.pinned === 'true'
+
+        if (!titleProvided && !contentProvided && !pinnedProvided) {
+          results.push({ kind: 'note', actionId: action.id, status: 'failed', entityId: noteId, message: 'Aucune modification de note n’a été précisée.' })
+          continue
+        }
+
+        const { data: updated, error } = await userClient
+          .from('notes')
+          .update(changes)
+          .eq('id', noteId)
+          .eq('user_id', user.id)
+          .select('id,title,content,pinned')
+          .single()
+
+        if (error || !updated) throw new Error(error?.message || 'La note n’a pas pu être modifiée.')
+
+        if (
+          (titleProvided && updated.title !== p.title.trim()) ||
+          (contentProvided && updated.content !== p.content.trim()) ||
+          (pinnedProvided && updated.pinned !== (p.pinned === 'true'))
+        ) {
+          throw new Error('La note a été modifiée mais sa vérification a échoué.')
+        }
+
+        results.push({
+          kind: 'note',
+          actionId: action.id,
+          status: 'updated',
+          entityId: noteId,
+          message: `C’est fait. La note « ${updated.title || current.title || 'Sans titre'} » a été mise à jour.`,
+        })
+      } catch (error) {
+        results.push({ kind: 'note', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'La note n’a pas pu être modifiée.' })
+      }
+    }
+
+    for (const action of deleteNoteActions) {
+      try {
+        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const noteId = String(p.note_id || '').trim()
+        if (!noteId) {
+          results.push({ kind: 'note', actionId: action.id, status: 'failed', entityId: null, message: 'La note à supprimer n’a pas été identifiée avec certitude.' })
+          continue
+        }
+
+        const { data: current, error: currentError } = await userClient
+          .from('notes')
+          .select('id,title')
+          .eq('id', noteId)
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (currentError) throw new Error(currentError.message)
+        if (!current) {
+          results.push({ kind: 'note', actionId: action.id, status: 'already_exists', entityId: noteId, message: 'Cette note n’existe déjà plus.' })
+          continue
+        }
+
+        const { error: deleteError } = await userClient
+          .from('notes')
+          .delete()
+          .eq('id', noteId)
+          .eq('user_id', user.id)
+
+        if (deleteError) throw new Error(deleteError.message)
+
+        const { data: verified, error: verifyError } = await userClient
+          .from('notes')
+          .select('id')
+          .eq('id', noteId)
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (verifyError) throw new Error(verifyError.message)
+        if (verified) throw new Error('La note est toujours présente après la suppression.')
+
+        results.push({
+          kind: 'note',
+          actionId: action.id,
+          status: 'cancelled',
+          entityId: noteId,
+          message: `C’est fait. La note « ${current.title || 'Sans titre'} » a été supprimée.`,
+        })
+      } catch (error) {
+        results.push({ kind: 'note', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'La note n’a pas pu être supprimée.' })
       }
     }
 
@@ -1712,6 +1892,8 @@ export async function POST(request: NextRequest) {
       (item) => item.status === 'already_exists' || item.status === 'already_merged'
     ).length
     const notesCreated = results.filter((item) => item.kind === 'note' && item.status === 'created').length
+    const notesUpdated = results.filter((item) => item.kind === 'note' && item.status === 'updated').length
+    const notesDeleted = results.filter((item) => item.kind === 'note' && item.status === 'cancelled').length
     const shoppingCreated = results.filter((item) => item.kind === 'shopping_item' && item.status === 'created').length
     const mealsPlanned = results.filter((item) => item.kind === 'meal' && item.status === 'created').length
     const mealsUpdated = results.filter((item) => item.kind === 'meal' && item.status === 'updated').length
@@ -1744,6 +1926,9 @@ export async function POST(request: NextRequest) {
           alreadyExists,
           failed,
           unsupported: unsupportedActions.length,
+          notesCreated,
+          notesUpdated,
+          notesDeleted,
           recipesCreated,
           recipesUpdated,
           routinesCreated,

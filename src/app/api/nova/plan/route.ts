@@ -428,12 +428,68 @@ function formatAdminDocsContext(rows: AdminDocRow[] | null): string | undefined 
   return lines.join('\n')
 }
 
-type NoteRow = { title: string | null; pinned: boolean | null }
+type NoteRow = {
+  id: string
+  title: string | null
+  content: string | null
+  pinned: boolean | null
+  updated_at: string | null
+}
 
-function formatNotesContext(rows: NoteRow[] | null): string | undefined {
+function normalizeNoteText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('fr-FR')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function noteTitleScore(message: string, title: string): number {
+  const normalizedMessage = normalizeNoteText(message)
+  const normalizedTitle = normalizeNoteText(title)
+  if (!normalizedTitle) return 0
+  if (normalizedMessage.includes(normalizedTitle)) return 1
+
+  const stopWords = new Set([
+    'note', 'notes', 'ma', 'mon', 'mes', 'la', 'le', 'les', 'une', 'un', 'de', 'du', 'des',
+    'sur', 'pour', 'dans', 'avec', 'et', 'a', 'au', 'aux', 'que', 'qui', 'je', 'tu',
+    'retrouve', 'retrouver', 'modifie', 'modifier', 'supprime', 'supprimer', 'transforme', 'transformer',
+  ])
+  const titleTokens = normalizedTitle.split(/\s+/).filter((token) => token.length >= 3 && !stopWords.has(token))
+  if (titleTokens.length === 0) return 0
+  const matched = titleTokens.filter((token) => normalizedMessage.includes(token)).length
+  return matched / titleTokens.length
+}
+
+function formatNotesContext(rows: NoteRow[] | null, message: string): string | undefined {
   if (!rows || rows.length === 0) return undefined
-  const lines = rows.slice(0, 8).map((r) => `- ${r.title || 'Note sans titre'}${r.pinned ? ' (épinglée)' : ''}`)
-  return lines.join('\n')
+
+  const scored = rows
+    .map((note) => ({
+      note,
+      score: note.title ? noteTitleScore(message, note.title) : 0,
+    }))
+    .sort((a, b) => b.score - a.score)
+
+  const top = scored[0]
+  const second = scored[1]
+  const canExposeTopContent =
+    !!top &&
+    top.score >= 0.65 &&
+    (!second || top.score - second.score >= 0.2)
+
+  return rows.slice(0, 30).map((note) => {
+    const parts = [
+      `note_id=${note.id}`,
+      `titre=${note.title || 'Note sans titre'}`,
+      `epinglee=${note.pinned ? 'oui' : 'non'}`,
+    ]
+    if (canExposeTopContent && top.note.id === note.id) {
+      parts.push(`contenu=${note.content || ''}`)
+    }
+    return `- ${parts.join(' ; ')}`
+  }).join('\n')
 }
 
 type MealRow = {
@@ -860,11 +916,11 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           .limit(20),
         supabaseAdmin
           .from('notes')
-          .select('title, pinned')
+          .select('id, title, content, pinned, updated_at')
           .eq('user_id', user.id)
           .order('pinned', { ascending: false })
           .order('updated_at', { ascending: false })
-          .limit(8),
+          .limit(30),
         supabaseAdmin
           .from('meal_plan')
           .select('id, recipe_id, day_of_week, meal_type, custom_meal, headcount')
@@ -893,7 +949,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       const memoriesText = formatNovaMemories(memoriesRes.data as NovaMemoryRow[] | null)
       const familyText = formatFamilyContext(familyRes.data as FamilyMemberRow[] | null)
       const adminDocsText = formatAdminDocsContext(adminDocsRes.data as AdminDocRow[] | null)
-      const notesText = formatNotesContext(notesRes.data as NoteRow[] | null)
+      const notesText = formatNotesContext(notesRes.data as NoteRow[] | null, message)
       const mealsText = formatMealsContext(mealsRes.data as MealRow[] | null)
       const shoppingText = formatShoppingContext(shoppingRes.data as ShoppingRow[] | null)
       const routinesText = formatRoutinesContext(routinesRes.data as RoutineRow[] | null)
@@ -904,7 +960,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       if (memoriesText) parts.push(`Ce que Nova a appris au fil des échanges :\n${memoriesText}`)
       if (familyText) parts.push(`Entourage et organisation du foyer :\n${familyText}`)
       if (adminDocsText) parts.push(`Documents administratifs en attente (métadonnées uniquement) :\n${adminDocsText}`)
-      if (notesText) parts.push(`Notes récentes (titres) :\n${notesText}`)
+      if (notesText) parts.push(`Notes récentes (identifiants internes, contenu exposé uniquement pour une correspondance déterministe ; ne jamais afficher les identifiants) :\n${notesText}`)
       if (mealsText) parts.push(`Plan de repas de la semaine :\n${mealsText}`)
       if (shoppingText) parts.push(`Liste de courses à acheter :\n${shoppingText}`)
       if (routinesText) parts.push(`Routines actives :\n${routinesText}`)
