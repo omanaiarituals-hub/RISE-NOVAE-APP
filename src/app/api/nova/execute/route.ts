@@ -80,6 +80,147 @@ function buildUserClient(supabaseUrl: string, anonKey: string, token: string) {
   })
 }
 
+type MealRecipeIngredient = { name?: unknown; quantity?: unknown }
+
+function parseMealQuantity(value: string): { value: number; unit: string } | null {
+  const match = value.trim().match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/)
+  if (!match) return null
+  return { value: Number.parseFloat(match[1].replace(',', '.')), unit: match[2].trim().toLowerCase() }
+}
+
+function scaleMealQuantity(value: string, factor: number): string {
+  if (!value || !Number.isFinite(factor) || factor === 1) return value
+  const parsed = parseMealQuantity(value)
+  if (!parsed) return value
+  const scaled = parsed.value * factor
+  const rounded = scaled % 1 === 0 ? scaled : Math.round(scaled * 10) / 10
+  return parsed.unit ? `${rounded}${parsed.unit}` : String(rounded)
+}
+
+function mergeMealQuantities(values: string[]): string {
+  if (values.length === 0) return ''
+  if (values.length === 1) return values[0]
+  const parsed = values.map(parseMealQuantity)
+  if (!parsed.every(Boolean)) return values.join(' + ')
+  const units = new Set(parsed.map((item) => item!.unit))
+  if (units.size !== 1) return values.join(' + ')
+  const total = parsed.reduce((sum, item) => sum + item!.value, 0)
+  const unit = parsed[0]!.unit
+  const formatted = total % 1 === 0 ? String(total) : total.toFixed(1)
+  return unit ? `${formatted}${unit}` : formatted
+}
+
+async function syncMealShoppingList(db: ReturnType<typeof buildUserClient>, userId: string): Promise<void> {
+  const { data: slots, error: slotsError } = await db
+    .from('meal_plan')
+    .select('recipe_id,headcount')
+    .eq('user_id', userId)
+    .not('recipe_id', 'is', null)
+
+  if (slotsError) throw new Error(`Impossible de relire le planning repas : ${slotsError.message}`)
+
+  const recipeIds = Array.from(new Set((slots || []).map((slot: any) => String(slot.recipe_id || '')).filter(Boolean)))
+
+  const { error: deleteError } = await db
+    .from('shopping_list')
+    .delete()
+    .eq('user_id', userId)
+    .not('recipe_id', 'is', null)
+
+  if (deleteError) throw new Error(`Impossible de recalculer les courses : ${deleteError.message}`)
+  if (recipeIds.length === 0) return
+
+  const { data: recipes, error: recipesError } = await db
+    .from('recipes')
+    .select('id,title,servings,ingredients')
+    .eq('user_id', userId)
+    .in('id', recipeIds)
+
+  if (recipesError) throw new Error(`Impossible de relire les recettes : ${recipesError.message}`)
+
+  const recipeById = new Map((recipes || []).map((recipe: any) => [String(recipe.id), recipe]))
+  const grouped = new Map<string, { displayName: string; quantities: string[]; recipeId: string }>()
+
+  for (const slot of slots || []) {
+    const recipe = recipeById.get(String((slot as any).recipe_id))
+    if (!recipe || !Array.isArray(recipe.ingredients)) continue
+    const servings = Math.max(1, Number(recipe.servings) || 1)
+    const headcount = Math.max(1, Number((slot as any).headcount) || servings)
+    const factor = headcount / servings
+
+    for (const rawIngredient of recipe.ingredients as MealRecipeIngredient[]) {
+      const name = String(rawIngredient?.name || '').trim()
+      if (!name) continue
+      const quantity = String(rawIngredient?.quantity || '').trim()
+      const key = name.toLocaleLowerCase('fr-FR')
+      const current = grouped.get(key) || { displayName: name, quantities: [], recipeId: String(recipe.id) }
+      current.quantities.push(scaleMealQuantity(quantity, factor))
+      grouped.set(key, current)
+    }
+  }
+
+  const now = new Date().toISOString()
+  const rows = Array.from(grouped.values()).map((item) => ({
+    user_id: userId,
+    ingredient: item.displayName,
+    quantity: mergeMealQuantities(item.quantities),
+    recipe_id: item.recipeId,
+    checked: false,
+    in_stock: false,
+    to_buy: true,
+    created_at: now,
+    updated_at: now,
+  }))
+
+  if (rows.length === 0) return
+  const { error: insertError } = await db.from('shopping_list').insert(rows)
+  if (insertError) throw new Error(`Impossible de reconstruire les courses : ${insertError.message}`)
+}
+
+async function resolveMealRecipe(
+  db: ReturnType<typeof buildUserClient>,
+  userId: string,
+  recipeId: string,
+  mealName: string
+): Promise<{ id: string; title: string; servings: number; ingredients: unknown; steps: unknown }> {
+  if (recipeId) {
+    const { data, error } = await db
+      .from('recipes')
+      .select('id,title,servings,ingredients,steps')
+      .eq('id', recipeId)
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data) throw new Error('Cette recette n’existe plus dans Mes recettes.')
+    return data as any
+  }
+
+  if (!mealName) throw new Error('La recette à planifier est manquante.')
+
+  const { data, error } = await db
+    .from('recipes')
+    .select('id,title,servings,ingredients,steps')
+    .eq('user_id', userId)
+    .ilike('title', `%${mealName}%`)
+    .limit(10)
+
+  if (error) throw new Error(error.message)
+
+  const normalized = mealName.trim().toLocaleLowerCase('fr-FR')
+  const exact = (data || []).filter(
+    (recipe: any) => String(recipe.title || '').trim().toLocaleLowerCase('fr-FR') === normalized
+  )
+  const candidates = exact.length > 0 ? exact : (data || [])
+
+  if (candidates.length === 0) {
+    throw new Error(`La recette « ${mealName} » n’existe pas encore dans Mes recettes. Crée-la d’abord, puis je pourrai la planifier.`)
+  }
+  if (candidates.length > 1) {
+    throw new Error(`Plusieurs recettes correspondent à « ${mealName} ». Précise laquelle tu veux utiliser.`)
+  }
+  return candidates[0] as any
+}
+
 async function findDuplicateTask(
   db: ReturnType<typeof buildUserClient>,
   userId: string,
@@ -698,6 +839,12 @@ export async function POST(request: NextRequest) {
     const mealActions = confirmedActions.filter(
       (action) => action.type === 'set_meal' && action.engine === 'meals'
     )
+    const updateMealActions = confirmedActions.filter(
+      (action) => action.type === 'update_meal' && action.engine === 'meals'
+    )
+    const deleteMealActions = confirmedActions.filter(
+      (action) => action.type === 'delete_meal' && action.engine === 'meals'
+    )
     const recipeActions = confirmedActions.filter(
       (action) => action.type === 'create_recipe' && action.engine === 'meals'
     )
@@ -721,6 +868,8 @@ export async function POST(request: NextRequest) {
           (action.type === 'save_note' && action.engine === 'notes') ||
           (action.type === 'add_shopping_item' && action.engine === 'meals') ||
           (action.type === 'set_meal' && action.engine === 'meals') ||
+          (action.type === 'update_meal' && action.engine === 'meals') ||
+          (action.type === 'delete_meal' && action.engine === 'meals') ||
           (action.type === 'create_recipe' && action.engine === 'meals') ||
           (action.type === 'create_routine' && action.engine === 'routines') ||
           (action.type === 'update_routine' && action.engine === 'routines') ||
@@ -728,7 +877,7 @@ export async function POST(request: NextRequest) {
         )
     )
 
-    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + mealActions.length + recipeActions.length + routineActions.length + updateRoutineActions.length + deleteRoutineActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + mealActions.length + updateMealActions.length + deleteMealActions.length + recipeActions.length + routineActions.length + updateRoutineActions.length + deleteRoutineActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -743,7 +892,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || mealActions.length > 10 || recipeActions.length > 5 || routineActions.length > 5 || updateRoutineActions.length > 10 || deleteRoutineActions.length > 20) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || mealActions.length > 10 || updateMealActions.length > 10 || deleteMealActions.length > 10 || recipeActions.length > 5 || routineActions.length > 5 || updateRoutineActions.length > 10 || deleteRoutineActions.length > 20) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
@@ -888,67 +1037,179 @@ export async function POST(request: NextRequest) {
     for (const action of mealActions) {
       try {
         const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
-        const day = typeof p.day === 'string' ? p.day.trim() : ''
-        const mealType = typeof p.meal_type === 'string' ? p.meal_type.trim() : ''
-        const mealName = typeof p.meal_name === 'string' ? p.meal_name.trim() : ''
-        const headcountRaw = typeof p.headcount === 'string' ? parseInt(p.headcount, 10) : NaN
-        if (!day || !mealType || !mealName) {
-          results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: 'Il me manque le jour, le moment ou le plat, je n’ai rien planifié.' })
+        const day = String(p.day || '').trim()
+        const mealType = String(p.meal_type || '').trim()
+        const mealName = String(p.meal_name || '').trim()
+        const recipeIdParam = String(p.recipe_id || '').trim()
+        const headcountRaw = Number.parseInt(String(p.headcount || ''), 10)
+
+        if (!day || !mealType) {
+          results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: 'Il me manque le jour ou le créneau du repas.' })
           continue
         }
-        const now = new Date().toISOString()
-        const headcount = Number.isFinite(headcountRaw) ? headcountRaw : null
-
-        // Le module Repas affiche les créneaux via une recette liée (recipe_id).
-        // On crée donc une recette minimale (titre = nom du plat) et on relie le
-        // créneau à cette recette, pour que le repas soit visible dans l'app.
-        // On réutilise une recette existante du même titre si elle existe déjà.
-        let recipeId: string | null = null
-        const { data: existingRecipe } = await userClient
-          .from('recipes')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('title', mealName)
-          .maybeSingle()
-        if (existingRecipe?.id) {
-          recipeId = existingRecipe.id
-        } else {
-          const { data: newRecipe, error: recipeError } = await userClient
-            .from('recipes')
-            .insert({ user_id: user.id, title: mealName, meal_type: 'plat', category: 'express', servings: headcount || 4, emoji: '🍽️', source: 'nova', created_at: now, updated_at: now })
-            .select('id')
-            .single()
-          if (recipeError) throw new Error(recipeError.message)
-          recipeId = newRecipe?.id || null
+        if (!['petit_dejeuner', 'dejeuner', 'diner', 'collation'].includes(mealType)) {
+          results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: 'Le créneau demandé n’est pas valide.' })
+          continue
         }
 
-        // Un repas par (jour, créneau) : upsert sur la contrainte existante.
+        const recipe = await resolveMealRecipe(userClient, user.id, recipeIdParam, mealName)
+        if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length < 2 || !Array.isArray(recipe.steps) || recipe.steps.length < 2) {
+          throw new Error(`La fiche « ${recipe.title} » est incomplète. Complète d’abord la recette avant de la planifier.`)
+        }
+
+        const now = new Date().toISOString()
+        const headcount = Number.isFinite(headcountRaw) && headcountRaw > 0
+          ? headcountRaw
+          : Math.max(1, Number(recipe.servings) || 1)
+
         const { data: upserted, error } = await userClient
           .from('meal_plan')
           .upsert(
-            { user_id: user.id, day_of_week: day, meal_type: mealType, recipe_id: recipeId, custom_meal: mealName, headcount, updated_at: now, created_at: now },
+            {
+              user_id: user.id,
+              day_of_week: day,
+              meal_type: mealType,
+              recipe_id: recipe.id,
+              custom_meal: recipe.title,
+              meal_scope: ['foyer'],
+              headcount,
+              updated_at: now,
+              created_at: now,
+            },
             { onConflict: 'user_id,day_of_week,meal_type' }
           )
           .select('id')
           .single()
+
         if (error || !upserted?.id) throw new Error(error?.message || 'Le repas n’a pas pu être planifié.')
-        const { data: verifiedMeal, error: verifyMealError } = await userClient
+
+        const { data: verified, error: verifyError } = await userClient
           .from('meal_plan')
-          .select('id,day_of_week,meal_type,custom_meal,recipe_id')
+          .select('id,day_of_week,meal_type,recipe_id,headcount')
           .eq('id', upserted.id)
           .eq('user_id', user.id)
           .single()
-        if (verifyMealError || !verifiedMeal || verifiedMeal.day_of_week !== day || verifiedMeal.meal_type !== mealType || verifiedMeal.custom_meal !== mealName) {
-          throw new Error(verifyMealError?.message || 'Le repas a été écrit mais son affichage dans le planning n’a pas pu être vérifié.')
+
+        if (
+          verifyError || !verified ||
+          verified.day_of_week !== day ||
+          verified.meal_type !== mealType ||
+          verified.recipe_id !== recipe.id ||
+          verified.headcount !== headcount
+        ) {
+          throw new Error(verifyError?.message || 'Le repas a été écrit mais sa vérification a échoué.')
         }
 
+        await syncMealShoppingList(userClient, user.id)
+
         const slotLabel = mealType === 'diner' ? 'dîner' : mealType === 'dejeuner' ? 'déjeuner' : mealType === 'petit_dejeuner' ? 'petit-déjeuner' : 'collation'
-        results.push({ kind: 'meal', actionId: action.id, status: 'created', entityId: upserted?.id || null, message: `C’est planifié : ${mealName} pour le ${slotLabel} de ${day.toLowerCase()}.` })
+        results.push({
+          kind: 'meal', actionId: action.id, status: 'created', entityId: upserted.id,
+          message: `C’est fait. « ${recipe.title} » est planifié pour le ${slotLabel} de ${day.toLowerCase()} pour ${headcount} personne${headcount > 1 ? 's' : ''}. La liste de courses a été recalculée automatiquement.`,
+        })
       } catch (error) {
         results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'Le repas n’a pas pu être planifié.' })
       }
     }
 
+    for (const action of updateMealActions) {
+      try {
+        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const mealId = String(p.meal_id || '').trim()
+        if (!mealId) {
+          results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: 'Le repas à modifier n’a pas été identifié avec certitude.' })
+          continue
+        }
+
+        const { data: current, error: currentError } = await userClient
+          .from('meal_plan')
+          .select('id,recipe_id,day_of_week,meal_type,headcount')
+          .eq('id', mealId).eq('user_id', user.id).maybeSingle()
+
+        if (currentError) throw new Error(currentError.message)
+        if (!current) throw new Error('Ce repas n’existe plus dans le planning.')
+
+        const recipeIdParam = String(p.recipe_id || '').trim()
+        const mealName = String(p.meal_name || '').trim()
+        const recipe = recipeIdParam || mealName
+          ? await resolveMealRecipe(userClient, user.id, recipeIdParam, mealName)
+          : await resolveMealRecipe(userClient, user.id, String(current.recipe_id || ''), '')
+
+        const nextDay = String(p.day || '').trim() || String(current.day_of_week || '')
+        const nextMealType = String(p.meal_type || '').trim() || String(current.meal_type || '')
+        const headcountRaw = Number.parseInt(String(p.headcount || ''), 10)
+        const nextHeadcount = Number.isFinite(headcountRaw) && headcountRaw > 0
+          ? headcountRaw
+          : Math.max(1, Number(current.headcount) || Number(recipe.servings) || 1)
+
+        const { data: updated, error } = await userClient
+          .from('meal_plan')
+          .update({
+            recipe_id: recipe.id,
+            custom_meal: recipe.title,
+            day_of_week: nextDay,
+            meal_type: nextMealType,
+            headcount: nextHeadcount,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', mealId).eq('user_id', user.id)
+          .select('id,recipe_id,day_of_week,meal_type,headcount').single()
+
+        if (error || !updated) throw new Error(error?.message || 'Le repas n’a pas pu être modifié.')
+
+        await syncMealShoppingList(userClient, user.id)
+
+        results.push({
+          kind: 'meal', actionId: action.id, status: 'updated', entityId: mealId,
+          message: `C’est fait. Le repas est maintenant « ${recipe.title} » le ${nextDay.toLowerCase()} (${nextMealType}) pour ${nextHeadcount} personne${nextHeadcount > 1 ? 's' : ''}. Les courses ont été recalculées.`,
+        })
+      } catch (error) {
+        results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'Le repas n’a pas pu être modifié.' })
+      }
+    }
+
+    for (const action of deleteMealActions) {
+      try {
+        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const mealId = String(p.meal_id || '').trim()
+        if (!mealId) {
+          results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: 'Le repas à supprimer n’a pas été identifié avec certitude.' })
+          continue
+        }
+
+        const { data: current, error: currentError } = await userClient
+          .from('meal_plan')
+          .select('id,custom_meal,day_of_week,meal_type')
+          .eq('id', mealId).eq('user_id', user.id).maybeSingle()
+
+        if (currentError) throw new Error(currentError.message)
+        if (!current) {
+          results.push({ kind: 'meal', actionId: action.id, status: 'already_exists', entityId: mealId, message: 'Ce repas n’est déjà plus dans le planning.' })
+          continue
+        }
+
+        const { error: deleteError } = await userClient
+          .from('meal_plan')
+          .delete().eq('id', mealId).eq('user_id', user.id)
+        if (deleteError) throw new Error(deleteError.message)
+
+        const { data: verified, error: verifyError } = await userClient
+          .from('meal_plan')
+          .select('id').eq('id', mealId).eq('user_id', user.id).maybeSingle()
+
+        if (verifyError) throw new Error(verifyError.message)
+        if (verified) throw new Error('Le repas est toujours présent après la suppression.')
+
+        await syncMealShoppingList(userClient, user.id)
+
+        results.push({
+          kind: 'meal', actionId: action.id, status: 'cancelled', entityId: mealId,
+          message: `C’est fait. ${current.custom_meal || 'Le repas'} du ${String(current.day_of_week || '').toLowerCase()} a été retiré du planning et les courses ont été recalculées.`,
+        })
+      } catch (error) {
+        results.push({ kind: 'meal', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'Le repas n’a pas pu être supprimé.' })
+      }
+    }
 
     for (const action of recipeActions) {
       try {
@@ -1453,6 +1714,8 @@ export async function POST(request: NextRequest) {
     const notesCreated = results.filter((item) => item.kind === 'note' && item.status === 'created').length
     const shoppingCreated = results.filter((item) => item.kind === 'shopping_item' && item.status === 'created').length
     const mealsPlanned = results.filter((item) => item.kind === 'meal' && item.status === 'created').length
+    const mealsUpdated = results.filter((item) => item.kind === 'meal' && item.status === 'updated').length
+    const mealsDeleted = results.filter((item) => item.kind === 'meal' && item.status === 'cancelled').length
     const recipesCreated = results.filter((item) => item.kind === 'recipe' && item.status === 'created').length
     const recipesUpdated = results.filter((item) => item.kind === 'recipe' && item.status === 'updated').length
     const routinesCreated = results.filter((item) => item.kind === 'routine' && item.status === 'created').length
@@ -1465,7 +1728,7 @@ export async function POST(request: NextRequest) {
       messageParts.push('Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.')
     }
 
-    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned + recipesCreated + recipesUpdated + routinesCreated + routinesUpdated + routinesDeleted > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
+    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned + mealsUpdated + mealsDeleted + recipesCreated + recipesUpdated + routinesCreated + routinesUpdated + routinesDeleted > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
     return NextResponse.json(
       {
         ok: failed === 0,

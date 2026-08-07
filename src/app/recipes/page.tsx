@@ -334,8 +334,11 @@ function RecipeCard({ recipe, onDragStart, onSelect, isSelected, onEdit, onDelet
 }
 
 // ─── MODAL DÉTAIL ─────────────────────────────────────────────────────────────
-function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
-  recipe: Recipe; onClose: () => void; onAddToPlan: (day: string, slot: PlanSlot, scope: string[], headcount: number) => void
+function RecipeDetail({ recipe, onClose, onAddToPlan, onEditImage, allergyWarnings }: {
+  recipe: Recipe
+  onClose: () => void
+  onAddToPlan: (day: string, slot: PlanSlot, scope: string[], headcount: number) => void
+  onEditImage: () => void
   allergyWarnings?: AllergyAlert[]
 }) {
   const mc = MEAL_TYPE_COLORS[recipe.meal_type] || MEAL_TYPE_COLORS.plat
@@ -363,8 +366,14 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, allergyWarnings }: {
                 style={{ width: 120, height: 120, borderRadius: 16, objectFit: 'cover', display: 'block', marginBottom: 8 }}
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
             ) : (
-              <div style={{ fontSize: 48 }}>{recipe.emoji}</div>
+              <div style={{ fontSize: 48, marginBottom: 8 }}>{recipe.emoji}</div>
             )}
+            <button
+              onClick={onEditImage}
+              style={{ marginBottom: 8, padding: '6px 10px', borderRadius: 9, border: `1.5px solid ${C.grisClair}`, background: C.cream, color: C.rose, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+            >
+              📷 {recipe.photo_url ? "Modifier l'image" : 'Ajouter une image'}
+            </button>
             <h2 style={{ margin: '8px 0 4px', fontFamily: "'Cormorant Garamond',serif", fontSize: 26, color: C.noir }}>{recipe.title}</h2>
             {recipe.description && <p style={{ margin: '0 0 8px', fontSize: 13, color: C.gris }}>{recipe.description}</p>}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -1297,6 +1306,12 @@ const response = await fetch('/api/recipes/extract', {
         {selectedRecipe && (
           <RecipeDetail recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)}
             allergyWarnings={allergyAlerts}
+            onEditImage={() => {
+              setEditingRecipe(selectedRecipe)
+              setScanPrefill(undefined)
+              setSelectedRecipe(null)
+              setShowModal(true)
+            }}
             onAddToPlan={(day, slot, scope, headcount) => { addToPlan(selectedRecipe.id, day, slot, scope, headcount); setSelectedRecipe(null) }} />
         )}
         {showModal && user && (

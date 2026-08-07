@@ -436,17 +436,28 @@ function formatNotesContext(rows: NoteRow[] | null): string | undefined {
   return lines.join('\n')
 }
 
-type MealRow = { day_of_week: string | null; meal_type: string | null; custom_meal: string | null; headcount: number | null }
+type MealRow = {
+  id: string
+  recipe_id: string | null
+  day_of_week: string | null
+  meal_type: string | null
+  custom_meal: string | null
+  headcount: number | null
+}
 
 function formatMealsContext(rows: MealRow[] | null): string | undefined {
   if (!rows || rows.length === 0) return undefined
-  const lines = rows.slice(0, 30).map((r) => {
-    const parts: string[] = [`${r.day_of_week || '?'} ${r.meal_type || ''}`.trim()]
-    parts.push(r.custom_meal || 'recette enregistrée')
-    if (typeof r.headcount === 'number' && r.headcount > 0) parts.push(`${r.headcount} pers.`)
-    return `- ${parts.join(' — ')}`
-  })
-  return lines.join('\n')
+  return rows.slice(0, 30).map((r) => {
+    const parts: string[] = [
+      `meal_id=${r.id}`,
+      `recipe_id=${r.recipe_id || ''}`,
+      `jour=${r.day_of_week || 'non précisé'}`,
+      `créneau=${r.meal_type || 'non précisé'}`,
+      `repas=${r.custom_meal || 'recette enregistrée'}`,
+    ]
+    if (typeof r.headcount === 'number' && r.headcount > 0) parts.push(`personnes=${r.headcount}`)
+    return `- ${parts.join(' ; ')}`
+  }).join('\n')
 }
 
 type ShoppingRow = { ingredient: string | null; quantity: string | null; unit: string | null; priority: string | null }
@@ -856,7 +867,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           .limit(8),
         supabaseAdmin
           .from('meal_plan')
-          .select('day_of_week, meal_type, custom_meal, headcount')
+          .select('id, recipe_id, day_of_week, meal_type, custom_meal, headcount')
           .eq('user_id', user.id)
           .limit(30),
         supabaseAdmin
