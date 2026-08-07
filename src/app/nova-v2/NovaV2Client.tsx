@@ -1045,8 +1045,12 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const executableReminderCount = confirmableActions.filter((action) => action.type === 'create_reminder' && action.engine === 'notifications').length
   const executableCalendarCount = confirmableActions.filter((action) => action.type === 'create_calendar_event' && action.engine === 'calendar').length
   const executableMergeCount = confirmableActions.filter((action) => action.type === 'merge_tasks' && action.engine === 'tasks').length
-  const executableLifecycleCount = confirmableActions.filter((action) => ['update_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type)).length
-  const executableActionCount = executableTaskCount + executableReminderCount + executableMergeCount + executableCalendarCount + executableLifecycleCount
+  const executableLifecycleCount = confirmableActions.filter((action) => ['update_task','complete_task','cancel_task','update_reminder','cancel_reminder','update_calendar_event','cancel_calendar_event'].includes(action.type)).length
+  const executableRoutineCreateCount = confirmableActions.filter((action) => action.type === 'create_routine' && action.engine === 'routines').length
+  const executableRoutineUpdateCount = confirmableActions.filter((action) => action.type === 'update_routine' && action.engine === 'routines').length
+  const executableRoutineDeleteCount = confirmableActions.filter((action) => action.type === 'delete_routine' && action.engine === 'routines').length
+  const executableRoutineCount = executableRoutineCreateCount + executableRoutineUpdateCount + executableRoutineDeleteCount
+  const executableActionCount = executableTaskCount + executableReminderCount + executableMergeCount + executableCalendarCount + executableLifecycleCount + executableRoutineCount
   const otherActionCount = confirmableActions.length - executableActionCount
 
   return (
@@ -1370,11 +1374,17 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
                               ? 'Ce rendez-vous sera ajouté au planning après confirmation.'
                             : action.type === 'merge_tasks' && action.engine === 'tasks'
                               ? 'La tâche choisie sera conservée et le doublon sera archivé après confirmation.'
-                              : action.type.startsWith('update_')
-                                ? 'La modification sera appliquée après confirmation.'
-                                : action.type.startsWith('cancel_')
-                                  ? 'L’annulation sera appliquée après confirmation, sans suppression silencieuse.'
-                                  : 'Cette action reste en simulation pour le moment.'
+                              : action.type === 'create_routine' && action.engine === 'routines'
+                                ? 'Cette routine sera créée après confirmation.'
+                                : action.type === 'delete_routine' && action.engine === 'routines'
+                                  ? 'Cette routine sera supprimée après confirmation.'
+                                  : action.type === 'update_routine' && action.engine === 'routines'
+                                    ? 'Cette routine sera modifiée après confirmation.'
+                                    : action.type.startsWith('update_') || action.type === 'complete_task'
+                                    ? 'La modification sera appliquée après confirmation.'
+                                    : action.type.startsWith('cancel_')
+                                      ? 'L’annulation sera appliquée après confirmation, sans suppression silencieuse.'
+                                      : 'Cette action reste en simulation pour le moment.'
                       }</p>
                     </article>
                   ))}
@@ -1390,15 +1400,21 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
                         ? executableMergeCount > 1 ? 'Confirmer et fusionner les tâches' : 'Confirmer la fusion'
                         : executableActionCount > 1
                           ? 'Confirmer les actions'
-                          : executableLifecycleCount > 0
-                            ? 'Confirmer la modification'
-                          : executableCalendarCount > 0
-                            ? 'Confirmer et ajouter au planning'
-                          : executableReminderCount > 0
-                            ? 'Confirmer et programmer le rappel'
-                            : executableTaskCount > 0
-                              ? 'Confirmer et créer la tâche'
-                              : 'Confirmer'}
+                          : executableRoutineDeleteCount > 0
+                            ? 'Confirmer la suppression'
+                            : executableRoutineCreateCount > 0
+                              ? 'Confirmer et créer la routine'
+                              : executableRoutineUpdateCount > 0
+                                ? 'Confirmer la modification'
+                                : executableLifecycleCount > 0
+                                ? 'Confirmer la modification'
+                                : executableCalendarCount > 0
+                                  ? 'Confirmer et ajouter au planning'
+                                  : executableReminderCount > 0
+                                    ? 'Confirmer et programmer le rappel'
+                                    : executableTaskCount > 0
+                                      ? 'Confirmer et créer la tâche'
+                                      : 'Confirmer'}
                   </button>
                   <button type="button" onClick={() => void askForModification()} disabled={loading} className="rounded-lg border border-[#CFC7BF] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50">Modifier</button>
                   <button type="button" onClick={() => void cancelPreparedActions()} disabled={loading} className="rounded-lg border border-[#CFC7BF] bg-white px-4 py-2 text-sm disabled:opacity-50">Annuler</button>

@@ -53,6 +53,7 @@ export const NOVA_ACTION_TYPES = [
   'set_meal',
   'create_recipe',
   'create_routine',
+  'update_routine',
   'delete_routine',
   'ask_question',
   'no_action',

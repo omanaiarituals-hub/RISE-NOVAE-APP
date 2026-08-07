@@ -460,7 +460,18 @@ function formatShoppingContext(rows: ShoppingRow[] | null): string | undefined {
   return lines.join('\n')
 }
 
-type RoutineRow = { title: string | null; frequency: string | null; preferred_time: string | null }
+type RoutineRow = {
+  id: string
+  title: string | null
+  category: string | null
+  frequency: string | null
+  custom_days: unknown
+  preferred_time: string | null
+  duration_minutes: number | null
+  reminder_enabled: boolean | null
+  reminder_minutes_before: number | null
+  description: string | null
+}
 
 type RecipeContextRow = {
   id: string
@@ -485,13 +496,28 @@ function formatRecipesContext(rows: RecipeContextRow[] | null): string | undefin
 
 function formatRoutinesContext(rows: RoutineRow[] | null): string | undefined {
   if (!rows || rows.length === 0) return undefined
-  const lines = rows.slice(0, 15).map((r) => {
-    const parts: string[] = [r.title || 'Routine']
-    if (r.frequency) parts.push(r.frequency)
-    if (r.preferred_time) parts.push(`vers ${String(r.preferred_time).slice(0, 5)}`)
-    return `- ${parts.join(' — ')}`
-  })
-  return lines.join('\n')
+
+  const formatDays = (value: unknown): string => {
+    if (Array.isArray(value)) return value.map(String).join(',')
+    if (typeof value === 'string') return value.replace(/[{}]/g, '').trim()
+    return ''
+  }
+
+  return rows.slice(0, 30).map((r) => {
+    const days = formatDays(r.custom_days)
+    return [
+      `id=${r.id}`,
+      `titre=${r.title || 'Routine'}`,
+      `categorie=${r.category || 'non précisée'}`,
+      `frequence=${r.frequency || 'non précisée'}`,
+      `jours=${days || (r.frequency === 'daily' ? 'mon,tue,wed,thu,fri,sat,sun' : 'non précisés')}`,
+      `heure=${r.preferred_time ? String(r.preferred_time).slice(0, 5) : 'non précisée'}`,
+      `duree_minutes=${r.duration_minutes ?? 'non précisée'}`,
+      `rappel_active=${r.reminder_enabled === null ? 'non précisé' : String(r.reminder_enabled)}`,
+      `rappel_minutes_avant=${r.reminder_minutes_before ?? 'non précisé'}`,
+      `emoji=${r.description || ''}`,
+    ].join(' ; ')
+  }).join('\n')
 }
 
 type MemoryCandidateLike = {
@@ -841,9 +867,9 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           .limit(30),
         supabaseAdmin
           .from('routines')
-          .select('title, frequency, preferred_time')
+          .select('id,title,category,frequency,custom_days,preferred_time,duration_minutes,reminder_enabled,reminder_minutes_before,description')
           .eq('user_id', user.id)
-          .limit(15),
+          .limit(30),
         supabaseAdmin
           .from('recipes')
           .select('id,title,description,prep_time,cook_time,servings,ingredients,steps')

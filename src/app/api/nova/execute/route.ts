@@ -704,6 +704,9 @@ export async function POST(request: NextRequest) {
     const routineActions = confirmedActions.filter(
       (action) => action.type === 'create_routine' && action.engine === 'routines'
     )
+    const updateRoutineActions = confirmedActions.filter(
+      (action) => action.type === 'update_routine' && action.engine === 'routines'
+    )
     const deleteRoutineActions = confirmedActions.filter(
       (action) => action.type === 'delete_routine' && action.engine === 'routines'
     )
@@ -720,11 +723,12 @@ export async function POST(request: NextRequest) {
           (action.type === 'set_meal' && action.engine === 'meals') ||
           (action.type === 'create_recipe' && action.engine === 'meals') ||
           (action.type === 'create_routine' && action.engine === 'routines') ||
+          (action.type === 'update_routine' && action.engine === 'routines') ||
           (action.type === 'delete_routine' && action.engine === 'routines')
         )
     )
 
-    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + mealActions.length + recipeActions.length + routineActions.length + deleteRoutineActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + shoppingActions.length + mealActions.length + recipeActions.length + routineActions.length + updateRoutineActions.length + deleteRoutineActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -739,7 +743,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || mealActions.length > 10 || recipeActions.length > 5 || routineActions.length > 5 || deleteRoutineActions.length > 20) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || shoppingActions.length > 20 || mealActions.length > 10 || recipeActions.length > 5 || routineActions.length > 5 || updateRoutineActions.length > 10 || deleteRoutineActions.length > 20) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
@@ -1178,13 +1182,156 @@ export async function POST(request: NextRequest) {
     }
 
 
+    for (const action of updateRoutineActions) {
+      try {
+        const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const routineId = typeof p.routine_id === 'string' ? p.routine_id.trim() : ''
+
+        if (!routineId) {
+          results.push({
+            kind: 'routine',
+            actionId: action.id,
+            status: 'failed',
+            entityId: null,
+            message: 'La routine à modifier n’a pas pu être identifiée avec certitude.',
+          })
+          continue
+        }
+
+        const { data: current, error: readError } = await userClient
+          .from('routines')
+          .select('id,title,description,category,frequency,custom_days,preferred_time,duration_minutes,reminder_enabled,reminder_minutes_before')
+          .eq('id', routineId)
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (readError) throw new Error(readError.message)
+        if (!current) {
+          results.push({
+            kind: 'routine',
+            actionId: action.id,
+            status: 'failed',
+            entityId: null,
+            message: 'La routine à modifier est introuvable.',
+          })
+          continue
+        }
+
+        const updates: Record<string, unknown> = {}
+        const title = String(p.title || '').trim()
+        const category = String(p.category || '').trim()
+        const daysRaw = String(p.days || '').trim()
+        const preferredTime = String(p.preferred_time || '').trim()
+        const durationRaw = String(p.duration_minutes || '').trim()
+        const reminderEnabledRaw = String(p.reminder_enabled || '').trim().toLowerCase()
+        const reminderMinutesRaw = String(p.reminder_minutes_before || '').trim()
+        const emoji = String(p.emoji || '').trim()
+
+        if (title) updates.title = title
+
+        if (category) {
+          if (!['morning', 'evening'].includes(category)) {
+            throw new Error('Le moment de la routine doit être morning ou evening.')
+          }
+          updates.category = category
+        }
+
+        if (daysRaw) {
+          const allowedDays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+          const days = daysRaw
+            .split(',')
+            .map((day) => day.trim().toLowerCase())
+            .filter((day, index, values) => allowedDays.includes(day) && values.indexOf(day) === index)
+
+          if (days.length === 0) throw new Error('Les nouveaux jours de la routine sont invalides.')
+          updates.frequency = days.length === 7 ? 'daily' : 'custom'
+          updates.custom_days = `{${days.join(',')}}`
+        }
+
+        if (preferredTime) {
+          if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(preferredTime)) {
+            throw new Error('La nouvelle heure de la routine est invalide.')
+          }
+          updates.preferred_time = preferredTime
+        }
+
+        if (durationRaw) {
+          const durationMinutes = Number.parseInt(durationRaw, 10)
+          if (!Number.isFinite(durationMinutes) || durationMinutes < 5 || durationMinutes > 240) {
+            throw new Error('La durée de la routine doit être comprise entre 5 et 240 minutes.')
+          }
+          updates.duration_minutes = durationMinutes
+        }
+
+        if (reminderEnabledRaw) {
+          if (!['true', 'false'].includes(reminderEnabledRaw)) {
+            throw new Error('Le réglage du rappel doit être true ou false.')
+          }
+          updates.reminder_enabled = reminderEnabledRaw === 'true'
+        }
+
+        if (reminderMinutesRaw) {
+          const reminderMinutesBefore = Number.parseInt(reminderMinutesRaw, 10)
+          if (!Number.isFinite(reminderMinutesBefore) || reminderMinutesBefore < 0 || reminderMinutesBefore > 1440) {
+            throw new Error('Le délai du rappel doit être compris entre 0 et 1440 minutes.')
+          }
+          updates.reminder_minutes_before = reminderMinutesBefore
+        }
+
+        if (emoji) updates.description = emoji
+
+        if (Object.keys(updates).length === 0) {
+          results.push({
+            kind: 'routine',
+            actionId: action.id,
+            status: 'failed',
+            entityId: routineId,
+            message: `Aucune modification n’a été demandée pour la routine « ${current.title} ».`,
+          })
+          continue
+        }
+
+        updates.updated_at = new Date().toISOString()
+
+        const { data: updated, error: updateError } = await userClient
+          .from('routines')
+          .update(updates)
+          .eq('id', routineId)
+          .eq('user_id', user.id)
+          .select('id,title,description,category,frequency,custom_days,preferred_time,duration_minutes,reminder_enabled,reminder_minutes_before')
+          .single()
+
+        if (updateError || !updated) {
+          throw new Error(updateError?.message || 'La routine n’a pas pu être modifiée.')
+        }
+
+        results.push({
+          kind: 'routine',
+          actionId: action.id,
+          status: 'updated',
+          entityId: updated.id,
+          message: `C’est fait. La routine « ${updated.title} » a été modifiée${updated.preferred_time ? ` et est maintenant prévue à ${String(updated.preferred_time).slice(0, 5)}` : ''}.`,
+        })
+      } catch (error) {
+        results.push({
+          kind: 'routine',
+          actionId: action.id,
+          status: 'failed',
+          entityId: null,
+          message: error instanceof Error ? error.message : 'La routine n’a pas pu être modifiée.',
+        })
+      }
+    }
+
+
     for (const action of deleteRoutineActions) {
       try {
         const p = Object.fromEntries(action.parameters.map((item) => [item.key, item.value])) as Record<string, string>
+        const routineId = typeof p.routine_id === 'string' ? p.routine_id.trim() : ''
         const title = typeof p.title === 'string' ? p.title.trim() : ''
         const preferredTime = typeof p.preferred_time === 'string' ? p.preferred_time.trim() : ''
 
-        if (!title) {
+        if (!routineId && !title) {
           results.push({
             kind: 'routine',
             actionId: action.id,
@@ -1199,11 +1346,15 @@ export async function POST(request: NextRequest) {
           .from('routines')
           .select('id,title,preferred_time')
           .eq('user_id', user.id)
-          .ilike('title', `%${title}%`)
           .limit(10)
 
-        if (preferredTime && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(preferredTime)) {
-          query = query.eq('preferred_time', preferredTime)
+        if (routineId) {
+          query = query.eq('id', routineId)
+        } else {
+          query = query.ilike('title', `%${title}%`)
+          if (preferredTime && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(preferredTime)) {
+            query = query.eq('preferred_time', preferredTime)
+          }
         }
 
         const { data: matches, error: searchError } = await query
@@ -1211,9 +1362,11 @@ export async function POST(request: NextRequest) {
         if (searchError) throw new Error(searchError.message)
 
         const normalizedTitle = title.toLocaleLowerCase('fr-FR')
-        const exactMatches = (matches || []).filter(
-          (row: any) => String(row.title || '').trim().toLocaleLowerCase('fr-FR') === normalizedTitle
-        )
+        const exactMatches = routineId
+          ? (matches || [])
+          : (matches || []).filter(
+              (row: any) => String(row.title || '').trim().toLocaleLowerCase('fr-FR') === normalizedTitle
+            )
         const candidates = exactMatches.length > 0 ? exactMatches : (matches || [])
 
         if (candidates.length === 0) {
@@ -1303,6 +1456,7 @@ export async function POST(request: NextRequest) {
     const recipesCreated = results.filter((item) => item.kind === 'recipe' && item.status === 'created').length
     const recipesUpdated = results.filter((item) => item.kind === 'recipe' && item.status === 'updated').length
     const routinesCreated = results.filter((item) => item.kind === 'routine' && item.status === 'created').length
+    const routinesUpdated = results.filter((item) => item.kind === 'routine' && item.status === 'updated').length
     const routinesDeleted = results.filter((item) => item.kind === 'routine' && item.status === 'cancelled').length
     const failed = results.filter((item) => item.status === 'failed' || item.status === 'conflict').length
 
@@ -1311,7 +1465,7 @@ export async function POST(request: NextRequest) {
       messageParts.push('Les autres actions proposées ne sont pas encore exécutées dans ce laboratoire.')
     }
 
-    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned + recipesCreated + recipesUpdated + routinesCreated + routinesDeleted > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
+    const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned + recipesCreated + recipesUpdated + routinesCreated + routinesUpdated + routinesDeleted > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
     return NextResponse.json(
       {
         ok: failed === 0,
@@ -1330,6 +1484,7 @@ export async function POST(request: NextRequest) {
           recipesCreated,
           recipesUpdated,
           routinesCreated,
+          routinesUpdated,
           routinesDeleted,
         },
       },
