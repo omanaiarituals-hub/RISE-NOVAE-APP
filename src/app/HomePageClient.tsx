@@ -67,7 +67,7 @@ const MODULES_CACHE_KEY = 'novae-primary-modules'
 const OTHER_MODULES: ModuleItem[] = [
   { key: 'astuces', href: '/astuces', title: 'Astuces', description: 'Conseils pratiques', icon: 'idea' },
   { key: 'blog', href: '/blog', title: 'Ressources', description: 'Articles et contenus', icon: 'book' },
-  { key: 'finance', href: '/finances', title: 'Finances', description: 'Bientôt disponible', icon: 'wallet' },
+  { key: 'finance', href: '/settings', title: 'Finances', description: 'Bientôt disponible', icon: 'wallet' },
 ]
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -2309,15 +2309,18 @@ export default function HomePageClient() {
 
 
           .nova-actions-row {
+            right: 50%;
             bottom: 18px;
-            width: calc(100% - 36px);
-            gap: 8px;
+            left: auto;
+            width: min(200px, calc(100% - 48px));
+            transform: translateX(50%);
           }
 
           .nova-actions-row a {
+            width: 100%;
             min-height: 52px;
-            gap: 6px;
-            font-size: 16px;
+            align-items: center;
+            justify-content: center;
           }
 
           .situation-cards,
@@ -2341,7 +2344,11 @@ export default function HomePageClient() {
 
         @media (max-width: 900px) {
           .home-primary-modules {
-            gap: 12px;
+            width: min(100%, 620px);
+            grid-template-columns: repeat(3, minmax(110px, 1fr));
+            gap: 18px;
+            margin-inline: auto;
+            justify-content: center;
           }
 
           .home-primary-module {
@@ -2362,8 +2369,11 @@ export default function HomePageClient() {
 
         @media (max-width: 640px) {
           .home-primary-modules {
+            width: min(100%, 560px);
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 8px;
+            margin-inline: auto;
+            justify-content: center;
           }
 
           .home-primary-module {
@@ -2495,8 +2505,11 @@ export default function HomePageClient() {
           }
 
           .home-primary-modules {
+            width: 100%;
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 8px;
+            margin-inline: auto;
+            justify-content: center;
           }
 
           .home-primary-module {
@@ -2578,6 +2591,35 @@ export default function HomePageClient() {
             grid-template-columns: 1fr;
           }
         }
+
+        /* Production-safe alignment: must stay last so responsive preset rules
+           cannot move the validated home controls. */
+        .nova-actions-row {
+          right: 50% !important;
+          left: auto !important;
+          width: min(200px, calc(100% - 48px)) !important;
+          transform: translateX(50%) !important;
+        }
+
+        .nova-actions-row a {
+          width: 100% !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+
+        .hero-nova-monogram {
+          margin-inline: auto !important;
+        }
+
+        .home-primary-modules {
+          margin-inline: auto !important;
+          justify-content: center !important;
+        }
+
+        .home-primary-module {
+          justify-self: center !important;
+        }
+
       `}</style>
     </>
   )
