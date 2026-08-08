@@ -254,28 +254,7 @@ export default function SettingsPage() {
         </div>
 
         <main style={{ maxWidth: 600, margin: '0 auto', padding: '12px 20px 40px' }}>
-          {/* SECTION ROUTINES */}
-          <div style={glassCard}>
-            <h2 style={sectionTitle}>Mes heures de routines</h2>
-            <p style={sectionDesc}>
-              Définis l'heure à laquelle tu veux recevoir tes rappels rituels (sauvegardé pour toi, application progressive selon ton plan d'hébergement).
-            </p>
-
-            <div style={{ display: 'grid', gap: 14 }}>
-              <TimeInput
-                label="☀️ Routine matin"
-                value={userPrefs.routine_morning_time}
-                onChange={v => setUserPrefs(p => ({ ...p, routine_morning_time: v }))}
-              />
-              <TimeInput
-                label="🌙 Routine soir"
-                value={userPrefs.routine_evening_time}
-                onChange={v => setUserPrefs(p => ({ ...p, routine_evening_time: v }))}
-              />
-            </div>
-          </div>
-
-          {/* SECTION PERSONNALISATION */}
+{/* SECTION PERSONNALISATION */}
           <Link
             href="/personnalisation"
             style={{
