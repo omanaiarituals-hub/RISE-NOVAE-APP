@@ -1187,30 +1187,105 @@ export async function POST(request: NextRequest) {
         const ingredient = typeof p.ingredient === 'string' ? p.ingredient.trim() : ''
         const quantity = typeof p.quantity === 'string' ? p.quantity.trim() : ''
         const unit = typeof p.unit === 'string' ? p.unit.trim() : ''
+
         if (!ingredient) {
           results.push({ kind: 'shopping_item', actionId: action.id, status: 'failed', entityId: null, message: 'Article manquant, rien n’a été ajouté à la liste.' })
           continue
         }
+
+        // Garde anti-doublon sur les articles encore actifs à acheter.
+        // L'article manuel n'a volontairement aucun recipe_id.
+        const { data: existingItems, error: existingError } = await userClient
+          .from('shopping_list')
+          .select('id,ingredient,quantity,unit,to_buy')
+          .eq('user_id', user.id)
+          .eq('to_buy', true)
+          .ilike('ingredient', ingredient)
+          .limit(5)
+
+        if (existingError) throw new Error(existingError.message)
+
+        const normalizedIngredient = ingredient
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLocaleLowerCase('fr-FR')
+          .replace(/\s+/g, ' ')
+          .trim()
+
+        const duplicate = (existingItems || []).find((item: any) => {
+          const current = String(item.ingredient || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLocaleLowerCase('fr-FR')
+            .replace(/\s+/g, ' ')
+            .trim()
+          return current === normalizedIngredient
+        })
+
+        if (duplicate) {
+          results.push({
+            kind: 'shopping_item',
+            actionId: action.id,
+            status: 'already_exists',
+            entityId: duplicate.id,
+            message: `${ingredient} est déjà dans ta liste de courses. Je n’ai pas créé de doublon.`,
+          })
+          continue
+        }
+
         const now = new Date().toISOString()
         const { data: inserted, error } = await userClient
           .from('shopping_list')
-          .insert({ user_id: user.id, ingredient, quantity: quantity || null, unit: unit || null, checked: false, in_stock: false, to_buy: true, created_at: now, updated_at: now })
+          .insert({
+            user_id: user.id,
+            ingredient,
+            quantity: quantity || null,
+            unit: unit || null,
+            recipe_id: null,
+            checked: false,
+            in_stock: false,
+            to_buy: true,
+            created_at: now,
+            updated_at: now,
+          })
           .select('id')
           .single()
+
         if (error || !inserted?.id) throw new Error(error?.message || 'L’article n’a pas pu être ajouté.')
+
         const { data: verified, error: verifyError } = await userClient
           .from('shopping_list')
-          .select('id,ingredient,quantity,unit,to_buy')
+          .select('id,ingredient,quantity,unit,recipe_id,to_buy')
           .eq('id', inserted.id)
           .eq('user_id', user.id)
           .single()
-        if (verifyError || !verified || verified.ingredient !== ingredient || verified.to_buy !== true) {
+
+        if (
+          verifyError ||
+          !verified ||
+          verified.ingredient !== ingredient ||
+          verified.to_buy !== true ||
+          verified.recipe_id !== null
+        ) {
           throw new Error(verifyError?.message || 'L’article a été écrit mais sa présence dans la liste n’a pas pu être vérifiée.')
         }
+
         const label = [quantity, unit, ingredient].filter(Boolean).join(' ')
-        results.push({ kind: 'shopping_item', actionId: action.id, status: 'created', entityId: inserted.id, message: `Ajouté à ta liste de courses : ${label}.` })
+        results.push({
+          kind: 'shopping_item',
+          actionId: action.id,
+          status: 'created',
+          entityId: inserted.id,
+          message: `Ajouté à ta liste de courses : ${label}.`,
+        })
       } catch (error) {
-        results.push({ kind: 'shopping_item', actionId: action.id, status: 'failed', entityId: null, message: error instanceof Error ? error.message : 'L’article n’a pas pu être ajouté.' })
+        results.push({
+          kind: 'shopping_item',
+          actionId: action.id,
+          status: 'failed',
+          entityId: null,
+          message: error instanceof Error ? error.message : 'L’article n’a pas pu être ajouté.',
+        })
       }
     }
 
@@ -1406,6 +1481,41 @@ export async function POST(request: NextRequest) {
         const caloriesRaw = parseInt(String(p.calories || ''), 10)
         const calories = Number.isFinite(caloriesRaw) ? caloriesRaw : null
 
+        const sourceName = String(p.source_name || '').trim()
+        const sourceUrl = String(p.source_url || '').trim()
+        const sourceRatingRaw = String(p.source_rating || '').trim()
+        const sourceReviews = String(p.source_reviews || '').trim()
+
+        let webSource: { name: string; url: string; rating: string; reviews?: string } | null = null
+        if (sourceName || sourceUrl || sourceRatingRaw) {
+          if (!sourceName || !sourceUrl || !sourceRatingRaw) {
+            throw new Error(`La provenance web de « ${title || 'cette recette'} » est incomplète : source, URL et note sont obligatoires ensemble.`)
+          }
+
+          let parsedUrl: URL
+          try {
+            parsedUrl = new URL(sourceUrl)
+          } catch {
+            throw new Error(`L’URL source de « ${title || 'cette recette'} » est invalide.`)
+          }
+          if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+            throw new Error(`L’URL source de « ${title || 'cette recette'} » doit être une URL web http(s).`)
+          }
+
+          const ratingMatch = sourceRatingRaw.replace(',', '.').match(/([0-5](?:\.\d+)?)\s*(?:\/\s*5)?/)
+          const ratingValue = ratingMatch ? Number.parseFloat(ratingMatch[1]) : Number.NaN
+          if (!Number.isFinite(ratingValue) || ratingValue < 0 || ratingValue > 5) {
+            throw new Error(`La note source de « ${title || 'cette recette'} » est invalide.`)
+          }
+
+          webSource = {
+            name: sourceName,
+            url: parsedUrl.toString(),
+            rating: `${ratingValue.toFixed(1)}/5`,
+            ...(sourceReviews ? { reviews: sourceReviews } : {}),
+          }
+        }
+
         let ingredients: Array<{ name: string; quantity: string }>
         let steps: string[]
         try {
@@ -1439,18 +1549,45 @@ export async function POST(request: NextRequest) {
 
         const { data: existingRows, error: existingError } = await userClient
           .from('recipes')
-          .select('id,title,ingredients,steps')
+          .select('id,title,ingredients,steps,source')
           .eq('user_id', user.id)
           .ilike('title', title)
           .limit(1)
         if (existingError) throw new Error(existingError.message)
 
-        const existing = (existingRows || [])[0] as { id:string; title:string; ingredients:unknown; steps:unknown } | undefined
+        const existing = (existingRows || [])[0] as { id:string; title:string; ingredients:unknown; steps:unknown; source?:string | null } | undefined
         const existingComplete = existing &&
           Array.isArray(existing.ingredients) && existing.ingredients.length >= 3 &&
           Array.isArray(existing.steps) && existing.steps.length >= 2
 
+        const encodedSource = webSource
+          ? `web:${JSON.stringify(webSource)}`
+          : 'nova'
+
         if (existingComplete) {
+          if (webSource && existing?.id) {
+            const { data: enriched, error: enrichError } = await userClient
+              .from('recipes')
+              .update({ source: encodedSource, updated_at: new Date().toISOString() })
+              .eq('id', existing.id)
+              .eq('user_id', user.id)
+              .select('id,source')
+              .single()
+
+            if (enrichError || !enriched?.id || enriched.source !== encodedSource) {
+              throw new Error(enrichError?.message || `La provenance web de « ${existing.title} » n’a pas pu être enregistrée.`)
+            }
+
+            results.push({
+              kind:'recipe',
+              actionId:action.id,
+              status:'updated',
+              entityId:existing.id,
+              message:`C’est fait. J’ai conservé la source ${webSource.name} et la note ${webSource.rating} sur la fiche « ${existing.title} ».`,
+            })
+            continue
+          }
+
           results.push({ kind:'recipe', actionId:action.id, status:'already_exists', entityId:existing.id, message:`La recette « ${existing.title} » existe déjà avec ses ingrédients et ses étapes. Je n’ai pas créé de doublon.` })
           continue
         }
@@ -1461,7 +1598,7 @@ export async function POST(request: NextRequest) {
           prep_time: prepTime, cook_time: cookTime,
           category, meal_type: mealType, difficulty, servings,
           ingredients, steps, calories,
-          is_favorite: false, is_public: false, source: 'nova',
+          is_favorite: false, is_public: false, source: encodedSource,
           updated_at: now,
         }
 
@@ -1481,11 +1618,12 @@ export async function POST(request: NextRequest) {
         }
 
         const { data: verified, error: verifyError } = await userClient.from('recipes')
-          .select('id,title,servings,ingredients,steps').eq('id', recipeId).eq('user_id', user.id).single()
+          .select('id,title,servings,ingredients,steps,source').eq('id', recipeId).eq('user_id', user.id).single()
         if (verifyError || !verified || verified.title !== title ||
             !Array.isArray(verified.ingredients) || verified.ingredients.length !== ingredients.length ||
             !Array.isArray(verified.steps) || verified.steps.length !== steps.length ||
-            verified.servings !== servings) {
+            verified.servings !== servings ||
+            (webSource && verified.source !== encodedSource)) {
           throw new Error(`La recette « ${title} » a été écrite mais sa fiche complète n’a pas pu être vérifiée.`)
         }
 

@@ -35,6 +35,7 @@ interface Recipe {
   is_public?: boolean
   calories?: number
   photo_url?: string
+  source?: string
 }
 
 interface ScanPrefill extends Partial<Recipe> {
@@ -106,6 +107,45 @@ const PLAN_SLOTS: { key: PlanSlot; label: string }[] = [
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
 const DAYS_SHORT = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 const EMOJIS = ['🥗','🍝','🥩','🐟','🍲','🥘','🫕','🥙','🌮','🍰','🎂','🍮','🥧','🍜','🍛','🍣','🥚','🥦','🍳','🧆']
+
+interface RecipeWebSource {
+  name: string
+  url: string
+  rating: string
+  reviews?: string
+}
+
+function parseRecipeWebSource(source?: string): RecipeWebSource | null {
+  if (!source || !source.startsWith('web:')) return null
+
+  try {
+    const parsed = JSON.parse(source.slice(4)) as Partial<RecipeWebSource>
+    if (
+      typeof parsed.name !== 'string' ||
+      typeof parsed.url !== 'string' ||
+      typeof parsed.rating !== 'string' ||
+      !parsed.name.trim() ||
+      !parsed.url.trim() ||
+      !parsed.rating.trim()
+    ) {
+      return null
+    }
+
+    const url = new URL(parsed.url)
+    if (!['http:', 'https:'].includes(url.protocol)) return null
+
+    return {
+      name: parsed.name.trim(),
+      url: url.toString(),
+      rating: parsed.rating.trim(),
+      ...(typeof parsed.reviews === 'string' && parsed.reviews.trim()
+        ? { reviews: parsed.reviews.trim() }
+        : {}),
+    }
+  } catch {
+    return null
+  }
+}
 
 const DEFAULT_RECIPES = [
   {
@@ -346,6 +386,7 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, onEditImage, allergyWarnin
   const [scope, setScope] = useState<string[]>(['foyer'])
   const [headcount, setHeadcount] = useState(recipe.servings || 2)
   const warnings = allergyWarnings?.filter(a => a.recipeTitle === recipe.title) || []
+  const webSource = parseRecipeWebSource(recipe.source)
   const toggleScope = (k: string) =>
     setScope(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k])
   return (
@@ -376,6 +417,24 @@ function RecipeDetail({ recipe, onClose, onAddToPlan, onEditImage, allergyWarnin
             </button>
             <h2 style={{ margin: '8px 0 4px', fontFamily: "'Cormorant Garamond',serif", fontSize: 26, color: C.noir }}>{recipe.title}</h2>
             {recipe.description && <p style={{ margin: '0 0 8px', fontSize: 13, color: C.gris }}>{recipe.description}</p>}
+            {webSource && (
+              <div style={{ margin: '0 0 10px', padding: '8px 10px', borderRadius: 10, background: 'rgba(123,111,160,0.07)', border: '1px solid rgba(123,111,160,0.18)', fontSize: 11, color: C.gris }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <strong style={{ color: C.noir }}>Source : {webSource.name}</strong>
+                  <span>⭐ {webSource.rating}</span>
+                  {webSource.reviews && <span>· {webSource.reviews} avis</span>}
+                </div>
+                <a
+                  href={webSource.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: 'inline-block', marginTop: 4, color: C.violet, textDecoration: 'underline', overflowWrap: 'anywhere' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Voir la recette source
+                </a>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 8, background: mc.bg, color: mc.text, border: `1px solid ${mc.border}` }}>{mc.label}</span>
               <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 8, background: CATEGORY_COLORS[recipe.category]?.bg, color: CATEGORY_COLORS[recipe.category]?.text }}>{CATEGORY_COLORS[recipe.category]?.label}</span>

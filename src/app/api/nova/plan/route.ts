@@ -615,22 +615,46 @@ function noteTitleScore(message: string, title: string): number {
   return matched / titleTokens.length
 }
 
-function formatNotesContext(rows: NoteRow[] | null, message: string): string | undefined {
+function formatNotesContext(rows: NoteRow[] | null, message: string, conversationHistory = ''): string | undefined {
   if (!rows || rows.length === 0) return undefined
 
+  const normalizedMessage = normalizeNoteText(message)
+  const isAnaphoricNoteReference =
+    /\b(cette liste|cette note|la liste|la note|la checklist|cette checklist|que tu viens de creer|que tu viens de créer|que tu as cree|que tu as créé|dans cette liste|dans cette note)\b/.test(normalizedMessage)
+
   const scored = rows
-    .map((note) => ({
-      note,
-      score: note.title ? noteTitleScore(message, note.title) : 0,
-    }))
+    .map((note, index) => {
+      const directScore = note.title ? noteTitleScore(message, note.title) : 0
+      const historyScore =
+        isAnaphoricNoteReference && note.title
+          ? noteTitleScore(conversationHistory, note.title)
+          : 0
+
+      // Petit bonus de récence uniquement lorsqu'elle fait clairement référence
+      // à la note/liste dont elle vient de parler.
+      const recencyBonus = isAnaphoricNoteReference ? Math.max(0, 0.12 - index * 0.01) : 0
+
+      return {
+        note,
+        directScore,
+        historyScore,
+        score: Math.max(directScore, historyScore) + recencyBonus,
+      }
+    })
     .sort((a, b) => b.score - a.score)
 
   const top = scored[0]
   const second = scored[1]
+  const strongDirectMatch = !!top && top.directScore >= 0.65
+  const strongConversationMatch =
+    !!top &&
+    isAnaphoricNoteReference &&
+    top.historyScore >= 0.65
+
   const canExposeTopContent =
     !!top &&
-    top.score >= 0.65 &&
-    (!second || top.score - second.score >= 0.2)
+    (strongDirectMatch || strongConversationMatch) &&
+    (!second || top.score - second.score >= 0.12)
 
   return rows.slice(0, 30).map((note) => {
     const parts = [
@@ -745,20 +769,419 @@ type MemoryCandidateLike = {
   value: string
   scope: string
   confidence: number
+  requires_confirmation?: boolean
+}
+
+function canonicalMemoryKey(value: string): string {
+  const normalized = normalizeFactKey(value)
+  const aliases: Record<string, string> = {
+    date_de_naissance: 'date_naissance',
+    birth_date: 'date_naissance',
+    birthdate: 'date_naissance',
+    birthday: 'date_naissance',
+    sexe: 'genre',
+    gender: 'genre',
+    prenom: 'prenom',
+    first_name: 'prenom',
+    firstname: 'prenom',
+    nom_affichage: 'prenom',
+    food_preferences: 'preferences_alimentaires',
+    preference_alimentaire: 'preferences_alimentaires',
+    preferences_nourriture: 'preferences_alimentaires',
+    work_schedule: 'rythme_travail',
+    horaires_travail: 'rythme_travail',
+    rythme_professionnel: 'rythme_travail',
+  }
+  return aliases[normalized] || normalized
 }
 
 function selectDurableMemories(candidates: MemoryCandidateLike[]): MemoryCandidateLike[] {
   const byKey = new Map<string, MemoryCandidateLike>()
-  for (const c of candidates) {
-    if (!c.key || !c.value) continue
-    // On se fie au scope : tout ce qui n'est pas "temporary" est durable.
-    // La confiance est conservée mais ne sert plus de filtre (elle était trop
-    // stricte face aux valeurs basses que le modèle produit par défaut).
-    if (c.scope === 'temporary') continue
-    const existing = byKey.get(c.key)
-    if (!existing || (c.confidence ?? 0) > (existing.confidence ?? 0)) byKey.set(c.key, c)
+
+  for (const raw of candidates) {
+    const key = canonicalMemoryKey(String(raw.key || ''))
+    const value = String(raw.value || '').trim()
+    const confidence = Number(raw.confidence || 0)
+
+    if (!key || !value) continue
+    if (raw.scope === 'temporary') continue
+
+    // Une information inférée ou explicitement marquée "à confirmer" ne doit
+    // jamais devenir un fait persistant silencieusement.
+    if (raw.requires_confirmation === true) continue
+
+    // On ne persiste automatiquement que les faits suffisamment sûrs.
+    if (!Number.isFinite(confidence) || confidence < 0.78) continue
+
+    // Ne jamais mémoriser un âge fixe : la date de naissance est le fait source.
+    if (key === 'age' || key.endsWith('_age') || key.includes('age_actuel')) continue
+
+    const candidate: MemoryCandidateLike = {
+      ...raw,
+      key,
+      value,
+      confidence,
+      requires_confirmation: false,
+    }
+
+    const existing = byKey.get(key)
+    if (!existing || confidence > existing.confidence) byKey.set(key, candidate)
   }
+
   return Array.from(byKey.values())
+}
+
+
+function hasMemoryKey(rows: NovaMemoryRow[] | null, keys: string[]): boolean {
+  if (!rows) return false
+  const accepted = new Set(keys.map(canonicalMemoryKey))
+  return rows.some((row) => {
+    if (!row.key || !row.value) return false
+    return accepted.has(canonicalMemoryKey(row.key))
+  })
+}
+
+function messageTouches(message: string, words: string[]): boolean {
+  const normalized = normalizeNoteText(message)
+  return words.some((word) => normalized.includes(normalizeNoteText(word)))
+}
+
+function buildProfileLearningHints(
+  profile: Record<string, unknown> | null,
+  memories: NovaMemoryRow[] | null,
+  familyRows: FamilyMemberRow[] | null,
+  message: string
+): string | undefined {
+  const hints: string[] = []
+  const familyMembers = (familyRows || []).filter((row) => !row.data_type || row.data_type === 'member')
+
+  const displayNameKnown =
+    !!(profile && typeof profile.display_name === 'string' && profile.display_name.trim()) ||
+    hasMemoryKey(memories, ['prenom', 'first_name', 'firstname'])
+
+  const householdKnown =
+    !!(profile && typeof profile.household_type === 'string' && profile.household_type.trim())
+
+  const workRhythmKnown =
+    !!(profile && typeof profile.work_rhythm === 'string' && profile.work_rhythm.trim()) ||
+    hasMemoryKey(memories, ['rythme_travail', 'horaires_travail', 'work_schedule'])
+
+  const foodKnown = hasMemoryKey(memories, [
+    'preferences_alimentaires',
+    'regime_alimentaire',
+    'allergies',
+    'aliments_exclus',
+  ])
+
+  const birthDateKnown = hasMemoryKey(memories, [
+    'date_naissance',
+    'date_de_naissance',
+    'birth_date',
+    'birthdate',
+    'birthday',
+  ])
+
+  if (!displayNameKnown && messageTouches(message, ['bonjour', 'salut', 'moi', 'je suis'])) {
+    hints.push('Prénom inconnu : tu peux demander comment l’appeler si cela s’intègre naturellement à l’échange.')
+  }
+
+  if (!householdKnown && messageTouches(message, ['repas', 'courses', 'famille', 'maison', 'semaine'])) {
+    hints.push('Composition/type de foyer incomplète : une question courte peut être utile si elle change réellement la réponse.')
+  }
+
+  if (familyMembers.length === 0 && messageTouches(message, ['enfant', 'fille', 'fils', 'famille', 'garde'])) {
+    hints.push('Entourage familial non renseigné : demande uniquement l’information nécessaire au sujet actuel.')
+  }
+
+  if (!foodKnown && messageTouches(message, ['repas', 'recette', 'manger', 'courses', 'cuisine'])) {
+    hints.push('Préférences/contraintes alimentaires encore inconnues : tu peux poser UNE question utile après avoir aidé sur la demande principale.')
+  }
+
+  if (!workRhythmKnown && messageTouches(message, ['travail', 'planning', 'semaine', 'organisation', 'routine'])) {
+    hints.push('Rythme de travail encore inconnu : demande-le seulement si cela améliore concrètement la planification.')
+  }
+
+  if (!birthDateKnown && messageTouches(message, ['age', 'anniversaire', 'date de naissance', 'née', 'né'])) {
+    hints.push('Date de naissance de l’utilisatrice inconnue : demande-la uniquement parce que le sujet actuel porte sur l’âge ou l’anniversaire.')
+  }
+
+  if (hints.length === 0) return undefined
+
+  return [
+    'Opportunités d’enrichissement du profil détectées par le code :',
+    ...hints.slice(0, 2).map((hint) => `- ${hint}`),
+    'Règle : au maximum UNE question d’enrichissement par réponse, jamais si elle détourne de la demande principale, jamais pour une information déjà connue.',
+  ].join('\n')
+}
+
+
+type NovaWebSource = {
+  url: string
+  title: string
+}
+
+type NovaWebResearch = {
+  kind: 'events' | 'rated_recipes' | 'fresh_info'
+  text: string
+  sources: NovaWebSource[]
+}
+
+type OpenAIWebAnnotation = {
+  type?: string
+  url?: string
+  title?: string
+}
+
+type OpenAIWebContent = {
+  type?: string
+  text?: string
+  annotations?: OpenAIWebAnnotation[]
+}
+
+type OpenAIWebOutputItem = {
+  type?: string
+  status?: string
+  content?: OpenAIWebContent[]
+  action?: {
+    type?: string
+    query?: string
+    queries?: string[]
+    sources?: Array<{ url?: string; title?: string }>
+  }
+}
+
+type OpenAIWebResponse = {
+  output?: OpenAIWebOutputItem[]
+  error?: { message?: string }
+}
+
+function normalizeWebIntentText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('fr-FR')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function detectNovaWebSearchKind(message: string): NovaWebResearch['kind'] | null {
+  const value = normalizeWebIntentText(message)
+
+  const ratedRecipe =
+    /\b(recette|recettes|plat|plats)\b/.test(value) &&
+    (
+      /\b(notee?s?|notation|etoiles?|avis)\b/.test(value) ||
+      /\b4\s*(?:\/|sur)\s*5\b/.test(value) ||
+      /\bplus de 4\b/.test(value)
+    )
+
+  if (ratedRecipe) return 'rated_recipes'
+
+  const localEvent =
+    /\b(evenement|evenements|meetup|meetups|networking|conference|conferences|salon|salons|concert|concerts|sortie|sorties|activite|activites|coworking|co-working|aperos?|afterwork)\b/.test(value) &&
+    /\b(aujourd hui|demain|cette semaine|semaine prochaine|ce week end|week end|ce mois|prochain|prochaine|en ce moment|a venir|autour de|pres de|a lyon|a paris|a marseille|a lille|a bordeaux|a toulouse|a nice)\b/.test(value)
+
+  if (localEvent) return 'events'
+
+  const explicitSearch =
+    /\b(cherche|chercher|recherche|rechercher|trouve|trouver|verifie|verifier|check|checker)\b/.test(value) &&
+    /\b(internet|web|en ligne|actuel|actuelle|actuels|actuelles|aujourd hui|maintenant|horaires?|prix|disponibilite|disponible|derniere|dernieres|recent|recente|recents|recentes)\b/.test(value)
+
+  if (explicitSearch) return 'fresh_info'
+
+  return null
+}
+
+function buildNovaWebSearchPrompt(
+  kind: NovaWebResearch['kind'],
+  message: string,
+  nowIso: string
+): string {
+  const common = [
+    `Date/heure de référence : ${nowIso}.`,
+    `Demande de l'utilisatrice : ${message}`,
+    '',
+    'Effectue réellement une recherche web maintenant.',
+    'Ne promets aucun travail futur.',
+    'Ne complète jamais une information manquante par supposition.',
+    'Retourne une synthèse courte et factuelle en français.',
+    'Pour chaque résultat retenu, donne son URL source exacte.',
+  ]
+
+  if (kind === 'events') {
+    return [
+      ...common,
+      '',
+      'OBJECTIF ÉVÉNEMENTS :',
+      '- ne retiens que des événements dont la date correspond réellement à la période demandée ;',
+      '- donne : nom, date, heure si disponible, lieu/ville, courte description et URL officielle ou source fiable ;',
+      '- si une date ou un lieu n’est pas vérifiable, ne présente pas le résultat comme confirmé ;',
+      '- privilégie les sites officiels des organisateurs, lieux, billetteries ou plateformes événementielles reconnues ;',
+      '- limite-toi à 6 résultats maximum.',
+    ].join('\n')
+  }
+
+  if (kind === 'rated_recipes') {
+    return [
+      ...common,
+      '',
+      'OBJECTIF RECETTES NOTÉES :',
+      '- ne retiens QUE les recettes dont une note strictement supérieure à 4/5 est visible et vérifiable sur la source ;',
+      '- 4,0/5 exactement ne passe PAS le filtre ;',
+      '- si une note est sur une autre échelle, convertis-la sur 5 seulement si la conversion est mathématiquement non ambiguë ;',
+      '- donne : nom de la recette, note exacte, nombre d’avis si visible, site/source, URL et résumé très court du plat ;',
+      '- ne copie pas intégralement le texte ou les étapes d’une recette source ;',
+      '- si aucune recette ne satisfait réellement le critère, dis-le clairement ;',
+      '- limite-toi à 5 résultats maximum.',
+    ].join('\n')
+  }
+
+  return [
+    ...common,
+    '',
+    'OBJECTIF INFORMATION FRAÎCHE :',
+    '- privilégie les sources récentes et directement pertinentes ;',
+    '- distingue clairement ce qui est vérifié de ce qui ne l’est pas ;',
+    '- limite-toi aux éléments nécessaires pour répondre à la demande.',
+  ].join('\n')
+}
+
+function uniqueNovaWebSources(sources: NovaWebSource[]): NovaWebSource[] {
+  const seen = new Set<string>()
+  const output: NovaWebSource[] = []
+
+  for (const source of sources) {
+    const url = String(source.url || '').trim()
+    if (!url || seen.has(url)) continue
+    seen.add(url)
+    output.push({
+      url,
+      title: String(source.title || '').trim() || url,
+    })
+  }
+
+  return output.slice(0, 12)
+}
+
+async function runNovaWebSearch(
+  kind: NovaWebResearch['kind'],
+  message: string,
+  nowIso: string
+): Promise<NovaWebResearch | null> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    console.warn('[api/nova/plan] Web Search demandé mais OPENAI_API_KEY absente')
+    return null
+  }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30_000)
+
+
+  try {
+    const model = process.env.NOVA_WEB_SEARCH_MODEL || 'gpt-5-mini'
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        reasoning: { effort: 'low' },
+        tools: [{ type: 'web_search' }],
+        tool_choice: 'required',
+        include: ['web_search_call.action.sources'],
+        input: buildNovaWebSearchPrompt(kind, message, nowIso),
+      }),
+    })
+
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 800)
+      console.warn('[api/nova/plan] Web Search OpenAI refusé', response.status, detail)
+      return null
+    }
+
+    const data = (await response.json()) as OpenAIWebResponse
+    const textParts: string[] = []
+    const sources: NovaWebSource[] = []
+
+    for (const item of data.output || []) {
+      if (item.type === 'message') {
+        for (const content of item.content || []) {
+          if (content.type === 'output_text' && content.text?.trim()) {
+            textParts.push(content.text.trim())
+          }
+
+          for (const annotation of content.annotations || []) {
+            if (annotation.type === 'url_citation' && annotation.url) {
+              sources.push({
+                url: annotation.url,
+                title: annotation.title || annotation.url,
+              })
+            }
+          }
+        }
+      }
+
+      if (item.type === 'web_search_call') {
+        for (const source of item.action?.sources || []) {
+          if (source.url) {
+            sources.push({
+              url: source.url,
+              title: source.title || source.url,
+            })
+          }
+        }
+      }
+    }
+
+    const text = textParts.join('\n\n').trim()
+    if (!text) {
+      console.warn('[api/nova/plan] Web Search terminé sans texte exploitable')
+      return null
+    }
+
+    return {
+      kind,
+      text: text.slice(0, 12_000),
+      sources: uniqueNovaWebSources(sources),
+    }
+  } catch (error) {
+    console.warn(
+      '[api/nova/plan] Web Search indisponible',
+      error instanceof Error ? error.message : error
+    )
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+function formatNovaWebResearchForModel(research: NovaWebResearch): string {
+  const sources = research.sources.length > 0
+    ? research.sources
+        .map((source, index) => `${index + 1}. ${source.title} — ${source.url}`)
+        .join('\n')
+    : 'Aucune URL structurée récupérée.'
+
+  return [
+    'RÉSULTAT DE RECHERCHE WEB RÉELLE — effectué maintenant par NOVAÉ :',
+    `type=${research.kind}`,
+    '',
+    research.text,
+    '',
+    'SOURCES WEB AUTORISÉES À CITER :',
+    sources,
+    '',
+    'RÈGLES :',
+    '- utilise ces résultats maintenant, dans cette réponse ;',
+    '- ne dis jamais « je vais chercher », « je vais checker » ou « je te donne ça dans quelques instants » ;',
+    '- ne cite aucune URL qui ne figure pas dans cette section ;',
+    '- si les résultats ne suffisent pas à vérifier une affirmation, dis-le ;',
+    '- pour une recette annoncée comme >4/5, la note doit être explicitement vérifiable dans le résultat web.',
+  ].join('\n')
 }
 
 function frenchLocal(iso: string | null | undefined): string {
@@ -852,7 +1275,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           .eq('conversation_id', conversationId)
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
-          .limit(17)
+          .limit(25)
 
         if (historyError) {
           console.warn('[api/nova/plan] historique conversation indisponible', historyError.message)
@@ -865,8 +1288,12 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
             chronological.pop()
           }
           conversationHistory = chronological
-            .slice(-16)
-            .map((row) => `${row.role === 'assistant' ? 'Nova' : row.role === 'user' ? 'Utilisateur' : 'Système'} : ${String(row.content || '').trim()}`)
+            .slice(-24)
+            .map((row) => {
+              const when = row.created_at ? frenchLocal(row.created_at) : 'date inconnue'
+              const speaker = row.role === 'assistant' ? 'Nova' : row.role === 'user' ? 'Utilisateur' : 'Système'
+              return `[message envoyé le ${when}] ${speaker} : ${String(row.content || '').trim()}`
+            })
             .filter(Boolean)
             .join('\n')
         }
@@ -877,7 +1304,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       conversationHistory ? `Historique récent de cette conversation :\n${conversationHistory}` : '',
       workflowContext ? `État du sujet actif :\n${workflowContext}` : '',
       `Nouveau message de l’utilisatrice : ${message}`,
-      'Réponds uniquement au nouveau message. Utilise l’historique et les données connues silencieusement. Ne récite jamais le programme complet sauf demande explicite, ne répète pas les informations déjà établies, ne ramène pas automatiquement un ancien sujet et ne pose qu’une question à la fois. Une réponse courante doit rester courte et naturelle. Ne prétends jamais avoir exécuté une action avant le résultat réel du moteur.',
+      'Réponds uniquement au nouveau message. Utilise l’historique et les données connues silencieusement. IMPORTANT TEMPOREL : chaque ligne d’historique porte sa date réelle ; les mots relatifs contenus dans un ancien message (« demain », « samedi », « cette semaine », etc.) doivent être interprétés par rapport à la date de CE message, jamais par rapport à aujourd’hui. Le planning actuel fourni par la base est prioritaire pour affirmer qu’un rendez-vous futur existe. N’affirme jamais qu’un ancien rendez-vous est encore à venir s’il est déjà passé ou s’il n’apparaît pas comme événement futur dans le contexte Planner. Ne récite jamais le programme complet sauf demande explicite, ne répète pas les informations déjà établies, ne ramène pas automatiquement un ancien sujet et ne pose qu’une question à la fois. Une réponse courante doit rester courte et naturelle. Ne prétends jamais avoir exécuté une action avant le résultat réel du moteur.',
     ].filter(Boolean).join('\n\n')
 
     const calendarWindowStart = new Date()
@@ -939,10 +1366,12 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       .join('\n')
 
     const activeEventRows = ((activeEvents || []) as ActiveCalendarContextRow[])
+    const nowMs = Date.now()
     const eventContext = activeEventRows
       .map((event) => [
         `id=${event.id}`,
         `titre=${String(event.title || '').replace(/\s+/g, ' ').trim()}`,
+        `position_temporelle=${new Date(event.end_date).getTime() < nowMs ? 'PASSE' : new Date(event.start_date).getTime() > nowMs ? 'FUTUR' : 'EN_COURS'}`,
         `debut=${event.start_date}`,
         `debut_local=${frenchLocal(event.start_date)}`,
         `fin=${event.end_date}`,
@@ -1098,13 +1527,16 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           .limit(40),
       ])
 
-      const profileText = buildUserContextFromProfile(profileRes.data)
+      const profileRow = (profileRes.data || null) as Record<string, unknown> | null
+      const profileText = buildUserContextFromProfile(profileRow)
       const memoryRows = memoriesRes.data as NovaMemoryRow[] | null
+      const familyRows = familyRes.data as FamilyMemberRow[] | null
       const ownProfileText = buildDeterministicOwnProfileContext(memoryRows, user.email, 'Europe/Paris')
       const memoriesText = formatNovaMemories(memoryRows)
-      const familyText = formatFamilyContext(familyRes.data as FamilyMemberRow[] | null, 'Europe/Paris')
+      const familyText = formatFamilyContext(familyRows, 'Europe/Paris')
+      const learningHintsText = buildProfileLearningHints(profileRow, memoryRows, familyRows, message)
       const adminDocsText = formatAdminDocsContext(adminDocsRes.data as AdminDocRow[] | null)
-      const notesText = formatNotesContext(notesRes.data as NoteRow[] | null, message)
+      const notesText = formatNotesContext(notesRes.data as NoteRow[] | null, message, conversationHistory)
       const mealsText = formatMealsContext(mealsRes.data as MealRow[] | null)
       const shoppingText = formatShoppingContext(shoppingRes.data as ShoppingRow[] | null)
       const routinesText = formatRoutinesContext(routinesRes.data as RoutineRow[] | null)
@@ -1115,8 +1547,9 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       if (ownProfileText) parts.push(`Profil factuel déterministe de l’utilisatrice :\n${ownProfileText}`)
       if (memoriesText) parts.push(`Ce que Nova a appris au fil des échanges :\n${memoriesText}`)
       if (familyText) parts.push(`Entourage et organisation du foyer :\n${familyText}`)
+      if (learningHintsText) parts.push(learningHintsText)
       if (adminDocsText) parts.push(`Documents administratifs en attente (métadonnées uniquement) :\n${adminDocsText}`)
-      if (notesText) parts.push(`Notes récentes (identifiants internes, contenu exposé uniquement pour une correspondance déterministe ; ne jamais afficher les identifiants) :\n${notesText}`)
+      if (notesText) parts.push(`Notes récentes (identifiants internes ; le contenu d’une note peut être exposé lorsqu’elle est identifiée directement OU par une référence claire dans la conversation comme « cette liste » ; ne jamais afficher les identifiants) :\n${notesText}`)
       if (mealsText) parts.push(`Plan de repas de la semaine :\n${mealsText}`)
       if (shoppingText) parts.push(`Liste de courses à acheter :\n${shoppingText}`)
       if (routinesText) parts.push(`Routines actives :\n${routinesText}`)
@@ -1126,12 +1559,32 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       console.warn('[api/nova/plan] contexte indisponible, poursuite sans', contextError)
     }
 
+    const nowIso = new Date().toISOString()
+    const webSearchKind = detectNovaWebSearchKind(message)
+
+    let webResearch: NovaWebResearch | null = null
+    if (webSearchKind) {
+      webResearch = await runNovaWebSearch(webSearchKind, message, nowIso)
+    }
+
+    const enrichedMessageWithContext = [
+      messageWithContext,
+      webResearch
+        ? formatNovaWebResearchForModel(webResearch)
+        : webSearchKind
+          ? [
+              'RECHERCHE WEB DEMANDÉE MAIS INDISPONIBLE POUR CE TOUR.',
+              'Ne promets pas de recherche ultérieure. Dis immédiatement que la vérification en temps réel n’a pas abouti et réponds seulement avec ce que tu peux affirmer sans inventer.',
+            ].join('\n')
+          : '',
+    ].filter(Boolean).join('\n\n')
+
     const result = await createNovaActionPlan(
       {
-        message: messageWithContext,
+        message: enrichedMessageWithContext,
         locale: 'fr-FR',
         timezone: 'Europe/Paris',
-        nowIso: new Date().toISOString(),
+        nowIso,
         userContext,
       },
       provider
@@ -1152,18 +1605,45 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       )
       if (durable.length > 0) {
         const nowIso = new Date().toISOString()
-        const rows = durable.map((m) => ({
-          user_id: user.id,
-          key: m.key,
-          value: m.value,
-          scope: m.scope,
-          confidence: m.confidence,
-          source: 'nova_auto',
-          updated_at: nowIso,
-        }))
-        await supabaseAdmin
-          .from('nova_memories')
-          .upsert(rows, { onConflict: 'user_id,key' })
+
+        for (const memory of durable) {
+          const { data: existingMemory, error: existingMemoryError } = await supabaseAdmin
+            .from('nova_memories')
+            .select('confidence,value')
+            .eq('user_id', user.id)
+            .eq('key', memory.key)
+            .maybeSingle()
+
+          if (existingMemoryError) {
+            console.warn('[api/nova/plan] lecture mémoire existante impossible', existingMemoryError.message)
+            continue
+          }
+
+          const existingConfidence = Number(existingMemory?.confidence || 0)
+          if (
+            existingMemory &&
+            existingMemory.value &&
+            existingMemory.value !== memory.value &&
+            existingConfidence > memory.confidence
+          ) {
+            continue
+          }
+
+          await supabaseAdmin
+            .from('nova_memories')
+            .upsert(
+              {
+                user_id: user.id,
+                key: memory.key,
+                value: memory.value,
+                scope: memory.scope,
+                confidence: memory.confidence,
+                source: 'nova_auto',
+                updated_at: nowIso,
+              },
+              { onConflict: 'user_id,key' }
+            )
+        }
       }
     } catch (memoryError) {
       console.warn('[api/nova/plan] mémoire non enregistrée', memoryError)
@@ -1185,7 +1665,19 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       }
     }
 
-    return NextResponse.json({ ...result, executionToken })
+    return NextResponse.json({
+      ...result,
+      executionToken,
+      webSearch: webResearch
+        ? {
+            used: true,
+            kind: webResearch.kind,
+            sources: webResearch.sources,
+          }
+        : webSearchKind
+          ? { used: false, kind: webSearchKind, sources: [] }
+          : undefined,
+    })
   } catch (error) {
     console.error('[api/nova/plan] error', error)
     return NextResponse.json(

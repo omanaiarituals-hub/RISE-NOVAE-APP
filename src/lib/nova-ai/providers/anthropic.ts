@@ -7,6 +7,7 @@ import type { NovaPlanInput, NovaProviderResult } from '../types'
 
 type AnthropicResponse = {
   content?: Array<{ type?: string; text?: string }>
+  stop_reason?: string | null
   usage?: { input_tokens?: number; output_tokens?: number }
 }
 
@@ -48,7 +49,7 @@ export class AnthropicNovaProvider implements NovaAIProvider {
           },
           body: JSON.stringify({
             model,
-            max_tokens: 2200,
+            max_tokens: 6000,
             system: buildNovaPlannerSystemPrompt(),
             messages: [{ role: 'user', content: buildNovaPlannerUserPrompt(input) }],
           }),
@@ -79,7 +80,26 @@ export class AnthropicNovaProvider implements NovaAIProvider {
       throw new NovaProviderError({ provider: this.id, message: 'Réponse Anthropic vide.' })
     }
 
-    const plan = normalizeNovaActionPlan(extractJsonObject(text), input.message)
+    if (data.stop_reason === 'max_tokens') {
+      throw new NovaProviderError({
+        provider: this.id,
+        message: 'Réponse Anthropic tronquée avant la fin du JSON.',
+        retryable: true,
+      })
+    }
+
+    let parsed: unknown
+    try {
+      parsed = extractJsonObject(text)
+    } catch (error) {
+      throw new NovaProviderError({
+        provider: this.id,
+        message: `JSON Anthropic invalide : ${error instanceof Error ? error.message : 'erreur de parsing'}`,
+        retryable: true,
+      })
+    }
+
+    const plan = normalizeNovaActionPlan(parsed, input.message)
 
     return {
       provider: this.id,

@@ -7,8 +7,12 @@ import { NOVA_ACTION_PLAN_JSON_SCHEMA } from '../schema'
 import type { NovaPlanInput, NovaProviderResult } from '../types'
 
 type OpenAIResponse = {
+  status?: string
+  incomplete_details?: { reason?: string }
   output_text?: string
   output?: Array<{
+    type?: string
+    status?: string
     content?: Array<{ type?: string; text?: string }>
   }>
   usage?: { input_tokens?: number; output_tokens?: number }
@@ -66,7 +70,7 @@ export class OpenAINovaProvider implements NovaAIProvider {
           body: JSON.stringify({
             model,
             store: false,
-            max_output_tokens: 2200,
+            max_output_tokens: 6000,
             input: [
               {
                 role: 'system',
@@ -107,13 +111,36 @@ export class OpenAINovaProvider implements NovaAIProvider {
     }
 
     const data = (await response.json()) as OpenAIResponse
+
+    if (
+      data.status === 'incomplete' ||
+      (data.output || []).some((item) => item.status === 'incomplete')
+    ) {
+      throw new NovaProviderError({
+        provider: this.id,
+        message: `Réponse OpenAI incomplète${data.incomplete_details?.reason ? ` : ${data.incomplete_details.reason}` : ''}.`,
+        retryable: true,
+      })
+    }
+
     const text = readOutputText(data)
 
     if (!text) {
       throw new NovaProviderError({ provider: this.id, message: 'Réponse OpenAI vide.' })
     }
 
-    const plan = normalizeNovaActionPlan(extractJsonObject(text), input.message)
+    let parsed: unknown
+    try {
+      parsed = extractJsonObject(text)
+    } catch (error) {
+      throw new NovaProviderError({
+        provider: this.id,
+        message: `JSON OpenAI invalide : ${error instanceof Error ? error.message : 'erreur de parsing'}`,
+        retryable: true,
+      })
+    }
+
+    const plan = normalizeNovaActionPlan(parsed, input.message)
 
     return {
       provider: this.id,
