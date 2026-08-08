@@ -849,6 +849,13 @@ export default function RecipesPage() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('courses') === '1') {
+      setShowShopping(true)
+    }
+  }, [])
+
   useEffect(() => { if (user && !authLoading) loadData() }, [user, authLoading])
 
     useEffect(() => {
@@ -1199,7 +1206,7 @@ const response = await fetch('/api/recipes/extract', {
 
         {/* Tabs */}
         <div style={{ display: 'flex', background: C.blanc, borderBottom: `1px solid ${C.grisClair}`, padding: '0 20px' }}>
-          {[{ key: 'library', label: '📚 Recettes' }, { key: 'plan', label: `📅 Planning${totalPlan > 0 ? ` (${totalPlan})` : ''}` }].map(tab => (
+          {[{ key: 'library', label: 'Recettes' }, { key: 'plan', label: `Planning${totalPlan > 0 ? ` (${totalPlan})` : ''}` }].map(tab => (
             <button key={tab.key} onClick={() => setActiveView(tab.key as any)}
               style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontSize: 13, fontWeight: activeView === tab.key ? 700 : 400, color: activeView === tab.key ? C.rose : C.gris, borderBottom: `2px solid ${activeView === tab.key ? C.rose : 'transparent'}`, cursor: 'pointer' }}>
               {tab.label}
@@ -1289,8 +1296,16 @@ const response = await fetch('/api/recipes/extract', {
                                 {r && mc ? (
                                   <div onClick={() => setSelectedRecipe(r)}
                                     style={{ background: mc.bg, border: `1px solid ${hasAllergy ? 'rgba(220,60,60,0.5)' : mc.border}`, borderRadius: 8, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', position: 'relative' }}>
-                                    <span style={{ fontSize: 18, flexShrink: 0 }}>{r.emoji}</span>
-                                    <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: mc.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {r.photo_url ? (
+                                      <img
+                                        src={r.photo_url}
+                                        alt=""
+                                        style={{ width: 38, height: 38, borderRadius: 9, objectFit: 'cover', flexShrink: 0 }}
+                                      />
+                                    ) : (
+                                      <span style={{ fontSize: 18, flexShrink: 0 }}>{r.emoji}</span>
+                                    )}
+                                    <span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 600, color: mc.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {hasAllergy && '⚠️ '}{r.title}
                                     </span>
                                     <button onClick={e => { e.stopPropagation(); removeFromPlan(s!.id) }}
@@ -1356,7 +1371,7 @@ const response = await fetch('/api/recipes/extract', {
               )}
 
               <button onClick={generateShopping} style={{ width: '100%', marginTop: 16, padding: '12px 0', borderRadius: 12, border: 'none', background: totalPlan > 0 ? C.rose : C.grisClair, color: totalPlan > 0 ? 'white' : '#aaa', fontSize: 14, fontWeight: 700, cursor: totalPlan > 0 ? 'pointer' : 'default' }}>
-                🛒 Générer la liste de courses {totalPlan > 0 ? `(${totalPlan} repas)` : ''}
+                🛒 Courses {pendingItems > 0 ? `(${pendingItems})` : ''}
               </button>
             </div>
           </div>

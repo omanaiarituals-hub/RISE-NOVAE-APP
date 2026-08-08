@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import PremiumIcon from '@/components/ui/PremiumIcon'
+import NotificationBell from '@/components/NotificationBell'
+import { UserMenu } from '@/components/UserMenu'
 import { supabase } from '@/lib/supabase/client'
 
 export default function GlobalHeader() {
@@ -82,45 +84,53 @@ export default function GlobalHeader() {
 
   return (
     <header className="global-header">
+      <div className="global-left">
+        {!isMinimal && isLoggedIn ? <NotificationBell /> : null}
+      </div>
+
       <Link href="/" className="global-brand" aria-label="Accueil NOVAÉ">
         <span className="official-full-logo" aria-hidden="true" />
       </Link>
 
-      {!isMinimal && (
-        <div className="global-actions">
-          {!isPremium && loaded && (
-            <Link
-              href="/subscribe"
-              className={isTrialActive ? 'premium-link trial' : 'premium-link'}
-            >
-              <PremiumIcon name="sparkle" width={15} height={15} />
-              <span>
-                {isTrialActive
-                  ? `Essai · ${trialDaysLeft} j`
-                  : 'Premium'}
-              </span>
-            </Link>
-          )}
+      <div className="global-actions">
+        {!isMinimal && (
+          <>
+            {!isPremium && loaded && (
+              <Link
+                href="/subscribe"
+                className={isTrialActive ? 'premium-link trial' : 'premium-link'}
+              >
+                <PremiumIcon name="sparkle" width={15} height={15} />
+                <span>
+                  {isTrialActive
+                    ? `Essai · ${trialDaysLeft} j`
+                    : 'Premium'}
+                </span>
+              </Link>
+            )}
 
-          {isPremium && (
-            <span className="premium-badge">
-              <PremiumIcon name="sparkle" width={14} height={14} />
-              Premium
-            </span>
-          )}
-        </div>
-      )}
+            {isPremium && (
+              <span className="premium-badge">
+                <PremiumIcon name="sparkle" width={14} height={14} />
+                Premium
+              </span>
+            )}
+
+            {isLoggedIn ? <UserMenu /> : null}
+          </>
+        )}
+      </div>
 
       <style jsx>{`
         .global-header {
           position: sticky;
           top: 0;
           z-index: 55;
-          display: flex;
-          min-height: 64px;
+          display: grid;
+          min-height: 58px;
+          grid-template-columns: minmax(80px, 1fr) auto minmax(80px, 1fr);
           align-items: center;
-          justify-content: space-between;
-          padding: 9px 20px;
+          padding: 6px 18px;
           color: var(--novae-text-main);
           background: color-mix(
             in srgb,
@@ -131,15 +141,23 @@ export default function GlobalHeader() {
           backdrop-filter: blur(18px);
         }
 
+        .global-left {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          justify-content: flex-start;
+        }
+
         .global-brand {
           display: flex;
           align-items: center;
+          justify-self: center;
         }
 
         .official-full-logo {
           display: block;
-          width: 150px;
-          height: 43px;
+          width: 136px;
+          height: 36px;
           background: var(--novae-metal);
           -webkit-mask:
             url('/novae-logo-complet-mask.png')
@@ -150,15 +168,32 @@ export default function GlobalHeader() {
         }
 
         @media (max-width: 520px) {
+          .global-header {
+            min-height: 54px;
+            grid-template-columns: 52px minmax(96px, 1fr) auto;
+            padding: 5px 10px;
+          }
+
           .official-full-logo {
-            width: 132px;
-            height: 38px;
+            width: 108px;
+            height: 30px;
+          }
+
+          .premium-link,
+          .premium-badge {
+            padding: 6px 8px;
+          }
+
+          .premium-link span {
+            display: none;
           }
         }
 
         .global-actions {
           display: flex;
+          min-width: 0;
           align-items: center;
+          justify-content: flex-end;
           gap: 8px;
         }
 
@@ -167,7 +202,7 @@ export default function GlobalHeader() {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 8px 13px;
+          padding: 7px 11px;
           color: var(--novae-background);
           font-size: 10px;
           font-weight: 900;

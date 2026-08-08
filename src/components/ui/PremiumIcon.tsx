@@ -12,6 +12,7 @@ export type PremiumIconName =
   | 'idea'
   | 'book'
   | 'wallet'
+  | 'cart'
   | 'grid'
   | 'clock'
   | 'flag'
@@ -125,6 +126,13 @@ export default function PremiumIcon({
         <rect {...common} x="3.5" y="6" width="17" height="13" rx="2.5" />
         <path {...common} d="M3.5 9h17" />
         <path {...common} d="M15.5 12h5v4h-5a2 2 0 0 1 0-4Z" />
+      </>
+    ),
+    cart: (
+      <>
+        <path {...common} d="M3.5 5h2l2 10.2h9.7l2.1-7.1H7" />
+        <circle {...common} cx="9.2" cy="19" r="1.2" />
+        <circle {...common} cx="17.2" cy="19" r="1.2" />
       </>
     ),
     grid: (

@@ -19,7 +19,7 @@ const NAV_ITEMS: NavigationItem[] = [
   { href: '/planner', label: 'Planner', icon: 'calendar' },
   { href: '/nova-v2', label: 'Nova', icon: 'sparkle', center: true },
   { href: '/recipes', label: 'Repas', icon: 'meal' },
-  { href: '/profil', label: 'Moi', icon: 'user' },
+  { href: '/recipes?courses=1', label: 'Courses', icon: 'cart' },
 ]
 
 export default function Navigation() {
@@ -51,19 +51,30 @@ export default function Navigation() {
                 .filter(Boolean)
                 .join(' ')}
               aria-current={active ? 'page' : undefined}
+              onClick={(event) => {
+                if (item.label === 'Courses') {
+                  event.preventDefault()
+                  window.location.assign('/recipes?courses=1')
+                }
+              }}
             >
               <span
                 className={
                   item.center ? 'center-icon' : 'navigation-icon'
                 }
+                aria-hidden="true"
               >
-                <PremiumIcon
-                  name={item.icon}
-                  width={item.center ? 27 : 23}
-                  height={item.center ? 27 : 23}
-                />
+                {item.center ? (
+                  <span className="nova-monogram" />
+                ) : (
+                  <PremiumIcon
+                    name={item.icon}
+                    width={25}
+                    height={25}
+                  />
+                )}
               </span>
-              <span>{item.label}</span>
+              <span className="sr-only">{item.label}</span>
             </Link>
           )
         })}
@@ -72,70 +83,95 @@ export default function Navigation() {
       <style jsx>{`
         .bottom-navigation {
           position: fixed;
-          right: 0;
-          bottom: 0;
-          left: 0;
+          right: 18px;
+          bottom: max(12px, env(safe-area-inset-bottom));
+          left: 18px;
           z-index: 70;
-          color: var(--novae-text-muted);
+          width: min(calc(100% - 36px), 600px);
+          margin: 0 auto;
+          overflow: visible;
+          color: var(--novae-text-main);
           background: color-mix(
             in srgb,
-            var(--novae-surface) 94%,
+            var(--novae-surface) 96%,
             transparent
           );
-          border-top: 1px solid var(--novae-border);
-          box-shadow: 0 -12px 36px var(--novae-shadow);
+          border: 1px solid color-mix(
+            in srgb,
+            var(--novae-border) 92%,
+            transparent
+          );
+          border-radius: 999px;
+          box-shadow:
+            0 14px 36px color-mix(
+              in srgb,
+              var(--novae-shadow) 68%,
+              transparent
+            );
           backdrop-filter: blur(22px);
         }
 
         .navigation-inner {
           display: grid;
-          width: min(100%, 600px);
-          grid-template-columns: repeat(5, 1fr);
-          align-items: end;
-          margin: 0 auto;
-          padding: 7px 8px max(10px, env(safe-area-inset-bottom));
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          align-items: center;
+          width: 100%;
+          min-height: 66px;
+          padding: 7px 12px;
         }
 
         .navigation-link {
-          display: flex;
+          position: relative;
+          display: grid;
           min-width: 0;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-          color: var(--novae-text-muted);
-          font-size: 10px;
-          font-weight: 700;
+          place-items: center;
+          color: var(--novae-text-main);
           text-decoration: none;
-          flex-direction: column;
         }
 
         .navigation-icon {
           display: inline-flex;
-          width: 38px;
-          height: 34px;
+          width: 46px;
+          height: 46px;
           align-items: center;
           justify-content: center;
-          border-radius: 12px;
+          border-radius: 50%;
+          transition:
+            transform 160ms ease,
+            background 160ms ease,
+            color 160ms ease;
         }
 
-        .navigation-link.active {
-          color: var(--novae-primary);
+        .navigation-link:hover .navigation-icon {
+          transform: translateY(-2px);
+          background: color-mix(
+            in srgb,
+            var(--novae-primary-soft) 72%,
+            transparent
+          );
         }
 
-        .navigation-link.active .navigation-icon {
-          background: var(--novae-primary-soft);
+        .navigation-link.active:not(.center-link) {
+          color: var(--novae-metal);
+        }
+
+        .navigation-link.active:not(.center-link) .navigation-icon {
+          background: color-mix(
+            in srgb,
+            var(--novae-primary-soft) 88%,
+            transparent
+          );
         }
 
         .center-link {
-          position: relative;
-          margin-top: -26px;
-          color: var(--novae-primary);
+          z-index: 2;
+          margin-top: -22px;
         }
 
         .center-icon {
           display: inline-flex;
-          width: 61px;
-          height: 61px;
+          width: 72px;
+          height: 72px;
           align-items: center;
           justify-content: center;
           color: var(--novae-metal);
@@ -146,17 +182,71 @@ export default function Navigation() {
           );
           border: 2px solid var(--novae-metal);
           border-radius: 50%;
-          box-shadow: 0 10px 26px var(--novae-shadow);
+          box-shadow:
+            0 12px 28px var(--novae-shadow),
+            inset 0 0 0 3px color-mix(
+              in srgb,
+              var(--novae-metal) 9%,
+              transparent
+            );
         }
 
-        .center-link > span:last-child {
-          color: var(--novae-primary);
+        .nova-monogram {
+          display: block;
+          width: 39px;
+          height: 28px;
+          background: var(--novae-metal);
+          -webkit-mask:
+            url('/nova-monogramme-no-mask.png')
+            center / contain no-repeat;
+          mask:
+            url('/nova-monogramme-no-mask.png')
+            center / contain no-repeat;
         }
 
-        :global(html[data-novae-preset='choice_4'])
-          .center-link
-          > span:last-child {
-          color: var(--novae-metal);
+        .sr-only {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
+        }
+
+        @media (max-width: 520px) {
+          .bottom-navigation {
+            right: 10px;
+            bottom: max(8px, env(safe-area-inset-bottom));
+            left: 10px;
+            width: min(calc(100% - 20px), 520px);
+          }
+
+          .navigation-inner {
+            min-height: 60px;
+            padding: 6px 8px;
+          }
+
+          .navigation-icon {
+            width: 42px;
+            height: 42px;
+          }
+
+          .center-link {
+            margin-top: -18px;
+          }
+
+          .center-icon {
+            width: 66px;
+            height: 66px;
+          }
+
+          .nova-monogram {
+            width: 36px;
+            height: 26px;
+          }
         }
       `}</style>
     </nav>

@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useNovaConversationHistory, type NovaConversationSummary } from '@/hooks/useNovaConversationHistory'
 import type { NovaExecutionResult, NovaPlanResult } from '@/lib/nova-ai/types'
+import Navigation from '@/components/Navigation'
 
 type ConversationStatus =
   | 'idle'
@@ -1054,7 +1055,8 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const otherActionCount = confirmableActions.length - executableActionCount
 
   return (
-    <main className="min-h-screen bg-[#F7F5F1] text-[#282522]">
+    <>
+    <main className="min-h-screen bg-[#F7F5F1] pb-24 text-[#282522]">
       {historyOpen ? (
         <div className="fixed inset-0 z-[80] bg-black/30" onClick={() => setHistoryOpen(false)}>
           <aside
@@ -1811,5 +1813,7 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
         }
       `}</style>
     </main>
+    <Navigation />
+    </>
   )
 }

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
+import Navigation from '@/components/Navigation'
 
 const ADMIN_EMAILS = new Set(['nesserinesediri@gmail.com', 'omanaiarituals@gmail.com'])
 
@@ -171,7 +172,8 @@ export default function PilotageAdminPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: palette.background, padding: '28px clamp(16px, 4vw, 56px) 64px' }}>
+    <>
+    <main style={{ minHeight: '100vh', background: palette.background, padding: '28px clamp(16px, 4vw, 56px) 120px' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, flexWrap: 'wrap' }}>
         <div>
           <div style={{ color: palette.copper, fontSize: 12, fontWeight: 700, letterSpacing: 1.4, textTransform: 'uppercase' }}>NOVAÉ — pilotage personnel</div>
@@ -179,6 +181,7 @@ export default function PilotageAdminPage() {
           <p style={{ color: palette.muted, margin: 0 }}>Une vue claire de ce qui attire, convertit et crée réellement de la valeur.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Link href="/" style={{ color: palette.ink, textDecoration: 'none', border: `1px solid ${palette.line}`, background: palette.card, padding: '10px 14px', borderRadius: 12 }}>← Retour accueil</Link>
           <Link href="/admin" style={{ color: palette.ink, textDecoration: 'none', border: `1px solid ${palette.line}`, background: palette.card, padding: '10px 14px', borderRadius: 12 }}>Ancien admin</Link>
           <select value={days} onChange={(event) => setDays(Number(event.target.value))} style={{ border: `1px solid ${palette.line}`, background: palette.card, color: palette.ink, padding: '10px 14px', borderRadius: 12 }}>
             <option value={7}>7 jours</option>
@@ -265,5 +268,7 @@ export default function PilotageAdminPage() {
         </>
       ) : loading ? <p style={{ marginTop: 30, color: palette.muted }}>Chargement des indicateurs…</p> : null}
     </main>
+    <Navigation />
+    </>
   )
 }

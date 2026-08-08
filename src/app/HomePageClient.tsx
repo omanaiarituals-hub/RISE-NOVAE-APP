@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import NotificationBell from '@/components/NotificationBell'
+import Navigation from '@/components/Navigation'
 import { UserMenu } from '@/components/UserMenu'
 import PremiumIcon, {
   type PremiumIconName,
@@ -58,7 +59,6 @@ const ALL_MODULES: ModuleItem[] = [
   { key: 'admin', href: '/admin-documents', title: 'Documents', description: 'Centralise et retrouve', icon: 'document' },
   { key: 'family', href: '/family', title: 'Entourage', description: 'Foyer, proches et réseau', icon: 'family' },
   { key: 'routines', href: '/routines', title: 'Routines', description: 'Habitudes du quotidien', icon: 'routine' },
-  { key: 'tracker', href: '/tracker', title: 'Suivi', description: 'Tes indicateurs', icon: 'tracker' },
 ]
 
 const DEFAULT_PRIMARY_MODULE_KEYS = ['planner', 'todo', 'meals']
@@ -67,7 +67,7 @@ const MODULES_CACHE_KEY = 'novae-primary-modules'
 const OTHER_MODULES: ModuleItem[] = [
   { key: 'astuces', href: '/astuces', title: 'Astuces', description: 'Conseils pratiques', icon: 'idea' },
   { key: 'blog', href: '/blog', title: 'Ressources', description: 'Articles et contenus', icon: 'book' },
-  { key: 'finance', href: '/settings', title: 'Finances', description: 'Bientôt disponible', icon: 'wallet' },
+  { key: 'finance', href: '/finances', title: 'Finances', description: 'Bientôt disponible', icon: 'wallet' },
 ]
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -629,14 +629,25 @@ export default function HomePageClient() {
                     disabled={disabled}
                     onClick={() => togglePrimaryModule(module.key)}
                   >
-                    <span className="secondary-space-icon">
+                    <span
+                      className="secondary-space-icon"
+                      style={{
+                        flex: '0 0 48px',
+                        background:
+                          'linear-gradient(145deg, var(--novae-primary), var(--novae-hero-end))',
+                        color: 'var(--novae-metal)',
+                        borderColor: 'var(--novae-metal)',
+                      }}
+                    >
                       <PremiumIcon
                         name={module.icon}
                         width={25}
                         height={25}
                       />
                     </span>
-                    <strong>{module.title}</strong>
+                    <strong style={{ display: 'block', minWidth: 0 }}>
+                      {module.title}
+                    </strong>
                     <small>
                       {selected ? 'Sélectionné' : 'Ajouter'}
                     </small>
@@ -740,12 +751,15 @@ export default function HomePageClient() {
 
       <main className="home-page">
         <header className="home-header">
+          <div className="home-header-left">
+            <NotificationBell />
+          </div>
+
           <Link href="/" className="brand" aria-label="Accueil NOVAÉ">
             <span className="official-full-logo" aria-hidden="true" />
           </Link>
 
           <div className="header-actions">
-            <NotificationBell />
             {!loading &&
               (user ? (
                 <UserMenu />
@@ -779,240 +793,120 @@ export default function HomePageClient() {
 
             <div className="hero-copy">
               <h2>
-                Qu’est-ce que je peux faire pour toi aujourd’hui ?
+                <span>Qu’est-ce que je peux faire</span>
+                <span>pour toi aujourd’hui ?</span>
               </h2>
             </div>
 
             <div className="nova-actions-row">
-              <Link href="/nova-v2?voice=1">
-                <PremiumIcon name="sparkle" width={23} height={23} />
-                <span>Nova</span>
-              </Link>
-
-              <Link href="/admin-documents">
-                <PremiumIcon name="upload" width={23} height={23} />
-                <span>Importer</span>
+              <Link href="/nova-v2?voice=1" aria-label="Ouvrir Nova">
+                <span className="hero-nova-monogram" aria-hidden="true" />
+                <span className="sr-only">Nova</span>
               </Link>
             </div>
           </section>
 
+          <Link
+            href="/admin-documents"
+            className="import-strip"
+            style={{
+              display: 'grid',
+              width: '100%',
+              minHeight: 68,
+              gridTemplateColumns: '34px minmax(0, 1fr) 20px',
+              gap: 14,
+              alignItems: 'center',
+              marginTop: 16,
+              padding: '0 22px',
+              color: 'var(--novae-text-main)',
+              fontSize: 15,
+              fontWeight: 700,
+              textDecoration: 'none',
+              background: 'var(--novae-surface)',
+              border: '1px solid var(--novae-border)',
+              borderRadius: 18,
+              boxShadow: '0 10px 28px var(--novae-shadow)',
+            }}
+          >
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--novae-primary)',
+              }}
+            >
+              <PremiumIcon name="upload" width={21} height={21} />
+            </span>
+            <span>Importer un contenu</span>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                color: 'var(--novae-primary)',
+              }}
+            >
+              <PremiumIcon name="chevron" width={17} height={17} />
+            </span>
+          </Link>
+
           <section className="situation-section">
             <div className="section-heading">
-              <h2>Ton point de situation</h2>
+              <h2>Ton point du jour</h2>
               <Link href="/planner">
                 Voir tout
-                <PremiumIcon
-                  name="chevron"
-                  width={17}
-                  height={17}
-                />
+                <PremiumIcon name="chevron" width={17} height={17} />
               </Link>
             </div>
 
-            {pointMode === 'metrics' ? (
-              <div className="metrics-card metrics-card-two">
-                <Link href="/planner" className="metric">
-                  <span className="metric-icon">
-                    <PremiumIcon name="calendar" />
-                  </span>
-                  <strong>{timeline.length}</strong>
-                  <small>Événements aujourd’hui</small>
-                </Link>
-
-                <Link href="/todo" className="metric">
-                  <span className="metric-icon">
-                    <PremiumIcon name="check" />
-                  </span>
-                  <strong>{priorityItems.length}</strong>
-                  <small>Tâches en cours</small>
-                </Link>
+            <div className="next-hours-card point-day-card">
+              <div className="card-heading">
+                <span className="premium-circle">
+                  <PremiumIcon name="clock" />
+                </span>
+                <div>
+                  <strong>Les 3 prochaines heures</strong>
+                  <small>
+                    {timelineWindowLabel(
+                      timelineWindow.start,
+                      timelineWindow.end,
+                    )}
+                  </small>
+                </div>
               </div>
-            ) : pointMode === 'timeline' ? (
-              <div className="dashboard-grid">
-                <div className="timeline-dashboard">
-                  <div className="dashboard-title">
-                    <span className="dashboard-icon">
-                      <PremiumIcon name="calendar" />
-                    </span>
-                    <strong>Aujourd’hui</strong>
-                  </div>
 
-                  <div className="dashboard-list">
-                    {(timeline.length > 0
-                      ? timeline.slice(0, 4)
-                      : [
-                          {
-                            id: 'empty',
-                            title: 'Aucun rendez-vous prévu',
-                            startMinutes: timelineWindow.start,
-                            endMinutes: timelineWindow.start,
-                            kind: 'event' as const,
-                          },
-                        ]
-                    ).map((item) => (
-                      <div key={item.id} className="dashboard-row">
-                        <span className="dashboard-time">
-                          {minutesToLabel(item.startMinutes)}
+              {upcomingTimeline.length > 0 ? (
+                <div className="next-list">
+                  {upcomingTimeline.slice(0, 3).map((item) => {
+                    const inProgress =
+                      item.startMinutes <= timelineWindow.start &&
+                      item.endMinutes > timelineWindow.start
+
+                    return (
+                      <div key={item.id} className="next-item">
+                        <span className="next-time">
+                          {inProgress
+                            ? `En cours · ${minutesToLabel(item.endMinutes)}`
+                            : minutesToLabel(item.startMinutes)}
                         </span>
-                        <i />
-                        <div>
+                        <div className="next-copy">
                           <strong>{item.title}</strong>
                           <small>
-                            {item.id === 'empty'
-                              ? 'Ta journée est disponible'
-                              : item.kind === 'routine'
-                                ? 'Routine'
-                                : 'Planning'}
+                            {item.kind === 'routine' ? 'Routine' : 'Planning'}
                           </small>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    )
+                  })}
                 </div>
-
-                <div className="priorities-dashboard">
-                  <div className="dashboard-title">
-                    <span className="dashboard-icon">
-                      <PremiumIcon name="flag" />
-                    </span>
-                    <strong>Priorités</strong>
-                  </div>
-
-                  <div className="priority-list">
-                    {[
-                      ...(objective?.priorite
-                        ? [
-                            {
-                              id: 'objective',
-                              title: objective.priorite,
-                              priority: 'high',
-                            },
-                          ]
-                        : []),
-                      ...priorityItems,
-                    ]
-                      .slice(0, 3)
-                      .map((item) => (
-                        <div key={item.id} className="priority-row">
-                          <i
-                            className={
-                              item.priority === 'high'
-                                ? 'high'
-                                : ''
-                            }
-                          />
-                          <span>{item.title}</span>
-                        </div>
-                      ))}
-
-                    {!objective?.priorite &&
-                      priorityItems.length === 0 && (
-                        <button
-                          type="button"
-                          className="empty-priority"
-                          onClick={openObjective}
-                        >
-                          Définir ma première priorité
-                        </button>
-                      )}
-                  </div>
+              ) : (
+                <div className="calm-message">
+                  <strong>Rien à signaler dans les 3 prochaines heures.</strong>
+                  <p>Ton planning reste accessible avec « Voir tout ».</p>
                 </div>
-              </div>
-            ) : (
-              <div className="situation-cards">
-                <div className="next-hours-card">
-                  <div className="card-heading">
-                    <span className="premium-circle">
-                      <PremiumIcon name="clock" />
-                    </span>
-                    <div>
-                      <strong>Les 3 prochaines heures</strong>
-                      <small>
-                        {timelineWindowLabel(
-                          timelineWindow.start,
-                          timelineWindow.end,
-                        )}
-                      </small>
-                    </div>
-                  </div>
-
-                  {upcomingTimeline.length > 0 ? (
-                    <div className="next-list">
-                      {upcomingTimeline.slice(0, 3).map((item) => {
-                        const inProgress =
-                          item.startMinutes <=
-                            timelineWindow.start &&
-                          item.endMinutes > timelineWindow.start
-
-                        return (
-                          <div
-                            key={item.id}
-                            className="next-item"
-                          >
-                            <span className="next-time">
-                              {inProgress
-                                ? `En cours jusqu’à ${minutesToLabel(
-                                    item.endMinutes,
-                                  )}`
-                                : `${minutesToLabel(
-                                    item.startMinutes,
-                                  )} – ${minutesToLabel(
-                                    item.endMinutes,
-                                  )}`}
-                            </span>
-
-                            <div className="next-copy">
-                              <strong>{item.title}</strong>
-                              <small>
-                                {inProgress
-                                  ? 'En cours'
-                                  : item.kind === 'routine'
-                                    ? 'Routine'
-                                    : 'Événement'}
-                              </small>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div className="calm-message">
-                      <strong>Soirée plus calme à venir.</strong>
-                      <p>Parfait pour avancer sereinement.</p>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  className="priority-card"
-                  onClick={openObjective}
-                >
-                  <div className="card-heading">
-                    <span className="premium-circle">
-                      <PremiumIcon name="flag" />
-                    </span>
-                    <strong>Priorité</strong>
-                  </div>
-
-                  <div className="priority-content">
-                    <strong>
-                      {objective?.priorite ||
-                        'Choisis ce qui compte aujourd’hui.'}
-                    </strong>
-                    {objective?.intention && (
-                      <p>{objective.intention}</p>
-                    )}
-                  </div>
-
-                  <span className="priority-badge">
-                    {objective?.priorite
-                      ? 'Haute priorité'
-                      : 'Définir'}
-                  </span>
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </section>
 
           <section className="modules-section">
@@ -1040,7 +934,15 @@ export default function HomePageClient() {
                   href={module.href}
                   className={`home-primary-module home-primary-${module.key}`}
                 >
-                  <span className="home-primary-icon">
+                  <span
+                    className="home-primary-icon"
+                    style={{
+                      background:
+                        'linear-gradient(145deg, var(--novae-primary), var(--novae-hero-end))',
+                      color: 'var(--novae-metal)',
+                      borderColor: 'var(--novae-metal)',
+                    }}
+                  >
                     <PremiumIcon
                       name={module.icon}
                       width={39}
@@ -1063,7 +965,15 @@ export default function HomePageClient() {
               }
               aria-expanded={showAllModules}
             >
-              <span className="spaces-icon">
+              <span
+                className="spaces-icon"
+                style={{
+                  background:
+                    'linear-gradient(145deg, var(--novae-primary), var(--novae-hero-end))',
+                  color: 'var(--novae-metal)',
+                  borderColor: 'var(--novae-metal)',
+                }}
+              >
                 <PremiumIcon name="grid" />
               </span>
 
@@ -1085,8 +995,22 @@ export default function HomePageClient() {
                     key={module.key}
                     href={module.href}
                     className="secondary-space-link"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3ch',
+                    }}
                   >
-                    <span className="secondary-space-icon">
+                    <span
+                      className="secondary-space-icon"
+                      style={{
+                        flex: '0 0 48px',
+                        background:
+                          'linear-gradient(145deg, var(--novae-primary), var(--novae-hero-end))',
+                        color: 'var(--novae-metal)',
+                        borderColor: 'var(--novae-metal)',
+                      }}
+                    >
                       <PremiumIcon
                         name={module.icon}
                         width={25}
@@ -1102,8 +1026,22 @@ export default function HomePageClient() {
                   <Link
                     href="/admin/pilotage"
                     className="secondary-space-link admin-dashboard-link"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3ch',
+                    }}
                   >
-                    <span className="secondary-space-icon">
+                    <span
+                      className="secondary-space-icon"
+                      style={{
+                        flex: '0 0 48px',
+                        background:
+                          'linear-gradient(145deg, var(--novae-primary), var(--novae-hero-end))',
+                        color: 'var(--novae-metal)',
+                        borderColor: 'var(--novae-metal)',
+                      }}
+                    >
                       <PremiumIcon
                         name="shield"
                         width={25}
@@ -1111,7 +1049,9 @@ export default function HomePageClient() {
                       />
                     </span>
 
-                    <strong>Tableau de bord administrateur</strong>
+                    <strong style={{ display: 'block', minWidth: 0 }}>
+                      Tableau de bord administrateur
+                    </strong>
                   </Link>
                 )}
               </div>
@@ -1119,6 +1059,7 @@ export default function HomePageClient() {
           </section>
         </div>
       </main>
+      <Navigation />
 
       <style jsx>{`
         :global(*) {
@@ -1163,11 +1104,11 @@ export default function HomePageClient() {
           position: sticky;
           top: 0;
           z-index: 40;
-          display: flex;
-          min-height: 68px;
+          display: grid;
+          min-height: 58px;
+          grid-template-columns: minmax(80px, 1fr) auto minmax(80px, 1fr);
           align-items: center;
-          justify-content: space-between;
-          padding: 9px 22px;
+          padding: 6px 18px;
           background: color-mix(
             in srgb,
             var(--novae-background) 90%,
@@ -1182,15 +1123,23 @@ export default function HomePageClient() {
           backdrop-filter: blur(18px);
         }
 
+        .home-header-left {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          justify-content: flex-start;
+        }
+
         .brand {
           display: flex;
           align-items: center;
+          justify-self: center;
         }
 
         .official-full-logo {
           display: block;
-          width: 156px;
-          height: 45px;
+          width: 136px;
+          height: 36px;
           background: var(--novae-metal);
           -webkit-mask:
             url('/novae-logo-complet-mask.png')
@@ -1202,7 +1151,9 @@ export default function HomePageClient() {
 
         .header-actions {
           display: flex;
+          min-width: 0;
           align-items: center;
+          justify-content: flex-end;
           gap: 9px;
         }
 
@@ -1216,11 +1167,11 @@ export default function HomePageClient() {
         .home-content {
           width: min(100%, 980px);
           margin: 0 auto;
-          padding: 27px 18px 46px;
+          padding: 18px 18px 46px;
         }
 
         .welcome {
-          margin-bottom: 20px;
+          margin-bottom: 14px;
         }
 
         .date,
@@ -1237,7 +1188,7 @@ export default function HomePageClient() {
         .welcome h1 {
           margin: 0;
           font-family: var(--novae-font-title);
-          font-size: clamp(39px, 7vw, 61px);
+          font-size: clamp(34px, 6vw, 52px);
           font-weight: var(--novae-title-weight);
           line-height: 0.95;
           letter-spacing: var(--novae-title-letter-spacing);
@@ -1252,8 +1203,8 @@ export default function HomePageClient() {
         .nova-hero {
           position: relative;
           overflow: hidden;
-          min-height: 235px;
-          padding: clamp(28px, 5vw, 45px);
+          min-height: 190px;
+          padding: 28px 34px 30px;
           color: var(--novae-hero-text);
           background:
             radial-gradient(
@@ -1366,9 +1317,13 @@ export default function HomePageClient() {
         }
 
         .hero-copy h2 {
+          display: grid;
+          gap: 2px;
+          max-width: 650px;
           margin: 0;
+          white-space: nowrap;
           font-family: var(--novae-font-title);
-          font-size: clamp(32px, 5vw, 49px);
+          font-size: clamp(26px, 4.3vw, 39px);
           font-weight: 500;
           line-height: 1.02;
         }
@@ -1404,69 +1359,148 @@ export default function HomePageClient() {
 
         .nova-actions-row {
           position: absolute;
+          right: 50%;
+          bottom: 18px;
           z-index: 3;
-          bottom: 22px;
-          left: 50%;
           display: grid;
-          width: min(520px, calc(100% - 48px));
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 18px;
-          transform: translateX(-50%);
-        }
-
-        .hero-actions a {
-          display: flex;
-          min-height: 58px;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          color: var(--novae-hero-text);
-          font-family: var(--novae-font-title);
-          font-size: 19px;
-          text-decoration: none;
-          background: color-mix(
-            in srgb,
-            var(--novae-hero-end) 68%,
-            transparent
-          );
-          border: 1px solid
-            color-mix(
-              in srgb,
-              var(--novae-metal) 55%,
-              transparent
-            );
-          border-radius: 15px;
-          backdrop-filter: blur(10px);
+          width: min(200px, calc(100% - 48px));
+          transform: translateX(50%);
         }
 
         .nova-actions-row a {
           display: flex;
-          width: 100%;
           min-height: 52px;
           align-items: center;
           justify-content: center;
-          gap: 9px;
-          color: var(--novae-hero-text);
-          font-family: var(--novae-font-title);
-          font-size: 18px;
+          color: var(--novae-metal);
           text-decoration: none;
           background: color-mix(
             in srgb,
-            var(--novae-hero-end) 68%,
+            var(--novae-primary) 94%,
             transparent
           );
-          border: 1px solid
-            color-mix(
-              in srgb,
-              var(--novae-metal) 55%,
-              transparent
-            );
-          border-radius: 15px;
-          backdrop-filter: blur(10px);
+          border: 1px solid var(--novae-metal);
+          border-radius: 999px;
+          box-shadow: 0 10px 24px color-mix(
+            in srgb,
+            var(--novae-shadow) 76%,
+            transparent
+          );
         }
 
-        .nova-actions-row a :global(svg) {
-          color: var(--novae-metal);
+        .hero-nova-monogram {
+          display: block;
+          width: 43px;
+          height: 30px;
+          background: var(--novae-metal);
+          -webkit-mask:
+            url('/nova-monogramme-no-mask.png')
+            center / contain no-repeat;
+          mask:
+            url('/nova-monogramme-no-mask.png')
+            center / contain no-repeat;
+        }
+
+        .sr-only {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
+        }
+
+        .import-strip {
+          display: grid;
+          width: 100%;
+          min-height: 68px;
+          grid-template-columns: 34px minmax(0, 1fr) 20px;
+          gap: 14px;
+          align-items: center;
+          margin-top: 16px;
+          padding: 0 22px;
+          color: var(--novae-text-main);
+          font-size: 15px;
+          font-weight: 700;
+          text-decoration: none;
+          background: color-mix(
+            in srgb,
+            var(--novae-surface) 96%,
+            transparent
+          );
+          border: 1px solid color-mix(
+            in srgb,
+            var(--novae-border) 94%,
+            transparent
+          );
+          border-radius: 18px;
+          box-shadow: 0 10px 28px color-mix(
+            in srgb,
+            var(--novae-shadow) 45%,
+            transparent
+          );
+          backdrop-filter: blur(16px);
+        }
+
+        .import-strip:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 14px 32px color-mix(
+            in srgb,
+            var(--novae-shadow) 58%,
+            transparent
+          );
+        }
+
+        .import-strip :global(svg:first-child),
+        .import-strip :global(svg:last-child) {
+          color: var(--novae-primary);
+        }
+
+        .import-strip :global(svg:last-child) {
+          justify-self: end;
+        }
+
+        .point-day-card {
+          display: grid;
+          width: 100%;
+          min-height: 0;
+          grid-template-columns: minmax(210px, 0.85fr) minmax(0, 2.15fr);
+          gap: 20px;
+          align-items: center;
+          padding: 20px 24px;
+        }
+
+        .point-day-card .card-heading {
+          margin: 0;
+        }
+
+        .point-day-card .next-list {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 0;
+          margin: 0;
+        }
+
+        .point-day-card .next-item {
+          min-height: 70px;
+          grid-template-columns: 1fr;
+          gap: 5px;
+          align-content: center;
+          padding: 8px 18px;
+          border-bottom: 0;
+          border-left: 1px solid var(--novae-border);
+        }
+
+        .point-day-card .next-time {
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        .point-day-card .next-copy small {
+          margin-top: 3px;
         }
 
         .situation-section,
@@ -1559,8 +1593,8 @@ export default function HomePageClient() {
         .dashboard-icon {
           display: inline-flex;
           flex: 0 0 48px;
-          width: 48px;
-          height: 48px;
+          width: 54px;
+          height: 54px;
           align-items: center;
           justify-content: center;
           color: var(--novae-metal);
@@ -1944,10 +1978,10 @@ export default function HomePageClient() {
         .all-spaces-button {
           display: grid;
           width: 100%;
-          grid-template-columns: 50px 1fr 24px;
-          gap: 13px;
+          grid-template-columns: 58px 1fr 24px;
+          gap: 22px;
           align-items: center;
-          padding: 15px 18px;
+          padding: 18px 22px;
           color: var(--novae-text-main);
           text-align: left;
           background: var(--novae-surface);
@@ -1959,8 +1993,8 @@ export default function HomePageClient() {
 
         .spaces-icon {
           display: inline-flex;
-          width: 46px;
-          height: 46px;
+          width: 52px;
+          height: 52px;
           align-items: center;
           justify-content: center;
           color: var(--novae-metal);
@@ -1990,39 +2024,39 @@ export default function HomePageClient() {
 
         .home-primary-modules {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 16px;
+          grid-template-columns: repeat(3, minmax(120px, 190px));
+          gap: clamp(28px, 8vw, 110px);
+          justify-content: center;
+          align-items: start;
+          width: 100%;
         }
 
         .home-primary-module {
           display: grid;
           min-width: 0;
-          min-height: 190px;
+          min-height: 118px;
           justify-items: center;
           align-content: center;
-          gap: 14px;
-          padding: 20px 12px;
+          gap: 10px;
+          padding: 10px 8px;
           color: var(--novae-text-main);
           text-align: center;
           text-decoration: none;
-          background: var(--novae-surface);
-          border: 1px solid var(--novae-border);
-          border-radius: 22px;
-          box-shadow: 0 12px 32px var(--novae-shadow);
-          transition:
-            transform 180ms ease,
-            box-shadow 180ms ease;
+          background: transparent;
+          border: 0;
+          border-radius: 20px;
+          box-shadow: none;
+          transition: transform 180ms ease;
         }
 
         .home-primary-module:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 18px 38px var(--novae-shadow);
+          transform: translateY(-3px);
         }
 
         .home-primary-icon {
           display: inline-flex;
-          width: 84px;
-          height: 84px;
+          width: 66px;
+          height: 66px;
           align-items: center;
           justify-content: center;
           color: var(--novae-metal);
@@ -2032,20 +2066,18 @@ export default function HomePageClient() {
             var(--novae-hero-end)
           );
           border: 1px solid var(--novae-metal);
-          border-radius: 20px;
+          border-radius: 17px;
           box-shadow:
-            0 8px 20px
-              color-mix(
-                in srgb,
-                var(--novae-primary) 28%,
-                transparent
-              ),
-            inset 0 0 0 3px
-              color-mix(
-                in srgb,
-                var(--novae-metal) 10%,
-                transparent
-              );
+            0 8px 20px color-mix(
+              in srgb,
+              var(--novae-primary) 26%,
+              transparent
+            ),
+            inset 0 0 0 3px color-mix(
+              in srgb,
+              var(--novae-metal) 10%,
+              transparent
+            );
         }
 
         .home-primary-label {
@@ -2053,7 +2085,7 @@ export default function HomePageClient() {
           max-width: 100%;
           overflow: hidden;
           font-family: var(--novae-font-title);
-          font-size: 20px;
+          font-size: 17px;
           font-weight: 500;
           line-height: 1.1;
           text-overflow: ellipsis;
@@ -2074,23 +2106,25 @@ export default function HomePageClient() {
         .other-modules {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-          margin-top: 12px;
+          column-gap: clamp(56px, 10vw, 150px);
+          row-gap: 20px;
+          margin-top: 22px;
+          padding: 8px 22px 18px;
         }
 
         .secondary-space-link {
           display: grid;
           min-width: 0;
-          grid-template-columns: 48px minmax(0, 1fr);
-          gap: 20px;
+          grid-template-columns: 58px minmax(0, 1fr);
+          column-gap: 34px;
           align-items: center;
-          padding: 14px 16px;
+          padding: 12px 0;
           color: var(--novae-text-main);
           text-decoration: none;
-          background: var(--novae-surface);
-          border: 1px solid var(--novae-border);
+          background: transparent;
+          border: 0;
           border-radius: 16px;
-          box-shadow: 0 8px 22px var(--novae-shadow);
+          box-shadow: none;
         }
 
         .admin-dashboard-link {
@@ -2128,9 +2162,11 @@ export default function HomePageClient() {
         .secondary-space-link > strong {
           display: block;
           min-width: 0;
+          padding-left: 4px;
           overflow: hidden;
-          font-size: 14px;
-          font-weight: 800;
+          font-family: var(--novae-font-title);
+          font-size: 17px;
+          font-weight: 600;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
@@ -2377,27 +2413,43 @@ export default function HomePageClient() {
           }
 
           .secondary-space-link {
-            gap: 16px;
+            column-gap: 26px;
           }
         }
 
         @media (max-width: 520px) {
           .home-header {
-            min-height: 60px;
-            padding: 7px 14px;
+            min-height: 54px;
+            grid-template-columns: 52px minmax(98px, 1fr) auto;
+            padding: 5px 10px;
           }
 
           .official-full-logo {
-            width: 136px;
-            height: 39px;
+            width: 110px;
+            height: 31px;
           }
 
           .welcome h1 {
-            font-size: 41px;
+            font-size: 37px;
+          }
+
+          .nova-hero {
+            min-height: 178px;
+            padding: 22px 20px 70px;
           }
 
           .hero-copy h2 {
-            font-size: 30px;
+            max-width: 100%;
+            font-size: 27px;
+            white-space: normal;
+          }
+
+          .hero-copy h2 span {
+            display: inline;
+          }
+
+          .hero-copy h2 span:first-child::after {
+            content: ' ';
           }
 
           :global(html[data-novae-preset='choice_4'])
@@ -2425,6 +2477,36 @@ export default function HomePageClient() {
           .nova-actions-row a :global(svg) {
             width: 19px;
             height: 19px;
+          }
+
+          .point-day-card {
+            grid-template-columns: 1fr;
+            gap: 14px;
+          }
+
+          .point-day-card .next-list {
+            grid-template-columns: 1fr;
+          }
+
+          .point-day-card .next-item {
+            grid-template-columns: 70px minmax(0, 1fr);
+            border-left: 0;
+            border-top: 1px solid var(--novae-border);
+          }
+
+          .home-primary-modules {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+          }
+
+          .home-primary-module {
+            min-height: 104px;
+            padding: 8px 4px;
+          }
+
+          .home-primary-icon {
+            width: 56px;
+            height: 56px;
           }
 
           .metrics-card {
