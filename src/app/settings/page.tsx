@@ -66,6 +66,7 @@ export default function SettingsPage() {
   const [deleteError, setDeleteError] = useState('')
 
   const [showMemoryResetModal, setShowMemoryResetModal] = useState(false)
+  const [memoryResetConfirmText, setMemoryResetConfirmText] = useState('')
   const [resettingMemory, setResettingMemory] = useState(false)
   const [memoryResetError, setMemoryResetError] = useState('')
   const [memoryResetDone, setMemoryResetDone] = useState(false)
@@ -142,6 +143,7 @@ export default function SettingsPage() {
   }
 
   const handleResetNovaMemory = async () => {
+    if (memoryResetConfirmText !== 'OUBLIER') return
     setResettingMemory(true)
     setMemoryResetError('')
     try {
@@ -306,36 +308,6 @@ export default function SettingsPage() {
             </div>
           </Link>
 
-          {/* SECTION MÉMOIRE NOVA */}
-          <div style={glassCard}>
-            <h2 style={sectionTitle}>Mémoire de Nova</h2>
-            <p style={sectionDesc}>
-              Nova retient ce que tu lui confies au fil des échanges pour t’aider de mieux en mieux. Tu peux effacer cette mémoire et son historique de conversation à tout moment. Tes documents, ta famille et tes autres données ne sont pas touchés.
-            </p>
-            {memoryResetDone ? (
-              <p style={{ margin: '8px 0 0', fontSize: 13, fontWeight: 700, color: C.copperDark }}>
-                La mémoire de Nova a été réinitialisée.
-              </p>
-            ) : (
-              <button
-                onClick={() => { setMemoryResetError(''); setShowMemoryResetModal(true) }}
-                style={{
-                  marginTop: 12,
-                  padding: '10px 18px',
-                  borderRadius: 12,
-                  border: `1px solid ${C.copperDark}`,
-                  background: 'transparent',
-                  color: C.copperDark,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Repartir de zéro
-              </button>
-            )}
-          </div>
-
           {/* SECTION NOTIFS */}
           <div style={glassCard}>
             <h2 style={sectionTitle}>Notifications</h2>
@@ -382,96 +354,282 @@ export default function SettingsPage() {
           {/* MON ABONNEMENT */}
           <CancelSubscription />
           
-          {/* DANGER ZONE */}
-          <div style={{
-            background: 'rgba(255, 240, 240, 0.6)',
-            backdropFilter: 'blur(18px)',
-            WebkitBackdropFilter: 'blur(18px)',
-            border: '1px solid rgba(180, 80, 80, 0.25)',
-            borderRadius: 20, padding: 22,
-            boxShadow: '0 4px 16px rgba(180, 80, 80, 0.06)',
-          }}>
-            <h2 style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 20, color: '#8b3a3a',
-              margin: '0 0 4px', fontWeight: 500,
-            }}>Zone sensible</h2>
-            <p style={{
-              fontSize: 12, color: '#6b4040',
-              margin: '0 0 18px', opacity: 0.85,
-            }}>
-              La suppression de ton compte est définitive. Toutes tes données (programme, missions, conversations, communauté) seront perdues.
-            </p>
-            <button
-              onClick={() => {
-                setShowDeleteModal(true)
-                setDeleteConfirmText('')
-                setDeleteError('')
-              }}
+          {/* ZONE SENSIBLE UNIFIÉE */}
+          <section
+            aria-labelledby="sensitive-zone-title"
+            style={{
+              background: 'rgba(255, 240, 240, 0.64)',
+              backdropFilter: 'blur(18px)',
+              WebkitBackdropFilter: 'blur(18px)',
+              border: '1px solid rgba(180, 80, 80, 0.28)',
+              borderRadius: 20,
+              padding: 22,
+              boxShadow: '0 4px 16px rgba(180, 80, 80, 0.06)',
+            }}
+          >
+            <h2
+              id="sensitive-zone-title"
               style={{
-                width: '100%', padding: '12px 20px', borderRadius: 14,
-                border: '1px solid rgba(180, 80, 80, 0.4)',
-                background: 'rgba(255, 255, 255, 0.5)',
-                color: '#8b3a3a', fontSize: 13, fontWeight: 600,
-                cursor: 'pointer', fontFamily: 'inherit',
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: 22,
+                color: '#8b3a3a',
+                margin: '0 0 4px',
+                fontWeight: 600,
               }}
             >
-              Supprimer mon compte
-            </button>
-          </div>
+              Zone sensible
+            </h2>
+            <p style={{
+              fontSize: 12,
+              color: '#6b4040',
+              margin: '0 0 18px',
+              lineHeight: 1.5,
+              opacity: 0.9,
+            }}>
+              Ces actions ont des conséquences importantes. NOVAÉ te demandera toujours une confirmation explicite avant d’exécuter quoi que ce soit.
+            </p>
+
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div style={{
+                padding: 16,
+                borderRadius: 16,
+                background: 'rgba(255,255,255,0.58)',
+                border: '1px solid rgba(180, 80, 80, 0.18)',
+              }}>
+                <h3 style={{ margin: 0, fontSize: 14, color: C.brown, fontWeight: 800 }}>
+                  Mémoire de Nova
+                </h3>
+                <p style={{
+                  margin: '6px 0 12px',
+                  fontSize: 12,
+                  color: C.brownLight,
+                  lineHeight: 1.5,
+                }}>
+                  Efface ce que Nova a appris et l’historique de tes échanges. Tes documents, ta famille, ton Planner, tes notes, tes recettes et ton compte restent intacts.
+                </p>
+                {memoryResetDone ? (
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.copperDark }}>
+                    La mémoire de Nova a été réinitialisée.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMemoryResetError('')
+                      setMemoryResetConfirmText('')
+                      setShowMemoryResetModal(true)
+                    }}
+                    style={{
+                      minHeight: 44,
+                      width: '100%',
+                      padding: '10px 16px',
+                      borderRadius: 12,
+                      border: '1px solid rgba(180, 80, 80, 0.34)',
+                      background: 'rgba(255,255,255,0.72)',
+                      color: '#8b3a3a',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      touchAction: 'manipulation',
+                    }}
+                  >
+                    Réinitialiser la mémoire de Nova
+                  </button>
+                )}
+              </div>
+
+              <div style={{
+                padding: 16,
+                borderRadius: 16,
+                background: 'rgba(255,255,255,0.58)',
+                border: '1px solid rgba(180, 80, 80, 0.18)',
+              }}>
+                <h3 style={{ margin: 0, fontSize: 14, color: '#8b3a3a', fontWeight: 800 }}>
+                  Supprimer mon compte
+                </h3>
+                <p style={{
+                  margin: '6px 0 12px',
+                  fontSize: 12,
+                  color: '#6b4040',
+                  lineHeight: 1.5,
+                }}>
+                  La suppression du compte est définitive. Tes données associées seront supprimées selon le processus prévu par NOVAÉ. Si tu as un abonnement actif, sa gestion reste distincte de la suppression du compte.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteModal(true)
+                    setDeleteConfirmText('')
+                    setDeleteError('')
+                  }}
+                  style={{
+                    minHeight: 44,
+                    width: '100%',
+                    padding: '10px 16px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(180, 80, 80, 0.4)',
+                    background: 'rgba(255, 255, 255, 0.72)',
+                    color: '#8b3a3a',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  Supprimer mon compte
+                </button>
+              </div>
+            </div>
+          </section>
         </main>
       </div>
 
-      {/* MODAL CONFIRMATION SUPPRESSION */}
+      {/* MODALE RÉINITIALISATION MÉMOIRE */}
       {showMemoryResetModal && (
         <div
+          role="presentation"
           style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
             background: 'rgba(0,0,0,0.45)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 20,
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding:
+              'max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px))',
           }}
           onClick={() => !resettingMemory && setShowMemoryResetModal(false)}
         >
           <div
-            style={{
-              background: '#fff', borderRadius: 20, padding: 24,
-              maxWidth: 380, width: '100%',
-            }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="memory-reset-title"
+            aria-describedby="memory-reset-description"
             onClick={(e) => e.stopPropagation()}
+            style={{
+              background: C.surface,
+              borderRadius: 20,
+              padding: 24,
+              maxWidth: 420,
+              width: '100%',
+              maxHeight:
+                'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px)',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
+            }}
           >
-            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: C.brown }}>
+            <h3
+              id="memory-reset-title"
+              style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#8b3a3a' }}
+            >
               Réinitialiser la mémoire de Nova ?
             </h3>
-            <p style={{ margin: '10px 0 0', fontSize: 13, color: C.brownLight, lineHeight: 1.4 }}>
-              Nova oubliera ce qu’elle a appris et l’historique de vos échanges. Cette action est définitive. Tes documents, ta famille et tes autres données restent intacts.
+            <p
+              id="memory-reset-description"
+              style={{ margin: '10px 0 0', fontSize: 13, color: C.brownLight, lineHeight: 1.5 }}
+            >
+              Nova oubliera ce qu’elle a appris et l’historique de vos échanges. Cette action est définitive. Tes documents, ta famille, ton Planner, tes notes, tes recettes et ton compte restent intacts.
             </p>
+
+            <p style={{ fontSize: 13, color: C.brown, margin: '16px 0 8px' }}>
+              Pour confirmer, écris <strong>OUBLIER</strong> :
+            </p>
+            <input
+              type="text"
+              value={memoryResetConfirmText}
+              onChange={(e) => setMemoryResetConfirmText(e.target.value)}
+              placeholder="OUBLIER"
+              autoComplete="off"
+              autoCapitalize="characters"
+              disabled={resettingMemory}
+              style={{
+                width: '100%',
+                minHeight: 44,
+                padding: '11px 14px',
+                fontSize: 14,
+                fontFamily: 'inherit',
+                color: C.brown,
+                background: C.surfaceAlt,
+                border: '1px solid rgba(180, 80, 80, 0.3)',
+                borderRadius: 12,
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+
             {memoryResetError && (
-              <p style={{ margin: '10px 0 0', fontSize: 12, color: '#c0392b' }}>{memoryResetError}</p>
+              <p
+                role="alert"
+                style={{
+                  margin: '10px 0 0',
+                  fontSize: 12,
+                  color: '#8b3a3a',
+                  background: 'rgba(180,80,80,0.08)',
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                }}
+              >
+                {memoryResetError}
+              </p>
             )}
-            <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 10,
+              marginTop: 18,
+            }}>
               <button
+                type="button"
                 onClick={() => setShowMemoryResetModal(false)}
                 disabled={resettingMemory}
                 style={{
-                  flex: 1, padding: '10px 0', borderRadius: 12,
-                  border: `1px solid ${C.brownLight}`, background: 'transparent',
-                  color: C.brown, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  minHeight: 44,
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  border: `1px solid ${C.brownLight}`,
+                  background: 'transparent',
+                  color: C.brown,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: resettingMemory ? 'wait' : 'pointer',
+                  fontFamily: 'inherit',
                 }}
               >
                 Annuler
               </button>
               <button
+                type="button"
                 onClick={handleResetNovaMemory}
-                disabled={resettingMemory}
+                disabled={memoryResetConfirmText !== 'OUBLIER' || resettingMemory}
                 style={{
-                  flex: 1, padding: '10px 0', borderRadius: 12, border: 'none',
-                  background: C.copperDark, color: '#fff',
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  opacity: resettingMemory ? 0.6 : 1,
+                  minHeight: 44,
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background:
+                    memoryResetConfirmText === 'OUBLIER' && !resettingMemory
+                      ? 'linear-gradient(135deg, #c44a4a, #8b3a3a)'
+                      : 'rgba(180,80,80,0.2)',
+                  color:
+                    memoryResetConfirmText === 'OUBLIER' && !resettingMemory
+                      ? '#fff'
+                      : 'rgba(180,80,80,0.55)',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor:
+                    memoryResetConfirmText === 'OUBLIER' && !resettingMemory
+                      ? 'pointer'
+                      : 'not-allowed',
+                  fontFamily: 'inherit',
                 }}
               >
-                {resettingMemory ? 'Réinitialisation…' : 'Confirmer'}
+                {resettingMemory ? 'Réinitialisation…' : 'Effacer la mémoire'}
               </button>
             </div>
           </div>
@@ -480,42 +638,67 @@ export default function SettingsPage() {
 
       {showDeleteModal && (
         <div
+          role="presentation"
           onClick={() => !deleting && setShowDeleteModal(false)}
           style={{
-            position: 'fixed', inset: 0, zIndex: 999,
+            position: 'fixed', inset: 0, zIndex: 1000,
             background: 'rgba(26, 26, 26, 0.55)',
             backdropFilter: 'blur(3px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 20,
+            padding:
+              'max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px))',
           }}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-title"
+            aria-describedby="delete-account-description"
             onClick={e => e.stopPropagation()}
             style={{
               background: C.surface, borderRadius: 20,
-              maxWidth: 420, width: '100%', padding: 28,
+              maxWidth: 420, width: '100%', padding: 24,
+              maxHeight:
+                'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px)',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
               boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
               fontFamily: "'DM Sans', sans-serif",
             }}
           >
-            <h3 style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 26, fontWeight: 600, color: '#8b3a3a',
-              margin: '0 0 12px',
-            }}>
+            <h3
+              id="delete-account-title"
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: 26, fontWeight: 600, color: '#8b3a3a',
+                margin: '0 0 12px',
+              }}
+            >
               Supprimer ton compte ?
             </h3>
-            <p style={{ fontSize: 14, color: C.brown, lineHeight: 1.6, margin: '0 0 16px' }}>
+            <p
+              id="delete-account-description"
+              style={{ fontSize: 14, color: C.brown, lineHeight: 1.6, margin: '0 0 16px' }}
+            >
               Cette action est <strong>irréversible</strong>. Tu vas perdre :
             </p>
             <ul style={{ fontSize: 13, color: C.brownLight, lineHeight: 1.7, margin: '0 0 20px', paddingLeft: 20 }}>
-              <li>Ta progression du Reset 90 jours</li>
-              <li>Tes missions complétées et tes réflexions</li>
-              <li>Toutes tes conversations avec NOVAÉ</li>
-              <li>Tes posts, commentaires et badges communauté</li>
-              <li>Tes routines, recettes, planner, notes, famille</li>
-              <li>Ton profil et ton inscription Brevo</li>
+              <li>Toutes tes conversations et la mémoire de Nova</li>
+              <li>Tes routines, recettes, repas, planner et notes</li>
+              <li>Tes données d’entourage et de personnalisation</li>
+              <li>Ton profil et les données rattachées à ton compte</li>
             </ul>
+            <p style={{
+              fontSize: 12,
+              color: '#6b4040',
+              lineHeight: 1.5,
+              margin: '0 0 16px',
+              padding: '10px 12px',
+              borderRadius: 10,
+              background: 'rgba(180,80,80,0.06)',
+            }}>
+              Important : la suppression du compte et la gestion de l’abonnement sont deux opérations distinctes. NOVAÉ devra toujours te donner un accès clair à la gestion ou l’annulation de ton abonnement.
+            </p>
             <p style={{ fontSize: 13, color: C.brown, margin: '0 0 8px' }}>
               Pour confirmer, écris <strong>SUPPRIMER</strong> :
             </p>
@@ -526,7 +709,7 @@ export default function SettingsPage() {
               placeholder="SUPPRIMER"
               disabled={deleting}
               style={{
-                width: '100%', padding: '12px 14px', fontSize: 14,
+                width: '100%', minHeight: 44, padding: '12px 14px', fontSize: 14,
                 fontFamily: 'inherit', color: C.brown,
                 background: C.surfaceAlt,
                 border: '1px solid rgba(180, 80, 80, 0.3)',
@@ -535,7 +718,7 @@ export default function SettingsPage() {
               }}
             />
             {deleteError && (
-              <p style={{
+              <p role="alert" style={{
                 fontSize: 12, color: '#8b3a3a',
                 background: 'rgba(180, 80, 80, 0.08)',
                 padding: '10px 12px', borderRadius: 10,
