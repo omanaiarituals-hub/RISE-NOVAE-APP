@@ -520,7 +520,14 @@ function formatFamilyContext(rows: FamilyMemberRow[] | null, timezone = 'Europe/
     locationLines.push(`- Marge de sécurité habituelle : ${defaultMargin} min`)
     if (Array.isArray(d.places)) {
       const placeKindLabels: Record<string, string> = {
-        home: 'domicile', work: 'travail', school: 'école', daycare: 'crèche / garde', activity: 'activité', other: 'autre lieu',
+        home: 'domicile',
+        work: 'travail',
+        school: 'école',
+        daycare: 'crèche / garde',
+        activity: 'activité',
+        doctor: 'médecin',
+        pharmacy: 'pharmacie',
+        other: 'autre lieu',
       }
       const explicitReferenceIndex = d.places.findIndex((place: any) => place?.isReference === true)
       const fallbackHomeIndex = d.places.findIndex((place: any) => place?.kind === 'home')
@@ -532,9 +539,21 @@ function formatFamilyContext(rows: FamilyMemberRow[] | null, timezone = 'Europe/
         const transport = typeof place?.transportMode === 'string' ? place.transportMode : defaultTransport
         const travel = Math.max(0, Number(place?.travelMinutes) || 0)
         const margin = Math.max(0, Number(place?.safetyMarginMinutes) || defaultMargin)
-        const kind = placeKindLabels[String(place?.kind || 'other')] || 'lieu'
+        const baseKind = placeKindLabels[String(place?.kind || 'other')] || 'lieu'
+        const customType =
+          typeof place?.customType === 'string' && place.customType.trim()
+            ? place.customType.trim()
+            : ''
+        const kind =
+          String(place?.kind || 'other') === 'other' && customType
+            ? customType
+            : baseKind
+        const icon =
+          typeof place?.icon === 'string' && place.icon.trim()
+            ? `${place.icon.trim()} `
+            : ''
         const reference = index === referenceIndex ? ' — POINT DE DÉPART PRINCIPAL' : ''
-        locationLines.push(`- ${label} [${kind}]${address}${approximate}${reference} — ${transportLabels[transport] || transport}, trajet ${travel} min, marge ${margin} min`)
+        locationLines.push(`- ${icon}${label} [${kind}]${address}${approximate}${reference} — ${transportLabels[transport] || transport}, trajet ${travel} min, marge ${margin} min`)
       })
       if (referenceIndex < 0) locationLines.push('- Aucun domicile principal n’est défini : ne pas inventer de point de départ.')
     }

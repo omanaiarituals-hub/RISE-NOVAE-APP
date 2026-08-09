@@ -212,7 +212,7 @@ function toSupabase(m: FamilyMember, userId: string) {
 
 
 type TransportMode = 'car' | 'walk' | 'bike' | 'public_transport' | 'other'
-type PlaceKind = 'home' | 'work' | 'school' | 'daycare' | 'activity' | 'other'
+type PlaceKind = 'home' | 'work' | 'school' | 'daycare' | 'activity' | 'doctor' | 'pharmacy' | 'other'
 
 interface RecurringPlace {
   id: string
@@ -224,6 +224,8 @@ interface RecurringPlace {
   travelMinutes: number
   safetyMarginMinutes: number
   isReference: boolean
+  icon?: string
+  customType?: string
 }
 
 interface LocationConfig {
@@ -247,8 +249,23 @@ const PLACE_KIND_LABELS: Record<PlaceKind, string> = {
   school: 'École',
   daycare: 'Crèche / garde',
   activity: 'Activité',
+  doctor: 'Médecin',
+  pharmacy: 'Pharmacie',
   other: 'Autre lieu',
 }
+
+const PLACE_KIND_ICONS: Record<PlaceKind, string> = {
+  home: '🏠',
+  work: '💼',
+  school: '🏫',
+  daycare: '🧸',
+  activity: '⚽',
+  doctor: '🩺',
+  pharmacy: '💊',
+  other: '📍',
+}
+
+const PLACE_ICON_CHOICES = ['🏠', '💼', '🏫', '🧸', '⚽', '🩺', '💊', '📍', '🛒', '🏋️', '🚉', '✈️']
 
 function locationConfigFromRow(row: any): LocationConfig {
   const d = row?.data || {}
@@ -266,6 +283,10 @@ function locationConfigFromRow(row: any): LocationConfig {
     travelMinutes: Math.max(0, Number(place?.travelMinutes) || 0),
     safetyMarginMinutes: Math.max(0, Number(place?.safetyMarginMinutes) || Number(d.defaultSafetyMarginMinutes) || 15),
     isReference: index === referenceIndex,
+    icon: typeof place?.icon === 'string' && place.icon.trim()
+      ? place.icon.trim()
+      : PLACE_KIND_ICONS[((place?.kind || 'other') as PlaceKind)] || '📍',
+    customType: typeof place?.customType === 'string' ? place.customType : '',
   }))
 
   return {
@@ -533,34 +554,64 @@ function LocationsPanel({
   const [draft, setDraft] = useState<LocationConfig>(config)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [expanded, setExpanded] = useState(false)
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   useEffect(() => setDraft(config), [config])
 
-  const addPlace = () => {
-    const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `place-${Date.now()}`
-    setDraft(current => ({
-      ...current,
-      places: [...current.places, {
-        id,
-        kind: 'other',
-        label: '',
-        address: '',
-        approximate: false,
-        transportMode: current.defaultTransportMode,
-        travelMinutes: 0,
-        safetyMarginMinutes: current.defaultSafetyMarginMinutes,
-        isReference: false,
-      }],
-    }))
-    setExpanded(true)
+  const createPlace = (kind: PlaceKind = 'other') => {
+    const id =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `place-${Date.now()}`
+    const hasReference = draft.places.some(place => place.isReference)
+    const place: RecurringPlace = {
+      id,
+      kind,
+      label: kind === 'home' ? 'Mon domicile' : '',
+      address: '',
+      approximate: false,
+      transportMode: draft.defaultTransportMode,
+      travelMinutes: 0,
+      safetyMarginMinutes: draft.defaultSafetyMarginMinutes,
+      isReference: kind === 'home' && !hasReference,
+      icon: PLACE_KIND_ICONS[kind],
+      customType: '',
+    }
+    setDraft(current => ({ ...current, places: [...current.places, place] }))
+    setSelectedPlaceId(id)
+    setPendingDeleteId(null)
+    return id
   }
+
+  const openHome = () => {
+    const existingHome = draft.places.find(place => place.kind === 'home')
+    const id = existingHome?.id || createPlace('home')
+    setSelectedPlaceId(id)
+    window.setTimeout(() => {
+      document.getElementById('location-place-editor')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    }, 50)
+  }
+
+  useEffect(() => {
+    const handler = () => openHome()
+    window.addEventListener('novae:open-home-location', handler)
+    return () => window.removeEventListener('novae:open-home-location', handler)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft])
 
   const updatePlace = (id: string, patch: Partial<RecurringPlace>) => {
     setDraft(current => ({
       ...current,
       places: current.places.map(place => {
-        if (patch.isReference === true) return { ...place, isReference: place.id === id }
+        if (patch.isReference === true) {
+          return place.id === id
+            ? { ...place, ...patch, isReference: true }
+            : { ...place, isReference: false }
+        }
         return place.id === id ? { ...place, ...patch } : place
       }),
     }))
@@ -568,38 +619,75 @@ function LocationsPanel({
 
   const updatePlaceKind = (id: string, kind: PlaceKind) => {
     setDraft(current => {
-      const hasReference = current.places.some(place => place.isReference)
+      const hasOtherReference = current.places.some(
+        place => place.isReference && place.id !== id,
+      )
       return {
         ...current,
-        places: current.places.map(place => place.id === id
-          ? { ...place, kind, isReference: kind === 'home' && !hasReference ? true : place.isReference }
-          : place),
+        places: current.places.map(place =>
+          place.id === id
+            ? {
+                ...place,
+                kind,
+                icon: PLACE_KIND_ICONS[kind],
+                customType: kind === 'other' ? place.customType || '' : '',
+                isReference:
+                  kind === 'home' && !hasOtherReference ? true : place.isReference,
+              }
+            : place,
+        ),
       }
     })
   }
 
   const removePlace = (id: string) => {
-    setDraft(current => ({ ...current, places: current.places.filter(place => place.id !== id) }))
+    setDraft(current => ({
+      ...current,
+      places: current.places.filter(place => place.id !== id),
+    }))
+    setSelectedPlaceId(current => (current === id ? null : current))
+    setPendingDeleteId(null)
   }
 
   const save = async () => {
     const keptPlaces = draft.places
-      .map(place => ({ ...place, label: place.label.trim(), address: place.address.trim() }))
+      .map(place => ({
+        ...place,
+        label: place.label.trim(),
+        address: place.address.trim(),
+        customType: place.customType?.trim() || '',
+        icon: place.icon?.trim() || PLACE_KIND_ICONS[place.kind] || '📍',
+      }))
       .filter(place => place.label || place.address)
+
     const explicitReference = keptPlaces.find(place => place.isReference)
     const fallbackHome = keptPlaces.find(place => place.kind === 'home')
     const referenceId = explicitReference?.id || fallbackHome?.id
-    const cleaned = {
+
+    const cleaned: LocationConfig = {
       ...draft,
-      places: keptPlaces.map(place => ({ ...place, isReference: Boolean(referenceId && place.id === referenceId) })),
+      places: keptPlaces.map(place => ({
+        ...place,
+        isReference: Boolean(referenceId && place.id === referenceId),
+      })),
     }
+
     setSaveError('')
     setSaving(true)
     try {
       await onSave(cleaned)
       setDraft(cleaned)
+      if (
+        selectedPlaceId &&
+        !cleaned.places.some(place => place.id === selectedPlaceId)
+      ) {
+        setSelectedPlaceId(null)
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Impossible d’enregistrer les lieux pour le moment.'
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Impossible d’enregistrer les lieux pour le moment.'
       console.error('[family/locations] enregistrement impossible', error)
       setSaveError(message)
     } finally {
@@ -607,73 +695,353 @@ function LocationsPanel({
     }
   }
 
+  const selectedPlace =
+    draft.places.find(place => place.id === selectedPlaceId) || null
+
   return (
-    <section style={{ marginBottom: 24, background: C.blanc, border: `1.5px solid ${C.grisClair}`, borderRadius: 18, padding: 16 }}>
+    <section
+      id="locations-panel"
+      style={{
+        marginBottom: 24,
+        background: C.blanc,
+        border: `1.5px solid ${C.grisClair}`,
+        borderRadius: 18,
+        padding: 16,
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div>
-          <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.rose, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Organisation quotidienne</p>
-          <h2 style={{ margin: '3px 0 0', fontFamily: "'Cormorant Garamond',serif", fontSize: 24, color: C.noir }}>Lieux et trajets</h2>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: C.gris }}>Nova utilise ces repères pour estimer tes déplacements et éviter les journées irréalistes.</p>
+          <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.rose, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            Organisation quotidienne
+          </p>
+          <h2 style={{ margin: '3px 0 0', fontFamily: "'Cormorant Garamond',serif", fontSize: 24, color: C.noir }}>
+            Lieux et trajets
+          </h2>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: C.gris }}>
+            Tes repères sont enregistrés pour que Nova puisse les utiliser dans ses réponses et ses calculs de départ.
+          </p>
         </div>
-        <span style={{ fontSize: 28 }}>📍</span>
+        <span aria-hidden="true" style={{ fontSize: 28 }}>📍</span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 8, marginTop: 14 }}>
         <label style={{ fontSize: 11, color: C.gris }}>
           Transport habituel
-          <select value={draft.defaultTransportMode} onChange={event => setDraft(current => ({ ...current, defaultTransportMode: event.target.value as TransportMode }))} style={{ width: '100%', marginTop: 4, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.cream, color: C.noir }}>
+          <select
+            value={draft.defaultTransportMode}
+            onChange={event => setDraft(current => ({ ...current, defaultTransportMode: event.target.value as TransportMode }))}
+            style={{ width: '100%', minHeight: 44, marginTop: 4, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.cream, color: C.noir }}
+          >
             {(Object.entries(TRANSPORT_LABELS) as [TransportMode, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
+
         <label style={{ fontSize: 11, color: C.gris }}>
           Marge de sécurité par défaut
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-            <input type="number" min={0} max={180} value={draft.defaultSafetyMarginMinutes} onChange={event => setDraft(current => ({ ...current, defaultSafetyMarginMinutes: Math.max(0, Number(event.target.value) || 0) }))} style={{ width: 90, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.cream, color: C.noir }} />
+            <input
+              type="number"
+              min={0}
+              max={180}
+              value={draft.defaultSafetyMarginMinutes}
+              onChange={event => setDraft(current => ({ ...current, defaultSafetyMarginMinutes: Math.max(0, Number(event.target.value) || 0) }))}
+              style={{ width: 90, minHeight: 44, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.cream, color: C.noir }}
+            />
             <span style={{ fontSize: 12, color: C.gris }}>minutes</span>
           </div>
         </label>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-        <button onClick={() => setExpanded(value => !value)} style={{ padding: '9px 14px', borderRadius: 11, border: `1.5px solid ${C.rose}`, background: C.roseLight, color: C.deep, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-          {expanded ? 'Masquer les lieux' : `Voir les lieux (${draft.places.length})`}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(92px,1fr))', gap: 10, marginTop: 16 }}>
+        {draft.places.map(place => {
+          const title =
+            place.kind === 'other' && place.customType?.trim()
+              ? place.customType.trim()
+              : PLACE_KIND_LABELS[place.kind]
+          const isSelected = place.id === selectedPlaceId
+
+          return (
+            <button
+              key={place.id}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => {
+                setSelectedPlaceId(place.id)
+                setPendingDeleteId(null)
+              }}
+              style={{
+                minHeight: 92,
+                minWidth: 0,
+                padding: '10px 8px',
+                borderRadius: 14,
+                border: `1.5px solid ${isSelected ? C.deep : C.grisClair}`,
+                background: isSelected ? C.roseLight : C.cream,
+                color: C.noir,
+                cursor: 'pointer',
+                textAlign: 'center',
+                touchAction: 'manipulation',
+              }}
+            >
+              <span aria-hidden="true" style={{ display: 'block', fontSize: 27, lineHeight: 1 }}>
+                {place.icon || PLACE_KIND_ICONS[place.kind]}
+              </span>
+              <strong style={{ display: 'block', marginTop: 7, fontSize: 11, lineHeight: 1.2, overflowWrap: 'anywhere' }}>
+                {place.label.trim() || title}
+              </strong>
+              {place.isReference && (
+                <small style={{ display: 'block', marginTop: 4, color: C.deep, fontSize: 9, fontWeight: 700 }}>
+                  Départ principal
+                </small>
+              )}
+            </button>
+          )
+        })}
+
+        <button
+          type="button"
+          onClick={() => createPlace('other')}
+          aria-label="Ajouter un lieu"
+          style={{
+            minHeight: 92,
+            padding: '10px 8px',
+            borderRadius: 14,
+            border: `1.5px dashed ${C.rose}`,
+            background: 'rgba(255,255,255,0.45)',
+            color: C.deep,
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 700,
+            touchAction: 'manipulation',
+          }}
+        >
+          <span aria-hidden="true" style={{ display: 'block', fontSize: 28, lineHeight: 1 }}>＋</span>
+          <span style={{ display: 'block', marginTop: 7 }}>Ajouter</span>
         </button>
-        <button onClick={addPlace} style={{ padding: '9px 14px', borderRadius: 11, border: 'none', background: C.deep, color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Ajouter un lieu</button>
       </div>
 
-      {expanded && (
-        <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-          {draft.places.length === 0 && <p style={{ margin: 0, padding: 12, borderRadius: 12, background: C.cream, color: C.gris, fontSize: 12 }}>Ajoute ton domicile, ton travail, les écoles ou les activités récurrentes.</p>}
-          {draft.places.map(place => (
-            <div key={place.id} style={{ border: `1px solid ${C.grisClair}`, borderRadius: 14, padding: 12, background: C.cream }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8 }}>
-                <select value={place.kind} onChange={event => updatePlaceKind(place.id, event.target.value as PlaceKind)} style={{ padding: '8px 9px', borderRadius: 9, border: `1px solid ${C.grisClair}`, background: C.blanc }}>
-                  {(Object.entries(PLACE_KIND_LABELS) as [PlaceKind, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-                <input value={place.label} onChange={event => updatePlace(place.id, { label: event.target.value })} placeholder="Nom : Domicile, Lidl, école d’Inaya…" style={{ padding: '8px 9px', borderRadius: 9, border: `1px solid ${C.grisClair}`, background: C.blanc }} />
-                <input value={place.address} onChange={event => updatePlace(place.id, { address: event.target.value })} placeholder="Adresse ou zone approximative" style={{ padding: '8px 9px', borderRadius: 9, border: `1px solid ${C.grisClair}`, background: C.blanc }} />
-                <select value={place.transportMode} onChange={event => updatePlace(place.id, { transportMode: event.target.value as TransportMode })} style={{ padding: '8px 9px', borderRadius: 9, border: `1px solid ${C.grisClair}`, background: C.blanc }}>
-                  {(Object.entries(TRANSPORT_LABELS) as [TransportMode, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
-                <label style={{ fontSize: 11, color: C.gris }}>Trajet habituel <input type="number" min={0} max={300} value={place.travelMinutes} onChange={event => updatePlace(place.id, { travelMinutes: Math.max(0, Number(event.target.value) || 0) })} style={{ width: 62, marginLeft: 5, padding: '6px', borderRadius: 8, border: `1px solid ${C.grisClair}` }} /> min</label>
-                <label style={{ fontSize: 11, color: C.gris }}>Marge <input type="number" min={0} max={180} value={place.safetyMarginMinutes} onChange={event => updatePlace(place.id, { safetyMarginMinutes: Math.max(0, Number(event.target.value) || 0) })} style={{ width: 62, marginLeft: 5, padding: '6px', borderRadius: 8, border: `1px solid ${C.grisClair}` }} /> min</label>
-                <label style={{ fontSize: 11, color: C.gris, display: 'flex', alignItems: 'center', gap: 5 }}><input type="checkbox" checked={place.approximate} onChange={event => updatePlace(place.id, { approximate: event.target.checked })} /> Lieu approximatif</label>
-                <label style={{ fontSize: 11, color: place.isReference ? C.deep : C.gris, display: 'flex', alignItems: 'center', gap: 5, fontWeight: place.isReference ? 700 : 500 }}><input type="checkbox" checked={place.isReference} onChange={event => updatePlace(place.id, { isReference: event.target.checked })} /> Point de départ principal</label>
-                {place.isReference && <span style={{ padding: '4px 8px', borderRadius: 999, background: C.roseLight, color: C.deep, fontSize: 10, fontWeight: 700 }}>⌂ Domicile principal</span>}
-                <button onClick={() => removePlace(place.id)} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: '#C66', cursor: 'pointer', fontSize: 12 }}>Supprimer</button>
-              </div>
+      {draft.places.length === 0 && (
+        <p style={{ margin: '12px 0 0', padding: 12, borderRadius: 12, background: C.cream, color: C.gris, fontSize: 12 }}>
+          Aucun lieu enregistré. Commence par ton domicile, puis ajoute uniquement les repères qui te sont utiles.
+        </p>
+      )}
+
+      {selectedPlace && (
+        <div
+          id="location-place-editor"
+          style={{ marginTop: 14, padding: 14, borderRadius: 16, border: `1px solid ${C.grisClair}`, background: C.cream }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.rose, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Fiche du lieu
+              </p>
+              <h3 style={{ margin: '2px 0 0', fontFamily: "'Cormorant Garamond',serif", fontSize: 21, color: C.noir }}>
+                {selectedPlace.label || (selectedPlace.kind === 'other' && selectedPlace.customType?.trim() ? selectedPlace.customType : PLACE_KIND_LABELS[selectedPlace.kind])}
+              </h3>
             </div>
-          ))}
+            <button
+              type="button"
+              aria-label="Fermer la fiche du lieu"
+              onClick={() => {
+                setSelectedPlaceId(null)
+                setPendingDeleteId(null)
+              }}
+              style={{ width: 44, height: 44, borderRadius: 12, border: `1px solid ${C.grisClair}`, background: C.blanc, color: C.gris, cursor: 'pointer' }}
+            >
+              ×
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 9 }}>
+            <label style={{ fontSize: 10, color: C.gris }}>
+              Type de lieu
+              <select
+                value={selectedPlace.kind}
+                onChange={event => updatePlaceKind(selectedPlace.id, event.target.value as PlaceKind)}
+                style={{ width: '100%', minHeight: 44, marginTop: 4, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.blanc, color: C.noir }}
+              >
+                {(Object.entries(PLACE_KIND_LABELS) as [PlaceKind, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+
+            {selectedPlace.kind === 'other' && (
+              <label style={{ fontSize: 10, color: C.gris }}>
+                Type personnalisé
+                <input
+                  value={selectedPlace.customType || ''}
+                  onChange={event => updatePlace(selectedPlace.id, { customType: event.target.value })}
+                  placeholder="Ex. Gare, salle de sport…"
+                  style={{ width: '100%', minHeight: 44, marginTop: 4, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.blanc, color: C.noir, boxSizing: 'border-box' }}
+                />
+              </label>
+            )}
+
+            <label style={{ fontSize: 10, color: C.gris }}>
+              Nom du lieu
+              <input
+                value={selectedPlace.label}
+                onChange={event => updatePlace(selectedPlace.id, { label: event.target.value })}
+                placeholder="Ex. Lidl Lyon, école d’Inaya…"
+                style={{ width: '100%', minHeight: 44, marginTop: 4, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.blanc, color: C.noir, boxSizing: 'border-box' }}
+              />
+            </label>
+
+            <label style={{ fontSize: 10, color: C.gris }}>
+              Adresse
+              <input
+                value={selectedPlace.address}
+                onChange={event => updatePlace(selectedPlace.id, { address: event.target.value })}
+                placeholder="Adresse, ville ou code postal"
+                autoComplete="street-address"
+                style={{ width: '100%', minHeight: 44, marginTop: 4, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.blanc, color: C.noir, boxSizing: 'border-box' }}
+              />
+            </label>
+
+            <label style={{ fontSize: 10, color: C.gris }}>
+              Transport
+              <select
+                value={selectedPlace.transportMode}
+                onChange={event => updatePlace(selectedPlace.id, { transportMode: event.target.value as TransportMode })}
+                style={{ width: '100%', minHeight: 44, marginTop: 4, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.blanc, color: C.noir }}
+              >
+                {(Object.entries(TRANSPORT_LABELS) as [TransportMode, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+
+            <label style={{ fontSize: 10, color: C.gris }}>
+              Trajet habituel
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4 }}>
+                <input
+                  type="number"
+                  min={0}
+                  max={300}
+                  value={selectedPlace.travelMinutes}
+                  onChange={event => updatePlace(selectedPlace.id, { travelMinutes: Math.max(0, Number(event.target.value) || 0) })}
+                  style={{ width: 90, minHeight: 44, padding: '8px', borderRadius: 9, border: `1px solid ${C.grisClair}`, background: C.blanc }}
+                />
+                <span>min</span>
+              </div>
+            </label>
+
+            <label style={{ fontSize: 10, color: C.gris }}>
+              Marge de sécurité
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4 }}>
+                <input
+                  type="number"
+                  min={0}
+                  max={180}
+                  value={selectedPlace.safetyMarginMinutes}
+                  onChange={event => updatePlace(selectedPlace.id, { safetyMarginMinutes: Math.max(0, Number(event.target.value) || 0) })}
+                  style={{ width: 90, minHeight: 44, padding: '8px', borderRadius: 9, border: `1px solid ${C.grisClair}`, background: C.blanc }}
+                />
+                <span>min</span>
+              </div>
+            </label>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <p style={{ margin: '0 0 7px', fontSize: 10, color: C.gris, fontWeight: 700 }}>Icône</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center' }}>
+              {PLACE_ICON_CHOICES.map(icon => (
+                <button
+                  key={icon}
+                  type="button"
+                  aria-label={`Choisir l’icône ${icon}`}
+                  aria-pressed={selectedPlace.icon === icon}
+                  onClick={() => updatePlace(selectedPlace.id, { icon })}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 11,
+                    border: `1.5px solid ${selectedPlace.icon === icon ? C.deep : C.grisClair}`,
+                    background: selectedPlace.icon === icon ? C.roseLight : C.blanc,
+                    cursor: 'pointer',
+                    fontSize: 21,
+                  }}
+                >
+                  {icon}
+                </button>
+              ))}
+              <input
+                aria-label="Icône personnalisée"
+                value={selectedPlace.icon || ''}
+                onChange={event => updatePlace(selectedPlace.id, { icon: event.target.value.slice(0, 4) })}
+                placeholder="Autre"
+                maxLength={4}
+                style={{ width: 72, minHeight: 44, padding: '8px', borderRadius: 11, border: `1px solid ${C.grisClair}`, background: C.blanc, textAlign: 'center', fontSize: 18 }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 13 }}>
+            <label style={{ minHeight: 44, display: 'flex', alignItems: 'center', gap: 7, color: C.gris, fontSize: 11 }}>
+              <input
+                type="checkbox"
+                checked={selectedPlace.approximate}
+                onChange={event => updatePlace(selectedPlace.id, { approximate: event.target.checked })}
+              />
+              Adresse approximative
+            </label>
+
+            <label style={{ minHeight: 44, display: 'flex', alignItems: 'center', gap: 7, color: selectedPlace.isReference ? C.deep : C.gris, fontSize: 11, fontWeight: selectedPlace.isReference ? 700 : 500 }}>
+              <input
+                type="checkbox"
+                checked={selectedPlace.isReference}
+                onChange={event => updatePlace(selectedPlace.id, { isReference: event.target.checked })}
+              />
+              Point de départ principal
+            </label>
+          </div>
+
+          <div style={{ marginTop: 10 }}>
+            {pendingDeleteId === selectedPlace.id ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 8, padding: 10, borderRadius: 12, background: 'rgba(198,102,102,0.08)' }}>
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteId(null)}
+                  style={{ minHeight: 44, borderRadius: 10, border: `1px solid ${C.grisClair}`, background: C.blanc, cursor: 'pointer', fontWeight: 700 }}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removePlace(selectedPlace.id)}
+                  style={{ minHeight: 44, borderRadius: 10, border: 'none', background: '#B85656', color: 'white', cursor: 'pointer', fontWeight: 700 }}
+                >
+                  Confirmer la suppression
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPendingDeleteId(selectedPlace.id)}
+                style={{ minHeight: 44, padding: '9px 12px', borderRadius: 10, border: '1px solid rgba(198,102,102,0.34)', background: 'transparent', color: '#B85656', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}
+              >
+                Supprimer ce lieu
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      <p style={{ margin: '12px 0 0', fontSize: 11, color: C.gris }}>Définis un domicile comme point de départ principal. Nova l’utilisera par défaut pour calculer tes heures de départ.</p>
-      <button onClick={save} disabled={saving} style={{ marginTop: 10, padding: '10px 16px', borderRadius: 11, border: 'none', background: C.deep, color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+      <p style={{ margin: '12px 0 0', fontSize: 11, color: C.gris }}>
+        L’adresse exacte reste facultative. Aucune géolocalisation automatique n’est nécessaire : tu choisis les informations enregistrées.
+      </p>
+
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving}
+        style={{ width: '100%', minHeight: 46, marginTop: 10, padding: '10px 16px', borderRadius: 11, border: 'none', background: C.deep, color: 'white', fontSize: 12, fontWeight: 700, cursor: saving ? 'wait' : 'pointer' }}
+      >
         {saving ? 'Enregistrement…' : '✓ Enregistrer les lieux et trajets'}
       </button>
-      {saveError && <p role="alert" style={{ margin: '8px 0 0', color: '#B64646', fontSize: 12 }}>Enregistrement impossible : {saveError}</p>}
+
+      {saveError && (
+        <p role="alert" style={{ margin: '8px 0 0', color: '#B64646', fontSize: 12 }}>
+          Enregistrement impossible : {saveError}
+        </p>
+      )}
     </section>
   )
 }
@@ -1090,7 +1458,35 @@ export default function FamilyPage() {
                 </p>
                 <h1 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 36, color: C.noir }}>Entourage</h1>
               </div>
-              <span style={{ fontSize: 40 }}>🏠</span>
+              <button
+                type="button"
+                aria-label="Ouvrir mon domicile"
+                title="Mon domicile"
+                onClick={() => {
+                  document.getElementById('locations-panel')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                  })
+                  window.setTimeout(() => {
+                    window.dispatchEvent(new Event('novae:open-home-location'))
+                  }, 220)
+                }}
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 16,
+                  border: `1px solid ${C.grisClair}`,
+                  background: C.blanc,
+                  cursor: 'pointer',
+                  fontSize: 31,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  touchAction: 'manipulation',
+                }}
+              >
+                🏠
+              </button>
             </div>
           </header>
 
