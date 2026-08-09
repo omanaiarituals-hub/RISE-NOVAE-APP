@@ -842,6 +842,9 @@ export async function POST(request: NextRequest) {
     const shoppingActions = confirmedActions.filter(
       (action) => action.type === 'add_shopping_item' && action.engine === 'meals'
     )
+    const clearShoppingActions = confirmedActions.filter(
+      (action) => action.type === 'clear_shopping_list' && action.engine === 'meals'
+    )
     const mealActions = confirmedActions.filter(
       (action) => action.type === 'set_meal' && action.engine === 'meals'
     )
@@ -875,6 +878,7 @@ export async function POST(request: NextRequest) {
           (action.type === 'update_note' && action.engine === 'notes') ||
           (action.type === 'delete_note' && action.engine === 'notes') ||
           (action.type === 'add_shopping_item' && action.engine === 'meals') ||
+          (action.type === 'clear_shopping_list' && action.engine === 'meals') ||
           (action.type === 'set_meal' && action.engine === 'meals') ||
           (action.type === 'update_meal' && action.engine === 'meals') ||
           (action.type === 'delete_meal' && action.engine === 'meals') ||
@@ -885,7 +889,7 @@ export async function POST(request: NextRequest) {
         )
     )
 
-    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + updateNoteActions.length + deleteNoteActions.length + shoppingActions.length + mealActions.length + updateMealActions.length + deleteMealActions.length + recipeActions.length + routineActions.length + updateRoutineActions.length + deleteRoutineActions.length === 0) {
+    if (taskActions.length + reminderActions.length + mergeActions.length + calendarActions.length + lifecycleActions.length + noteActions.length + updateNoteActions.length + deleteNoteActions.length + shoppingActions.length + clearShoppingActions.length + mealActions.length + updateMealActions.length + deleteMealActions.length + recipeActions.length + routineActions.length + updateRoutineActions.length + deleteRoutineActions.length === 0) {
       return NextResponse.json(
         {
           error: 'action_not_enabled',
@@ -900,7 +904,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || updateNoteActions.length > 10 || deleteNoteActions.length > 20 || shoppingActions.length > 20 || mealActions.length > 10 || updateMealActions.length > 10 || deleteMealActions.length > 10 || recipeActions.length > 5 || routineActions.length > 5 || updateRoutineActions.length > 10 || deleteRoutineActions.length > 20) {
+    if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || updateNoteActions.length > 10 || deleteNoteActions.length > 20 || shoppingActions.length > 20 || clearShoppingActions.length > 1 || mealActions.length > 10 || updateMealActions.length > 10 || deleteMealActions.length > 10 || recipeActions.length > 5 || routineActions.length > 5 || updateRoutineActions.length > 10 || deleteRoutineActions.length > 20) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
     }
 
@@ -1285,6 +1289,63 @@ export async function POST(request: NextRequest) {
           status: 'failed',
           entityId: null,
           message: error instanceof Error ? error.message : 'L’article n’a pas pu être ajouté.',
+        })
+      }
+    }
+
+    for (const action of clearShoppingActions) {
+      try {
+        const { count, error: countError } = await userClient
+          .from('shopping_list')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+
+        if (countError) throw new Error(countError.message)
+
+        const existingCount = Math.max(0, Number(count) || 0)
+
+        if (existingCount === 0) {
+          results.push({
+            kind: 'shopping_item',
+            actionId: action.id,
+            status: 'cancelled',
+            entityId: null,
+            message: 'Ta liste de courses est déjà vide.',
+          })
+          continue
+        }
+
+        const { error: deleteError } = await userClient
+          .from('shopping_list')
+          .delete()
+          .eq('user_id', user.id)
+
+        if (deleteError) throw new Error(deleteError.message)
+
+        const { count: remainingCount, error: verifyError } = await userClient
+          .from('shopping_list')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+
+        if (verifyError) throw new Error(verifyError.message)
+        if ((Number(remainingCount) || 0) > 0) {
+          throw new Error('La liste contient encore des articles après le vidage.')
+        }
+
+        results.push({
+          kind: 'shopping_item',
+          actionId: action.id,
+          status: 'cancelled',
+          entityId: null,
+          message: `C’est fait. Ta liste de courses a été vidée (${existingCount} article${existingCount > 1 ? 's' : ''} supprimé${existingCount > 1 ? 's' : ''}).`,
+        })
+      } catch (error) {
+        results.push({
+          kind: 'shopping_item',
+          actionId: action.id,
+          status: 'failed',
+          entityId: null,
+          message: error instanceof Error ? error.message : 'La liste de courses n’a pas pu être vidée.',
         })
       }
     }

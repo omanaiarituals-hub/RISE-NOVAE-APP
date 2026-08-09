@@ -129,6 +129,59 @@ function chooseTaskToKeep(left: ActiveTaskContextRow, right: ActiveTaskContextRo
     : right
 }
 
+function isClearShoppingListRequest(message: string): boolean {
+  const normalized = message
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('fr-FR')
+    .replace(/[’']/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const mentionsShopping = /\b(liste de courses|courses)\b/.test(normalized)
+  const mentionsFullClear = /\b(vide|vider|efface|effacer|supprime|supprimer|enleve|enlever)\b/.test(normalized)
+    && /\b(tout|toute|completement|entierement|liste)\b/.test(normalized)
+
+  return mentionsShopping && mentionsFullClear
+}
+
+function applyShoppingListClearGuard(plan: NovaActionPlan, message: string): NovaActionPlan {
+  if (!isClearShoppingListRequest(message)) return plan
+
+  const alreadyHasClear = plan.proposed_actions.some(
+    (action) => action.type === 'clear_shopping_list' && action.engine === 'meals'
+  )
+  if (alreadyHasClear) {
+    return {
+      ...plan,
+      proposed_actions: plan.proposed_actions.map((action) =>
+        action.type === 'clear_shopping_list' && action.engine === 'meals'
+          ? { ...action, risk: 'medium', requires_confirmation: true }
+          : action
+      ),
+    }
+  }
+
+  return {
+    ...plan,
+    intent: 'meal',
+    missing_information: plan.missing_information.filter((item) => !item.blocking),
+    proposed_actions: [
+      {
+        id: `clear-shopping-${Date.now()}`,
+        type: 'clear_shopping_list',
+        engine: 'meals',
+        title: 'Vider toute la liste de courses',
+        reason: 'L’utilisatrice demande explicitement de vider sa liste de courses actuelle.',
+        risk: 'medium',
+        requires_confirmation: true,
+        parameters: [],
+      },
+    ],
+    assistant_message: 'Je vais vider toute ta liste de courses actuelle. Les recettes et ton planning repas ne seront pas supprimés. Tu confirmes ?',
+  }
+}
+
 function applyTaskIdentityGuard(
   plan: NovaActionPlan,
   message: string,
@@ -1685,6 +1738,10 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       duplicatePairs,
       requestMatches
     )
+
+    // Garde déterministe : une demande explicite de vidage des courses doit
+    // toujours produire une vraie action confirmable, jamais une simple promesse.
+    result.plan = applyShoppingListClearGuard(result.plan, message)
 
     // Mémoire épisodique : Nova enregistre automatiquement les faits durables.
     // Non bloquant : un échec ici ne doit jamais empêcher la réponse à l'utilisatrice.

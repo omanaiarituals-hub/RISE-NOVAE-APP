@@ -64,7 +64,7 @@ Exemple : « je ne mange pas de porc, uniquement halal » → { key: "regime_ali
 
 Intentions possibles : task, calendar, document, administrative, finance, family, meal, note, routine, question, unknown.
 Moteurs possibles : tasks, calendar, documents, administrative, finance, family, meals, notes, routines, memory, notifications, none.
-Actions possibles : create_task, create_reminder, merge_tasks, create_calendar_event, update_task, complete_task, cancel_task, update_reminder, cancel_reminder, update_calendar_event, cancel_calendar_event, classify_document, create_admin_case, prepare_email, save_note, update_note, delete_note, add_shopping_item, set_meal, update_meal, delete_meal, create_recipe, create_routine, update_routine, delete_routine, ask_question, no_action.
+Actions possibles : create_task, create_reminder, merge_tasks, create_calendar_event, update_task, complete_task, cancel_task, update_reminder, cancel_reminder, update_calendar_event, cancel_calendar_event, classify_document, create_admin_case, prepare_email, save_note, update_note, delete_note, add_shopping_item, clear_shopping_list, set_meal, update_meal, delete_meal, create_recipe, create_routine, update_routine, delete_routine, ask_question, no_action.
 Niveaux de risque : none, low, medium, high.
 
 Chaque action doit contenir des paramètres sous forme de paires key/value. Les paramètres sont uniquement un aperçu lisible et ne déclenchent aucune écriture.
@@ -252,6 +252,17 @@ RÈGLES COURSES MANUELLES :
 - pour plusieurs articles, demande UNE confirmation globale dans assistant_message, par exemple « Je vais ajouter X, Y et Z à ta liste de courses. Tu confirmes ? » ;
 - avant confirmation, ne dis jamais « c’est ajouté » ou « j’ajoute maintenant » comme si l’écriture avait déjà eu lieu ;
 - si l’article est déjà présent dans la liste de courses active, ne crée pas volontairement de doublon.
+
+Pour VIDER entièrement la liste de courses (engine meals), utilise clear_shopping_list.
+RÈGLES VIDAGE COURSES :
+- déclenche clear_shopping_list quand l’utilisatrice dit clairement « vide ma liste de courses », « efface toute ma liste de courses », « supprime toute la liste de courses » ou une formulation équivalente ;
+- génère UNE SEULE action clear_shopping_list, pas une action par article ;
+- clear_shopping_list exige TOUJOURS requires_confirmation=true et risk=medium ;
+- parameters peut être un tableau vide ;
+- avant confirmation, assistant_message doit annoncer clairement que toute la liste actuelle sera vidée et demander confirmation ;
+- ne dis JAMAIS que la liste est vidée avant que l’action ait réellement été exécutée ;
+- après confirmation réussie, le moteur supprime tous les articles de shopping_list pour cette utilisatrice, qu’ils soient manuels ou issus des repas ;
+- ne supprime jamais les recettes ni le planning repas : seul le contenu actuel de la liste de courses est vidé.
 
 
 RÈGLES DE ROBUSTESSE JSON POUR LES RECETTES :

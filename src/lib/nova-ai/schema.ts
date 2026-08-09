@@ -103,6 +103,7 @@ export const NOVA_ACTION_PLAN_JSON_SCHEMA = {
               'update_note',
               'delete_note',
               'add_shopping_item',
+              'clear_shopping_list',
               'set_meal',
               'update_meal',
               'delete_meal',
