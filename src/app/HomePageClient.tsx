@@ -67,7 +67,7 @@ const MODULES_CACHE_KEY = 'novae-primary-modules'
 const OTHER_MODULES: ModuleItem[] = [
   { key: 'astuces', href: '/astuces', title: 'Astuces', description: 'Conseils pratiques', icon: 'idea' },
   { key: 'blog', href: '/blog', title: 'Ressources', description: 'Articles et contenus', icon: 'book' },
-  { key: 'finance', href: '/settings', title: 'Finances', description: 'Bientôt disponible', icon: 'wallet' },
+  { key: 'finance', href: '/finances', title: 'Finances', description: 'Bientôt disponible', icon: 'wallet' },
 ]
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -627,6 +627,14 @@ export default function HomePageClient() {
                       selected ? 'selected' : ''
                     }`}
                     disabled={disabled}
+                    aria-pressed={selected}
+                    aria-label={`${module.title} — ${
+                      selected
+                        ? 'sélectionné'
+                        : disabled
+                          ? '3 modules déjà sélectionnés'
+                          : 'ajouter aux modules principaux'
+                    }`}
                     onClick={() => togglePrimaryModule(module.key)}
                   >
                     <span
@@ -1939,12 +1947,16 @@ export default function HomePageClient() {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 10px;
+          min-width: 0;
         }
 
         .module-picker-item {
           display: grid;
+          min-width: 0;
+          min-height: 78px;
           grid-template-columns: 48px minmax(0, 1fr);
-          gap: 10px;
+          column-gap: 10px;
+          row-gap: 2px;
           align-items: center;
           padding: 12px;
           color: var(--novae-text-main);
@@ -1953,6 +1965,8 @@ export default function HomePageClient() {
           border: 1px solid var(--novae-border);
           border-radius: 14px;
           cursor: pointer;
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
         }
 
         .module-picker-item.selected {
@@ -1960,19 +1974,39 @@ export default function HomePageClient() {
           box-shadow: inset 0 0 0 1px var(--novae-metal);
         }
 
+        .module-picker-item:focus-visible {
+          outline: 3px solid
+            color-mix(in srgb, var(--novae-metal) 45%, transparent);
+          outline-offset: 2px;
+        }
+
         .module-picker-item:disabled {
           cursor: not-allowed;
           opacity: 0.45;
         }
 
+        .module-picker-item .secondary-space-icon {
+          grid-row: 1 / span 2;
+          align-self: center;
+        }
+
         .module-picker-item strong,
         .module-picker-item small {
           grid-column: 2;
+          min-width: 0;
+          max-width: 100%;
+          overflow-wrap: anywhere;
+          word-break: normal;
+        }
+
+        .module-picker-item strong {
+          line-height: 1.15;
         }
 
         .module-picker-item small {
           color: var(--novae-text-muted);
           font-size: 10px;
+          line-height: 1.25;
         }
 
         .all-spaces-button {
@@ -2184,12 +2218,25 @@ export default function HomePageClient() {
 
         .objective-modal {
           width: min(100%, 520px);
+          max-height: min(
+            860px,
+            calc(
+              100dvh -
+              env(safe-area-inset-top, 0px) -
+              env(safe-area-inset-bottom, 0px) -
+              24px
+            )
+          );
+          overflow-y: auto;
+          overscroll-behavior: contain;
           padding: 24px;
+          padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
           color: var(--novae-text-main);
           background: var(--novae-surface);
           border: 1px solid var(--novae-border);
           border-radius: 24px;
           box-shadow: 0 28px 70px rgba(0, 0, 0, 0.24);
+          -webkit-overflow-scrolling: touch;
         }
 
         .modal-header {
@@ -2209,8 +2256,9 @@ export default function HomePageClient() {
         }
 
         .close-button {
-          width: 36px;
-          height: 36px;
+          width: 44px;
+          height: 44px;
+          flex: 0 0 44px;
           color: var(--novae-text-main);
           background: var(--novae-surface-alt);
           border: 1px solid var(--novae-border);
@@ -2618,6 +2666,97 @@ export default function HomePageClient() {
 
         .home-primary-module {
           justify-self: center !important;
+        }
+
+
+        /* Stabilisation store-ready du sélecteur de modules.
+           Les libellés longs restent contenus et les cibles tactiles
+           restent utilisables sur téléphone étroit / Fold fermé. */
+        @media (max-width: 520px) {
+          .modal-backdrop {
+            place-items: end center;
+            padding:
+              max(10px, env(safe-area-inset-top, 0px))
+              10px
+              max(10px, env(safe-area-inset-bottom, 0px));
+          }
+
+          .objective-modal {
+            width: 100%;
+            max-height: calc(
+              100dvh -
+              env(safe-area-inset-top, 0px) -
+              env(safe-area-inset-bottom, 0px) -
+              20px
+            );
+            padding: 18px 14px
+              max(18px, env(safe-area-inset-bottom, 0px));
+            border-radius: 22px;
+          }
+
+          .modal-header {
+            gap: 10px;
+            margin-bottom: 14px;
+          }
+
+          .modal-header h2,
+          .saved-state h2 {
+            font-size: clamp(25px, 8vw, 31px);
+            line-height: 1;
+          }
+
+          .module-picker-grid {
+            grid-template-columns: 1fr;
+            gap: 8px;
+          }
+
+          .module-picker-item {
+            min-height: 68px;
+            grid-template-columns: 44px minmax(0, 1fr);
+            padding: 10px 12px;
+          }
+
+          .module-picker-item .secondary-space-icon {
+            width: 44px !important;
+            height: 44px !important;
+            flex-basis: 44px !important;
+          }
+
+          .module-picker-item strong {
+            font-size: 15px;
+          }
+
+          .modal-primary {
+            position: sticky;
+            bottom: 0;
+            z-index: 2;
+            min-height: 48px;
+            margin-top: 14px;
+            box-shadow: 0 -8px 18px
+              color-mix(in srgb, var(--novae-surface) 88%, transparent);
+          }
+        }
+
+        @media (max-width: 360px) {
+          .objective-modal {
+            padding-right: 10px;
+            padding-left: 10px;
+          }
+
+          .module-picker-item {
+            grid-template-columns: 42px minmax(0, 1fr);
+            column-gap: 9px;
+          }
+
+          .module-picker-item .secondary-space-icon {
+            width: 42px !important;
+            height: 42px !important;
+            flex-basis: 42px !important;
+          }
+
+          .module-picker-item strong {
+            font-size: 14px;
+          }
         }
 
       `}</style>
