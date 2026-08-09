@@ -39,6 +39,8 @@ type ActiveCalendarContextRow = {
   title: string
   start_date: string
   end_date: string
+  start_minutes: number | null
+  end_minutes: number | null
   location: string | null
   attendees: string[] | null
   status: string | null
@@ -65,6 +67,38 @@ type RequestTaskMatch = {
 }
 
 type RequestCalendarMatch = CalendarIdentityMatch
+
+function plannerClockLabel(minutes: number | null | undefined): string | null {
+  if (typeof minutes !== 'number' || !Number.isFinite(minutes)) return null
+  const normalized = Math.max(0, Math.min(24 * 60 - 1, Math.round(minutes)))
+  const hours = Math.floor(normalized / 60)
+  const mins = normalized % 60
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`
+}
+
+function plannerDateLabel(value: string): string {
+  if (!value) return ''
+  return value.split('T')[0] || value
+}
+
+function plannerLocalDateTime(value: string, minutes: number | null | undefined): string {
+  const clock = plannerClockLabel(minutes)
+  const date = plannerDateLabel(value)
+  if (date && clock) return `${date} ${clock}`
+  return formatParisDateTime(value)
+}
+
+function plannerComparableMs(value: string, minutes: number | null | undefined): number {
+  const date = plannerDateLabel(value)
+  const clock = plannerClockLabel(minutes)
+  if (date && clock) {
+    // Explicit Paris offset for August/CEST is intentionally NOT hard-coded.
+    // Date/time ordering within the Planner is based on the stored local wall-clock
+    // components, which avoids the old +2h display regression.
+    return new Date(`${date}T${clock}:00`).getTime()
+  }
+  return new Date(value).getTime()
+}
 
 function actionStartsTitle(title: string): boolean {
   const normalized = title
@@ -411,6 +445,8 @@ function formatNovaMemories(rows: NovaMemoryRow[] | null): string | undefined {
 
 type FamilyMemberRow = {
   data_type: string | null
+  updated_at?: string | null
+  created_at?: string | null
   relation_to_user: string | null
   is_primary_contact: boolean | null
   notes: string | null
@@ -507,7 +543,13 @@ function formatFamilyContext(rows: FamilyMemberRow[] | null, timezone = 'Europe/
       return `- Exception ${start}${startTime}${end !== start || endTime ? ` au ${end}${endTime}` : ''} : ${presence}${note}`
     })
 
-  const locationConfigRow = rows.find((row) => row.data_type === 'location_config')
+  const locationConfigRow = rows
+    .filter((row) => row.data_type === 'location_config')
+    .sort((left, right) => {
+      const leftTime = new Date(left.updated_at || left.created_at || 0).getTime()
+      const rightTime = new Date(right.updated_at || right.created_at || 0).getTime()
+      return rightTime - leftTime
+    })[0]
   const locationLines: string[] = []
   if (locationConfigRow?.data) {
     const d = locationConfigRow.data
@@ -568,9 +610,13 @@ function formatFamilyContext(rows: FamilyMemberRow[] | null, timezone = 'Europe/
     ...locationLines,
     'RÈGLES LIEUX ET TRAJETS :',
     '- Répondre avec le nom et l’adresse enregistrés quand l’utilisatrice demande où elle travaille ou quels lieux sont connus.',
-    '- Pour une heure de départ, calculer : heure d’arrivée moins trajet moins marge de sécurité.',
-    '- Utiliser le POINT DE DÉPART PRINCIPAL comme origine par défaut. S’il manque, demander le point de départ au lieu d’inventer.',
-    '- Exemple : arrivée 06:00, trajet 30 min, marge 15 min => départ 05:15.',
+    '- ORIGINE DYNAMIQUE : déterminer le point de départ dans cet ordre : 1) lieu explicitement indiqué dans le message, 2) lieu du dernier événement Planner qui se termine avant le rendez-vous concerné, 3) POINT DE DÉPART PRINCIPAL.',
+    '- Les valeurs "trajet X min" enregistrées sur un lieu correspondent au trajet habituel depuis le POINT DE DÉPART PRINCIPAL vers ce lieu, sauf indication contraire explicite.',
+    '- Si l’origine réelle est différente du POINT DE DÉPART PRINCIPAL, ne JAMAIS réutiliser automatiquement le temps domicile→destination. Si aucun temps fiable origine→destination n’est fourni par le message ou le contexte, demander une précision plutôt que d’inventer.',
+    '- Exemple : Travail jusqu’à 17:00 puis École à 17:30 => considérer Travail comme origine pour aller à l’École.',
+    '- Pour une heure de départ lorsque le temps origine→destination est fiable : heure d’arrivée moins trajet moins marge de sécurité.',
+    '- Si aucun lieu précédent n’est renseigné dans le Planner et que l’utilisatrice ne précise pas son départ, utiliser le POINT DE DÉPART PRINCIPAL. S’il manque, demander le point de départ.',
+    '- Exemple avec origine fiable : arrivée 06:00, trajet 30 min, marge 15 min => départ 05:15.',
   ].join('\n'))
 
   return sections.length > 0 ? sections.join('\n\n') : undefined
@@ -1323,7 +1369,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       conversationHistory ? `Historique récent de cette conversation :\n${conversationHistory}` : '',
       workflowContext ? `État du sujet actif :\n${workflowContext}` : '',
       `Nouveau message de l’utilisatrice : ${message}`,
-      'Réponds uniquement au nouveau message. Utilise l’historique et les données connues silencieusement. IMPORTANT TEMPOREL : chaque ligne d’historique porte sa date réelle ; les mots relatifs contenus dans un ancien message (« demain », « samedi », « cette semaine », etc.) doivent être interprétés par rapport à la date de CE message, jamais par rapport à aujourd’hui. Le planning actuel fourni par la base est prioritaire pour affirmer qu’un rendez-vous futur existe. N’affirme jamais qu’un ancien rendez-vous est encore à venir s’il est déjà passé ou s’il n’apparaît pas comme événement futur dans le contexte Planner. Ne récite jamais le programme complet sauf demande explicite, ne répète pas les informations déjà établies, ne ramène pas automatiquement un ancien sujet et ne pose qu’une question à la fois. Une réponse courante doit rester courte et naturelle. Ne prétends jamais avoir exécuté une action avant le résultat réel du moteur.',
+      'Réponds uniquement au nouveau message. Utilise l’historique et les données connues silencieusement. IMPORTANT TEMPOREL : chaque ligne d’historique porte sa date réelle ; les mots relatifs contenus dans un ancien message (« demain », « samedi », « cette semaine », etc.) doivent être interprétés par rapport à la date de CE message, jamais par rapport à aujourd’hui. Le planning actuel fourni par la base est prioritaire pour affirmer qu’un rendez-vous futur existe. Le champ lieu des événements Planner est aussi un contexte de position : utilise-le pour déterminer d’où l’utilisatrice part probablement juste avant un déplacement, sans inventer si le lieu précédent n’est pas renseigné. N’affirme jamais qu’un ancien rendez-vous est encore à venir s’il est déjà passé ou s’il n’apparaît pas comme événement futur dans le contexte Planner. Ne récite jamais le programme complet sauf demande explicite, ne répète pas les informations déjà établies, ne ramène pas automatiquement un ancien sujet et ne pose qu’une question à la fois. Une réponse courante doit rester courte et naturelle. Ne prétends jamais avoir exécuté une action avant le résultat réel du moteur.',
     ].filter(Boolean).join('\n\n')
 
     const calendarWindowStart = new Date()
@@ -1340,7 +1386,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
         .limit(30),
       supabaseAdmin
         .from('planner_events')
-        .select('id,title,start_date,end_date,location,attendees,status,reminder_minutes_before')
+        .select('id,title,start_date,end_date,start_minutes,end_minutes,location,attendees,status,reminder_minutes_before')
         .eq('user_id', user.id)
         .neq('status', 'cancelled')
         .gte('end_date', calendarWindowStart.toISOString())
@@ -1387,19 +1433,28 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
     const activeEventRows = ((activeEvents || []) as ActiveCalendarContextRow[])
     const nowMs = Date.now()
     const eventContext = activeEventRows
-      .map((event) => [
-        `id=${event.id}`,
-        `titre=${String(event.title || '').replace(/\s+/g, ' ').trim()}`,
-        `position_temporelle=${new Date(event.end_date).getTime() < nowMs ? 'PASSE' : new Date(event.start_date).getTime() > nowMs ? 'FUTUR' : 'EN_COURS'}`,
-        `debut=${event.start_date}`,
-        `debut_local=${frenchLocal(event.start_date)}`,
-        `fin=${event.end_date}`,
-        `fin_local=${frenchLocal(event.end_date)}`,
-        `lieu=${event.location || 'aucun'}`,
-        `participants=${(event.attendees || []).join(', ') || 'aucun'}`,
-        `rappel_minutes=${(event.reminder_minutes_before || []).join(',') || 'aucun'}`,
-        `statut=${event.status || 'pending'}`,
-      ].join(' ; '))
+      .map((event) => {
+        const startClock = plannerClockLabel(event.start_minutes)
+        const endClock = plannerClockLabel(event.end_minutes)
+        const startComparable = plannerComparableMs(event.start_date, event.start_minutes)
+        const endComparable = plannerComparableMs(event.end_date, event.end_minutes)
+
+        return [
+          `id=${event.id}`,
+          `titre=${String(event.title || '').replace(/\s+/g, ' ').trim()}`,
+          `position_temporelle=${endComparable < nowMs ? 'PASSE' : startComparable > nowMs ? 'FUTUR' : 'EN_COURS'}`,
+          `date_debut=${plannerDateLabel(event.start_date)}`,
+          `heure_debut=${startClock || 'non renseignée'}`,
+          `debut_local=${plannerLocalDateTime(event.start_date, event.start_minutes)}`,
+          `date_fin=${plannerDateLabel(event.end_date)}`,
+          `heure_fin=${endClock || 'non renseignée'}`,
+          `fin_local=${plannerLocalDateTime(event.end_date, event.end_minutes)}`,
+          `lieu=${event.location || 'aucun'}`,
+          `participants=${(event.attendees || []).join(', ') || 'aucun'}`,
+          `rappel_minutes=${(event.reminder_minutes_before || []).join(',') || 'aucun'}`,
+          `statut=${event.status || 'pending'}`,
+        ].join(' ; ')
+      })
       .join('\n')
 
     const calendarMatches: RequestCalendarMatch[] = findBestCalendarMatches(
@@ -1408,17 +1463,21 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       0.2
     ).slice(0, 5)
     const calendarMatchContext = calendarMatches
-      .map(({ event, score, reasons }) =>
-        [
+      .map(({ event, score, reasons }) => {
+        const plannerEvent = event as ActiveCalendarContextRow
+        return [
           `score=${score.toFixed(3)}`,
-          `id=${event.id}`,
-          `titre=${String(event.title || '').replace(/\s+/g, ' ').trim()}`,
-          `debut=${event.start_date}`,
-          `debut_local=${frenchLocal(event.start_date)}`,
-          `fin=${event.end_date}`,
+          `id=${plannerEvent.id}`,
+          `titre=${String(plannerEvent.title || '').replace(/\s+/g, ' ').trim()}`,
+          `date_debut=${plannerDateLabel(plannerEvent.start_date)}`,
+          `heure_debut=${plannerClockLabel(plannerEvent.start_minutes) || 'non renseignée'}`,
+          `debut_local=${plannerLocalDateTime(plannerEvent.start_date, plannerEvent.start_minutes)}`,
+          `date_fin=${plannerDateLabel(plannerEvent.end_date)}`,
+          `heure_fin=${plannerClockLabel(plannerEvent.end_minutes) || 'non renseignée'}`,
+          `fin_local=${plannerLocalDateTime(plannerEvent.end_date, plannerEvent.end_minutes)}`,
           `raisons=${reasons.join(', ') || 'proximite semantique'}`,
         ].join(' ; ')
-      )
+      })
       .join('\n')
 
     const reminderContext = ((activeReminders || []) as ActiveReminderContextRow[])
@@ -1598,9 +1657,20 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
           : '',
     ].filter(Boolean).join('\n\n')
 
+    const temporalGuard = [
+      'RÈGLES DE FIABILITÉ PLANNER :',
+      '- Pour toute question sur un horaire prévu, les événements Planner ACTUELS fournis dans le contexte sont la source de vérité prioritaire.',
+      '- Pour l’heure d’un événement Planner, utilise en priorité heure_debut / heure_fin issues de start_minutes / end_minutes. Elles sont déterministes et ne doivent subir AUCUNE conversion de fuseau horaire.',
+      '- Ne remplace jamais 17:00/17:30 par 19:00/19:30 si le Planner actuel indique 17:00/17:30.',
+      '- Si l’historique conversationnel contredit le Planner actuel, utilise le Planner actuel.',
+      '- Avant d’annoncer une heure de départ, vérifie arithmétiquement sa cohérence avec la fin de l’événement précédent.',
+      '- Si le départ calculé tombe AVANT la fin du travail, annonce clairement un conflit de planning. Ne prétends jamais qu’il reste du temps après la fin du service.',
+      '- Exemple : travail jusqu’à 17:00, école à 17:30, trajet 30 min + marge 5 min => départ 16:55 : il y a donc un conflit de 5 minutes avec le travail.',
+    ].join('\n')
+
     const result = await createNovaActionPlan(
       {
-        message: enrichedMessageWithContext,
+        message: `${enrichedMessageWithContext}\n\n${temporalGuard}`,
         locale: 'fr-FR',
         timezone: 'Europe/Paris',
         nowIso,

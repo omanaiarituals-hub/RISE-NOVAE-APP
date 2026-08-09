@@ -1304,8 +1304,22 @@ export default function FamilyPage() {
     const configRow = rows.find((row: any) => row.data_type === 'custody_config')
     if (configRow) setCustodyConfig(custodyConfigFromRow(configRow))
     setCustodyExceptions(rows.filter((row: any) => row.data_type === 'custody_exception').map(custodyExceptionFromRow))
-    const locationRow = rows.find((row: any) => row.data_type === 'location_config')
-    if (locationRow) setLocationConfig(locationConfigFromRow(locationRow))
+    const locationRow = rows
+      .filter((row: any) => row.data_type === 'location_config')
+      .sort((left: any, right: any) => {
+        const leftTime = new Date(left.updated_at || left.created_at || 0).getTime()
+        const rightTime = new Date(right.updated_at || right.created_at || 0).getTime()
+        return rightTime - leftTime
+      })[0]
+    if (locationRow) {
+      setLocationConfig(locationConfigFromRow(locationRow))
+    } else {
+      setLocationConfig({
+        defaultTransportMode: 'car',
+        defaultSafetyMarginMinutes: 15,
+        places: [],
+      })
+    }
     setLoading(false)
   }
 
@@ -1358,6 +1372,8 @@ export default function FamilyPage() {
 
   const saveLocationConfig = async (config: LocationConfig) => {
     if (!user) return
+
+    const now = new Date().toISOString()
     const payload = {
       user_id: user.id,
       data_type: 'location_config',
@@ -1368,17 +1384,45 @@ export default function FamilyPage() {
         defaultSafetyMarginMinutes: config.defaultSafetyMarginMinutes,
         places: config.places,
       },
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     }
 
-    if (config.supabaseId) {
-      const { error } = await supabase.from('family_data').update(payload).eq('id', config.supabaseId).eq('user_id', user.id)
+    let targetId = config.supabaseId
+
+    if (!targetId) {
+      const { data: existingRows, error: existingError } = await supabase
+        .from('family_data')
+        .select('id,updated_at,created_at')
+        .eq('user_id', user.id)
+        .eq('data_type', 'location_config')
+        .neq('is_active', false)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+
+      if (existingError) throw existingError
+      targetId = existingRows?.[0]?.id
+    }
+
+    if (targetId) {
+      const { data, error } = await supabase
+        .from('family_data')
+        .update(payload)
+        .eq('id', targetId)
+        .eq('user_id', user.id)
+        .select()
+        .single()
+
       if (error) throw error
-      setLocationConfig(config)
+      setLocationConfig(locationConfigFromRow(data))
       return
     }
 
-    const { data, error } = await supabase.from('family_data').insert({ ...payload, created_at: new Date().toISOString() }).select().single()
+    const { data, error } = await supabase
+      .from('family_data')
+      .insert({ ...payload, created_at: now })
+      .select()
+      .single()
+
     if (error) throw error
     if (data) setLocationConfig(locationConfigFromRow(data))
   }

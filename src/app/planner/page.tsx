@@ -18,6 +18,17 @@ interface Todo {
   done: boolean;
 }
 
+interface PlannerPlace {
+  id: string;
+  label: string;
+  address: string;
+  kind: string;
+  icon?: string;
+  isReference: boolean;
+  travelMinutes: number;
+  safetyMarginMinutes: number;
+}
+
 interface CalEvent {
   id: string;
   title: string;
@@ -34,6 +45,7 @@ interface CalEvent {
   recurrenceDays: string[];
   reminderMinutes: number;
   isMultiDay: boolean;
+  location: string;
 }
 
 interface FormData {
@@ -45,6 +57,7 @@ interface FormData {
   cat: CategoryKey;
   recurrenceDays: string[];
   reminderMinutes: number;
+  location: string;
 }
 
 interface CustodyConfig {
@@ -345,10 +358,11 @@ const navBtn = (): React.CSSProperties => ({
 });
 
 // ─── MODAL ─────────────────────────────────────────────────
-function Modal({ title, form, setForm, onConfirm, onCancel, onDelete, confirmLabel = "Confirmer" }: {
+function Modal({ title, form, setForm, savedPlaces, onConfirm, onCancel, onDelete, confirmLabel = "Confirmer" }: {
   title: string;
   form: FormData;
   setForm: React.Dispatch<React.SetStateAction<FormData>>;
+  savedPlaces: PlannerPlace[];
   onConfirm: () => void;
   onCancel: () => void;
   onDelete?: () => void;
@@ -374,6 +388,31 @@ function Modal({ title, form, setForm, onConfirm, onCancel, onDelete, confirmLab
           value={form.title}
           onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
           placeholder="Nom de l'événement…"
+          style={{ ...inputStyle(), marginBottom: 14 }}
+        />
+
+        {/* Lieu */}
+        <label style={labelStyle()}>Lieu de l’événement</label>
+        <select
+          value={form.location}
+          onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+          style={{ ...inputStyle(), marginBottom: 8, minHeight: 44 }}
+        >
+          <option value="">Aucun lieu</option>
+          {savedPlaces.map(place => (
+            <option key={place.id} value={place.label}>
+              {(place.icon || '📍')} {place.label}
+              {place.isReference ? ' — départ principal' : ''}
+            </option>
+          ))}
+          {form.location && !savedPlaces.some(place => place.label === form.location) ? (
+            <option value={form.location}>{form.location}</option>
+          ) : null}
+        </select>
+        <input
+          value={form.location}
+          onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+          placeholder="Ou saisir le lieu de l’événement…"
           style={{ ...inputStyle(), marginBottom: 14 }}
         />
 
@@ -575,6 +614,21 @@ function renderDayEvents(
                 }
                 {ev.reminderMinutes > 0 && <span style={{ marginLeft: 4, opacity: 0.7 }}>🔔</span>}
               </div>
+              {ev.location ? (
+                <div
+                  title={ev.location}
+                  style={{
+                    marginTop: 1,
+                    fontSize: 9,
+                    color: "#6B6B6B",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  📍 {ev.location}
+                </div>
+              ) : null}
             </div>
             {!isRoutine && (
               <button onClick={() => onEdit(ev)} title="Modifier" style={{ background: "none", border: "none", cursor: "pointer", color: "#6B6B6B", fontSize: 14, padding: "1px 3px" }}>✏️</button>
@@ -959,7 +1013,7 @@ export default function PlannerNovae() {
   const [form, setForm] = useState<FormData>({
     title: "", startDate: fmtDate(new Date()), endDate: fmtDate(new Date()),
     startMinutes: 9 * 60, endMinutes: 10 * 60, cat: "pro",
-    recurrenceDays: [], reminderMinutes: 15,
+    recurrenceDays: [], reminderMinutes: 15, location: "",
   });
   const [mobileTab, setMobileTab] = useState<MobileTab>("planner");
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
@@ -969,6 +1023,7 @@ export default function PlannerNovae() {
   const [showConflictBanner, setShowConflictBanner] = useState(false);
   const [custodyConfig, setCustodyConfig] = useState<CustodyConfig | null>(null);
   const [custodyExceptions, setCustodyExceptions] = useState<CustodyException[]>([]);
+  const [savedPlaces, setSavedPlaces] = useState<PlannerPlace[]>([]);
   const weekDates = getWeekDates(currentDate);
 
   useEffect(() => {
@@ -1022,7 +1077,8 @@ export default function PlannerNovae() {
       .from("family_data")
       .select("*")
       .eq("user_id", user.id)
-      .in("data_type", ["custody_config", "custody_exception"]);
+      .in("data_type", ["custody_config", "custody_exception", "location_config"])
+      .order("updated_at", { ascending: false });
 
     if (custodyError) {
       console.error("Planner: impossible de charger la garde", custodyError);
@@ -1054,6 +1110,43 @@ export default function PlannerNovae() {
         .filter((row: CustodyException) => row.startDate),
     );
 
+    const locationRow = activeCustodyRows
+      .filter((row: any) => row.data_type === "location_config")
+      .sort((left: any, right: any) => {
+        const leftTime = new Date(left.updated_at || left.created_at || 0).getTime();
+        const rightTime = new Date(right.updated_at || right.created_at || 0).getTime();
+        return rightTime - leftTime;
+      })[0];
+    const locationPlaces = Array.isArray(locationRow?.data?.places)
+      ? locationRow.data.places
+      : [];
+    setSavedPlaces(
+      locationPlaces
+        .map((place: any) => ({
+          id: String(place?.id || ""),
+          label:
+            typeof place?.label === "string" && place.label.trim()
+              ? place.label.trim()
+              : "",
+          address:
+            typeof place?.address === "string" ? place.address.trim() : "",
+          kind: String(place?.kind || "other"),
+          icon:
+            typeof place?.icon === "string" && place.icon.trim()
+              ? place.icon.trim()
+              : undefined,
+          isReference: place?.isReference === true,
+          travelMinutes: Math.max(0, Number(place?.travelMinutes) || 0),
+          safetyMarginMinutes: Math.max(
+            0,
+            Number(place?.safetyMarginMinutes) ||
+              Number(locationRow?.data?.defaultSafetyMarginMinutes) ||
+              0,
+          ),
+        }))
+        .filter((place: PlannerPlace) => place.id && place.label),
+    );
+
     // Todos
     const { data: todosData } = await supabase
       .from("todo_list")
@@ -1073,7 +1166,7 @@ export default function PlannerNovae() {
     // Événements depuis planner_events
     const { data: eventsData } = await supabase
       .from("planner_events")
-      .select("id, title, category, start_date, end_date, start_minutes, end_minutes, recurrence_days, reminder_minutes_before")
+      .select("id, title, category, start_date, end_date, start_minutes, end_minutes, recurrence_days, reminder_minutes_before, location")
       .eq("user_id", user.id)
       .neq("status", "cancelled")
       .order("start_date", { ascending: true });
@@ -1107,6 +1200,7 @@ export default function PlannerNovae() {
               done: false, fromTodo: false, replanNeeded: false,
               recurring: true, recurrenceDays: recurDays,
               reminderMinutes, isMultiDay: false,
+              location: typeof e.location === "string" ? e.location : "",
             });
           }
         } else if (startDate !== endDate) {
@@ -1122,6 +1216,7 @@ export default function PlannerNovae() {
               done: false, fromTodo: false, replanNeeded: false,
               recurring: false, recurrenceDays: [],
               reminderMinutes, isMultiDay: true,
+              location: typeof e.location === "string" ? e.location : "",
             });
           }
         } else {
@@ -1132,6 +1227,7 @@ export default function PlannerNovae() {
             done: false, fromTodo: false, replanNeeded: false,
             recurring: false, recurrenceDays: [],
             reminderMinutes, isMultiDay: false,
+            location: typeof e.location === "string" ? e.location : "",
           });
         }
       }
@@ -1169,6 +1265,7 @@ export default function PlannerNovae() {
             done: false, fromTodo: false, replanNeeded: false,
             recurring: true, recurrenceDays: [],
             reminderMinutes: 0, isMultiDay: false,
+            location: "",
           });
         }
       }
@@ -1242,6 +1339,7 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
       startMinutes: ev.startMinutes, endMinutes: ev.endMinutes,
       cat: ev.cat, recurrenceDays: ev.recurrenceDays || [],
       reminderMinutes: ev.reminderMinutes ?? 15,
+      location: ev.location || "",
     });
     setReplanModal(ev);
   }, []);
@@ -1250,7 +1348,7 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
     setForm({
       title: todo.text, startDate: fmtDate(new Date()), endDate: fmtDate(new Date()),
       startMinutes: 9 * 60, endMinutes: 10 * 60, cat: "pro",
-      recurrenceDays: [], reminderMinutes: 15,
+      recurrenceDays: [], reminderMinutes: 15, location: "",
     });
     setPlanModal(todo);
   }
@@ -1267,6 +1365,7 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
       start_date: startDt, end_date: endDt,
       start_minutes: form.startMinutes, end_minutes: form.endMinutes,
       category: CAT_TO_DB[form.cat],
+      location: form.location.trim() || null,
       recurrence_days: recurring ? form.recurrenceDays : [],
       reminder_minutes_before: form.reminderMinutes > 0 ? [form.reminderMinutes] : [],
       reminder_sent: false,
@@ -1282,7 +1381,7 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
       title: "", startDate: d, endDate: d,
       startMinutes: startMinutes ?? 9 * 60,
       endMinutes: (startMinutes ?? 9 * 60) + 60,
-      cat: "pro", recurrenceDays: [], reminderMinutes: 15,
+      cat: "pro", recurrenceDays: [], reminderMinutes: 15, location: "",
     });
     setEventModal(true);
   }
@@ -1299,6 +1398,7 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
       start_date: startDt, end_date: endDt,
       start_minutes: form.startMinutes, end_minutes: form.endMinutes,
       category: CAT_TO_DB[form.cat],
+      location: form.location.trim() || null,
       recurrence_days: recurring ? form.recurrenceDays : [],
       reminder_minutes_before: form.reminderMinutes > 0 ? [form.reminderMinutes] : [],
       reminder_sent: false,
@@ -1314,6 +1414,7 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
       startMinutes: ev.startMinutes, endMinutes: ev.endMinutes,
       cat: ev.cat, recurrenceDays: ev.recurrenceDays || [],
       reminderMinutes: ev.reminderMinutes ?? 15,
+      location: ev.location || "",
     });
     setEditModal(ev);
   }
@@ -1327,6 +1428,7 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
       start_date: startDt, end_date: endDt,
       start_minutes: form.startMinutes, end_minutes: form.endMinutes,
       category: CAT_TO_DB[form.cat],
+      location: form.location.trim() || null,
       recurrence_days: form.recurrenceDays.length > 0 ? form.recurrenceDays : [],
       reminder_minutes_before: form.reminderMinutes > 0 ? [form.reminderMinutes] : [],
       updated_at: new Date().toISOString(),
@@ -1466,10 +1568,10 @@ const evStart = ev.start_minutes ?? (ev.start_hour != null ? ev.start_hour * 60 
           {plannerContent}
         </div>
 
-        {planModal   && <Modal title="📅 Planifier la tâche"   form={form} setForm={setForm} onConfirm={confirmPlanTodo} onCancel={() => setPlanModal(null)}   confirmLabel="Planifier" />}
-        {eventModal  && <Modal title="+ Nouvel événement"       form={form} setForm={setForm} onConfirm={confirmNewEvent} onCancel={() => setEventModal(false)} confirmLabel="Ajouter" />}
-        {editModal   && <Modal title="✏️ Modifier l'événement" form={form} setForm={setForm} onConfirm={confirmEdit}      onCancel={() => setEditModal(null)}   confirmLabel="Modifier" onDelete={() => deleteEvent(editModal.id)} />}
-        {replanModal && <Modal title="↻ Replanifier"            form={form} setForm={setForm} onConfirm={confirmReplan}   onCancel={() => setReplanModal(null)} confirmLabel="Replanifier" />}
+        {planModal   && <Modal title="📅 Planifier la tâche"   form={form} setForm={setForm} savedPlaces={savedPlaces} onConfirm={confirmPlanTodo} onCancel={() => setPlanModal(null)}   confirmLabel="Planifier" />}
+        {eventModal  && <Modal title="+ Nouvel événement"       form={form} setForm={setForm} savedPlaces={savedPlaces} onConfirm={confirmNewEvent} onCancel={() => setEventModal(false)} confirmLabel="Ajouter" />}
+        {editModal   && <Modal title="✏️ Modifier l'événement" form={form} setForm={setForm} savedPlaces={savedPlaces} onConfirm={confirmEdit}      onCancel={() => setEditModal(null)}   confirmLabel="Modifier" onDelete={() => deleteEvent(editModal.id)} />}
+        {replanModal && <Modal title="↻ Replanifier"            form={form} setForm={setForm} savedPlaces={savedPlaces} onConfirm={confirmReplan}   onCancel={() => setReplanModal(null)} confirmLabel="Replanifier" />}
       </div>
     </>
   );

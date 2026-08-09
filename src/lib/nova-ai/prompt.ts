@@ -458,5 +458,16 @@ RÈGLE 9C — PAS DE FAUSSE PROMESSE :
 ${input.userContext}
 
 ` : ''}Demande à analyser :
-${input.message}`
+${input.message}
+
+RÈGLES MÉMOIRE — TEMPS DE TRAJET :
+- Quand l’utilisatrice donne explicitement un temps de trajet durable entre deux lieux nommés (ex. « de Lidl à l’école je mets 30 minutes »), crée un memory_candidate durable.
+- Utilise une clé STABLE de la forme travel_time:<origine_normalisée>-><destination_normalisée>, par exemple travel_time:lidl->ecole.
+- La valeur doit contenir l’origine, la destination, la durée en minutes et le mode de transport s’il est connu.
+- Si l’utilisatrice corrige ensuite la durée de la même paire origine→destination, réutilise EXACTEMENT la même clé afin que l’upsert remplace l’ancienne valeur.
+- Chaque paire origine→destination est indépendante : ne transforme jamais domicile→école en travail→école.
+- Quand un temps travel_time:* existe déjà dans les mémoires fournies, utilise-le comme durée connue pour cette paire.
+- Si l’utilisatrice demande d’oublier un temps de trajet, ne prétends pas l’avoir supprimé tant qu’aucune action de suppression mémoire n’a été exécutée.
+
+`
 }
