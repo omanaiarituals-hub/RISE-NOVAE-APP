@@ -296,16 +296,72 @@ function getEventTitleForExtraction(extraction: AdministrativeDocumentExtractedD
   return `Échéance administrative : ${baseTitle}`
 }
 
+type ImportNovaPlanResult = {
+  executionToken?: string | null
+  plan: {
+    assistant_message: string
+    proposed_actions: Array<{
+      id: string
+      type: string
+      engine: string
+      title: string
+      requires_confirmation: boolean
+    }>
+    missing_information: Array<{ question?: string; blocking?: boolean }>
+  }
+}
+
+type ImportNovaExecutionResult = {
+  message?: string
+  results?: Array<{
+    status?: string
+    message?: string
+  }>
+}
+
+function contentKindLabel(kind: AdministrativeDocumentExtractedData['content_kind']): string {
+  const labels: Record<AdministrativeDocumentExtractedData['content_kind'], string> = {
+    administrative_document: 'Document administratif',
+    recipe: 'Recette',
+    note: 'Note',
+    message: 'Message / conversation',
+    shopping_list: 'Liste de courses',
+    appointment: 'Rendez-vous / invitation',
+    task: 'Tâche / pense-bête',
+    other: 'Autre contenu',
+  }
+  return labels[kind]
+}
+
+function destinationLabel(destination: AdministrativeDocumentExtractedData['suggested_destination']): string {
+  const labels: Record<AdministrativeDocumentExtractedData['suggested_destination'], string> = {
+    documents: 'Documents',
+    recipes: 'Mes plats / Recettes',
+    notes: 'Notes',
+    shopping: 'Courses',
+    planner: 'Planner',
+    todo: 'To-do',
+    none: 'À décider',
+  }
+  return labels[destination]
+}
+
 export default function AdminDocumentsTestPage() {
   const [activeView, setActiveView] = useState<ActiveView>('add')
   const [isCheckingAccess, setIsCheckingAccess] = useState(true)
   const [hasAccess, setHasAccess] = useState(false)
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [compressedSize, setCompressedSize] = useState<string | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [extraction, setExtraction] = useState<AdministrativeDocumentExtractedData | null>(null)
+  const [routingPlan, setRoutingPlan] = useState<ImportNovaPlanResult | null>(null)
+  const [isPreparingRouting, setIsPreparingRouting] = useState(false)
+  const [isExecutingRouting, setIsExecutingRouting] = useState(false)
+  const [routingMessage, setRoutingMessage] = useState<string | null>(null)
+  const [routingQuestion, setRoutingQuestion] = useState<string | null>(null)
+  const [routingAnswer, setRoutingAnswer] = useState('')
 
   const [isCreatingTask, setIsCreatingTask] = useState(false)
   const [createdTaskId, setCreatedTaskId] = useState<string | null>(null)
@@ -586,54 +642,68 @@ setDocumentReminders(remindersByDocument)
     }
   }
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] ?? null
-
-    setSelectedFile(file)
+  const resetImportResults = () => {
     setCompressedSize(null)
     setError(null)
     setExtraction(null)
-
+    setRoutingPlan(null)
+    setRoutingMessage(null)
+    setRoutingQuestion(null)
+    setRoutingAnswer('')
     setCreatedTaskId(null)
     setTaskMessage(null)
-
     setCreatedEventId(null)
     setEventMessage(null)
-
     setSavedDocumentId(null)
     setSaveMessage(null)
+  }
 
-    if (!file) return
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const incoming = Array.from(event.target.files || [])
+    if (incoming.length === 0) return
 
-    if (!isImageFile(file) && !isPdfFile(file)) {
-      setError('Pour cette version, choisis une image ou un PDF texte.')
-      return
+    const valid: File[] = []
+    for (const file of incoming) {
+      if (!isImageFile(file) && !isPdfFile(file)) {
+        setError(`Format non accepté : ${file.name}`)
+        continue
+      }
+      if (isImageFile(file) && file.size > MAX_ORIGINAL_DOCUMENT_BYTES) {
+        setError(`${file.name} est trop lourde. Maximum 15 MB avant compression.`)
+        continue
+      }
+      if (isPdfFile(file) && file.size > MAX_ORIGINAL_PDF_BYTES) {
+        setError(`${file.name} est trop lourd. Maximum 5 MB.`)
+        continue
+      }
+      valid.push(file)
     }
 
-    if (isImageFile(file) && file.size > MAX_ORIGINAL_DOCUMENT_BYTES) {
-      setError('Image trop lourde. Choisis une photo de moins de 15 MB.')
-      return
-    }
+    setSelectedFiles((current) => [...current, ...valid].slice(0, 10))
+    resetImportResults()
+    event.target.value = ''
+  }
 
-    if (isPdfFile(file) && file.size > MAX_ORIGINAL_PDF_BYTES) {
-      setError('PDF trop lourd. Choisis un PDF de moins de 5 MB.')
-      return
-    }
+  const removeSelectedFile = (index: number) => {
+    setSelectedFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))
+    resetImportResults()
+  }
+
+  const moveSelectedFile = (index: number, direction: -1 | 1) => {
+    setSelectedFiles((current) => {
+      const nextIndex = index + direction
+      if (nextIndex < 0 || nextIndex >= current.length) return current
+      const next = [...current]
+      const [item] = next.splice(index, 1)
+      next.splice(nextIndex, 0, item)
+      return next
+    })
+    resetImportResults()
   }
 
   const handleExtract = async () => {
-    if (!selectedFile) {
-      setError('Ajoute une photo ou un PDF avant de lancer l’analyse.')
-      return
-    }
-
-    if (isPdfFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_PDF_BYTES) {
-      setError('PDF trop lourd. Pour cette version, choisis un PDF de moins de 5 MB ou prends une photo/capture du document.')
-      return
-    }
-
-    if (isImageFile(selectedFile) && selectedFile.size > MAX_ORIGINAL_DOCUMENT_BYTES) {
-      setError('Image trop lourde. Choisis une photo de moins de 15 MB.')
+    if (selectedFiles.length === 0) {
+      setError('Ajoute au moins une photo ou un PDF avant de lancer l’analyse.')
       return
     }
 
@@ -659,18 +729,18 @@ setDocumentReminders(remindersByDocument)
         throw new Error('Session introuvable. Déconnecte-toi puis reconnecte-toi avant de relancer le scan.')
       }
 
-      const documentForExtraction = isPdfFile(selectedFile)
-        ? selectedFile
-        : await compressImageForAdminDocument(selectedFile)
+      const preparedFiles: File[] = []
+      for (const file of selectedFiles) {
+        preparedFiles.push(
+          isPdfFile(file) ? file : await compressImageForAdminDocument(file)
+        )
+      }
 
-      setCompressedSize(
-        isPdfFile(documentForExtraction)
-          ? null
-          : formatBytes(documentForExtraction.size)
-      )
+      const totalPreparedBytes = preparedFiles.reduce((sum, file) => sum + file.size, 0)
+      setCompressedSize(preparedFiles.some((file) => isImageFile(file)) ? formatBytes(totalPreparedBytes) : null)
 
       const formData = new FormData()
-      formData.append('document', documentForExtraction)
+      preparedFiles.forEach((file) => formData.append('documents', file))
 
       const response = await fetch('/api/admin-documents/extract', {
         method: 'POST',
@@ -705,6 +775,191 @@ setDocumentReminders(remindersByDocument)
     } finally {
       setIsScanning(false)
     }
+  }
+
+  const buildRoutingInstruction = (current: AdministrativeDocumentExtractedData): string => {
+    const content = current.transcribed_content || current.summary || current.title || ''
+    const destination = current.suggested_destination
+
+    const destinationInstructions: Record<AdministrativeDocumentExtractedData['suggested_destination'], string> = {
+      documents: "Ne crée rien via Nova : ce contenu doit rester dans Documents.",
+      recipes: "Crée UNE recette complète dans Mes recettes avec create_recipe. Reprends fidèlement les ingrédients, quantités, portions et étapes présents. N'invente aucun ingrédient ni aucune étape absente.",
+      notes: "Enregistre UNE note avec save_note. Conserve fidèlement le contenu utile et un titre court.",
+      shopping: "Ajoute les articles à la liste de courses avec add_shopping_item. Une action par article, sans inventer de quantité absente et sans doublon volontaire.",
+      planner: "Crée UN événement Planner avec create_calendar_event uniquement si date et heure sont suffisamment fiables dans le contenu. Sinon demande l'information manquante au lieu d'inventer.",
+      todo: "Crée UNE tâche dans la To-do avec create_task. N'invente pas d'échéance absente.",
+      none: "Ne crée rien. Demande ce que l'utilisatrice souhaite faire de ce contenu.",
+    }
+
+    return [
+      "IMPORT DOCUMENTS NOVAÉ — classement confirmé par l'utilisatrice.",
+      `Type reconnu : ${contentKindLabel(current.content_kind)}.`,
+      `Destination proposée : ${destinationLabel(destination)}.`,
+      destinationInstructions[destination],
+      "Tu dois préparer l'action mais NE PAS prétendre qu'elle est déjà exécutée.",
+      "Toute écriture doit demander confirmation avant exécution.",
+      "Utilise uniquement le contenu retranscrit ci-dessous.",
+      "",
+      content,
+    ].join('\n')
+  }
+
+  const prepareRoutingPlan = async (clarification?: string) => {
+    if (!extraction) {
+      setError("Analyse d'abord le contenu.")
+      return
+    }
+    if (extraction.suggested_destination === 'documents' || extraction.suggested_destination === 'none') {
+      setError(
+        extraction.suggested_destination === 'documents'
+          ? "Ce contenu est destiné à Documents : utilise l'enregistrement Documents ci-dessous."
+          : "Nova n'a pas de destination suffisamment fiable. Choisis manuellement ce que tu veux en faire."
+      )
+      return
+    }
+
+    setIsPreparingRouting(true)
+    setRoutingPlan(null)
+    setRoutingMessage(null)
+    setError(null)
+
+    try {
+      const { data } = await supabase.auth.getSession()
+      const token = data.session?.access_token
+      if (!token) throw new Error('Session expirée. Reconnecte-toi puis réessaie.')
+
+      const baseInstruction = buildRoutingInstruction(extraction)
+      const message = clarification?.trim()
+        ? [
+            baseInstruction,
+            '',
+            'INFORMATION COMPLÉMENTAIRE FOURNIE PAR L’UTILISATRICE :',
+            clarification.trim(),
+            '',
+            'Reprends maintenant la préparation de l’action avec cette information. Ne redemande pas une information déjà fournie.',
+          ].join('\n')
+        : baseInstruction
+
+      const response = await fetch('/api/nova/plan', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message,
+          workflowContext: {
+            source: 'documents_import',
+            detectedContentKind: extraction.content_kind,
+            suggestedDestination: extraction.suggested_destination,
+          },
+          provider: 'auto',
+        }),
+      })
+
+      const payload = await response.json().catch(() => null) as ImportNovaPlanResult | { message?: string } | null
+      if (!response.ok || !payload || !('plan' in payload)) {
+        throw new Error((payload as { message?: string } | null)?.message || "Nova n'a pas pu préparer le classement.")
+      }
+
+      const blockingItem = payload.plan.missing_information?.find((item) => item.blocking)
+      if (blockingItem) {
+        setRoutingQuestion(blockingItem.question || "Il manque une information avant de pouvoir continuer.")
+        setRoutingAnswer('')
+        setRoutingMessage(null)
+        return
+      }
+
+      if (!payload.plan.proposed_actions?.some((action) => action.requires_confirmation)) {
+        throw new Error("Nova n'a pas préparé d'action confirmable. Rien n'a été créé.")
+      }
+
+      setRoutingQuestion(null)
+      setRoutingAnswer('')
+      setRoutingPlan(payload)
+      setRoutingMessage(payload.plan.assistant_message)
+    } catch (routingError) {
+      setError(routingError instanceof Error ? routingError.message : "Impossible de préparer le classement.")
+    } finally {
+      setIsPreparingRouting(false)
+    }
+  }
+
+  const handlePrepareRouting = async () => {
+    setRoutingQuestion(null)
+    setRoutingAnswer('')
+    await prepareRoutingPlan()
+  }
+
+  const handleSubmitRoutingAnswer = async () => {
+    if (!routingAnswer.trim()) {
+      setError("Écris ta réponse avant de continuer.")
+      return
+    }
+
+    const clarification = routingQuestion
+      ? `Question de Nova : ${routingQuestion}\nRéponse de l'utilisatrice : ${routingAnswer.trim()}`
+      : routingAnswer.trim()
+
+    await prepareRoutingPlan(clarification)
+  }
+
+  const handleConfirmRouting = async () => {
+    if (!routingPlan?.executionToken) {
+      setError("La proposition n'a pas de jeton d'exécution valide.")
+      return
+    }
+
+    setIsExecutingRouting(true)
+    setError(null)
+
+    try {
+      const { data } = await supabase.auth.getSession()
+      const token = data.session?.access_token
+      if (!token) throw new Error('Session expirée. Reconnecte-toi puis réessaie.')
+
+      const response = await fetch('/api/nova/execute', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ executionToken: routingPlan.executionToken }),
+      })
+
+      const payload = await response.json().catch(() => null) as ImportNovaExecutionResult | { message?: string } | null
+      if (!response.ok) {
+        throw new Error(payload?.message || "La proposition a été confirmée mais l'exécution a échoué.")
+      }
+
+      const executionPayload = payload && 'results' in payload
+        ? payload as ImportNovaExecutionResult
+        : null
+
+      const failed = executionPayload?.results?.find(
+        (result: NonNullable<ImportNovaExecutionResult['results']>[number]) =>
+          result.status === 'failed' || result.status === 'conflict'
+      )
+
+      if (failed) {
+        throw new Error(failed.message || "Le classement n'a pas été exécuté complètement.")
+      }
+
+      setRoutingMessage(payload?.message || "C'est fait. Le contenu a été classé dans le module proposé.")
+      setRoutingPlan(null)
+    } catch (routingError) {
+      setError(routingError instanceof Error ? routingError.message : "Impossible d'exécuter le classement.")
+    } finally {
+      setIsExecutingRouting(false)
+    }
+  }
+
+  const handleCancelRouting = () => {
+    setRoutingPlan(null)
+    setRoutingQuestion(null)
+    setRoutingAnswer('')
+    setRoutingMessage("D'accord, rien n'a été créé.")
+    setError(null)
   }
 
   const handleCreateTask = async () => {
@@ -824,8 +1079,8 @@ setDocumentReminders(remindersByDocument)
   }
 
   const saveDocumentWithVaultOption = async (vaultProtected: boolean, token?: string) => {
-    if (!selectedFile || !extraction) {
-      setError('Analyse un document avant de l’enregistrer.')
+    if (selectedFiles.length === 0 || !extraction) {
+      setError('Analyse un contenu avant de l’enregistrer.')
       return
     }
 
@@ -841,12 +1096,13 @@ setDocumentReminders(remindersByDocument)
         throw new Error('Session introuvable. Reconnecte-toi avant d’enregistrer le document.')
       }
 
-      const documentForSave = isPdfFile(selectedFile)
-        ? selectedFile
-        : await compressImageForAdminDocument(selectedFile)
+      const filesForSave: File[] = []
+      for (const file of selectedFiles) {
+        filesForSave.push(isPdfFile(file) ? file : await compressImageForAdminDocument(file))
+      }
 
       const formData = new FormData()
-      formData.append('document', documentForSave)
+      filesForSave.forEach((file) => formData.append('documents', file))
       formData.append('extraction', JSON.stringify(extraction))
       formData.append('vaultProtected', vaultProtected ? 'true' : 'false')
       formData.append('sensitivityLevel', vaultProtected ? 'sensitive' : 'standard')
@@ -1356,39 +1612,68 @@ Mes documents archivés ({archivedDocuments.length})
                 marginBottom: 10,
                 color: 'var(--novae-primary, #4A1F1B)',
               }}>
-                Photo ou PDF du document à analyser
+                Ajouter des pages ou fichiers à analyser
               </label>
 
               <input
                 type="file"
                 accept="image/*,.pdf,application/pdf"
+                multiple
                 onChange={handleFileChange}
                 disabled={isScanning}
               />
 
-              {selectedFile && (
-                <p style={{ margin: '12px 0 0', fontSize: 13, color: 'var(--novae-text-muted, #6F625C)' }}>
-                  Fichier sélectionné : {selectedFile.name} — {formatBytes(selectedFile.size)}
-                  {compressedSize ? ` — compressé à ${compressedSize}` : ''}
-                </p>
+              <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--novae-text-muted, #6F625C)' }}>
+                Tu peux ajouter jusqu’à 10 pages/fichiers. Nova attend que tu cliques sur Analyser avant de lire quoi que ce soit.
+              </p>
+
+              {selectedFiles.length > 0 && (
+                <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
+                  {selectedFiles.map((file, index) => (
+                    <div key={`${file.name}-${file.lastModified}-${index}`} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      border: '1px solid var(--novae-border, #EADDD2)',
+                      borderRadius: 12, padding: '9px 10px',
+                      background: 'var(--novae-surface, #FFFFFF)',
+                    }}>
+                      <span style={{ width: 28, height: 28, borderRadius: 8, display: 'grid', placeItems: 'center', background: 'var(--novae-surface-alt, #FFF9F5)' }}>
+                        {isPdfFile(file) ? '📄' : '🖼️'}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {index + 1}. {file.name}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--novae-text-muted, #6F625C)' }}>{formatBytes(file.size)}</div>
+                      </div>
+                      <button type="button" onClick={() => moveSelectedFile(index, -1)} disabled={index === 0 || isScanning} aria-label="Monter cette page" style={{ minWidth: 40, minHeight: 40, borderRadius: 10, border: '1px solid var(--novae-border, #D7C8BE)', background: 'white' }}>↑</button>
+                      <button type="button" onClick={() => moveSelectedFile(index, 1)} disabled={index === selectedFiles.length - 1 || isScanning} aria-label="Descendre cette page" style={{ minWidth: 40, minHeight: 40, borderRadius: 10, border: '1px solid var(--novae-border, #D7C8BE)', background: 'white' }}>↓</button>
+                      <button type="button" onClick={() => removeSelectedFile(index)} disabled={isScanning} aria-label="Supprimer cette page" style={{ minWidth: 40, minHeight: 40, borderRadius: 10, border: '1px solid #E7A5A5', background: '#FFF1F1', color: '#8A2525' }}>×</button>
+                    </div>
+                  ))}
+                  {compressedSize && (
+                    <div style={{ fontSize: 11, color: 'var(--novae-text-muted, #6F625C)' }}>
+                      Taille préparée pour analyse : {compressedSize}
+                    </div>
+                  )}
+                </div>
               )}
 
               <button
                 type="button"
                 onClick={handleExtract}
-                disabled={!selectedFile || isScanning}
+                disabled={selectedFiles.length === 0 || isScanning}
                 style={{
                   marginTop: 18,
                   border: 'none',
                   borderRadius: 999,
                   padding: '12px 18px',
-                  background: isScanning || !selectedFile ? 'var(--novae-border, #D7C8BE)' : 'var(--novae-primary, #7A2E2A)',
+                  background: isScanning || selectedFiles.length === 0 ? 'var(--novae-border, #D7C8BE)' : 'var(--novae-primary, #7A2E2A)',
                   color: 'white',
                   fontWeight: 700,
-                  cursor: isScanning || !selectedFile ? 'not-allowed' : 'pointer',
+                  cursor: isScanning || selectedFiles.length === 0 ? 'not-allowed' : 'pointer',
                 }}
               >
-                {isScanning ? 'Analyse en cours...' : 'Analyser le document'}
+                {isScanning ? 'Analyse en cours...' : 'Analyser l’ensemble'}
               </button>
             </div>
 
@@ -1413,7 +1698,7 @@ Mes documents archivés ({archivedDocuments.length})
                 background: 'var(--novae-surface, #FFFFFF)',
               }}>
                 <h2 style={{ margin: '0 0 16px', color: 'var(--novae-primary, #4A1F1B)', fontSize: 22 }}>
-                  Analyse du document
+                  Analyse et classement
                 </h2>
 
                 {extraction.due_date_status === 'overdue' && (
@@ -1431,6 +1716,193 @@ Mes documents archivés ({archivedDocuments.length})
                       la situation officielle du dossier. Si le document concerne une amende, une facture
                       ou une pénalité, un montant majoré peut être possible selon le dossier.
                     </p>
+                  </div>
+                )}
+
+                <div style={{
+                  border: '1px solid var(--novae-border, #D8B9A8)',
+                  background: 'var(--novae-surface-alt, #FFF9F5)',
+                  borderRadius: 16,
+                  padding: 16,
+                  marginBottom: 18,
+                }}>
+                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.7, color: 'var(--novae-text-muted, #6F625C)', marginBottom: 6 }}>
+                    Nova a reconnu
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--novae-primary, #4A1F1B)' }}>
+                    {contentKindLabel(extraction.content_kind)}
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 14 }}>
+                    Classement conseillé : <strong>{destinationLabel(extraction.suggested_destination)}</strong>
+                  </div>
+                  {extraction.routing_reason && (
+                    <div style={{ marginTop: 6, fontSize: 13, color: 'var(--novae-text-muted, #5D504B)', lineHeight: 1.5 }}>
+                      {extraction.routing_reason}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 6, fontSize: 12, color: 'var(--novae-text-muted, #6F625C)' }}>
+                    {extraction.page_count} page{extraction.page_count > 1 ? 's' : ''} analysée{extraction.page_count > 1 ? 's' : ''} ensemble.
+                  </div>
+                </div>
+
+                {extraction.suggested_destination !== 'documents' && (
+                  <div style={{
+                    border: '1px solid var(--novae-border, #D8B9A8)',
+                    borderRadius: 16,
+                    padding: 16,
+                    marginBottom: 18,
+                    background: 'var(--novae-surface, #FFFFFF)',
+                  }}>
+                    <div style={{ fontWeight: 800, marginBottom: 6 }}>
+                      Classer dans {destinationLabel(extraction.suggested_destination)}
+                    </div>
+
+                    {extraction.suggested_destination === 'none' ? (
+                      <div style={{ fontSize: 13, color: 'var(--novae-text-muted, #6F625C)' }}>
+                        Le contenu est trop ambigu pour être classé automatiquement. Rien ne sera créé sans ton choix.
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 13, color: 'var(--novae-text-muted, #6F625C)', lineHeight: 1.5 }}>
+                          Nova va préparer l’écriture dans le bon module. Tu verras la proposition avant toute création.
+                        </div>
+
+                        {!routingPlan && !routingQuestion && (
+                          <button
+                            type="button"
+                            onClick={handlePrepareRouting}
+                            disabled={isPreparingRouting || isExecutingRouting}
+                            style={{
+                              marginTop: 12,
+                              minHeight: 44,
+                              padding: '0 16px',
+                              borderRadius: 12,
+                              border: 0,
+                              background: 'var(--novae-primary, #7A2E2A)',
+                              color: '#fff',
+                              fontWeight: 800,
+                              cursor: isPreparingRouting ? 'wait' : 'pointer',
+                            }}
+                          >
+                            {isPreparingRouting ? 'Nova prépare le classement…' : `Préparer le classement dans ${destinationLabel(extraction.suggested_destination)}`}
+                          </button>
+                        )}
+
+                        {routingQuestion && (
+                          <div style={{
+                            marginTop: 12,
+                            padding: 14,
+                            borderRadius: 12,
+                            border: '1px solid var(--novae-border, #D8B9A8)',
+                            background: 'var(--novae-surface-alt, #FFF9F5)',
+                          }}>
+                            <div style={{ fontWeight: 800, marginBottom: 8 }}>
+                              Nova a besoin d’une précision
+                            </div>
+                            <div style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 10 }}>
+                              {routingQuestion}
+                            </div>
+                            <textarea
+                              value={routingAnswer}
+                              onChange={(event) => setRoutingAnswer(event.target.value)}
+                              placeholder="Écris ta réponse ici…"
+                              rows={3}
+                              disabled={isPreparingRouting || isExecutingRouting}
+                              style={{
+                                width: '100%',
+                                minHeight: 92,
+                                resize: 'vertical',
+                                borderRadius: 12,
+                                border: '1px solid var(--novae-border, #D7C8BE)',
+                                padding: 12,
+                                font: 'inherit',
+                                background: '#fff',
+                                color: 'var(--novae-text, #3C302C)',
+                              }}
+                            />
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                              <button
+                                type="button"
+                                onClick={handleSubmitRoutingAnswer}
+                                disabled={isPreparingRouting || !routingAnswer.trim()}
+                                style={{
+                                  minHeight: 44,
+                                  padding: '0 16px',
+                                  borderRadius: 12,
+                                  border: 0,
+                                  background: 'var(--novae-primary, #7A2E2A)',
+                                  color: '#fff',
+                                  fontWeight: 800,
+                                  cursor: isPreparingRouting ? 'wait' : 'pointer',
+                                }}
+                              >
+                                {isPreparingRouting ? 'Nova reprend l’analyse…' : 'Envoyer ma réponse'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleCancelRouting}
+                                disabled={isPreparingRouting || isExecutingRouting}
+                                style={{
+                                  minHeight: 44,
+                                  padding: '0 16px',
+                                  borderRadius: 12,
+                                  border: '1px solid var(--novae-border, #D7C8BE)',
+                                  background: '#fff',
+                                  color: 'var(--novae-text, #3C302C)',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                Annuler
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {routingPlan && (
+                          <div style={{
+                            marginTop: 12,
+                            padding: 14,
+                            borderRadius: 12,
+                            background: 'var(--novae-surface-alt, #FFF9F5)',
+                          }}>
+                            <div style={{ fontSize: 14, lineHeight: 1.55 }}>
+                              {routingPlan.plan.assistant_message}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                              <button
+                                type="button"
+                                onClick={handleConfirmRouting}
+                                disabled={isExecutingRouting}
+                                style={{
+                                  minHeight: 44, padding: '0 16px', borderRadius: 12, border: 0,
+                                  background: 'var(--novae-primary, #7A2E2A)', color: '#fff', fontWeight: 800,
+                                }}
+                              >
+                                {isExecutingRouting ? 'Classement en cours…' : 'Confirmer le classement'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleCancelRouting}
+                                disabled={isExecutingRouting}
+                                style={{
+                                  minHeight: 44, padding: '0 16px', borderRadius: 12,
+                                  border: '1px solid var(--novae-border, #D7C8BE)',
+                                  background: '#fff', color: 'var(--novae-text, #3C302C)', fontWeight: 700,
+                                }}
+                              >
+                                Annuler
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {routingMessage && !routingPlan && (
+                          <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700 }}>
+                            {routingMessage}
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
 

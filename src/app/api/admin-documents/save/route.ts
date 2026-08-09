@@ -5,11 +5,13 @@ import { cookies } from 'next/headers'
 import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
 import { verifyVaultAccessToken } from '@/lib/vault/tokens'
 import { createAdministrativeDocumentReminders } from '@/lib/admin-documents/reminders'
+import { PDFDocument } from 'pdf-lib'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
+const MAX_FILES = 10
 const STORAGE_BUCKET = 'administrative-documents'
 
 type ExtractionPayload = {
@@ -98,6 +100,37 @@ function sanitizeFilename(filename: string): string {
   return cleaned || 'document'
 }
 
+
+async function combineFilesAsPdf(files: File[]): Promise<File> {
+  const output = await PDFDocument.create()
+
+  for (const file of files) {
+    const bytes = new Uint8Array(await file.arrayBuffer())
+
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      const source = await PDFDocument.load(bytes)
+      const copiedPages = await output.copyPages(source, source.getPageIndices())
+      copiedPages.forEach((page) => output.addPage(page))
+      continue
+    }
+
+    const isPng = file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')
+    const image = isPng ? await output.embedPng(bytes) : await output.embedJpg(bytes)
+    const page = output.addPage([image.width, image.height])
+    page.drawImage(image, {
+      x: 0,
+      y: 0,
+      width: image.width,
+      height: image.height,
+    })
+  }
+
+  const bytes = await output.save()
+  const arrayBuffer = new ArrayBuffer(bytes.byteLength)
+  new Uint8Array(arrayBuffer).set(bytes)
+  return new File([arrayBuffer], `document-novae-${Date.now()}.pdf`, { type: 'application/pdf' })
+}
+
 function parseExtraction(value: FormDataEntryValue | null): ExtractionPayload {
   if (typeof value !== 'string') {
     throw new Error('Extraction manquante.')
@@ -174,29 +207,30 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData()
-    const file = formData.get('document')
+    const files = formData.getAll('documents').filter((item): item is File => item instanceof File)
+    const legacyFile = formData.get('document')
+    if (files.length === 0 && legacyFile instanceof File) files.push(legacyFile)
+
     const extraction = parseExtraction(formData.get('extraction'))
 
-    if (!(file instanceof File)) {
-      return NextResponse.json(
-        { error: 'Document manquant.' },
-        { status: 400 }
-      )
+    if (files.length === 0) {
+      return NextResponse.json({ error: 'Document manquant.' }, { status: 400 })
     }
 
-    if (!isAcceptedFile(file)) {
-      return NextResponse.json(
-        { error: 'Format non accepté. Utilise une image ou un PDF.' },
-        { status: 400 }
-      )
+    if (files.length > MAX_FILES) {
+      return NextResponse.json({ error: `Maximum ${MAX_FILES} pages/fichiers.` }, { status: 400 })
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: 'Document trop lourd. Taille maximale : 5 MB.' },
-        { status: 400 }
-      )
+    for (const file of files) {
+      if (!isAcceptedFile(file)) {
+        return NextResponse.json({ error: `Format non accepté : ${file.name}` }, { status: 400 })
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        return NextResponse.json({ error: `${file.name} dépasse 5 MB.` }, { status: 400 })
+      }
     }
+
+    const file = files.length === 1 ? files[0] : await combineFilesAsPdf(files)
 
     const vaultProtectedRaw = formData.get('vaultProtected')
     const sensitivityLevelRaw = formData.get('sensitivityLevel')
@@ -285,7 +319,7 @@ export async function POST(request: NextRequest) {
 
         storage_bucket: STORAGE_BUCKET,
         storage_path: storagePath,
-        original_filename: file.name,
+        original_filename: files.length === 1 ? file.name : `${files.length}-pages-novae.pdf`,
         file_mime_type: file.type || null,
         file_size_bytes: file.size,
 

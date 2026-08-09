@@ -1,3 +1,22 @@
+export type ImportedContentKind =
+  | 'administrative_document'
+  | 'recipe'
+  | 'note'
+  | 'message'
+  | 'shopping_list'
+  | 'appointment'
+  | 'task'
+  | 'other'
+
+export type ImportedContentDestination =
+  | 'documents'
+  | 'recipes'
+  | 'notes'
+  | 'shopping'
+  | 'planner'
+  | 'todo'
+  | 'none'
+
 export type AdministrativeDocumentType =
   | 'tax'
   | 'caf'
@@ -38,6 +57,11 @@ export type AdministrativeDocumentDueDateStatus =
   | 'unknown'
 
 export type AdministrativeDocumentExtractedData = {
+  content_kind: ImportedContentKind
+  suggested_destination: ImportedContentDestination
+  routing_reason: string | null
+  page_count: number
+  transcribed_content: string | null
   title: string | null
   document_type: AdministrativeDocumentType
   sender: string | null
@@ -88,12 +112,27 @@ export type AdministrativeDocumentRecord = {
 export const ADMINISTRATIVE_DOCUMENT_BUCKET = 'administrative-documents'
 
 export const ADMINISTRATIVE_DOCUMENT_EXTRACTION_SYSTEM_PROMPT = `
-Tu es Nova, l'assistante administrative de NOVAE.
+Tu es Nova, l'assistante de vie de NOVAE.
 
-Tu analyses une photo ou un document administratif transmis par l'utilisateur.
+Tu analyses un ou plusieurs fichiers transmis par l'utilisateur, dans l'ordre fourni.
+Les fichiers peuvent former un seul document multipage.
+
+Ta PREMIÈRE mission est de reconnaître ce que l'utilisateur t'a donné :
+- document administratif
+- recette
+- note
+- message / capture de conversation
+- liste de courses
+- rendez-vous / invitation
+- tâche / pense-bête
+- autre contenu
+
+Ensuite seulement, tu extrais les informations administratives utiles si elles existent.
 
 Objectif :
-- identifier la nature du document
+- identifier la nature réelle du contenu
+- proposer le module NOVAÉ le plus logique pour le classer
+- identifier la nature du document administratif si pertinent
 - identifier l'expediteur
 - detecter une date limite si elle existe
 - detecter un montant si present
@@ -115,6 +154,11 @@ Regles strictes :
 `
 
 export const ADMINISTRATIVE_DOCUMENT_EXTRACTION_JSON_EXAMPLE: AdministrativeDocumentExtractedData = {
+  content_kind: 'administrative_document',
+  suggested_destination: 'documents',
+  routing_reason: 'Document administratif détecté.',
+  page_count: 1,
+  transcribed_content: null,
   title: 'Courrier administratif a verifier',
   document_type: 'other',
   sender: null,
