@@ -137,6 +137,11 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historySearch, setHistorySearch] = useState('')
+  const [historySelectionMode, setHistorySelectionMode] = useState(false)
+  const [selectedConversationIds, setSelectedConversationIds] = useState<string[]>([])
+  const [pendingDeleteConversation, setPendingDeleteConversation] = useState<NovaConversationSummary | null>(null)
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
+  const [historyDeleteBusy, setHistoryDeleteBusy] = useState(false)
   const [listening, setListening] = useState(false)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(voiceMode)
   const [speaking, setSpeaking] = useState(false)
@@ -279,6 +284,17 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
       conversation.title.toLocaleLowerCase('fr-FR').includes(query)
     )
   }, [conversations, historySearch])
+
+  const selectedConversationIdSet = useMemo(
+    () => new Set(selectedConversationIds),
+    [selectedConversationIds],
+  )
+  const selectedConversationCount = selectedConversationIds.length
+  const allFilteredConversationsSelected =
+    filteredConversations.length > 0 &&
+    filteredConversations.every((conversation) =>
+      selectedConversationIdSet.has(conversation.id),
+    )
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -853,6 +869,8 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     setStatus('idle')
     setError('')
     setMessages([{ id: createId('welcome'), role: 'nova', text: 'Nouvelle conversation. Que veux-tu me confier ?' }])
+    setHistorySelectionMode(false)
+    setSelectedConversationIds([])
     setHistoryOpen(false)
   }
 
@@ -881,16 +899,98 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     }
   }
 
-  async function removeConversation(conversation: NovaConversationSummary) {
-    const confirmed = window.confirm(`Supprimer la conversation « ${conversation.title} » ? Les tâches et rappels déjà créés seront conservés.`)
-    if (!confirmed) return
+  function requestRemoveConversation(conversation: NovaConversationSummary) {
+    if (historyDeleteBusy) return
+    setPendingDeleteConversation(conversation)
+  }
 
+  async function confirmRemoveConversation() {
+    const conversation = pendingDeleteConversation
+    if (!conversation || historyDeleteBusy) return
+
+    setHistoryDeleteBusy(true)
+    setError('')
     try {
       await history.deleteConversation(conversation.id)
-      setConversations((current) => current.filter((item) => item.id !== conversation.id))
-      if (conversationId === conversation.id) startNewConversation()
+      setConversations((current) =>
+        current.filter((item) => item.id !== conversation.id),
+      )
+      setSelectedConversationIds((current) =>
+        current.filter((id) => id !== conversation.id),
+      )
+      setPendingDeleteConversation(null)
+
+      if (conversationId === conversation.id) {
+        startNewConversation()
+      }
     } catch {
       setError('La conversation n’a pas pu être supprimée.')
+    } finally {
+      setHistoryDeleteBusy(false)
+    }
+  }
+
+  function toggleHistorySelectionMode() {
+    setHistorySelectionMode((current) => {
+      const next = !current
+      if (!next) setSelectedConversationIds([])
+      return next
+    })
+  }
+
+  function toggleConversationSelection(conversationIdToToggle: string) {
+    setSelectedConversationIds((current) =>
+      current.includes(conversationIdToToggle)
+        ? current.filter((id) => id !== conversationIdToToggle)
+        : [...current, conversationIdToToggle],
+    )
+  }
+
+  function toggleSelectAllFilteredConversations() {
+    const filteredIds = filteredConversations.map((conversation) => conversation.id)
+
+    if (allFilteredConversationsSelected) {
+      setSelectedConversationIds((current) =>
+        current.filter((id) => !filteredIds.includes(id)),
+      )
+      return
+    }
+
+    setSelectedConversationIds((current) =>
+      Array.from(new Set([...current, ...filteredIds])),
+    )
+  }
+
+  async function confirmBulkDeleteConversations() {
+    if (selectedConversationIds.length === 0 || historyDeleteBusy) return
+
+    const idsToDelete = [...selectedConversationIds]
+    setHistoryDeleteBusy(true)
+    setError('')
+
+    try {
+      for (const id of idsToDelete) {
+        await history.deleteConversation(id)
+      }
+
+      const deletedIds = new Set(idsToDelete)
+      setConversations((current) =>
+        current.filter((conversation) => !deletedIds.has(conversation.id)),
+      )
+      setSelectedConversationIds([])
+      setShowBulkDeleteModal(false)
+      setHistorySelectionMode(false)
+
+      if (conversationId && deletedIds.has(conversationId)) {
+        startNewConversation()
+      }
+    } catch {
+      await refreshHistory()
+      setError(
+        'La suppression groupée n’a pas pu être terminée. La liste a été actualisée pour refléter l’état réel.',
+      )
+    } finally {
+      setHistoryDeleteBusy(false)
     }
   }
 
@@ -1058,44 +1158,302 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
     <>
     <main className="min-h-screen bg-[#F7F5F1] pb-24 text-[#282522]">
       {historyOpen ? (
-        <div className="fixed inset-0 z-[80] bg-black/30" onClick={() => setHistoryOpen(false)}>
+        <div
+          className="fixed inset-0 z-[80] bg-black/30"
+          style={{
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          }}
+          onClick={() => {
+            if (historyDeleteBusy) return
+            setHistoryOpen(false)
+            setHistorySelectionMode(false)
+            setSelectedConversationIds([])
+          }}
+        >
           <aside
-            className="h-full w-[88%] max-w-sm overflow-y-auto border-r border-[#D7D0C8] bg-[#FBFAF8] p-4 shadow-2xl"
+            aria-label="Historique des conversations Nova"
+            className="h-full w-[92%] max-w-sm overflow-y-auto border-r border-[#D7D0C8] bg-[#FBFAF8] p-4 shadow-2xl"
+            style={{
+              overscrollBehavior: 'contain',
+              WebkitOverflowScrolling: 'touch',
+            }}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#796F68]">Nova</p>
                 <h2 className="font-serif text-2xl font-semibold">Conversations</h2>
               </div>
-              <button type="button" onClick={() => setHistoryOpen(false)} className="rounded-full border border-[#D7D0C8] bg-white px-3 py-1.5 text-sm">Fermer</button>
+              <button
+                type="button"
+                aria-label="Fermer l’historique"
+                onClick={() => {
+                  if (historyDeleteBusy) return
+                  setHistoryOpen(false)
+                  setHistorySelectionMode(false)
+                  setSelectedConversationIds([])
+                }}
+                className="min-h-11 min-w-11 rounded-full border border-[#D7D0C8] bg-white px-3 text-sm"
+              >
+                ✕
+              </button>
             </div>
 
-            <button type="button" onClick={startNewConversation} className="mb-4 w-full rounded-xl bg-[#332E2A] px-4 py-3 text-sm font-semibold text-white">＋ Nouvelle conversation</button>
+            <button
+              type="button"
+              onClick={startNewConversation}
+              disabled={historyDeleteBusy}
+              className="mb-3 min-h-11 w-full rounded-xl bg-[#332E2A] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              ＋ Nouvelle conversation
+            </button>
+
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={toggleHistorySelectionMode}
+                disabled={historyLoading || historyDeleteBusy || conversations.length === 0}
+                className="min-h-11 rounded-xl border border-[#CFC7BF] bg-white px-3 py-2 text-sm font-semibold text-[#514B46] disabled:opacity-40"
+              >
+                {historySelectionMode ? 'Annuler sélection' : 'Sélectionner'}
+              </button>
+
+              {historySelectionMode ? (
+                <button
+                  type="button"
+                  onClick={toggleSelectAllFilteredConversations}
+                  disabled={historyLoading || historyDeleteBusy || filteredConversations.length === 0}
+                  className="min-h-11 rounded-xl border border-[#CFC7BF] bg-white px-3 py-2 text-sm font-semibold text-[#514B46] disabled:opacity-40"
+                >
+                  {allFilteredConversationsSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
+                </button>
+              ) : (
+                <div aria-hidden="true" />
+              )}
+            </div>
 
             <input
               value={historySearch}
               onChange={(event) => setHistorySearch(event.target.value)}
               placeholder="Rechercher une conversation…"
-              className="mb-4 w-full rounded-xl border border-[#CBC3BB] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#7B6F66]"
+              aria-label="Rechercher dans les conversations"
+              className="mb-4 min-h-11 w-full rounded-xl border border-[#CBC3BB] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#7B6F66]"
             />
+
+            {historySelectionMode ? (
+              <div
+                className="mb-4 rounded-xl border border-[#D7D0C8] bg-[#F7F3EF] p-3"
+                aria-live="polite"
+              >
+                <p className="text-sm font-semibold text-[#514B46]">
+                  {selectedConversationCount} conversation{selectedConversationCount > 1 ? 's' : ''} sélectionnée{selectedConversationCount > 1 ? 's' : ''}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteModal(true)}
+                  disabled={selectedConversationCount === 0 || historyDeleteBusy}
+                  className="mt-2 min-h-11 w-full rounded-xl border border-[#B56B62] bg-[#FFF8F7] px-3 py-2 text-sm font-semibold text-[#8A4A43] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Supprimer la sélection
+                </button>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               {historyLoading ? <p className="text-sm text-[#766D66]">Chargement…</p> : null}
+
               {!historyLoading && filteredConversations.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-[#D7D0C8] p-4 text-sm leading-6 text-[#766D66]">Aucune conversation enregistrée pour le moment.</p>
+                <p className="rounded-xl border border-dashed border-[#D7D0C8] p-4 text-sm leading-6 text-[#766D66]">
+                  {historySearch.trim()
+                    ? 'Aucune conversation ne correspond à ta recherche.'
+                    : 'Aucune conversation enregistrée pour le moment.'}
+                </p>
               ) : null}
-              {filteredConversations.map((conversation) => (
-                <div key={conversation.id} className={`rounded-xl border p-3 ${conversation.id === conversationId ? 'border-[#8C75A8] bg-[#F0EBF4]' : 'border-[#E1DBD5] bg-white'}`}>
-                  <button type="button" onClick={() => void openConversation(conversation)} className="w-full text-left">
-                    <p className="line-clamp-2 text-sm font-semibold leading-5">{conversation.title}</p>
-                    <p className="mt-1 text-xs text-[#82786F]">{formatConversationDate(conversation.last_message_at)}</p>
-                  </button>
-                  <button type="button" onClick={() => void removeConversation(conversation)} className="mt-2 text-xs text-[#8A4A43]">Supprimer la conversation</button>
-                </div>
-              ))}
+
+              {filteredConversations.map((conversation) => {
+                const selected = selectedConversationIdSet.has(conversation.id)
+
+                return (
+                  <article
+                    key={conversation.id}
+                    className={`rounded-xl border p-3 ${
+                      selected
+                        ? 'border-[#9D6F65] bg-[#FAF0EE]'
+                        : conversation.id === conversationId
+                          ? 'border-[#8C75A8] bg-[#F0EBF4]'
+                          : 'border-[#E1DBD5] bg-white'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {historySelectionMode ? (
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={selected}
+                          aria-label={`${selected ? 'Désélectionner' : 'Sélectionner'} ${conversation.title}`}
+                          onClick={() => toggleConversationSelection(conversation.id)}
+                          className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-lg font-semibold ${
+                            selected
+                              ? 'border-[#8A4A43] bg-[#8A4A43] text-white'
+                              : 'border-[#CFC7BF] bg-white text-transparent'
+                          }`}
+                        >
+                          ✓
+                        </button>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (historySelectionMode) {
+                            toggleConversationSelection(conversation.id)
+                            return
+                          }
+                          void openConversation(conversation)
+                        }}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <p className="line-clamp-2 break-words text-sm font-semibold leading-5">
+                          {conversation.title}
+                        </p>
+                        <p className="mt-1 text-xs text-[#82786F]">
+                          {formatConversationDate(conversation.last_message_at)}
+                        </p>
+                      </button>
+                    </div>
+
+                    {!historySelectionMode ? (
+                      <button
+                        type="button"
+                        onClick={() => requestRemoveConversation(conversation)}
+                        disabled={historyDeleteBusy}
+                        className="mt-2 min-h-11 rounded-lg px-2 text-xs font-semibold text-[#8A4A43] disabled:opacity-40"
+                      >
+                        Supprimer la conversation
+                      </button>
+                    ) : null}
+                  </article>
+                )
+              })}
             </div>
           </aside>
+        </div>
+      ) : null}
+
+      {pendingDeleteConversation ? (
+        <div
+          role="presentation"
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/45 p-4"
+          style={{
+            paddingTop: 'max(16px, env(safe-area-inset-top, 0px))',
+            paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
+          }}
+          onClick={() => {
+            if (!historyDeleteBusy) setPendingDeleteConversation(null)
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-conversation-title"
+            aria-describedby="delete-conversation-description"
+            className="w-full max-w-md overflow-y-auto rounded-3xl border border-[#E1DBD5] bg-[#FBFAF8] p-5 shadow-2xl"
+            style={{
+              maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px)',
+              WebkitOverflowScrolling: 'touch',
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8A4A43]">Historique Nova</p>
+            <h3 id="delete-conversation-title" className="mt-1 font-serif text-2xl font-semibold text-[#382F2B]">
+              Supprimer la conversation ?
+            </h3>
+            <p id="delete-conversation-description" className="mt-3 text-sm leading-6 text-[#625B55]">
+              « {pendingDeleteConversation.title} » sera supprimée de ton historique Nova.
+              Les tâches, rappels, événements et autres éléments déjà créés dans NOVAÉ seront conservés.
+            </p>
+            <p className="mt-3 rounded-xl bg-[#F7F1EF] p-3 text-xs leading-5 text-[#7B514A]">
+              Cette suppression concerne uniquement la conversation et ses messages.
+            </p>
+
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteConversation(null)}
+                disabled={historyDeleteBusy}
+                className="min-h-11 rounded-xl border border-[#CFC7BF] bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmRemoveConversation()}
+                disabled={historyDeleteBusy}
+                className="min-h-11 rounded-xl bg-[#8A4A43] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {historyDeleteBusy ? 'Suppression…' : 'Supprimer'}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showBulkDeleteModal ? (
+        <div
+          role="presentation"
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/45 p-4"
+          style={{
+            paddingTop: 'max(16px, env(safe-area-inset-top, 0px))',
+            paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
+          }}
+          onClick={() => {
+            if (!historyDeleteBusy) setShowBulkDeleteModal(false)
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bulk-delete-conversations-title"
+            aria-describedby="bulk-delete-conversations-description"
+            className="w-full max-w-md overflow-y-auto rounded-3xl border border-[#E1DBD5] bg-[#FBFAF8] p-5 shadow-2xl"
+            style={{
+              maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px)',
+              WebkitOverflowScrolling: 'touch',
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8A4A43]">Historique Nova</p>
+            <h3 id="bulk-delete-conversations-title" className="mt-1 font-serif text-2xl font-semibold text-[#382F2B]">
+              Supprimer {selectedConversationCount} conversation{selectedConversationCount > 1 ? 's' : ''} ?
+            </h3>
+            <p id="bulk-delete-conversations-description" className="mt-3 text-sm leading-6 text-[#625B55]">
+              Les conversations sélectionnées et leurs messages seront supprimés de l’historique.
+              Les tâches, rappels, événements et autres éléments déjà créés dans NOVAÉ seront conservés.
+            </p>
+            <p className="mt-3 rounded-xl bg-[#F7F1EF] p-3 text-xs leading-5 text-[#7B514A]">
+              En cas d’erreur pendant une suppression groupée, NOVAÉ actualisera automatiquement la liste pour afficher l’état réel.
+            </p>
+
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteModal(false)}
+                disabled={historyDeleteBusy}
+                className="min-h-11 rounded-xl border border-[#CFC7BF] bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmBulkDeleteConversations()}
+                disabled={historyDeleteBusy || selectedConversationCount === 0}
+                className="min-h-11 rounded-xl bg-[#8A4A43] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {historyDeleteBusy ? 'Suppression…' : 'Supprimer la sélection'}
+              </button>
+            </div>
+          </section>
         </div>
       ) : null}
 
