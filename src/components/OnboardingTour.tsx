@@ -1,378 +1,318 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
-interface TourStep {
-  id: string
-  emoji: string
-  title: string
-  tagline: string
-  description: string
-  color: string
-  border: string
-  textColor: string
-  premium?: boolean
-  position: 'top' | 'bottom' | 'center'
-}
-
-const TOUR_STEPS: TourStep[] = [
-  {
-    id: 'welcome',
-    emoji: '✨',
-    title: 'Bienvenue dans NOVAÉ',
-    tagline: 'Ton compagnon de transformation',
-    description: 'NOVAÉ n\'est pas une simple application. C\'est un espace pensé pour toi, une femme qui a décidé de reprendre les rênes de sa vie, à son rythme, avec intelligence.',
-    color: 'rgba(196,149,106,0.12)',
-    border: '#C4956A',
-    textColor: '#7A4A1A',
-    position: 'center',
-  },
-  {
-    id: 'planner',
-    emoji: '📅',
-    title: 'Planner & To-do',
-    tagline: 'Ton agenda qui pense avant toi',
-    description: 'Avant même que tu ouvres ton agenda, NOVAÉ a déjà repéré les conflits, les surcharges et les moments volés à toi-même. Pas un calendrier de plus. Un gardien de ton énergie.',
-    color: 'rgba(160,190,220,0.15)',
-    border: '#A0BEDC',
-    textColor: '#2C5F8A',
-    position: 'bottom',
-  },
-  {
-    id: 'routines',
-    emoji: '☀️',
-    title: 'Routines',
-    tagline: 'Tes rituels deviennent une force',
-    description: 'Tes rituels deviennent des habitudes solides. NOVAÉ veille à ce que rien ne les efface, ni les imprévus, ni la fatigue, ni les journées qui débordent.',
-    color: 'rgba(232,208,128,0.15)',
-    border: '#E8D080',
-    textColor: '#7A6010',
-    position: 'bottom',
-  },
-  {
-    id: 'recipes',
-    emoji: '🛒',
-    title: 'Recettes & Courses',
-    tagline: 'La charge mentale en moins',
-    description: 'Fini la liste sur un coin de table. NOVAÉ cumule, organise et t\'alerte si une recette ne convient pas à toute ta famille. Le quotidien, simplifié.',
-    color: 'rgba(196,149,106,0.12)',
-    border: '#D4A090',
-    textColor: '#8A4A3A',
-    position: 'bottom',
-  },
-  {
-    id: 'family',
-    emoji: '💛',
-    title: 'Famille',
-    tagline: 'Ceux qui comptent, jamais oubliés',
-    description: 'Les anniversaires, les allergies, les besoins de chacune et chacun, NOVAÉ s\'en souvient pour toi. Parce que prendre soin des autres commence par avoir de l\'espace dans ta tête.',
-    color: 'rgba(232,208,128,0.15)',
-    border: '#E8D080',
-    textColor: '#7A6010',
-    position: 'bottom',
-  },
-  {
-    id: 'defis',
-    emoji: '⚡',
-    title: 'Défis',
-    tagline: 'Petites victoires, grande transformation',
-    description: 'Chaque défi est une petite victoire programmée. NOVAÉ calibre la difficulté pour que tu ne lâches jamais avant d\'avoir gagné. La progression, pas la perfection.',
-    color: 'rgba(224,160,184,0.15)',
-    border: '#E0A0B8',
-    textColor: '#8A3050',
-    position: 'bottom',
-  },
-  {
-    id: 'tracker',
-    emoji: '📊',
-    title: 'Tracker',
-    tagline: 'Ta vraie progression, visible',
-    description: 'Visualise ta vraie progression, pas juste des cases cochées, mais une transformation qui se construit jour après jour. Parce que tu mérites de voir jusqu\'où tu es allée.',
-    color: 'rgba(144,200,168,0.15)',
-    border: '#90C8A8',
-    textColor: '#2A6A48',
-    position: 'bottom',
-  },
-  {
-    id: 'community',
-    emoji: '👥',
-    title: 'Communauté',
-    tagline: 'Seule mais jamais isolée',
-    description: 'Tu n\'es pas seule dans ta transformation. Partage, inspire et reçois l\'élan des autres NOVAÉ en chemin. Parce que les femmes qui s\'élèvent s\'élèvent ensemble.',
-    color: 'rgba(224,160,184,0.15)',
-    border: '#E0A0B8',
-    textColor: '#8A3050',
-    position: 'bottom',
-  },
-  {
-    id: 'program',
-    emoji: '🎯',
-    title: 'Reset 90 jours',
-    tagline: 'Ton parcours sur-mesure',
-    description: 'Pas un simple programme. NOVAÉ t\'accompagne jour après jour avec des missions calibrées selon qui tu es, et ajuste le rythme si tu décroches. 90 jours pour te retrouver.',
-    color: 'rgba(123,111,160,0.12)',
-    border: '#7B6FA0',
-    textColor: '#4A3A7A',
-    premium: true,
-    position: 'top',
-  },
-  {
-    id: 'agent',
-    emoji: '🤖',
-    title: 'Agent NOVAÉ IA',
-    tagline: 'Ton chef d\'orchestre intelligent',
-    description: 'Elle lit ton Planner, tes Routines, tes Recettes, ta Famille. Elle détecte ce que tu n\'as pas encore vu. Elle agit avant que tu subisses. Ce n\'est pas un chatbot. C\'est ton alliée la plus précieuse.',
-    color: 'rgba(44,44,44,0.06)',
-    border: '#2C2C2C',
-    textColor: '#2C2C2C',
-    premium: true,
-    position: 'top',
-  },
-]
-
-const STORAGE_KEY = 'novae-onboarding-done'
+const STORAGE_KEY = 'novae-onboarding-tour-v2-done'
 
 interface OnboardingTourProps {
   forceShow?: boolean
   onClose?: () => void
 }
 
-export function OnboardingTour({ forceShow, onClose }: OnboardingTourProps = {}) {
+const STEPS = [
+  {
+    eyebrow: '1 · LE BON RÉFLEXE',
+    title: 'Commence par parler à Nova.',
+    body:
+      "Tu n’as pas besoin de chercher le bon module. Décris simplement la situation : un rendez-vous, un repas à prévoir, une tâche, un document ou quelque chose que tu ne veux pas oublier.",
+    example: '« Vendredi je termine à 17h et je dois récupérer les enfants à 17h30. Est-ce que ça passe ? »',
+  },
+  {
+    eyebrow: '2 · ELLE PRÉPARE, TU VALIDES',
+    title: 'Nova peut transformer ta demande en action.',
+    body:
+      "Selon ta demande, elle peut préparer une tâche, un rappel, un événement Planner, une note, une recette ou des courses. Quand une écriture est nécessaire, tu gardes la main avant l’exécution.",
+    example: 'Proposition → confirmation → exécution → résultat réel.',
+  },
+  {
+    eyebrow: '3 · TON CONTEXTE COMPTE',
+    title: 'Donne-lui les repères qui changent vraiment la réponse.',
+    body:
+      "Situation familiale, garde, lieux utiles, trajets connus, horaires ou préférences : Nova peut utiliser les informations que tu as choisi d’enregistrer pour proposer quelque chose de plus réaliste.",
+    example: 'Plus de contexte utile, moins de réponses génériques.',
+  },
+  {
+    eyebrow: '4 · TU RESTES AUX COMMANDES',
+    title: 'NOVAÉ t’aide à décider, elle ne décide pas à ta place.',
+    body:
+      "Les actions sensibles demandent une confirmation. Tu peux modifier tes informations, tes modules d’accueil et tes préférences dans Profil / Personnalisation.",
+    example: 'Le but : moins de charge mentale, sans perdre le contrôle.',
+  },
+]
+
+export function OnboardingTour({ forceShow = false, onClose }: OnboardingTourProps = {}) {
   const [visible, setVisible] = useState(false)
   const [step, setStep] = useState(0)
-  const [animating, setAnimating] = useState(false)
-  const [leaving, setLeaving] = useState(false)
 
   useEffect(() => {
-    const done = localStorage.getItem(STORAGE_KEY)
-    if (forceShow || !done) {
-      // Délai court pour laisser la page se charger
-      setTimeout(() => setVisible(true), 800)
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    try {
+      const done = window.localStorage.getItem(STORAGE_KEY)
+      if (forceShow || !done) {
+        timer = setTimeout(() => setVisible(true), 650)
+      }
+    } catch {
+      if (forceShow) timer = setTimeout(() => setVisible(true), 650)
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer)
     }
   }, [forceShow])
 
-  const currentStep = TOUR_STEPS[step]
-  const isLast = step === TOUR_STEPS.length - 1
-  const progress = ((step + 1) / TOUR_STEPS.length) * 100
+  if (!visible) return null
 
-  const goNext = () => {
-    if (animating) return
-    setAnimating(true)
-    setLeaving(true)
-    setTimeout(() => {
-      if (isLast) {
-        finish()
-      } else {
-        setStep(s => s + 1)
-        setLeaving(false)
-        setAnimating(false)
-      }
-    }, 280)
-  }
-
-  const goPrev = () => {
-    if (animating || step === 0) return
-    setAnimating(true)
-    setLeaving(true)
-    setTimeout(() => {
-      setStep(s => s - 1)
-      setLeaving(false)
-      setAnimating(false)
-    }, 280)
-  }
+  const current = STEPS[step]
+  const isLast = step === STEPS.length - 1
 
   const finish = () => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, 'true')
+    } catch {
+      // Le tutoriel reste fonctionnel sans stockage local.
+    }
     setVisible(false)
-    localStorage.setItem(STORAGE_KEY, 'true')
     onClose?.()
   }
 
-  if (!visible) return null
-
   return (
     <>
-      {/* Overlay */}
-      <div
-        onClick={finish}
-        style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(26,26,26,0.55)',
-          backdropFilter: 'blur(3px)',
-          zIndex: 999,
-          animation: 'fadeIn 0.4s ease',
-        }}
-      />
+      <div className="novae-tour-overlay" />
 
-      {/* Bulle centrale */}
-      <div style={{
-        position: 'fixed',
-        top: '50%', left: '50%',
-        transform: 'translate(-50%, -50%)',
-        zIndex: 1000,
-        width: '90%',
-        maxWidth: 440,
-        animation: leaving ? 'bubbleOut 0.28s ease forwards' : 'bubbleIn 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards',
-      }}>
-        {/* Carte principale */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: 24,
-          overflow: 'hidden',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.18), 0 4px 20px rgba(0,0,0,0.08)',
-          border: `1.5px solid ${currentStep.border}`,
-        }}>
-          {/* Header coloré */}
-          <div style={{
-            background: currentStep.color,
-            borderBottom: `1px solid ${currentStep.border}33`,
-            padding: '28px 28px 20px',
-            position: 'relative',
-          }}>
-            {/* Badge premium */}
-            {currentStep.premium && (
-              <div style={{
-                position: 'absolute', top: 16, right: 16,
-                background: 'linear-gradient(135deg, #C4956A, #7B6FA0)',
-                color: 'white', fontSize: 9, fontWeight: 700,
-                padding: '3px 8px', borderRadius: 20,
-                letterSpacing: '0.08em', textTransform: 'uppercase',
-              }}>
-                ✦ Premium
-              </div>
-            )}
-
-            {/* Emoji */}
-            <div style={{
-              width: 64, height: 64, borderRadius: 18,
-              background: '#FFFFFF',
-              border: `2px solid ${currentStep.border}44`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 32, marginBottom: 16,
-              boxShadow: `0 4px 16px ${currentStep.border}22`,
-            }}>
-              {currentStep.emoji}
-            </div>
-
-            <h2 style={{
-              margin: '0 0 4px',
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 26, fontWeight: 700,
-              color: '#1A1A1A', lineHeight: 1.2,
-            }}>
-              {currentStep.title}
-            </h2>
-            <p style={{
-              margin: 0, fontSize: 12, fontWeight: 600,
-              color: currentStep.textColor,
-              textTransform: 'uppercase', letterSpacing: '0.1em',
-            }}>
-              {currentStep.tagline}
-            </p>
-          </div>
-
-          {/* Corps */}
-          <div style={{ padding: '20px 28px 24px' }}>
-            <p style={{
-              margin: '0 0 24px',
-              fontSize: 15, color: '#3A3A3A',
-              lineHeight: 1.7,
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              {currentStep.description}
-            </p>
-
-            {/* Barre de progression */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{
-                height: 3, background: '#F0EDE8', borderRadius: 10, overflow: 'hidden',
-              }}>
-                <div style={{
-                  height: '100%',
-                  width: `${progress}%`,
-                  background: `linear-gradient(90deg, #C4956A, ${currentStep.border})`,
-                  borderRadius: 10,
-                  transition: 'width 0.4s ease',
-                }} />
-              </div>
-              <p style={{
-                margin: '6px 0 0', fontSize: 10,
-                color: '#9B9B9B', textAlign: 'right',
-                fontFamily: "'DM Sans', sans-serif",
-              }}>
-                {step + 1} / {TOUR_STEPS.length}
-              </p>
-            </div>
-
-            {/* Boutons */}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              {step > 0 && (
-                <button onClick={goPrev} style={{
-                  width: 40, height: 40, borderRadius: '50%',
-                  border: '1.5px solid #E8E4DF', background: '#FFFFFF',
-                  cursor: 'pointer', fontSize: 16, color: '#6B6B6B',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
-                  ‹
-                </button>
-              )}
-
-              <button onClick={goNext} style={{
-                flex: 1, padding: '13px 0',
-                borderRadius: 14, border: 'none',
-               background: isLast
-  ? 'linear-gradient(135deg, #C4956A, #7B6FA0)'
-  : currentStep.color,
-outline: `1.5px solid ${currentStep.border}`,
-color: isLast ? '#FFFFFF' : currentStep.textColor,
-                fontSize: 14, fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif",
-                letterSpacing: '0.03em',
-                transition: 'opacity 0.15s',
-              }}>
-                {isLast ? "C'est parti ! ✨" : "Découvrir →"}
-              </button>
-
-              <button onClick={finish} style={{
-                background: 'none', border: 'none',
-                cursor: 'pointer', fontSize: 11,
-                color: '#BBBBBB', padding: '0 4px',
-                fontFamily: "'DM Sans', sans-serif",
-                flexShrink: 0, whiteSpace: 'nowrap',
-              }}>
-                Passer
-              </button>
-            </div>
-          </div>
+      <section
+        className="novae-tour-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Découvrir NOVAÉ"
+      >
+        <div className="novae-tour-topline">
+          <div className="novae-tour-brand">NOVAÉ</div>
+          <button type="button" onClick={finish} className="novae-tour-close" aria-label="Fermer">
+            ×
+          </button>
         </div>
 
-        {/* Points de navigation */}
-        <div style={{
-          display: 'flex', justifyContent: 'center',
-          gap: 6, marginTop: 16,
-        }}>
-          {TOUR_STEPS.map((_, i) => (
-            <div key={i} style={{
-              width: i === step ? 20 : 6,
-              height: 6, borderRadius: 10,
-              background: i === step ? '#C4956A' : 'rgba(255,255,255,0.5)',
-              transition: 'all 0.3s ease',
-              cursor: 'pointer',
-            }} onClick={() => { if (!animating) setStep(i) }} />
+        <div className="novae-tour-eyebrow">{current.eyebrow}</div>
+
+        <h2>{current.title}</h2>
+        <p className="novae-tour-body">{current.body}</p>
+
+        <div className="novae-tour-example">{current.example}</div>
+
+        <div className="novae-tour-progress" aria-label={`Étape ${step + 1} sur ${STEPS.length}`}>
+          {STEPS.map((_, index) => (
+            <span key={index} className={index === step ? 'active' : ''} />
           ))}
         </div>
-      </div>
+
+        <div className="novae-tour-actions">
+          <button
+            type="button"
+            className="novae-tour-secondary"
+            disabled={step === 0}
+            onClick={() => setStep((currentStep) => Math.max(0, currentStep - 1))}
+          >
+            Retour
+          </button>
+
+          <button
+            type="button"
+            className="novae-tour-primary"
+            onClick={() => {
+              if (isLast) finish()
+              else setStep((currentStep) => currentStep + 1)
+            }}
+          >
+            {isLast ? 'J’ai compris' : 'Suivant'}
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+
+        <button type="button" className="novae-tour-skip" onClick={finish}>
+          Passer le tutoriel
+        </button>
+      </section>
 
       <style>{`
-        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes bubbleIn {
-          from { opacity: 0; transform: translate(-50%, -50%) scale(0.88); }
-          to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        .novae-tour-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 9998;
+          background: rgba(47, 38, 35, .46);
+          backdrop-filter: blur(7px);
         }
-        @keyframes bubbleOut {
-          from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-          to   { opacity: 0; transform: translate(-50%, -50%) scale(0.92) translateY(-8px); }
+
+        .novae-tour-card {
+          position: fixed;
+          z-index: 9999;
+          left: 50%;
+          top: 50%;
+          width: min(calc(100vw - 28px), 520px);
+          transform: translate(-50%, -50%);
+          padding: 24px;
+          border-radius: 26px;
+          border: 1px solid rgba(196,149,106,.34);
+          background:
+            radial-gradient(circle at 100% 0%, rgba(196,149,106,.11), transparent 32%),
+            #FFFDFC;
+          box-shadow: 0 28px 90px rgba(46,30,27,.28);
+          color: #352E2B;
+          font-family: var(--novae-font-body, Inter, system-ui, sans-serif);
+          animation: novaeTourIn .24s ease;
+        }
+
+        .novae-tour-topline {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 22px;
+        }
+
+        .novae-tour-brand {
+          color: #C4956A;
+          font-family: var(--novae-font-title, "Cormorant Garamond", Georgia, serif);
+          font-size: 18px;
+          font-weight: 600;
+          letter-spacing: .24em;
+        }
+
+        .novae-tour-close {
+          width: 44px;
+          height: 44px;
+          border: 1px solid #E8D9CF;
+          border-radius: 14px;
+          background: #FBF7F1;
+          color: #6D625D;
+          font-size: 24px;
+          cursor: pointer;
+        }
+
+        .novae-tour-eyebrow {
+          color: #C4956A;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: .17em;
+        }
+
+        .novae-tour-card h2 {
+          margin: 9px 0 12px;
+          color: #6E1F3D;
+          font-family: var(--novae-font-title, "Cormorant Garamond", Georgia, serif);
+          font-size: clamp(31px, 7vw, 42px);
+          line-height: 1.02;
+          font-weight: 600;
+          letter-spacing: -.02em;
+        }
+
+        .novae-tour-body {
+          margin: 0;
+          color: #6D625D;
+          font-size: 14px;
+          line-height: 1.65;
+        }
+
+        .novae-tour-example {
+          margin-top: 18px;
+          padding: 15px 16px;
+          border-radius: 17px;
+          border: 1px solid #E8D9CF;
+          background: linear-gradient(135deg, #F8ECE9, #FFFDFC);
+          color: #6E1F3D;
+          font-size: 13px;
+          line-height: 1.55;
+          font-weight: 700;
+        }
+
+        .novae-tour-progress {
+          display: flex;
+          justify-content: center;
+          gap: 7px;
+          margin: 22px 0 18px;
+        }
+
+        .novae-tour-progress span {
+          width: 7px;
+          height: 7px;
+          border-radius: 999px;
+          background: #EAD7C2;
+        }
+
+        .novae-tour-progress span.active {
+          width: 25px;
+          background: #6E1F3D;
+        }
+
+        .novae-tour-actions {
+          display: flex;
+          gap: 10px;
+        }
+
+        .novae-tour-secondary,
+        .novae-tour-primary {
+          min-height: 50px;
+          border-radius: 15px;
+          font: inherit;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .novae-tour-secondary {
+          width: 104px;
+          border: 1px solid #E8D9CF;
+          background: white;
+          color: #6D625D;
+        }
+
+        .novae-tour-secondary:disabled {
+          opacity: .35;
+        }
+
+        .novae-tour-primary {
+          flex: 1;
+          border: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          color: white;
+          background: linear-gradient(135deg, #6E1F3D, #8A3455);
+          box-shadow: 0 10px 28px rgba(110,31,61,.18);
+        }
+
+        .novae-tour-primary span {
+          color: #EAD7C2;
+          font-size: 18px;
+        }
+
+        .novae-tour-skip {
+          width: 100%;
+          min-height: 44px;
+          margin-top: 5px;
+          border: 0;
+          background: transparent;
+          color: #8A7D76;
+          font: inherit;
+          font-size: 12px;
+          cursor: pointer;
+        }
+
+        @keyframes novaeTourIn {
+          from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)) scale(.99); }
+          to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        @media (max-width: 420px) {
+          .novae-tour-card {
+            width: calc(100vw - 20px);
+            padding: 20px;
+            border-radius: 22px;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .novae-tour-card { animation: none; }
         }
       `}</style>
     </>

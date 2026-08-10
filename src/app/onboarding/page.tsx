@@ -1,9 +1,17 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { supabase } from '@/lib/supabase/client'
+import { NovaeValueIntro } from '@/components/onboarding/NovaeValueIntro'
+import {
+  USER_THEME_ORDER,
+  USER_THEME_PALETTES,
+  getUserInterfacePreset,
+  normalizeUserThemeKey,
+  type UserThemeKey,
+} from '@/lib/theme/user-themes'
 
 type UsageMode = 'personal' | 'professional' | 'mixed'
 type WorkRhythm =
@@ -25,11 +33,7 @@ type HouseholdType =
 type CustodyMode = 'full_time' | 'shared' | 'other'
 type CustodyPattern = 'weekly' | 'every_two_weeks' | 'one_weekend_month' | 'two_weekends_month' | 'custom'
 
-type ThemeKey =
-  | 'deep_emerald'
-  | 'midnight_blue'
-  | 'calm_lavender'
-  | 'soft_graphite'
+type ThemeKey = UserThemeKey
 type NovaMode = 'discreet' | 'balanced' | 'proactive'
 
 type Answers = {
@@ -53,7 +57,8 @@ type Answers = {
   notification_channels: string[]
 }
 
-const TOTAL_STEPS = 7
+const TOTAL_STEPS = 4
+const CURRENT_ONBOARDING_VERSION = 3
 
 const PRIORITIES = [
   ['calendar', 'Mon temps et mon agenda'],
@@ -75,47 +80,17 @@ const MODULES = [
   ['family', 'Famille'],
 ] as const
 
-const THEMES: Array<{
-  key: ThemeKey
-  name: string
-  description: string
-  background: string
-  foreground: string
-  accent: string
-}> = [
-  {
-    key: 'deep_emerald',
-    name: 'Nature',
-    description: 'Élégant et apaisant',
-    background: '#F4F0E8',
-    foreground: '#173F34',
-    accent: '#D09A59',
-  },
-  {
-    key: 'midnight_blue',
-    name: 'Bleu nuit',
-    description: 'Profond et structuré',
-    background: '#EAF0F6',
-    foreground: '#172A40',
-    accent: '#B88A52',
-  },
-  {
-    key: 'calm_lavender',
-    name: 'Clair',
-    description: 'Doux et éditorial',
-    background: '#F5F0F5',
-    foreground: '#4D3E57',
-    accent: '#B8878D',
-  },
-  {
-    key: 'soft_graphite',
-    name: 'Signature',
-    description: 'Sobre et affirmé',
-    background: '#E8E8E6',
-    foreground: '#1E1F21',
-    accent: '#B68B58',
-  },
-]
+const MODULE_TO_PRIORITY: Record<string, string> = {
+  planner: 'calendar',
+  todo: 'tasks',
+  notes: 'notes',
+  documents: 'administrative',
+  recipes: 'meals',
+  family: 'family',
+}
+
+const THEMES = USER_THEME_ORDER.map((key) => USER_THEME_PALETTES[key])
+
 
 const initialAnswers: Answers = {
   display_name: '',
@@ -152,6 +127,22 @@ export default function OnboardingPage() {
   const { user, loading: authLoading } = useSupabaseAuth()
   const router = useRouter()
   const [step, setStep] = useState(0)
+  const [valueIntroPreview] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).get('preview') === '1'
+  })
+  const [showValueIntro, setShowValueIntro] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const preview =
+      new URLSearchParams(window.location.search).get('preview') === '1'
+    if (preview) return true
+
+    try {
+      return window.localStorage.getItem('novae-value-intro-v3-seen') !== 'true'
+    } catch {
+      return true
+    }
+  })
   const [answers, setAnswers] = useState<Answers>(initialAnswers)
   const [saving, setSaving] = useState(false)
   const [loadingProfile, setLoadingProfile] = useState(true)
@@ -163,7 +154,7 @@ export default function OnboardingPage() {
   )
 
   const progress = useMemo(
-    () => Math.round((Math.max(step, 0) / TOTAL_STEPS) * 100),
+    () => Math.round((Math.max(step, 0) / Math.max(1, TOTAL_STEPS - 1)) * 100),
     [step],
   )
 
@@ -221,17 +212,35 @@ export default function OnboardingPage() {
           preferred_modules: Array.isArray(data.preferred_modules)
             ? data.preferred_modules
             : [],
-          theme_key: data.theme_key || 'deep_emerald',
+          theme_key: normalizeUserThemeKey(data.theme_key),
           nova_mode: data.nova_mode || 'balanced',
           notification_channels: Array.isArray(data.notification_channels)
             ? data.notification_channels
             : ['in_app'],
         })
 
-        if (data.completed_at) {
+        const storedOnboardingVersion = Number(data.onboarding_version || 1)
+        const needsOnboardingRefresh =
+          Boolean(data.completed_at) &&
+          storedOnboardingVersion < CURRENT_ONBOARDING_VERSION
+
+        if (valueIntroPreview) {
+          setStep(0)
+        } else if (needsOnboardingRefresh) {
+          // L'app a fortement évolué : les anciens comptes revoient une fois
+          // le nouvel onboarding, avec leurs réponses existantes préremplies.
+          setShowValueIntro(true)
+          setStep(0)
+        } else if (data.completed_at) {
+          setShowValueIntro(false)
           setStep(TOTAL_STEPS)
         } else {
-          setStep(Math.max(0, Math.min(Number(data.current_step) || 0, 6)))
+          setStep(
+            Math.max(
+              0,
+              Math.min(Number(data.current_step) || 0, TOTAL_STEPS - 1),
+            ),
+          )
         }
       } else {
         await track('onboarding_displayed', 0)
@@ -239,14 +248,14 @@ export default function OnboardingPage() {
 
       setLoadingProfile(false)
     })()
-  }, [user])
+  }, [user, valueIntroPreview])
 
   async function track(
     eventName: string,
     eventStep: number,
     properties: Record<string, string | number | boolean | string[]> = {},
   ) {
-    if (!user) return
+    if (!user || valueIntroPreview) return
 
     const safeProperties = {
       ...properties,
@@ -278,12 +287,17 @@ export default function OnboardingPage() {
   async function saveProgress(nextStep: number, completed = false) {
     if (!user) return false
 
+    if (valueIntroPreview) {
+      setError('')
+      return true
+    }
+
     setSaving(true)
     setError('')
 
     const payload = {
       user_id: user.id,
-      onboarding_version: 2,
+      onboarding_version: CURRENT_ONBOARDING_VERSION,
       display_name: answers.display_name.trim() || null,
       priorities: answers.priorities,
       usage_mode: answers.usage_mode || null,
@@ -323,7 +337,7 @@ export default function OnboardingPage() {
           ? answers.custody_custom_unit || null
           : null,
       preferred_modules: answers.preferred_modules,
-      theme_key: answers.theme_key,
+      theme_key: 'deep_emerald',
       nova_mode: answers.nova_mode,
       notification_channels: answers.notification_channels,
       current_step: completed ? TOTAL_STEPS : nextStep,
@@ -352,15 +366,46 @@ export default function OnboardingPage() {
         })
     }
 
-    await supabase
+    const preset = getUserInterfacePreset(answers.theme_key)
+    const interfacePayload = {
+      user_id: user.id,
+      theme_key: preset.themeKey,
+      font_style: preset.fontStyle,
+      interface_density: preset.interfaceDensity,
+      tile_style: preset.tileStyle,
+      home_layout: preset.homeLayout,
+      reduced_motion: preset.reducedMotion,
+      high_contrast: preset.highContrast,
+    }
+
+    const { data: existingInterface, error: interfaceLookupError } = await supabase
       .from('user_interface_preferences')
-      .upsert(
-        {
-          user_id: user.id,
-          theme_key: answers.theme_key,
-        },
-        { onConflict: 'user_id' },
-      )
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (interfaceLookupError) {
+      console.error('[onboarding-v3] interface lookup failed', interfaceLookupError)
+      setError("Tes réponses sont enregistrées, mais l'ambiance n'a pas pu être appliquée.")
+      setSaving(false)
+      return false
+    }
+
+    const interfaceSave = existingInterface
+      ? await supabase
+          .from('user_interface_preferences')
+          .update(interfacePayload)
+          .eq('user_id', user.id)
+      : await supabase
+          .from('user_interface_preferences')
+          .insert(interfacePayload)
+
+    if (interfaceSave.error) {
+      console.error('[onboarding-v3] interface save failed', interfaceSave.error)
+      setError("Tes réponses sont enregistrées, mais l'ambiance n'a pas pu être appliquée.")
+      setSaving(false)
+      return false
+    }
 
     try {
       window.localStorage.setItem(
@@ -398,10 +443,12 @@ export default function OnboardingPage() {
     const ok = await saveProgress(TOTAL_STEPS, true)
     if (!ok) return
 
-    await supabase
-      .from('users')
-      .update({ onboarding_completed: true })
-      .eq('id', user?.id)
+    if (!valueIntroPreview) {
+      await supabase
+        .from('users')
+        .update({ onboarding_completed: true })
+        .eq('id', user?.id)
+    }
 
     await track('onboarding_completed', TOTAL_STEPS, {
       priorities_count: answers.priorities.length,
@@ -414,33 +461,66 @@ export default function OnboardingPage() {
     setStep(TOTAL_STEPS)
   }
 
+  const currentPalette =
+    USER_THEME_PALETTES[normalizeUserThemeKey(answers.theme_key)]
+
+  const onboardingThemeStyle = {
+    '--ob-background': currentPalette.background,
+    '--ob-surface': currentPalette.surface,
+    '--ob-surface-alt': currentPalette.surfaceAlt,
+    '--ob-primary': currentPalette.primary,
+    '--ob-primary-soft': currentPalette.primarySoft,
+    '--ob-secondary': currentPalette.secondary,
+    '--ob-accent': currentPalette.accent,
+    '--ob-metal': currentPalette.metal,
+    '--ob-text': currentPalette.textMain,
+    '--ob-muted': currentPalette.textMuted,
+    '--ob-border': currentPalette.border,
+    '--ob-shadow': currentPalette.shadow,
+  } as CSSProperties
+
+  const householdIsValid =
+    answers.household_context.length > 0 &&
+    (!answers.household_context.includes('single_parent') ||
+      (Boolean(answers.custody_mode) &&
+        (answers.custody_mode !== 'shared' ||
+          (Boolean(answers.custody_pattern) &&
+            answers.custody_start_day !== null &&
+            answers.custody_end_day !== null &&
+            Boolean(answers.custody_reference_date) &&
+            (answers.custody_pattern !== 'custom' ||
+              (Boolean(answers.custody_custom_interval) &&
+                Boolean(answers.custody_custom_unit)))))))
+
   const canContinue =
     step === 0
-      ? true
+      ? Boolean(answers.theme_key)
       : step === 1
         ? answers.display_name.trim().length > 0 &&
-          answers.priorities.length > 0
+          Boolean(answers.usage_mode) &&
+          Boolean(answers.work_rhythm) &&
+          householdIsValid
         : step === 2
-          ? Boolean(answers.usage_mode) && Boolean(answers.work_rhythm)
+          ? answers.preferred_modules.length === 3
           : step === 3
-            ? answers.household_context.length > 0 &&
-              (!answers.household_context.includes('single_parent') ||
-                (Boolean(answers.custody_mode) &&
-                  (answers.custody_mode !== 'shared' ||
-                    (Boolean(answers.custody_pattern) &&
-                      answers.custody_start_day !== null &&
-                      answers.custody_end_day !== null &&
-                      Boolean(answers.custody_reference_date) &&
-                      (answers.custody_pattern !== 'custom' ||
-                        (Boolean(answers.custody_custom_interval) &&
-                          Boolean(answers.custody_custom_unit)))))))
-            : step === 4
-              ? answers.preferred_modules.length === 3
-              : step === 5
-                ? Boolean(answers.theme_key)
-                : step === 6
-                  ? Boolean(answers.nova_mode)
-                  : true
+            ? Boolean(answers.nova_mode)
+            : true
+
+
+  if (!authLoading && !loadingProfile && showValueIntro) {
+    return (
+      <NovaeValueIntro
+        onDone={() => {
+          try {
+            window.localStorage.setItem('novae-value-intro-v3-seen', 'true')
+          } catch {}
+          setShowValueIntro(false)
+          setStep(0)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
+      />
+    )
+  }
 
   if (authLoading || loadingProfile) {
     return (
@@ -455,7 +535,7 @@ export default function OnboardingPage() {
   if (!user) return null
 
   return (
-    <main className="onboarding-shell">
+    <main className="onboarding-shell" style={onboardingThemeStyle}>
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
 
@@ -476,47 +556,90 @@ export default function OnboardingPage() {
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <span className="step-label">{step}/6</span>
+            <span className="step-label">{step}/3</span>
           </header>
         ) : null}
 
         {step === 0 ? (
-          <div className="welcome-screen">
-            <div className="brand-mark">NO</div>
-            <p className="eyebrow">Bienvenue dans NOVAÉ</p>
+          <div className="welcome-screen configuration-start">
+            <p className="eyebrow">Ton espace, à ton image</p>
             <h1>
-              Bienvenue dans la moitié de ton cerveau qui va gérer ce
-              qui t’encombre,
-              <em> pour te rendre du temps à vivre.</em>
+              Avant de commencer,
+              <em> choisis ton ambiance.</em>
             </h1>
             <p className="lead">
-              En quelques minutes, Nova va préparer un espace qui
-              comprend ton quotidien, tes priorités et la manière dont
-              tu souhaites être accompagné·e.
+              Ce sont exactement les univers de Personnalisation. L’onboarding
+              et l’application utilisent la même source : si une palette évolue,
+              cet écran évolue avec elle.
             </p>
-            <div className="promise-grid">
-              <span>Comprendre</span>
-              <span>Organiser</span>
-              <span>Anticiper</span>
+
+            <div className="theme-grid configuration-theme-grid">
+              {THEMES.map(theme => {
+                const selected =
+                  normalizeUserThemeKey(answers.theme_key) === theme.key
+
+                return (
+                  <button
+                    key={theme.key}
+                    type="button"
+                    className={`theme-card ${selected ? 'selected' : ''}`}
+                    onClick={() =>
+                      setAnswers(current => ({
+                        ...current,
+                        theme_key: theme.key,
+                      }))
+                    }
+                  >
+                    <div
+                      className="theme-preview"
+                      style={{
+                        background: theme.background,
+                        borderColor: theme.border,
+                        color: theme.textMain,
+                      }}
+                    >
+                      <i style={{ background: theme.primary }} />
+                      <b style={{ background: theme.surfaceAlt }} />
+                      <b style={{ background: theme.primarySoft }} />
+                      <b style={{ background: theme.accent }} />
+                    </div>
+                    <strong style={{ color: theme.textMain }}>{theme.name}</strong>
+                    <small style={{ color: theme.textMuted }}>
+                      {theme.description}
+                    </small>
+                    <span className="theme-status">
+                      {selected ? 'Ambiance sélectionnée' : 'Choisir'}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
+
             <p className="privacy-note">
-              Nous demandons uniquement des informations générales et
-              utiles. Pas de données intimes, pas de profilage sensible.
-              Tes choix restent modifiables.
+              Tu pourras changer ce choix plus tard depuis Personnalisation.
             </p>
-            <button className="primary-button" type="button" onClick={next}>
-              Préparer mon espace
+
+            <button
+              className="primary-button"
+              type="button"
+              disabled={!canContinue}
+              onClick={next}
+            >
+              Continuer
             </button>
           </div>
         ) : null}
 
         {step === 1 ? (
           <div className="step-screen">
-            <p className="eyebrow">Pour commencer</p>
-            <h2>Comment Nova doit-elle t’appeler&nbsp;?</h2>
+            <p className="eyebrow">1 · Les repères essentiels</p>
+            <h2>Quelques réponses pour que Nova sache à qui elle parle.</h2>
             <p className="intro">
-              Ton prénom d’usage ou un pseudonyme suffit.
+              On ne te demande que ce qui change réellement ses propositions :
+              comment t’appeler, ton rythme, ta situation et la présence des enfants.
             </p>
+
+            <h3>Comment Nova doit-elle t’appeler&nbsp;?</h3>
             <input
               className="text-input"
               value={answers.display_name}
@@ -527,43 +650,9 @@ export default function OnboardingPage() {
                 }))
               }
               placeholder="Ton prénom ou ton pseudo"
-              autoFocus
             />
 
-            <h3>Qu’est-ce qui te prend le plus de place aujourd’hui&nbsp;?</h3>
-            <p className="helper">Choisis jusqu’à 3 priorités.</p>
-            <div className="choice-grid two-columns">
-              {PRIORITIES.map(([value, label]) => {
-                const selected = answers.priorities.includes(value)
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`choice-card ${selected ? 'selected' : ''}`}
-                    onClick={() =>
-                      setAnswers(current => ({
-                        ...current,
-                        priorities: toggleLimited(
-                          current.priorities,
-                          value,
-                          3,
-                        ),
-                      }))
-                    }
-                  >
-                    <span>{label}</span>
-                    <small>{selected ? 'Sélectionné' : 'Choisir'}</small>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        {step === 2 ? (
-          <div className="step-screen">
-            <p className="eyebrow">Ton quotidien</p>
-            <h2>Nova va surtout t’aider pour…</h2>
+            <h3>Nova va surtout t’aider pour…</h3>
             <div className="choice-grid three-columns">
               {[
                 ['personal', 'Ma vie personnelle'],
@@ -616,18 +705,11 @@ export default function OnboardingPage() {
                 </button>
               ))}
             </div>
-          </div>
-        ) : null}
 
-        {step === 3 ? (
-          <div className="step-screen">
-            <p className="eyebrow">Ton quotidien</p>
-            <h2>Qui fait partie de ton quotidien&nbsp;?</h2>
-            <p className="intro">
-              Choisis toutes les situations qui correspondent. Aucune
-              identité ni information personnelle n’est demandée.
+            <h3>Qui fait partie de ton quotidien&nbsp;?</h3>
+            <p className="helper">
+              Choisis toutes les situations qui correspondent.
             </p>
-
             <div className="choice-grid two-columns">
               {[
                 ['alone', 'Je vis seul·e'],
@@ -945,33 +1027,44 @@ export default function OnboardingPage() {
               « Je vis seul·e » est exclusif. Les autres choix peuvent être
               combinés, par exemple « En couple » et « Avec enfant(s) ».
             </div>
+
           </div>
         ) : null}
 
-        {step === 4 ? (
+        {step === 2 ? (
           <div className="step-screen">
-            <p className="eyebrow">Ton espace</p>
-            <h2>Choisis les 3 modules que tu veux voir en premier.</h2>
+            <p className="eyebrow">2 · Ton espace</p>
+            <h2>Choisis les 3 espaces que tu veux voir en premier.</h2>
             <p className="intro">
-              Les autres resteront accessibles à tout moment.
+              Cette sélection sert aussi à donner à Nova tes premières priorités.
+              Les autres modules restent accessibles à tout moment.
             </p>
+
             <div className="module-grid">
               {MODULES.map(([value, label]) => {
                 const selected = answers.preferred_modules.includes(value)
+
                 return (
                   <button
                     key={value}
                     type="button"
                     className={`module-card ${selected ? 'selected' : ''}`}
                     onClick={() =>
-                      setAnswers(current => ({
-                        ...current,
-                        preferred_modules: toggleLimited(
+                      setAnswers(current => {
+                        const preferredModules = toggleLimited(
                           current.preferred_modules,
                           value,
                           3,
-                        ),
-                      }))
+                        )
+
+                        return {
+                          ...current,
+                          preferred_modules: preferredModules,
+                          priorities: preferredModules
+                            .map(module => MODULE_TO_PRIORITY[module])
+                            .filter(Boolean),
+                        }
+                      })
                     }
                   >
                     <span className="module-icon">{label.slice(0, 1)}</span>
@@ -981,61 +1074,21 @@ export default function OnboardingPage() {
                 )
               })}
             </div>
+
             <p className="selection-count">
               {answers.preferred_modules.length}/3 sélectionnés
             </p>
-          </div>
-        ) : null}
 
-        {step === 5 ? (
-          <div className="step-screen">
-            <p className="eyebrow">Ton univers</p>
-            <h2>Dans quelle ambiance veux-tu évoluer&nbsp;?</h2>
-            <p className="intro">
-              Le thème s’appliquera immédiatement à ton interface.
-            </p>
-            <div className="theme-grid">
-              {THEMES.map(theme => (
-                <button
-                  key={theme.key}
-                  type="button"
-                  className={`theme-card ${
-                    answers.theme_key === theme.key ? 'selected' : ''
-                  }`}
-                  onClick={() =>
-                    setAnswers(current => ({
-                      ...current,
-                      theme_key: theme.key,
-                    }))
-                  }
-                  style={{
-                    background: theme.background,
-                    color: theme.foreground,
-                  }}
-                >
-                  <span
-                    className="theme-preview"
-                    style={{
-                      background: theme.foreground,
-                      borderColor: theme.accent,
-                    }}
-                  >
-                    <i style={{ background: theme.accent }} />
-                    <b />
-                    <b />
-                    <b />
-                  </span>
-                  <strong>{theme.name}</strong>
-                  <small>{theme.description}</small>
-                </button>
-              ))}
+            <div className="validation-note">
+              Pas de doublon : ce sont ces trois tuiles qui définissent tes
+              modules principaux et tes priorités de départ.
             </div>
           </div>
         ) : null}
 
-        {step === 6 ? (
+        {step === 3 ? (
           <div className="step-screen">
-            <p className="eyebrow">Ton équilibre avec Nova</p>
+            <p className="eyebrow">3 · Ton équilibre avec Nova</p>
             <h2>Comment veux-tu qu’elle t’accompagne&nbsp;?</h2>
             <div className="choice-grid">
               {[
@@ -1124,23 +1177,17 @@ export default function OnboardingPage() {
             <div className="brand-mark">NO</div>
             <p className="eyebrow">Ton espace est prêt</p>
             <h1>
-              Nova peut maintenant commencer à
-              <em> te rendre de l’espace mental.</em>
+              Nova a maintenant les premiers repères
+              <em> pour t’aider sans repartir de zéro.</em>
             </h1>
             <p className="lead">
-              Parle-lui d’une chose à organiser, d’une tâche à ne pas
-              oublier ou d’un document qui te préoccupe. Elle comprendra,
-              proposera, puis attendra ta validation.
+              Tes nouveaux repères sont enregistrés. Tu pourras les compléter ou
+              les modifier plus tard ; pour l’instant, tu peux simplement parler à Nova.
             </p>
             <button
               className="primary-button"
               type="button"
-              onClick={async () => {
-                if (!saving) {
-                  await track('first_nova_cta_clicked', TOTAL_STEPS)
-                  router.replace('/nova-v2')
-                }
-              }}
+              onClick={() => router.replace('/nova-v2')}
             >
               Parler à Nova maintenant
             </button>
@@ -1157,14 +1204,14 @@ export default function OnboardingPage() {
         {step > 0 && step < TOTAL_STEPS ? (
           <footer className="step-footer">
             {error ? <p className="error-message">{error}</p> : null}
-            {step === 6 ? (
+            {step === 3 ? (
               <button
                 type="button"
                 className="primary-button"
                 disabled={!canContinue || saving}
                 onClick={finish}
               >
-                {saving ? 'Préparation…' : 'Terminer et préparer Nova'}
+                {saving ? 'Préparation…' : 'Créer mon espace'}
               </button>
             ) : (
               <button
@@ -1745,6 +1792,233 @@ const styles = `
 
     h3 {
       font-size: 20px;
+    }
+  }
+
+  /* V3 — configuration synchronisée avec la personnalisation réelle */
+  .onboarding-shell {
+    background:
+      radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--ob-accent) 16%, transparent), transparent 30%),
+      radial-gradient(circle at 90% 88%, color-mix(in srgb, var(--ob-primary) 10%, transparent), transparent 34%),
+      var(--ob-background);
+    color: var(--ob-text);
+  }
+
+  .loading-shell p,
+  .lead,
+  .intro,
+  .helper,
+  .selection-count,
+  .step-label,
+  .choice-card small,
+  .module-card small,
+  .custom-frequency-grid label {
+    color: var(--ob-muted);
+  }
+
+  .ambient-one {
+    background: color-mix(in srgb, var(--ob-accent) 16%, transparent);
+  }
+
+  .ambient-two {
+    background: color-mix(in srgb, var(--ob-primary) 10%, transparent);
+  }
+
+  .onboarding-card {
+    border-color: var(--ob-border);
+    background: color-mix(in srgb, var(--ob-surface) 94%, transparent);
+    box-shadow: 0 32px 90px var(--ob-shadow);
+  }
+
+  .back-button,
+  .choice-card,
+  .module-card,
+  .theme-card,
+  .text-input,
+  .day-button {
+    border-color: var(--ob-border);
+    color: var(--ob-text);
+  }
+
+  .back-button {
+    color: var(--ob-primary);
+    background: var(--ob-surface);
+  }
+
+  .progress-track {
+    background: var(--ob-primary-soft);
+  }
+
+  .progress-value {
+    background: linear-gradient(90deg, var(--ob-primary), var(--ob-accent));
+  }
+
+  .brand-mark,
+  .loading-mark,
+  .module-icon {
+    border-color: var(--ob-metal);
+    background: var(--ob-primary);
+    color: var(--ob-metal);
+    box-shadow: 0 16px 35px var(--ob-shadow);
+  }
+
+  .eyebrow {
+    color: var(--ob-accent);
+  }
+
+  h1,
+  h2,
+  h3,
+  .choice-card.descriptive strong,
+  .module-card strong {
+    color: var(--ob-primary);
+  }
+
+  h1 em {
+    color: var(--ob-accent);
+  }
+
+  .privacy-note,
+  .validation-note,
+  .conditional-panel {
+    border-color: var(--ob-border);
+    background: var(--ob-surface-alt);
+    color: var(--ob-muted);
+  }
+
+  .text-input {
+    background: var(--ob-surface);
+    color: var(--ob-text);
+  }
+
+  .text-input:focus,
+  .choice-card.selected,
+  .module-card.selected,
+  .theme-card.selected,
+  .day-button.selected {
+    border-color: var(--ob-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ob-accent) 14%, transparent);
+  }
+
+  .choice-card,
+  .module-card,
+  .theme-card,
+  .day-button {
+    background: color-mix(in srgb, var(--ob-surface) 94%, transparent);
+  }
+
+  .choice-card:hover,
+  .module-card:hover,
+  .theme-card:hover {
+    border-color: var(--ob-accent);
+  }
+
+  .primary-button {
+    background: linear-gradient(135deg, var(--ob-primary), var(--ob-secondary));
+    box-shadow: 0 14px 30px var(--ob-shadow);
+  }
+
+  .secondary-button {
+    border-color: var(--ob-border);
+    color: var(--ob-primary);
+  }
+
+  .configuration-start {
+    min-height: auto;
+  }
+
+  .configuration-theme-grid {
+    margin: 26px 0 22px;
+  }
+
+  .configuration-theme-grid .theme-card {
+    position: relative;
+  }
+
+  .theme-status {
+    margin-top: auto;
+    color: var(--ob-primary);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+
+  .setup-preview-card {
+    margin: 4px 0 20px;
+    padding: 20px;
+    display: grid;
+    gap: 15px;
+    border: 1px solid var(--ob-border);
+    border-radius: 20px;
+    background: var(--ob-surface-alt);
+  }
+
+  .setup-preview-card > div:first-child {
+    display: grid;
+    gap: 5px;
+  }
+
+  .setup-preview-card span {
+    color: var(--ob-muted);
+    font-size: 12px;
+  }
+
+  .setup-preview-card strong {
+    color: var(--ob-primary);
+    font-family: var(--novae-font-title, Georgia, serif);
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .setup-preview-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .setup-preview-chips span {
+    padding: 8px 11px;
+    border: 1px solid var(--ob-border);
+    border-radius: 999px;
+    background: var(--ob-surface);
+    color: var(--ob-text);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  @media (max-width: 720px) {
+    .configuration-theme-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .configuration-theme-grid .theme-card {
+      min-height: 155px;
+      padding: 12px;
+    }
+
+    .configuration-theme-grid .theme-preview {
+      height: 82px;
+    }
+  }
+
+  @media (max-width: 390px) {
+    .configuration-theme-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .step-screen > h3 {
+    margin-top: 28px;
+  }
+
+  .step-screen .conditional-panel {
+    margin-bottom: 6px;
+  }
+
+  @media (max-width: 720px) {
+    .step-screen {
+      padding-bottom: 6px;
     }
   }
 `
