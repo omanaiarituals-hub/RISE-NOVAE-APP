@@ -54,7 +54,7 @@ export class AnthropicNovaProvider implements NovaAIProvider {
             messages: [{ role: 'user', content: buildNovaPlannerUserPrompt(input) }],
           }),
         },
-        25_000
+        18_000
       )
     } catch (error) {
       throw new NovaProviderError({

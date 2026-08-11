@@ -91,7 +91,7 @@ export class OpenAINovaProvider implements NovaAIProvider {
             },
           }),
         },
-        25_000
+        18_000
       )
     } catch (error) {
       throw new NovaProviderError({

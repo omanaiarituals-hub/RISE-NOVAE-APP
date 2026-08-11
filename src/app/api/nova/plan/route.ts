@@ -7,6 +7,7 @@ import {
   type NovaProviderPreference,
 } from '@/lib/nova-ai/types'
 import { rateLimit } from '@/lib/rateLimit'
+import { canAccess, incrementAiChatCount } from '@/lib/permissions'
 import { createNovaExecutionToken } from '@/lib/nova-ai/action-token'
 import {
   findBestTaskMatches,
@@ -21,7 +22,7 @@ import { formatParisDateTime } from '@/lib/nova-ai/timezone'
 
 export const runtime = 'nodejs'
 export const preferredRegion = 'dub1'
-export const maxDuration = 30
+export const maxDuration = 60
 
 type ActiveTaskContextRow = {
   id: string
@@ -1193,7 +1194,7 @@ async function runNovaWebSearch(
   }
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 30_000)
+  const timeout = setTimeout(() => controller.abort(), 8_000)
 
 
   try {
@@ -1311,6 +1312,14 @@ function frenchLocal(iso: string | null | undefined): string {
   }
 }
 
+function capContext(value: string | undefined, maxChars: number, keepEnd = false): string | undefined {
+  if (!value) return value
+  if (value.length <= maxChars) return value
+  const marker = '\n[… contexte tronqué pour maîtriser le coût et la latence …]\n'
+  if (keepEnd) return `${marker}${value.slice(-(maxChars - marker.length))}`
+  return `${value.slice(0, maxChars - marker.length)}${marker}`
+}
+
 export async function POST(request: NextRequest) {
 try {
     const authHeader = request.headers.get('authorization')
@@ -1342,6 +1351,23 @@ try {
 const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
+
+    // Contrôle commercial côté serveur : trial/premium illimité, free limité au quota mensuel.
+    const access = await canAccess(supabaseAdmin, 'ai_coach', user.id)
+    if (!access.allowed) {
+      return NextResponse.json(
+        {
+          error: access.reason || 'premium_required',
+          message: access.reason === 'monthly_limit_reached'
+            ? 'Tu as utilisé tes essais Nova du mois. Passe à Premium pour continuer.'
+            : 'Cette fonctionnalité nécessite un accès Premium.',
+          quota_remaining: access.quota_remaining,
+          quota_max: access.quota_max,
+          reset_at: access.reset_at,
+        },
+        { status: 403 }
+      )
+    }
 
     const rl = await rateLimit(supabaseAdmin, user.id, 'nova_v2', { max: 30, windowMinutes: 60 })
     if (!rl.allowed) {
@@ -1414,6 +1440,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
             })
             .filter(Boolean)
             .join('\n')
+          conversationHistory = capContext(conversationHistory, 10_000, true) || ''
         }
       }
     }
@@ -1685,7 +1712,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       if (shoppingText) parts.push(`Liste de courses à acheter :\n${shoppingText}`)
       if (routinesText) parts.push(`Routines actives :\n${routinesText}`)
       if (recipesText) parts.push(`Recettes déjà enregistrées (identifiants internes, ne jamais les afficher) :\n${recipesText}`)
-      userContext = parts.length > 0 ? parts.join('\n\n') : undefined
+      userContext = capContext(parts.length > 0 ? parts.join('\n\n') : undefined, 18_000)
     } catch (contextError) {
       console.warn('[api/nova/plan] contexte indisponible, poursuite sans', contextError)
     }
@@ -1731,6 +1758,30 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       },
       provider
     )
+
+    // Télémétrie de coût : uniquement des métriques, jamais le prompt ni le contenu utilisateur.
+    try {
+      await supabaseAdmin.from('ai_usage').insert({
+        user_id: user.id,
+        route: 'nova_plan',
+        provider: result.provider,
+        model: result.model,
+        input_tokens: result.usage?.inputTokens ?? null,
+        output_tokens: result.usage?.outputTokens ?? null,
+        duration_ms: result.durationMs ?? null,
+        success: true,
+      })
+    } catch (usageError) {
+      console.warn('[api/nova/plan] ai_usage non enregistré', usageError)
+    }
+
+    // Le quota commercial ne doit être consommé qu'après un appel IA réussi.
+    // Pour trial/premium l'incrément n'a pas d'effet sur l'accès, mais garde une métrique cohérente.
+    try {
+      await incrementAiChatCount(supabaseAdmin, user.id)
+    } catch (quotaError) {
+      console.warn('[api/nova/plan] quota IA non incrémenté', quotaError)
+    }
 
     result.plan = applyTaskIdentityGuard(
       result.plan,

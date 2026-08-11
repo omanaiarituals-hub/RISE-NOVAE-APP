@@ -156,14 +156,10 @@ export async function incrementScanCount(
   supabase: SupabaseClient,
   userId: string
 ): Promise<void> {
-  const quota = await getOrCreateQuota(supabase, userId);
-  const { error } = await supabase
-    .from('user_quotas')
-    .update({
-      scan_count_month: (quota.scan_count_month ?? 0) + 1,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId);
+  const { error } = await supabase.rpc('increment_user_monthly_quota', {
+    p_user_id: userId,
+    p_quota: 'scan',
+  });
   if (error) {
     console.error('[incrementScanCount] failed:', error);
     throw new Error(`Failed to increment scan count: ${error.message}`);
@@ -174,14 +170,10 @@ export async function incrementAiChatCount(
   supabase: SupabaseClient,
   userId: string
 ): Promise<void> {
-  const quota = await getOrCreateQuota(supabase, userId);
-  const { error } = await supabase
-    .from('user_quotas')
-    .update({
-      ai_chat_count_month: (quota.ai_chat_count_month ?? 0) + 1,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId);
+  const { error } = await supabase.rpc('increment_user_monthly_quota', {
+    p_user_id: userId,
+    p_quota: 'ai_chat',
+  });
   if (error) {
     console.error('[incrementAiChatCount] failed:', error);
     throw new Error(`Failed to increment ai chat count: ${error.message}`);
@@ -233,11 +225,11 @@ async function getOrCreateQuota(supabase: SupabaseClient, userId: string) {
   const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
   const patch: Record<string, any> = {};
 
-  if (existing.scan_count_reset_at && now >= new Date(existing.scan_count_reset_at)) {
+  if (!existing.scan_count_reset_at || now >= new Date(existing.scan_count_reset_at)) {
     patch.scan_count_month = 0;
     patch.scan_count_reset_at = nextReset;
   }
-  if (existing.ai_chat_count_reset_at && now >= new Date(existing.ai_chat_count_reset_at)) {
+  if (!existing.ai_chat_count_reset_at || now >= new Date(existing.ai_chat_count_reset_at)) {
     patch.ai_chat_count_month = 0;
     patch.ai_chat_count_reset_at = nextReset;
   }
