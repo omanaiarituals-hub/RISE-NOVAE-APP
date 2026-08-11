@@ -1,11 +1,12 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { NovaActionPlan } from './types'
 
-const TOKEN_VERSION = 1
+const TOKEN_VERSION = 2
 const DEFAULT_TTL_SECONDS = 20 * 60
 
 interface NovaExecutionTokenPayload {
-  version: 1
+  version: 2
+  executionId: string
   userId: string
   issuedAt: number
   expiresAt: number
@@ -44,6 +45,8 @@ function isExecutionPayload(value: unknown): value is NovaExecutionTokenPayload 
   const payload = value as Partial<NovaExecutionTokenPayload>
   return (
     payload.version === TOKEN_VERSION &&
+    typeof payload.executionId === 'string' &&
+    payload.executionId.length >= 32 &&
     typeof payload.userId === 'string' &&
     typeof payload.issuedAt === 'number' &&
     typeof payload.expiresAt === 'number' &&
@@ -60,6 +63,7 @@ export function createNovaExecutionToken(
   const now = Math.floor(Date.now() / 1000)
   const payload: NovaExecutionTokenPayload = {
     version: TOKEN_VERSION,
+    executionId: randomUUID(),
     userId,
     issuedAt: now,
     expiresAt: now + Math.max(60, ttlSeconds),

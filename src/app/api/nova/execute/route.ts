@@ -756,6 +756,8 @@ async function mergeAndVerifyTasks(
 }
 
 export async function POST(request: NextRequest) {
+  let executionReceipt: { client: any; userId: string; executionId: string } | null = null
+
   try {
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
@@ -906,6 +908,48 @@ export async function POST(request: NextRequest) {
 
     if (taskActions.length > 5 || reminderActions.length > 5 || mergeActions.length > 3 || calendarActions.length > 5 || lifecycleActions.length > 8 || noteActions.length > 10 || updateNoteActions.length > 10 || deleteNoteActions.length > 20 || shoppingActions.length > 20 || clearShoppingActions.length > 1 || mealActions.length > 10 || updateMealActions.length > 10 || deleteMealActions.length > 10 || recipeActions.length > 5 || routineActions.length > 5 || updateRoutineActions.length > 10 || deleteRoutineActions.length > 20) {
       return NextResponse.json({ error: 'Trop d’actions dans une seule validation.' }, { status: 400 })
+    }
+
+    // Anti-rejeu : un jeton d'exécution signé ne peut être consommé qu'une seule fois.
+    // La réservation se fait juste avant la première écriture métier, après toutes les validations statiques.
+    const { data: beginExecutionStatus, error: beginExecutionError } = await adminClient.rpc(
+      'begin_nova_execution',
+      {
+        p_execution_id: payload.executionId,
+        p_user_id: user.id,
+        p_expires_at: new Date(payload.expiresAt * 1000).toISOString(),
+      }
+    )
+
+    if (beginExecutionError) {
+      console.error('[api/nova/execute] begin execution failed', {
+        message: beginExecutionError.message,
+      })
+      return NextResponse.json(
+        {
+          error: 'execution_guard_unavailable',
+          message: 'La validation de sécurité est temporairement indisponible. Réessaie dans un instant.',
+        },
+        { status: 503 }
+      )
+    }
+
+    if (beginExecutionStatus !== 'started') {
+      return NextResponse.json(
+        {
+          error: 'execution_already_used',
+          message: beginExecutionStatus === 'completed'
+            ? 'Cette proposition a déjà été exécutée. Je ne la rejoue pas pour éviter un doublon.'
+            : 'Cette proposition est déjà en cours de traitement. Attends quelques secondes avant de réessayer.',
+        },
+        { status: 409 }
+      )
+    }
+
+    executionReceipt = {
+      client: adminClient,
+      userId: user.id,
+      executionId: payload.executionId,
     }
 
     type SimpleExecutionItem = {
@@ -2110,6 +2154,20 @@ export async function POST(request: NextRequest) {
     }
 
     const httpStatus = tasksCreated + remindersScheduled + tasksMerged + calendarEventsCreated + actionsUpdated + actionsCancelled + alreadyExists + notesCreated + shoppingCreated + mealsPlanned + mealsUpdated + mealsDeleted + recipesCreated + recipesUpdated + routinesCreated + routinesUpdated + routinesDeleted > 0 ? 200 : (results.some(item => item.status === 'conflict') ? 409 : 500)
+
+    const { error: finishExecutionError } = await adminClient.rpc('finish_nova_execution', {
+      p_execution_id: payload.executionId,
+      p_user_id: user.id,
+      p_status: 'completed',
+      p_result_status: httpStatus,
+    })
+    if (finishExecutionError) {
+      console.error('[api/nova/execute] finish execution failed', {
+        message: finishExecutionError.message,
+      })
+    }
+    executionReceipt = null
+
     return NextResponse.json(
       {
         ok: failed === 0,
@@ -2138,6 +2196,19 @@ export async function POST(request: NextRequest) {
       { status: httpStatus }
     )
   } catch (error) {
+    if (executionReceipt) {
+      try {
+        await executionReceipt.client.rpc('finish_nova_execution', {
+          p_execution_id: executionReceipt.executionId,
+          p_user_id: executionReceipt.userId,
+          p_status: 'failed',
+          p_result_status: 500,
+        })
+      } catch (receiptError) {
+        console.error('[api/nova/execute] failed to close execution receipt', receiptError)
+      }
+    }
+
     console.error('[api/nova/execute] error', error)
     return NextResponse.json(
       {

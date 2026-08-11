@@ -7,11 +7,14 @@ import {
   type AdministrativeDocumentExtractedData,
 } from '@/lib/admin-documents/types'
 import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
+import { rateLimit } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
+const DOCUMENT_ANALYSIS_MAX_PER_HOUR = 10
+const ANTHROPIC_TIMEOUT_MS = 22_000
 
 async function getSupabaseServerClient() {
   const cookieStore = await cookies()
@@ -313,6 +316,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Module administratif réservé à la phase de test.' }, { status: 403 })
     }
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json({ error: 'Configuration serveur incomplète.' }, { status: 500 })
+    }
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+
+    const rl = await rateLimit(adminClient, user.id, 'admin_documents_extract', {
+      max: DOCUMENT_ANALYSIS_MAX_PER_HOUR,
+      windowMinutes: 60,
+    })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Trop d’analyses en peu de temps. Réessaie plus tard.' },
+        { status: 429 }
+      )
+    }
+
     const formData = await request.formData()
     const files = formData.getAll('documents').filter((item): item is File => item instanceof File)
 
@@ -343,28 +366,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Configuration IA manquante.' }, { status: 500 })
     }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2200,
-        temperature: 0,
-        system: ADMINISTRATIVE_DOCUMENT_EXTRACTION_SYSTEM_PROMPT,
-        messages: [{
-          role: 'user',
-          content: await buildAnthropicContent(files),
-        }],
-      }),
-    })
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS)
+    const startedAt = Date.now()
+    let response: Response
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 2200,
+          temperature: 0,
+          system: ADMINISTRATIVE_DOCUMENT_EXTRACTION_SYSTEM_PROMPT,
+          messages: [{
+            role: 'user',
+            content: await buildAnthropicContent(files),
+          }],
+        }),
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return NextResponse.json(
+          { error: "L'analyse a pris trop de temps. Réessaie avec moins de pages." },
+          { status: 504 }
+        )
+      }
+      throw error
+    } finally {
+      clearTimeout(timeout)
+    }
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error('[documents extract] anthropic failed', { status: response.status, errorText })
+      console.error('[documents extract] anthropic failed', { status: response.status })
+      await adminClient.from('ai_usage').insert({
+        user_id: user.id,
+        route: 'admin_documents_extract',
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5-20251001',
+        duration_ms: Date.now() - startedAt,
+        success: false,
+      })
       return NextResponse.json(
         { error: "Nova n'arrive pas à analyser cet ensemble. Vérifie la netteté des pages puis réessaie." },
         { status: 502 }
@@ -372,6 +419,16 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json()
+    await adminClient.from('ai_usage').insert({
+      user_id: user.id,
+      route: 'admin_documents_extract',
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5-20251001',
+      input_tokens: Number.isFinite(Number(data?.usage?.input_tokens)) ? Number(data.usage.input_tokens) : null,
+      output_tokens: Number.isFinite(Number(data?.usage?.output_tokens)) ? Number(data.usage.output_tokens) : null,
+      duration_ms: Date.now() - startedAt,
+      success: true,
+    })
     const rawText = data?.content?.find((item: any) => item?.type === 'text')?.text
 
     if (!rawText || typeof rawText !== 'string') {
@@ -382,7 +439,10 @@ export async function POST(request: NextRequest) {
     try {
       extraction = safeParseExtraction(rawText, files.length)
     } catch (parseError) {
-      console.error('[documents extract] JSON parse failed', { parseError, rawText })
+      console.error('[documents extract] JSON parse failed', {
+        message: parseError instanceof Error ? parseError.message : 'invalid_json',
+        responseLength: rawText.length,
+      })
       return NextResponse.json(
         { error: "Nova a lu le contenu mais la classification n'est pas exploitable. Réessaie." },
         { status: 502 }

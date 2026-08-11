@@ -1,14 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createHash } from 'node:crypto'
 
 export const runtime = 'nodejs'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const BREVO_LIST_ID = 8
 const BREVO_CONFIRMATION_TEMPLATE_ID = 49
+const WAITLIST_IP_MAX_PER_HOUR = 10
+const WAITLIST_EMAIL_MAX_PER_DAY = 3
 
 function normalizeEmail(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : ''
+}
+
+
+
+function requestIp(req: NextRequest): string {
+  const vercelForwarded = req.headers.get('x-vercel-forwarded-for')
+  const forwarded = vercelForwarded || req.headers.get('x-forwarded-for') || ''
+  const parts = forwarded.split(',').map((value) => value.trim()).filter(Boolean)
+  return parts[parts.length - 1] || 'unknown'
+}
+
+function privacyKey(value: string): string {
+  return createHash('sha256').update(value).digest('hex')
+}
+
+async function consumePublicLimit(
+  supabase: any,
+  key: string,
+  action: string,
+  max: number,
+  windowMinutes: number
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('consume_public_request_rate_limit', {
+    p_key: key,
+    p_action: action,
+    p_max: max,
+    p_window_minutes: windowMinutes,
+  })
+
+  if (error) {
+    console.error('[waitlist] rate limit unavailable', { action, message: error.message })
+    return false
+  }
+
+  return data === true
 }
 
 export async function POST(req: NextRequest) {
@@ -43,6 +81,44 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
+
+    const ipAllowed = await consumePublicLimit(
+      supabase,
+      privacyKey(`ip:${requestIp(req)}`),
+      'waitlist_ip',
+      WAITLIST_IP_MAX_PER_HOUR,
+      60
+    )
+    if (!ipAllowed) {
+      return NextResponse.json(
+        { error: 'Trop de tentatives. Réessaie un peu plus tard.' },
+        { status: 429 }
+      )
+    }
+
+    const emailAllowed = await consumePublicLimit(
+      supabase,
+      privacyKey(`email:${email}`),
+      'waitlist_email',
+      WAITLIST_EMAIL_MAX_PER_DAY,
+      24 * 60
+    )
+    if (!emailAllowed) {
+      return NextResponse.json(
+        { error: 'Cette adresse a déjà été enregistrée récemment.' },
+        { status: 429 }
+      )
+    }
+
+    const { data: previousSignup } = await supabase
+      .from('waitlist_signups')
+      .select('confirmation_sent_at')
+      .eq('email_normalized', email)
+      .maybeSingle()
+
+    const confirmationAlreadyRecent = previousSignup?.confirmation_sent_at
+      ? Date.now() - new Date(previousSignup.confirmation_sent_at).getTime() < 24 * 60 * 60 * 1000
+      : false
 
     const { error: saveError } = await supabase
       .from('waitlist_signups')
@@ -103,7 +179,7 @@ export async function POST(req: NextRequest) {
           )
         }
 
-        if (brevoStatus === 'synced') {
+        if (brevoStatus === 'synced' && !confirmationAlreadyRecent) {
           const emailResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
             method: 'POST',
             headers: {
@@ -143,7 +219,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Ton adresse est bien enregistrée.',
-      alreadyRegistered: false,
+      alreadyRegistered: Boolean(previousSignup),
     })
   } catch (error) {
     console.error('[waitlist] Unexpected error:', error)

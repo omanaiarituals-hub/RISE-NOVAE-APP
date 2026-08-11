@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { scryptSync, timingSafeEqual } from 'crypto'
 import { canAccessAdminDocuments } from '@/lib/admin-documents/access'
 import { createVaultAccessToken } from '@/lib/vault/tokens'
+import { rateLimit } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -12,6 +13,7 @@ export const maxDuration = 30
 const PIN_REGEX = /^\d{4,8}$/
 const MAX_FAILED_ATTEMPTS = 5
 const LOCK_DURATION_MINUTES = 10
+const PIN_VERIFY_MAX_PER_HOUR = 10
 
 async function getSupabaseServerClient() {
   const cookieStore = await cookies()
@@ -76,10 +78,6 @@ function hashPin(pin: string, salt: string): Buffer {
   return scryptSync(pin, salt, 64)
 }
 
-function addMinutes(date: Date, minutes: number): string {
-  return new Date(date.getTime() + minutes * 60 * 1000).toISOString()
-}
-
 export async function POST(request: NextRequest) {
   try {
     const bearerToken = getBearerToken(request)
@@ -106,6 +104,17 @@ export async function POST(request: NextRequest) {
     }
 
     const adminClient = getServiceRoleClient()
+
+    const rl = await rateLimit(adminClient, user.id, 'vault_pin_verify', {
+      max: PIN_VERIFY_MAX_PER_HOUR,
+      windowMinutes: 60,
+    })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Trop de tentatives de déverrouillage. Réessaie plus tard.' },
+        { status: 429 }
+      )
+    }
 
     const body = await request.json().catch(() => null)
     const pin = body?.pin
@@ -159,18 +168,24 @@ export async function POST(request: NextRequest) {
       timingSafeEqual(expectedHash, receivedHash)
 
     if (!isValid) {
-      const failedAttempts = (settings.vault_failed_attempts || 0) + 1
-      const shouldLock = failedAttempts >= MAX_FAILED_ATTEMPTS
-      const lockedUntilValue = shouldLock ? addMinutes(new Date(), LOCK_DURATION_MINUTES) : null
+      const { data: failureState, error: failureError } = await adminClient.rpc(
+        'record_vault_pin_failure',
+        {
+          p_user_id: user.id,
+          p_max_attempts: MAX_FAILED_ATTEMPTS,
+          p_lock_minutes: LOCK_DURATION_MINUTES,
+        }
+      )
 
-      await adminClient
-        .from('user_security_settings')
-        .update({
-          vault_failed_attempts: failedAttempts,
-          vault_locked_until: lockedUntilValue,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', user.id)
+      if (failureError) {
+        console.error('[vault pin verify] failed to record PIN failure', failureError.message)
+        return NextResponse.json({ error: 'Impossible de vérifier le code PIN.' }, { status: 500 })
+      }
+
+      const state = Array.isArray(failureState) ? failureState[0] : failureState
+      const failedAttempts = Number(state?.failed_attempts || MAX_FAILED_ATTEMPTS)
+      const lockedUntilValue = typeof state?.locked_until === 'string' ? state.locked_until : null
+      const shouldLock = Boolean(lockedUntilValue)
 
       return NextResponse.json(
         {
