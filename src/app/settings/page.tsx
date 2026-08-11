@@ -21,24 +21,47 @@ const C = {
 }
 
 interface NotifPrefs {
-  notif_routines: boolean
-  notif_conflits: boolean
+  notif_morning_brief: boolean
+  notif_evening_prepare: boolean
+  notif_weekly_review: boolean
+  notif_planner_reminders: boolean
   notif_communaute: boolean
   notif_anniversaires: boolean
-  notif_inactivite: boolean
-  notif_bilan: boolean
 }
 
 interface UserPrefs {
-  routine_morning_time: string
-  routine_evening_time: string
+  notification_morning_time: string
+  notification_evening_time: string
+  notification_weekly_day: number
+  notification_weekly_time: string
+  timezone: string
 }
 
-const NOTIF_CATEGORIES: Array<{ key: keyof NotifPrefs; emoji: string; label: string; desc: string }> = [
-  { key: 'notif_routines', emoji: '☀️', label: 'Résumé du jour', desc: 'Ton point du matin et les rappels utiles' },
-  { key: 'notif_conflits', emoji: '📅', label: 'Planning & rappels', desc: "Rappels d'événements et de tâches" },
-  { key: 'notif_communaute', emoji: '💬', label: 'Communauté', desc: 'Réponses et interactions dans la communauté' },
-  { key: 'notif_anniversaires', emoji: '🎂', label: 'Anniversaires', desc: 'Rappels J-7 et le jour J pour ta famille' },
+type NotifCategory = {
+  key: keyof NotifPrefs
+  emoji: string
+  label: string
+  desc: string
+  schedule?: 'morning' | 'evening' | 'weekly'
+}
+
+const NOTIF_CATEGORIES: NotifCategory[] = [
+  { key: 'notif_planner_reminders', emoji: '📅', label: 'Rappels de mon planning', desc: "Le rappel choisi sur chaque événement ou tâche." },
+  { key: 'notif_morning_brief', emoji: '☀️', label: 'Mon programme du jour', desc: 'Planning et tâches utiles pour démarrer la journée.', schedule: 'morning' },
+  { key: 'notif_evening_prepare', emoji: '🌙', label: 'Anticiper demain', desc: "Seulement quand quelque chose mérite d'être préparé pour demain.", schedule: 'evening' },
+  { key: 'notif_weekly_review', emoji: '✦', label: 'Bilan de ma semaine', desc: 'Tâches terminées, tâches restantes et invitation à les replacer avec Nova.', schedule: 'weekly' },
+  { key: 'notif_communaute', emoji: '💬', label: 'Communauté', desc: 'Réponses et interactions dans la communauté.' },
+  { key: 'notif_anniversaires', emoji: '🎂', label: 'Anniversaires', desc: 'Rappels J-7 et le jour J pour ta famille.' },
+]
+
+const WEEK_DAYS = [
+  { value: 0, label: 'Dimanche' },
+  { value: 1, label: 'Lundi' },
+  { value: 2, label: 'Mardi' },
+  { value: 3, label: 'Mercredi' },
+  { value: 4, label: 'Jeudi' },
+  { value: 5, label: 'Vendredi' },
+  { value: 6, label: 'Samedi' },
 ]
 
 export default function SettingsPage() {
@@ -46,12 +69,19 @@ export default function SettingsPage() {
   const router = useRouter()
 
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({
-    notif_routines: true, notif_conflits: true, notif_communaute: true,
-    notif_anniversaires: true, notif_inactivite: true, notif_bilan: true,
+    notif_morning_brief: true,
+    notif_evening_prepare: true,
+    notif_weekly_review: true,
+    notif_planner_reminders: true,
+    notif_communaute: true,
+    notif_anniversaires: true,
   })
   const [userPrefs, setUserPrefs] = useState<UserPrefs>({
-    routine_morning_time: '07:30',
-    routine_evening_time: '21:00',
+    notification_morning_time: '07:00',
+    notification_evening_time: '19:00',
+    notification_weekly_day: 0,
+    notification_weekly_time: '18:00',
+    timezone: 'Europe/Paris',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -79,19 +109,19 @@ export default function SettingsPage() {
 
     const { data: sub } = await supabase
       .from('push_subscriptions')
-      .select('notif_routines, notif_conflits, notif_communaute, notif_anniversaires, notif_inactivite, notif_bilan')
+      .select('notif_morning_brief, notif_evening_prepare, notif_weekly_review, notif_planner_reminders, notif_communaute, notif_anniversaires')
       .eq('user_id', user.id)
       .limit(1)
       .maybeSingle()
 
     if (sub) {
       setNotifPrefs({
-        notif_routines: sub.notif_routines ?? true,
-        notif_conflits: sub.notif_conflits ?? true,
+        notif_morning_brief: sub.notif_morning_brief ?? true,
+        notif_evening_prepare: sub.notif_evening_prepare ?? true,
+        notif_weekly_review: sub.notif_weekly_review ?? true,
+        notif_planner_reminders: sub.notif_planner_reminders ?? true,
         notif_communaute: sub.notif_communaute ?? true,
         notif_anniversaires: sub.notif_anniversaires ?? true,
-        notif_inactivite: sub.notif_inactivite ?? true,
-        notif_bilan: sub.notif_bilan ?? true,
       })
     }
 
@@ -101,12 +131,17 @@ export default function SettingsPage() {
       .eq('id', user.id)
       .maybeSingle()
 
-    if (u?.preferences) {
-      setUserPrefs({
-        routine_morning_time: u.preferences.routine_morning_time || '07:30',
-        routine_evening_time: u.preferences.routine_evening_time || '21:00',
-      })
-    }
+    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Paris'
+    const prefs = (u?.preferences || {}) as Record<string, unknown>
+    setUserPrefs({
+      notification_morning_time: String(prefs.notification_morning_time || prefs.routine_morning_time || '07:00'),
+      notification_evening_time: String(prefs.notification_evening_time || prefs.routine_evening_time || '19:00'),
+      notification_weekly_day: Number.isInteger(prefs.notification_weekly_day)
+        ? Number(prefs.notification_weekly_day)
+        : 0,
+      notification_weekly_time: String(prefs.notification_weekly_time || '18:00'),
+      timezone: String(prefs.timezone || browserTimezone || 'Europe/Paris'),
+    })
 
     setLoading(false)
   }
@@ -313,20 +348,81 @@ export default function SettingsPage() {
 
             <div style={{ display: 'grid', gap: 12 }}>
               {NOTIF_CATEGORIES.map(cat => (
-                <div key={cat.key} style={notifRow}>
-                  <span style={{ fontSize: 22, flexShrink: 0 }}>{cat.emoji}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.brown }}>
-                      {cat.label}
-                    </p>
-                    <p style={{ margin: '2px 0 0', fontSize: 11, color: C.brownLight, lineHeight: 1.3 }}>
-                      {cat.desc}
-                    </p>
+                <div key={cat.key} style={{
+                  borderRadius: 16,
+                  border: '1px solid var(--novae-border, rgba(212, 165, 116, 0.22))',
+                  background: 'rgba(255,255,255,0.38)',
+                  overflow: 'hidden',
+                }}>
+                  <div style={{ ...notifRow, border: 'none', background: 'transparent' }}>
+                    <span style={{ fontSize: 22, flexShrink: 0 }}>{cat.emoji}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.brown }}>
+                        {cat.label}
+                      </p>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: C.brownLight, lineHeight: 1.3 }}>
+                        {cat.desc}
+                      </p>
+                    </div>
+                    <Toggle checked={notifPrefs[cat.key]} onChange={() => toggleNotif(cat.key)} />
                   </div>
-                  <Toggle checked={notifPrefs[cat.key]} onChange={() => toggleNotif(cat.key)} />
+
+                  {notifPrefs[cat.key] && cat.schedule === 'morning' && (
+                    <div style={{ padding: '0 14px 14px 52px' }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.brownLight }}>Heure du brief</label>
+                      <input
+                        type="time"
+                        value={userPrefs.notification_morning_time}
+                        onChange={e => setUserPrefs(prev => ({ ...prev, notification_morning_time: e.target.value }))}
+                        style={timeInputStyle}
+                      />
+                    </div>
+                  )}
+
+                  {notifPrefs[cat.key] && cat.schedule === 'evening' && (
+                    <div style={{ padding: '0 14px 14px 52px' }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.brownLight }}>Heure pour préparer demain</label>
+                      <input
+                        type="time"
+                        value={userPrefs.notification_evening_time}
+                        onChange={e => setUserPrefs(prev => ({ ...prev, notification_evening_time: e.target.value }))}
+                        style={timeInputStyle}
+                      />
+                    </div>
+                  )}
+
+                  {notifPrefs[cat.key] && cat.schedule === 'weekly' && (
+                    <div style={{ padding: '0 14px 14px 52px', display: 'grid', gridTemplateColumns: '1fr 110px', gap: 10 }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: C.brownLight }}>Jour</label>
+                        <select
+                          value={userPrefs.notification_weekly_day}
+                          onChange={e => setUserPrefs(prev => ({ ...prev, notification_weekly_day: Number(e.target.value) }))}
+                          style={timeInputStyle}
+                        >
+                          {WEEK_DAYS.map(day => (
+                            <option key={day.value} value={day.value}>{day.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: C.brownLight }}>Heure</label>
+                        <input
+                          type="time"
+                          value={userPrefs.notification_weekly_time}
+                          onChange={e => setUserPrefs(prev => ({ ...prev, notification_weekly_time: e.target.value }))}
+                          style={timeInputStyle}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
+
+            <p style={{ margin: '12px 2px 0', fontSize: 10, lineHeight: 1.45, color: C.brownLight }}>
+              Les heures suivent ton fuseau local ({userPrefs.timezone}). Les rappels d'événements gardent toujours le délai choisi sur chaque événement.
+            </p>
           </div>
 
           <button
@@ -812,6 +908,20 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
       }} />
     </button>
   )
+}
+
+const timeInputStyle: React.CSSProperties = {
+  width: '100%',
+  marginTop: 5,
+  minHeight: 40,
+  borderRadius: 12,
+  border: '1px solid var(--novae-border, rgba(212, 165, 116, 0.34))',
+  background: 'rgba(255,255,255,0.74)',
+  color: C.brown,
+  padding: '8px 10px',
+  fontSize: 13,
+  fontFamily: 'inherit',
+  boxSizing: 'border-box',
 }
 
 const glassCard: React.CSSProperties = {
