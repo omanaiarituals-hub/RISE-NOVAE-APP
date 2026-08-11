@@ -35,12 +35,10 @@ interface UserPrefs {
 }
 
 const NOTIF_CATEGORIES: Array<{ key: keyof NotifPrefs; emoji: string; label: string; desc: string }> = [
-  { key: 'notif_routines', emoji: '☀️', label: 'Routines & briefs', desc: 'Brief matin et soir, rituels' },
-  { key: 'notif_conflits', emoji: '📅', label: 'Planning & conflits', desc: "Rappels d'événements, conflits d'agenda" },
-  { key: 'notif_communaute', emoji: '💬', label: 'Communauté', desc: 'Réponses à tes posts, résumé du jour' },
+  { key: 'notif_routines', emoji: '☀️', label: 'Résumé du jour', desc: 'Ton point du matin et les rappels utiles' },
+  { key: 'notif_conflits', emoji: '📅', label: 'Planning & rappels', desc: "Rappels d'événements et de tâches" },
+  { key: 'notif_communaute', emoji: '💬', label: 'Communauté', desc: 'Réponses et interactions dans la communauté' },
   { key: 'notif_anniversaires', emoji: '🎂', label: 'Anniversaires', desc: 'Rappels J-7 et le jour J pour ta famille' },
-  { key: 'notif_inactivite', emoji: '🌸', label: 'Inactivité', desc: 'Messages doux quand tu ne reviens pas' },
-  { key: 'notif_bilan', emoji: '✦', label: 'Bilan hebdo', desc: "Ton débrief du dimanche par l'IA" },
 ]
 
 export default function SettingsPage() {
