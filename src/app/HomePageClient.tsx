@@ -293,17 +293,6 @@ export default function HomePageClient() {
   useEffect(() => {
     if (loading || !user) return
 
-    const checkOnboarding = async () => {
-      const { data } = await supabase
-        .from('ai_personality_profile')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (!data) router.push('/onboarding')
-    }
-
-    void checkOnboarding()
     void loadDashboardData()
     void logEvent(supabase, user.id, 'module_programme')
     // eslint-disable-next-line react-hooks/exhaustive-deps

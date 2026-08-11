@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { supabase } from '@/lib/supabase/client'
+import { CURRENT_ONBOARDING_VERSION } from '@/lib/onboarding/version'
 
 const EXCLUDED_PATHS = [
   '/auth',
@@ -40,9 +41,9 @@ export default function OnboardingV2Gate() {
         return
       }
 
-      const completed =
-        data?.onboarding_version === 2 &&
-        typeof data.completed_at === 'string' &&
+  const completed =
+        Number(data?.onboarding_version || 0) >= CURRENT_ONBOARDING_VERSION &&
+        typeof data?.completed_at === 'string' &&
         data.completed_at.length > 0
 
       if (!completed) {

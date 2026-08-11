@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
 import { supabase } from '@/lib/supabase/client'
 import { NovaeValueIntro } from '@/components/onboarding/NovaeValueIntro'
+import { CURRENT_ONBOARDING_VERSION } from '@/lib/onboarding/version'
 import {
   USER_THEME_ORDER,
   USER_THEME_PALETTES,
@@ -58,7 +59,6 @@ type Answers = {
 }
 
 const TOTAL_STEPS = 4
-const CURRENT_ONBOARDING_VERSION = 3
 
 const PRIORITIES = [
   ['calendar', 'Mon temps et mon agenda'],
