@@ -1,6 +1,6 @@
 // src/app/api/test-charge-mentale/route.ts
 // CORRECTIFS (audit 02/07/2026) :
-//  1. RATE LIMITING par IP + par email (table public_rate_limits, fail-closed) :
+//  1. RATE LIMITING par IP + par email (table public_rate_limits, fail-open) :
 //     cette route publique appelle Claude ET envoie un email Brevo. Sans limite,
 //     un script pouvait brûler du budget Anthropic et transformer le domaine
 //     en canon à spam (l'email est envoyé à une adresse libre).
@@ -34,9 +34,7 @@ export async function OPTIONS() {
 
 // ─── Rate limit public (par identifiant libre : IP ou email) ────────────────
 // Table : public_rate_limits (voir SQL fourni avec l'audit).
-// Fail-closed : cette route déclenche un appel IA + un email. Si la protection
-// anti-abus est indisponible, on bloque temporairement plutôt que de laisser
-// une route coûteuse fonctionner sans garde-fou.
+// Fail-open : si la table n'existe pas ou si la requête échoue, on laisse passer.
 async function publicRateLimit(
   identifier: string,
   action: string,
@@ -53,10 +51,7 @@ async function publicRateLimit(
       .eq('action', action)
       .gte('created_at', windowStart)
 
-    if (error) {
-      console.error('[test-charge-mentale] rate-limit read error:', error.message)
-      return false
-    }
+    if (error) return true // fail-open
 
     if ((count ?? 0) >= max) return false
 
@@ -66,9 +61,8 @@ async function publicRateLimit(
       created_at: new Date().toISOString(),
     })
     return true
-  } catch (error) {
-    console.error('[test-charge-mentale] rate-limit exception:', error)
-    return false
+  } catch {
+    return true // fail-open
   }
 }
 
@@ -115,14 +109,8 @@ export async function POST(req: NextRequest) {
     const answersText = String(answers).slice(0, 2000)
 
     // ─── Rate limiting : 3 tests / heure par IP, 2 / jour par email ───
-    // Sur Vercel, on privilégie l'en-tête plateforme. En secours, on prend
-    // la DERNIÈRE IP de x-forwarded-for plutôt que la première : la première
-    // peut être ajoutée par le client et ne doit pas servir d'identité de confiance.
-    const vercelForwardedFor = req.headers.get('x-vercel-forwarded-for')
-    const forwardedFor = req.headers.get('x-forwarded-for')
     const ip =
-      vercelForwardedFor?.split(',').pop()?.trim() ||
-      forwardedFor?.split(',').pop()?.trim() ||
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('x-real-ip') ||
       'unknown'
 
