@@ -150,45 +150,30 @@ export default function AuthPage() {
 
     try {
       if (mode === 'signup') {
+        const acceptedAt = new Date().toISOString()
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
             data: {
               pseudo: pseudo || email.split('@')[0],
-              cgu_accepted_at: new Date().toISOString(),
+              cgu_accepted_at: acceptedAt,
               cgu_version: '1.0',
             }
           }
         })
         if (signUpError) throw signUpError
 
-        if (data.user) {
-          await supabase.from('users').upsert({
-            id: data.user.id,
-            email: data.user.email,
-            pseudo: pseudo || email.split('@')[0],
-            cgu_accepted_at: new Date().toISOString(),
-            cgu_version: '1.0',
-          })
-          await supabase
-            .from('ai_personality_profile')
-            .update({ pseudo: pseudo || email.split('@')[0] })
-            .eq('user_id', data.user.id)
-
-          const isBeta = new Date() < new Date('2026-06-02')
-          await fetch('/api/subscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: data.user.email,
-              prenom: pseudo || email.split('@')[0],
-              listId: isBeta ? 7 : 9,
-              SOURCE: isBeta ? 'inscription_beta' : 'inscription_membre'
-            })
-          })
+        // Confirm Email est actif : data.session est normalement null ici.
+        // On ne tente plus d'écrire public.users / ai_personality_profile sans session.
+        // Les metadata ci-dessus seront persistées dans public.users à la première
+        // session authentifiée via initializeUserData().
+        if (data.session) {
+          router.replace('/auth')
+        } else {
+          setSuccess('Compte créé ! Vérifie ton email pour confirmer ton inscription.')
         }
-        setSuccess('Compte créé ! Vérifie ton email pour confirmer ton inscription.')
 
       } else {
         // LOGIN — onAuthStateChange va déclencher la redirect automatiquement

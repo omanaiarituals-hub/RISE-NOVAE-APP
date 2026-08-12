@@ -6,18 +6,19 @@ import { User } from '@supabase/supabase-js'
 export async function ensureUserEntry(user: User): Promise<{ success: boolean; error?: any }> {
   try {
     const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+    const metadata = user.user_metadata || {}
 
-    // Création idempotente : plusieurs événements Auth peuvent arriver presque
-    // simultanément. ON CONFLICT DO NOTHING évite le 23505 users_pkey sans
-    // écraser un profil existant.
     const { error: upsertError } = await supabase
       .from('users')
       .upsert(
         {
           id: user.id,
           email: user.email || '',
-          full_name: user.user_metadata?.full_name || null,
-          avatar_url: user.user_metadata?.avatar_url || null,
+          full_name: metadata.full_name || metadata.name || null,
+          avatar_url: metadata.avatar_url || metadata.picture || null,
+          pseudo: metadata.pseudo || null,
+          cgu_accepted_at: metadata.cgu_accepted_at || null,
+          cgu_version: metadata.cgu_version || null,
           onboarding_data: {},
           preferences: {},
           subscription_tier: 'trial',
@@ -88,8 +89,5 @@ export async function ensureProgramProgress(userId: string): Promise<{ success: 
 }
 
 export async function initializeUserData(user: User): Promise<{ success: boolean; error?: any }> {
-  // Le flux Auth initialise uniquement le profil utilisateur de base.
-  // program_progress appartient au programme V1 et ne doit plus être créé
-  // à chaque connexion.
   return ensureUserEntry(user)
 }
