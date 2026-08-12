@@ -242,9 +242,7 @@ export default function AuthPage() {
             </div>
             <div style={{ background: '#FAF7F2', borderRadius: 12, padding: '16px 20px', marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { icon: '🤖', text: "L'Agent IA est un guide, pas un professionnel de santé" },
-                { icon: '🎯', text: 'NOVAÉ ne garantit aucun résultat sans ton implication' },
-                { icon: '🔒', text: 'Tes données ne sont jamais vendues ni partagées' },
+                { icon: '🔒', text: 'Tes données sont sécurisées et ne sont jamais vendues' },
                 { icon: '🗑️', text: 'Tu peux supprimer ton compte et tes données à tout moment' },
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
@@ -260,7 +258,7 @@ export default function AuthPage() {
                 J'ai lu et j'accepte les{' '}
                 <Link href="/cgu" target="_blank" style={{ color: '#C4956A', textDecoration: 'underline' }}>CGU</Link>
                 {' '}et la{' '}
-                <Link href="/cgu#confidentialite" target="_blank" style={{ color: '#C4956A', textDecoration: 'underline' }}>Politique de Confidentialité</Link>
+                <Link href="/confidentialite" target="_blank" style={{ color: '#C4956A', textDecoration: 'underline' }}>Politique de Confidentialité</Link>
                 {' '}de NOVAÉ.
               </span>
             </label>
@@ -281,7 +279,7 @@ export default function AuthPage() {
             <Link href="/" style={{ textDecoration: 'none' }}>
               <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 600, color: '#D4A090' }}>NOVAÉ</span>
             </Link>
-            <p style={{ fontSize: 13, color: '#6B6B6B', marginTop: 6, fontStyle: 'italic' }}>Ton compagnon de transformation</p>
+            <p style={{ fontSize: 13, color: '#6B6B6B', marginTop: 6, fontStyle: 'italic' }}>Ton deuxième cerveau pour alléger le quotidien</p>
           </div>
 
           {/* Card */}
@@ -385,15 +383,10 @@ export default function AuthPage() {
 
                 {mode === 'signup' && (
                   <div style={{ background: '#FAF7F2', borderRadius: 10, padding: '14px 16px', border: '1px solid #F0EAE2' }}>
-                    <p style={{ fontSize: 11, fontWeight: 600, color: '#6B6B6B', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 10px' }}>À savoir avant de commencer</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
-                      {[
-                        '🎯 NOVAÉ est un guide — les résultats dépendent de ton implication',
-                        "🤖 L'Agent IA ne remplace pas un professionnel de santé",
-                        '🔒 Tes données sont sécurisées et ne sont jamais vendues',
-                      ].map((txt, i) => (
-                        <p key={i} style={{ fontSize: 12, color: '#4A4A4A', margin: 0, lineHeight: 1.5 }}>{txt}</p>
-                      ))}
+                    <div style={{ marginBottom: 14 }}>
+                      <p style={{ fontSize: 12, color: '#4A4A4A', margin: 0, lineHeight: 1.5 }}>
+                        🔒 Tes données sont sécurisées et ne sont jamais vendues
+                      </p>
                     </div>
                     <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
                       <input type="checkbox" checked={acceptCGU} onChange={e => setAcceptCGU(e.target.checked)}
@@ -402,7 +395,7 @@ export default function AuthPage() {
                         J'accepte les{' '}
                         <Link href="/cgu" target="_blank" style={{ color: '#C4956A', textDecoration: 'underline' }}>CGU</Link>
                         {' '}et la{' '}
-                        <Link href="/cgu" target="_blank" style={{ color: '#C4956A', textDecoration: 'underline' }}>Politique de Confidentialité</Link>.
+                        <Link href="/confidentialite" target="_blank" style={{ color: '#C4956A', textDecoration: 'underline' }}>Politique de Confidentialité</Link>.
                       </span>
                     </label>
                   </div>
@@ -426,8 +419,8 @@ export default function AuthPage() {
                   </div>
                 )}
 
-                <button type="submit" disabled={loading || (mode === 'signup' && !acceptCGU)}
-                  style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: loading || (mode === 'signup' && !acceptCGU) ? '#E8E4DF' : '#1A1A1A', color: loading || (mode === 'signup' && !acceptCGU) ? '#aaa' : 'white', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, cursor: loading || (mode === 'signup' && !acceptCGU) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4 }}>
+                <button type="submit" disabled={loading}
+                  style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: loading || (mode === 'signup' && !acceptCGU) ? '#E8E4DF' : '#1A1A1A', color: loading || (mode === 'signup' && !acceptCGU) ? '#aaa' : 'white', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s', marginTop: 4 }}>
                   {loading ? 'Chargement...' : mode === 'signup' ? 'Créer mon compte →' : 'Me connecter →'}
                 </button>
 
@@ -440,7 +433,7 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={handleGoogleAuth}
-                  disabled={loading || (mode === 'signup' && !acceptCGU)}
+                  disabled={loading}
                   style={{
                     width: '100%',
                     padding: '13px 14px',
@@ -451,8 +444,8 @@ export default function AuthPage() {
                     fontFamily: "'DM Sans', sans-serif",
                     fontSize: 14,
                     fontWeight: 600,
-                    cursor: loading || (mode === 'signup' && !acceptCGU) ? 'not-allowed' : 'pointer',
-                    opacity: loading || (mode === 'signup' && !acceptCGU) ? 0.55 : 1,
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    opacity: loading ? 0.55 : 1,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
