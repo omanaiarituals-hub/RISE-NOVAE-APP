@@ -275,7 +275,7 @@ export default function AuthPage() {
         <div style={{ width: '100%', maxWidth: 420 }}>
 
           {/* Logo */}
-          <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          <div style={{ textAlign: 'center', marginBottom: 22 }}>
             <Link href="/" style={{ textDecoration: 'none' }}>
               <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 600, color: '#D4A090' }}>NOVAÉ</span>
             </Link>
@@ -283,10 +283,10 @@ export default function AuthPage() {
           </div>
 
           {/* Card */}
-          <div style={{ background: '#FFFFFF', borderRadius: 20, padding: '36px 32px', boxShadow: '0 4px 24px rgba(0,0,0,0.07)', border: '1px solid #F0EAE2' }}>
+          <div style={{ background: '#FFFFFF', borderRadius: 20, padding: '28px 32px', boxShadow: '0 4px 24px rgba(0,0,0,0.07)', border: '1px solid #F0EAE2' }}>
 
             {mode !== 'forgot' && (
-              <div style={{ display: 'flex', background: '#FAF7F2', borderRadius: 10, padding: 4, marginBottom: 28 }}>
+              <div style={{ display: 'flex', background: '#FAF7F2', borderRadius: 10, padding: 4, marginBottom: 16 }}>
                 {(['signup', 'login'] as const).map(m => (
                   <button key={m} onClick={() => { setMode(m); setError(''); setSuccess('') }}
                     style={{ flex: 1, padding: '9px 0', borderRadius: 8, border: 'none', background: mode === m ? '#FFFFFF' : 'transparent', fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: mode === m ? 600 : 400, color: mode === m ? '#1A1A1A' : '#6B6B6B', cursor: 'pointer', boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.2s' }}>
@@ -294,6 +294,77 @@ export default function AuthPage() {
                   </button>
                 ))}
               </div>
+            )}
+
+            {mode !== 'forgot' && (
+              <>
+                {mode === 'signup' && (
+                  <div style={{
+                    background: '#FAF7F2',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    border: '1px solid #F0EAE2',
+                    marginBottom: 12,
+                  }}>
+                    <p style={{ fontSize: 11.5, color: '#4A4A4A', margin: '0 0 7px', lineHeight: 1.4 }}>
+                      🔒 Tes données sont sécurisées et ne sont jamais vendues
+                    </p>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={acceptCGU}
+                        onChange={e => setAcceptCGU(e.target.checked)}
+                        style={{ marginTop: 1, width: 14, height: 14, accentColor: '#C4956A', flexShrink: 0 }}
+                      />
+                      <span style={{ fontSize: 11.5, color: '#4A4A4A', lineHeight: 1.45 }}>
+                        J'accepte les{' '}
+                        <Link href="/cgu" target="_blank" style={{ color: '#C4956A', textDecoration: 'underline' }}>CGU</Link>
+                        {' '}et la{' '}
+                        <Link href="/confidentialite" target="_blank" style={{ color: '#C4956A', textDecoration: 'underline' }}>Politique de Confidentialité</Link>.
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleGoogleAuth}
+                  disabled={loading}
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    border: '1.5px solid #E8E4DF',
+                    background: '#FFFFFF',
+                    color: '#1A1A1A',
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    opacity: loading ? 0.55 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 10,
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                    <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.797 2.715v2.258h2.909c1.702-1.567 2.684-3.877 2.684-6.614Z"/>
+                    <path fill="#34A853" d="M9 18c2.43 0 4.468-.806 5.956-2.181l-2.909-2.258c-.806.54-1.835.859-3.047.859-2.344 0-4.328-1.585-5.037-3.714H.956v2.332A9 9 0 0 0 9 18Z"/>
+                    <path fill="#FBBC05" d="M3.963 10.706A5.41 5.41 0 0 1 3.682 9c0-.592.102-1.167.281-1.706V4.962H.956A9 9 0 0 0 0 9c0 1.45.347 2.824.956 4.038l3.007-2.332Z"/>
+                    <path fill="#EA4335" d="M9 3.58c1.322 0 2.508.454 3.442 1.346l2.581-2.582C13.464.892 11.426 0 9 0A9 9 0 0 0 .956 4.962l3.007 2.332C4.672 5.165 6.656 3.58 9 3.58Z"/>
+                  </svg>
+                  Continuer avec Google
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '12px 0 14px' }}>
+                  <div style={{ flex: 1, height: 1, background: '#E8E4DF' }} />
+                  <span style={{ fontSize: 10.5, color: '#9A928A', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    ou avec ton email
+                  </span>
+                  <div style={{ flex: 1, height: 1, background: '#E8E4DF' }} />
+                </div>
+              </>
             )}
 
             {mode === 'forgot' ? (
@@ -323,7 +394,7 @@ export default function AuthPage() {
               </form>
 
             ) : (
-              <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
                 {mode === 'signup' && (
                   <div>
@@ -381,26 +452,6 @@ export default function AuthPage() {
                   </div>
                 )}
 
-                {mode === 'signup' && (
-                  <div style={{ background: '#FAF7F2', borderRadius: 10, padding: '14px 16px', border: '1px solid #F0EAE2' }}>
-                    <div style={{ marginBottom: 14 }}>
-                      <p style={{ fontSize: 12, color: '#4A4A4A', margin: 0, lineHeight: 1.5 }}>
-                        🔒 Tes données sont sécurisées et ne sont jamais vendues
-                      </p>
-                    </div>
-                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={acceptCGU} onChange={e => setAcceptCGU(e.target.checked)}
-                        style={{ marginTop: 2, width: 15, height: 15, accentColor: '#C4956A', flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: '#4A4A4A', lineHeight: 1.6 }}>
-                        J'accepte les{' '}
-                        <Link href="/cgu" target="_blank" style={{ color: '#C4956A', textDecoration: 'underline' }}>CGU</Link>
-                        {' '}et la{' '}
-                        <Link href="/confidentialite" target="_blank" style={{ color: '#C4956A', textDecoration: 'underline' }}>Politique de Confidentialité</Link>.
-                      </span>
-                    </label>
-                  </div>
-                )}
-
                 {error && (
                   <div style={{ background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.2)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#C04040' }}>
                     {error}
@@ -424,42 +475,7 @@ export default function AuthPage() {
                   {loading ? 'Chargement...' : mode === 'signup' ? 'Créer mon compte →' : 'Me connecter →'}
                 </button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0' }}>
-                  <div style={{ flex: 1, height: 1, background: '#E8E4DF' }} />
-                  <span style={{ fontSize: 11, color: '#9A928A', textTransform: 'uppercase', letterSpacing: '0.08em' }}>ou</span>
-                  <div style={{ flex: 1, height: 1, background: '#E8E4DF' }} />
-                </div>
 
-                <button
-                  type="button"
-                  onClick={handleGoogleAuth}
-                  disabled={loading}
-                  style={{
-                    width: '100%',
-                    padding: '13px 14px',
-                    borderRadius: 10,
-                    border: '1.5px solid #E8E4DF',
-                    background: '#FFFFFF',
-                    color: '#1A1A1A',
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    opacity: loading ? 0.55 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 10,
-                  }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                    <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.797 2.715v2.258h2.909c1.702-1.567 2.684-3.877 2.684-6.614Z"/>
-                    <path fill="#34A853" d="M9 18c2.43 0 4.468-.806 5.956-2.181l-2.909-2.258c-.806.54-1.835.859-3.047.859-2.344 0-4.328-1.585-5.037-3.714H.956v2.332A9 9 0 0 0 9 18Z"/>
-                    <path fill="#FBBC05" d="M3.963 10.706A5.41 5.41 0 0 1 3.682 9c0-.592.102-1.167.281-1.706V4.962H.956A9 9 0 0 0 0 9c0 1.45.347 2.824.956 4.038l3.007-2.332Z"/>
-                    <path fill="#EA4335" d="M9 3.58c1.321 0 2.507.454 3.441 1.346l2.581-2.581C13.464.892 11.426 0 9 0A9 9 0 0 0 .956 4.962l3.007 2.332C4.672 5.165 6.656 3.58 9 3.58Z"/>
-                  </svg>
-                  Continuer avec Google
-                </button>
 
               </form>
             )}
