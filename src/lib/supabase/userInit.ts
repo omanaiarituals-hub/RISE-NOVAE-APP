@@ -5,42 +5,38 @@ import { User } from '@supabase/supabase-js'
 
 export async function ensureUserEntry(user: User): Promise<{ success: boolean; error?: any }> {
   try {
-    const { data: existingUser, error: selectError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', user.id)
-      .single()
-
-    if (selectError && selectError.code !== 'PGRST116') {
-      console.error('Erreur vérification utilisateur:', selectError)
-      return { success: false, error: selectError }
-    }
-
-    if (existingUser) return { success: true }
-
     const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
 
-    const { error: insertError } = await supabase
+    // Création idempotente : plusieurs événements Auth peuvent arriver presque
+    // simultanément. ON CONFLICT DO NOTHING évite le 23505 users_pkey sans
+    // écraser un profil existant.
+    const { error: upsertError } = await supabase
       .from('users')
-      .insert({
-        id: user.id,
-        email: user.email || '',
-        full_name: user.user_metadata?.full_name || null,
-        avatar_url: user.user_metadata?.avatar_url || null,
-        onboarding_data: {},
-        preferences: {},
-        subscription_tier: 'trial',
-        subscription_status: 'active',
-        trial_ends_at: trialEndsAt,
-        timezone: 'UTC',
-        language: 'fr',
-        marketing_consent: false,
-        onboarding_completed: false
-      })
+      .upsert(
+        {
+          id: user.id,
+          email: user.email || '',
+          full_name: user.user_metadata?.full_name || null,
+          avatar_url: user.user_metadata?.avatar_url || null,
+          onboarding_data: {},
+          preferences: {},
+          subscription_tier: 'trial',
+          subscription_status: 'active',
+          trial_ends_at: trialEndsAt,
+          timezone: 'UTC',
+          language: 'fr',
+          marketing_consent: false,
+          onboarding_completed: false
+        },
+        {
+          onConflict: 'id',
+          ignoreDuplicates: true
+        }
+      )
 
-    if (insertError) {
-      console.error('Erreur création utilisateur:', insertError)
-      return { success: false, error: insertError }
+    if (upsertError) {
+      console.error('Erreur création utilisateur:', upsertError)
+      return { success: false, error: upsertError }
     }
 
     return { success: true }
@@ -92,11 +88,8 @@ export async function ensureProgramProgress(userId: string): Promise<{ success: 
 }
 
 export async function initializeUserData(user: User): Promise<{ success: boolean; error?: any }> {
-  const userResult = await ensureUserEntry(user)
-  if (!userResult.success) return userResult
-
-  const progressResult = await ensureProgramProgress(user.id)
-  if (!progressResult.success) return progressResult
-
-  return { success: true }
+  // Le flux Auth initialise uniquement le profil utilisateur de base.
+  // program_progress appartient au programme V1 et ne doit plus être créé
+  // à chaque connexion.
+  return ensureUserEntry(user)
 }
