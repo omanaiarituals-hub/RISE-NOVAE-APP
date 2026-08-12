@@ -2,7 +2,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import PushManager from '@/components/PushManager'
-import { SetupGuide } from '@/components/SetupGuide'
 import { PWAInstallPrompt } from '@/components/PWAInstallPrompt'
 import { CookieBanner } from '@/components/CookieBanner'
 import GlobalHeader from '@/components/GlobalHeader'
@@ -76,7 +75,6 @@ export default function RootLayout({
       <body>
         <UserThemeProvider>
           <OnboardingV2Gate />
-          <SetupGuide />
           <GlobalHeader />
           <main>{children}</main>
           <PWAInstallPrompt />
