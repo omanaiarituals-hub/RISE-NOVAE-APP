@@ -1,9 +1,9 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
-import { initializeUserData } from '@/lib/supabase/userInit'
+import { ensureUserInitialized } from '@/lib/supabase/ensureUserInit'
 
 export function useSupabaseAuth() {
   const [user, setUser] = useState<User | null>(null)
@@ -13,7 +13,7 @@ export function useSupabaseAuth() {
   useEffect(() => {
     let resolved = false
 
-    // Timeout de sécurité : 8 secondes sur mobile PWA (était 4s, trop court)
+    // Timeout de sÃ©curitÃ© : 8 secondes sur mobile PWA (Ã©tait 4s, trop court)
     const timeout = setTimeout(() => {
       if (!resolved) {
         resolved = true
@@ -26,8 +26,8 @@ export function useSupabaseAuth() {
         // Premier essai
         let { data: { session } } = await supabase.auth.getSession()
 
-        // Sur mobile PWA, le cookie peut ne pas être lu au premier appel.
-        // On retente une fois après 800ms si la session est vide.
+        // Sur mobile PWA, le cookie peut ne pas Ãªtre lu au premier appel.
+        // On retente une fois aprÃ¨s 800ms si la session est vide.
         if (!session) {
           await new Promise(r => setTimeout(r, 800))
           const retry = await supabase.auth.getSession()
@@ -38,7 +38,7 @@ export function useSupabaseAuth() {
         setUser(session?.user ?? null)
 
         if (session?.user) {
-          initializeUserData(session.user).catch(console.error)
+          ensureUserInitialized(session.user).catch(console.error)
         }
       } catch (err) {
         console.error('Erreur getSession:', err)
@@ -60,7 +60,7 @@ export function useSupabaseAuth() {
       setUser(session?.user ?? null)
 
       if (event === 'SIGNED_IN' && session?.user) {
-        initializeUserData(session.user).catch(console.error)
+        ensureUserInitialized(session.user).catch(console.error)
       }
 
       if (!resolved) {
@@ -68,7 +68,7 @@ export function useSupabaseAuth() {
         clearTimeout(timeout)
         setLoading(false)
       } else {
-        // Mise à jour silencieuse après résolution initiale
+        // Mise Ã  jour silencieuse aprÃ¨s rÃ©solution initiale
         setLoading(false)
       }
     })

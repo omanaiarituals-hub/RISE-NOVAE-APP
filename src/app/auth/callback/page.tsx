@@ -3,11 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { initializeUserData } from '@/lib/supabase/userInit'
 
 export default function AuthCallbackPage() {
   const router = useRouter()
-  const [message, setMessage] = useState('Connexion en cours…')
+  const [message] = useState('Connexion en cours…')
 
   useEffect(() => {
     let cancelled = false
@@ -16,7 +15,6 @@ export default function AuthCallbackPage() {
       try {
         const params = new URLSearchParams(window.location.search)
         const code = params.get('code')
-        const mode = params.get('mode')
 
         if (!code) {
           throw new Error('Code OAuth manquant.')
@@ -29,57 +27,14 @@ export default function AuthCallbackPage() {
           throw new Error('Session Google introuvable.')
         }
 
-        const user = data.session.user
-
-        // Garantit l'existence de la ligne public.users pour les nouveaux comptes OAuth.
-        await initializeUserData(user)
-
-        // En création de compte, les CGU ont été acceptées avant le départ vers Google.
-        // On enregistre cette acceptation après création effective du compte.
-        if (mode === 'signup') {
-          const { error: cguError } = await supabase
-            .from('users')
-            .update({
-              cgu_accepted_at: new Date().toISOString(),
-              cgu_version: '1.0',
-            })
-            .eq('id', user.id)
-
-          if (cguError) {
-            console.error('[auth/callback] cgu update failed', {
-              code: cguError.code,
-              message: cguError.message,
-            })
-          }
+        if (!cancelled) {
+          // /auth possède désormais l'unique logique post-connexion :
+          // initialisation déjà gérée par useSupabaseAuth, CGU, onboarding, accueil.
+          router.replace('/auth?oauth=1')
         }
-
-        const { data: profile, error: profileError } = await supabase
-          .from('users')
-          .select('cgu_accepted_at')
-          .eq('id', user.id)
-          .single()
-
-        if (profileError) {
-          console.error('[auth/callback] profile check failed', {
-            code: profileError.code,
-            message: profileError.message,
-          })
-        }
-
-        if (cancelled) return
-
-        // Si les CGU ne sont pas encore acceptées (ancien compte Google par exemple),
-        // on repasse par /auth : l'écran existant ouvre son modal CGU.
-        if (!profile?.cgu_accepted_at) {
-          router.replace('/auth')
-          return
-        }
-
-        setMessage('Connexion réussie…')
-        router.replace('/')
-      } catch (err: any) {
+      } catch (caught) {
         console.error('[auth/callback] oauth failed', {
-          message: err?.message || 'unknown',
+          message: caught instanceof Error ? caught.message : 'unknown',
         })
 
         if (!cancelled) {

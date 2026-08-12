@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
-import { initializeUserData } from '@/lib/supabase/userInit'
 
 export default function AuthPage() {
   const router = useRouter()
@@ -22,54 +21,104 @@ export default function AuthPage() {
   const [showCGUModal, setShowCGUModal] = useState(false)
   const [cguModalAccepted, setCguModalAccepted] = useState(false)
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const oauthError = params.get('oauth_error')
+    if (oauthError) {
+      setError(oauthError)
+      window.history.replaceState({}, '', '/auth')
+    }
+  }, [])
+
   // Ref pour éviter les doubles redirections
   const redirecting = useRef(false)
 
-  // ─── Redirect quand user est détecté ───────────────────────────────────────
-  // On écoute aussi directement onAuthStateChange pour mobile PWA
-  // où useSupabaseAuth peut avoir un timing différent
+  // ─── OAuth rescue ───────────────────────────────────────────────────────
+  // Si un ancien bundle / redirect Google revient encore sur /auth?code=...
+  // on bascule immédiatement vers la callback dédiée sans lancer le flux auth local.
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-        if (redirecting.current) return
-        redirecting.current = true
-
-        // Important pour OAuth : garantir que la ligne public.users existe
-        // avant de décider si les CGU ont déjà été acceptées.
-        await initializeUserData(session.user)
-        await checkAndRedirect(session.user.id)
-      }
-    })
-    return () => subscription.unsubscribe()
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (code) {
+      window.location.replace(`/auth/callback?code=${encodeURIComponent(code)}`)
+    }
   }, [])
 
-  // Fallback : si useSupabaseAuth remonte un user (ex: déjà connecté)
+  // Fallback : si useSupabaseAuth remonte un user (déjà connecté ou callback terminée)
   useEffect(() => {
-    if (user && !redirecting.current) {
-      redirecting.current = true
-      checkAndRedirect(user.id)
-    }
-  }, [user])
+    if (!user || redirecting.current) return
 
-  const checkAndRedirect = async (userId: string) => {
-    try {
-      const { data } = await supabase
-        .from('users')
-        .select('cgu_accepted_at')
-        .eq('id', userId)
-        .single()
+    redirecting.current = true
 
-      if (data?.cgu_accepted_at) {
+    const finishSignIn = async () => {
+      try {
+        // useSupabaseAuth initialise déjà public.users.
+        // On attend simplement que cette initialisation soit visible au lieu de la refaire ici.
+        let profile: { cgu_accepted_at?: string | null; onboarding_completed?: boolean | null } | null = null
+
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          const { data, error: profileError } = await supabase
+            .from('users')
+            .select('cgu_accepted_at,onboarding_completed')
+            .eq('id', user.id)
+            .maybeSingle()
+
+          if (!profileError && data) {
+            profile = data
+            break
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 250))
+        }
+
+        if (!profile) {
+          throw new Error('Le profil NOVAÉ n’a pas pu être initialisé.')
+        }
+
+        const oauthCguAccepted =
+          window.sessionStorage.getItem('novae_oauth_signup_cgu') === '1'
+
+        if (oauthCguAccepted && !profile.cgu_accepted_at) {
+          const acceptedAt = new Date().toISOString()
+          const { error: cguError } = await supabase
+            .from('users')
+            .update({
+              cgu_accepted_at: acceptedAt,
+              cgu_version: '1.0',
+            })
+            .eq('id', user.id)
+
+          if (cguError) throw cguError
+          profile = { ...profile, cgu_accepted_at: acceptedAt }
+        }
+
+        window.sessionStorage.removeItem('novae_oauth_signup_cgu')
+
+        if (!profile.cgu_accepted_at) {
+          redirecting.current = false
+          setShowCGUModal(true)
+          return
+        }
+
+        if (!profile.onboarding_completed) {
+          router.replace('/onboarding')
+          return
+        }
+
         router.replace('/')
-      } else {
+      } catch (caught) {
         redirecting.current = false
-        setShowCGUModal(true)
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : 'La connexion n’a pas pu être finalisée. Réessaie.'
+        )
       }
-    } catch {
-      // En cas d'erreur DB, on redirige quand même vers l'accueil
-      router.replace('/')
     }
-  }
+
+    void finishSignIn()
+  }, [router, user])
+
 
   const acceptCGUForExisting = async () => {
     if (!user || !cguModalAccepted) return
@@ -83,7 +132,14 @@ export default function AuthPage() {
         })
         .eq('id', user.id)
       setShowCGUModal(false)
-      router.replace('/')
+
+      const { data: profile } = await supabase
+        .from('users')
+        .select('onboarding_completed')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      router.replace(profile?.onboarding_completed ? '/' : '/onboarding')
     } catch {
       setError('Erreur lors de la validation. Réessaie.')
     } finally {
@@ -177,7 +233,13 @@ export default function AuthPage() {
     setLoading(true)
 
     try {
-      const redirectTo = `${window.location.origin}/auth/callback?mode=${mode}`
+      if (mode === 'signup' && acceptCGU) {
+        window.sessionStorage.setItem('novae_oauth_signup_cgu', '1')
+      } else {
+        window.sessionStorage.removeItem('novae_oauth_signup_cgu')
+      }
+
+      const redirectTo = `${window.location.origin}/auth/callback`
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
