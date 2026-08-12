@@ -13,7 +13,6 @@ export const supabase = createBrowserClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storageKey: 'novae-auth',
     },
   }
 )
