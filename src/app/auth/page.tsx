@@ -33,17 +33,6 @@ export default function AuthPage() {
   // Ref pour éviter les doubles redirections
   const redirecting = useRef(false)
 
-  // ─── OAuth rescue ───────────────────────────────────────────────────────
-  // Si un ancien bundle / redirect Google revient encore sur /auth?code=...
-  // on bascule immédiatement vers la callback dédiée sans lancer le flux auth local.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const code = params.get('code')
-    if (code) {
-      window.location.replace(`/auth/callback?code=${encodeURIComponent(code)}`)
-    }
-  }, [])
-
   // Fallback : si useSupabaseAuth remonte un user (déjà connecté ou callback terminée)
   useEffect(() => {
     if (!user || redirecting.current) return
