@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import PremiumIcon, { type PremiumIconName } from '@/components/ui/PremiumIcon'
 
 const C = {
   cream: '#f3dcc6',
@@ -20,15 +21,13 @@ const LAUNCH_CUTOFF = new Date('2026-06-01T00:00:00Z')
 // (Stripe Dashboard → Catalogue de produits → copier l'ID price_xxx)
 const PRICE_ID_PREMIUM = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PREMIUM || 'price_REMPLACE_MOI'
 
-const PREMIUM_FEATURES = [
-  { emoji: '🎯', title: 'Reset 90 jours adaptatif', desc: '3 phases, des missions qui évoluent avec toi' },
-  { emoji: '✦', title: 'Agent IA NOVAÉ illimité', desc: 'Ton coach personnel qui te connaît et s\'adapte' },
-  { emoji: '📸', title: 'Scan recettes IA + Routines IA', desc: 'Photographie un plat → recette générée. Routines selon ton énergie' },
-  { emoji: '👨‍👩‍👧', title: 'Famille intelligente', desc: 'Détection automatique des conflits & allergies pour tes proches' },
-  { emoji: '🏆', title: 'Défis, badges & Astuces', desc: 'Participe, gagne tes badges, débloque les conseils ciblés' },
-  { emoji: '💬', title: 'Communauté complète', desc: 'Poste, commente, échange avec les autres femmes du programme' },
-  { emoji: '📈', title: 'Bilans hebdo IA', desc: 'Ton tableau de bord personnel chaque dimanche, écrit par ton IA' },
-  { emoji: '🌙', title: 'Cercle de la semaine', desc: 'Mise en lumière communautaire de 3 à 5 femmes inspirantes' },
+const PREMIUM_FEATURES: { icon: PremiumIconName; title: string; desc: string }[] = [
+  { icon: 'sparkle', title: 'Nova, ton assistante de vie', desc: 'Tu lui parles naturellement et elle t’aide à organiser, créer et modifier ton quotidien.' },
+  { icon: 'calendar', title: 'Planner, tâches et rappels', desc: 'Planning, échéances, routines et rappels réunis au même endroit.' },
+  { icon: 'meal', title: 'Repas et courses assistés', desc: 'Recettes, menus et listes de courses générés selon ton foyer.' },
+  { icon: 'document', title: 'Documents administratifs', desc: 'Centralise tes documents et transforme les échéances en actions concrètes.' },
+  { icon: 'family', title: 'Entourage et garde', desc: 'Nova tient compte de ton foyer, de tes enfants et de ton organisation familiale.' },
+  { icon: 'notes', title: 'Notes et organisation', desc: 'Capture ce que tu as en tête et transforme-le en tâche, rappel ou événement.' },
 ]
 
 type ComparisonRow = {
@@ -39,24 +38,15 @@ type ComparisonRow = {
 }
 
 const COMPARISON: ComparisonRow[] = [
-  { label: 'Tracker (poids, humeur, eau)', free: '✓', premium: '✓' },
   { label: 'Planner & To-do', free: '✓', premium: '✓' },
-  { label: 'Notes personnelles', free: '✓', premium: '✓' },
-  { label: 'Routines de base', free: '✓', premium: '✓' },
-  { label: 'Recettes ajoutées manuellement', free: '✓', premium: '✓' },
-  { label: 'Famille : saisie membres', free: '✓', premium: '✓' },
-  { label: 'Communauté : lecture & likes', free: '✓', premium: '✓' },
-  { label: 'Réservé Premium', isHeader: true },
-  { label: 'Reset 90 jours adaptatif', free: '🔒', premium: '✓' },
-  { label: 'Agent IA NOVAÉ (coach personnel)', free: '🔒', premium: '✓' },
-  { label: 'Scan recettes par IA', free: '🔒', premium: '✓' },
-  { label: 'Routines IA personnalisées', free: '🔒', premium: '✓' },
-  { label: 'Famille : détection conflits/allergies', free: '🔒', premium: '✓' },
-  { label: 'Défis : participer & gagner badges', free: '👁️', premium: '✓' },
-  { label: 'Astuces : contenu', free: '👁️', premium: '✓' },
-  { label: 'Communauté : poster, commenter', free: '🔒', premium: '✓' },
-  { label: 'Bilans hebdo IA', free: '🔒', premium: '✓' },
-  { label: 'Cercle de la semaine', free: '🔒', premium: '✓' },
+  { label: 'Notes rapides', free: '✓', premium: '✓' },
+  { label: 'Entourage', free: '✓', premium: '✓' },
+  { label: 'Premium', isHeader: true },
+  { label: 'Nova, assistante de vie IA', free: '🔒', premium: '✓' },
+  { label: 'Repas, recettes et courses assistés', free: '🔒', premium: '✓' },
+  { label: 'Documents administratifs', free: '🔒', premium: '✓' },
+  { label: 'Routines et rappels avancés', free: '🔒', premium: '✓' },
+  { label: 'Contexte familial enrichi', free: '🔒', premium: '✓' },
 ]
 
 export default function SubscribePage() {
@@ -345,7 +335,7 @@ export default function SubscribePage() {
                 marginBottom: 4,
               }}
             >
-              7,90€
+              12,90€
             </div>
             <div style={{ color: C.brownLight, fontSize: 13, marginBottom: 20 }}>
               par mois · sans engagement
@@ -478,7 +468,7 @@ export default function SubscribePage() {
                       marginTop: 2,
                     }}
                   >
-                    {feat.emoji}
+                    <PremiumIcon name={feat.icon} width={20} height={20} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div

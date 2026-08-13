@@ -29,16 +29,16 @@ const PLANS: Plan[] = [
   {
     id: 'premium_monthly',
     name: 'Premium Mensuel',
-    price: '7,90€',
+    price: '12,90€',
     period: 'par mois',
     description: 'Accès illimité à tous les modules. Sans engagement.',
     features: [
-      'Agent IA illimité',
-      'Reset 90 jours complet',
-      'Scan recettes par IA',
-      'Bilan hebdomadaire personnalisé',
-      'Astuces détaillées et Cercle de la semaine',
-      'Détection des conflits Famille',
+      'Nova, ton assistante de vie IA',
+      'Planner, tâches et rappels intelligents',
+      'Repas, recettes et listes de courses assistés',
+      'Documents administratifs et échéances',
+      'Entourage, garde et contexte familial',
+      'Routines, notes et organisation du quotidien',
     ],
     matchesTier: ['premium', 'trial'],
     highlight: true,
@@ -365,7 +365,7 @@ function renderStatusBlock(
         Tu profites des modules essentiels.
       </p>
       <p className="text-sm text-[#8b5a3c]/80 mb-6">
-        Débloque l Agent IA, le Reset 90 jours et bien plus en passant Premium.
+        Débloque Nova et tous les espaces Premium pour centraliser ton quotidien.
       </p>
       <Link
         href="/subscribe"

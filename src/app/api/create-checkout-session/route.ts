@@ -8,7 +8,7 @@
 //    désormais par ID et non plus par email (fix C3)
 //
 // ⚠️ Variables à ajouter dans Vercel (Settings → Environment Variables) :
-//    STRIPE_PRICE_ID_PREMIUM    = price_xxx (prix 7,90 €)
+//    STRIPE_PRICE_ID_PREMIUM    = price_xxx (prix 12,90 €)
 //    STRIPE_PRICE_ID_PIONNIERE  = price_xxx (prix Pionnière 6,32 €)
 //    (les IDs sont dans le dashboard Stripe → Catalogue de produits)
 // ============================================================
@@ -60,6 +60,30 @@ export async function POST(req: NextRequest) {
     if (!ALLOWED_PRICE_IDS.includes(priceId)) {
       console.warn('[checkout] priceId refusé:', priceId, 'user:', user.id)
       return NextResponse.json({ error: 'Prix non autorisé' }, { status: 400 })
+    }
+
+    // Le prix Premium public doit réellement être 12,90 EUR / mois.
+    // Cette vérification empêche toute divergence entre l'UI et Stripe.
+    if (priceId === process.env.STRIPE_PRICE_ID_PREMIUM) {
+      const stripePrice = await stripe.prices.retrieve(priceId)
+      const validPremiumPrice =
+        stripePrice.active === true &&
+        stripePrice.currency === 'eur' &&
+        stripePrice.unit_amount === 1290 &&
+        stripePrice.recurring?.interval === 'month'
+
+      if (!validPremiumPrice) {
+        console.error('[checkout] configuration Premium invalide', {
+          priceId,
+          currency: stripePrice.currency,
+          unitAmount: stripePrice.unit_amount,
+          interval: stripePrice.recurring?.interval,
+        })
+        return NextResponse.json(
+          { error: 'Le tarif Premium Stripe doit être configuré à 12,90 € / mois.' },
+          { status: 503 }
+        )
+      }
     }
 
     // ---- 3. Création de la session checkout ----

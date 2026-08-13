@@ -14,7 +14,7 @@ const C = {
 
 // ⚠️ Adapte les hrefs si tes routes sont différentes
 const QUICK_LINKS = [
-  { emoji: '🎯', title: 'Reset 90 jours', desc: 'Démarre ta phase 1 de reprogrammation', href: '/program' },
+  { emoji: '✦', title: 'Parler à Nova', desc: 'Commence par lui confier ce qui te prend la tête aujourd’hui', href: '/nova-v2' },
   { emoji: '✦', title: 'Agent IA NOVAÉ', desc: 'Présente-toi à ton coach personnel', href: '/agent' },
   { emoji: '💬', title: 'Communauté', desc: 'Rejoins les autres femmes du programme', href: '/community' },
 ]

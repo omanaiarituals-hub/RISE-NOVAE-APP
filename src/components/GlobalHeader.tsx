@@ -213,9 +213,39 @@ export default function GlobalHeader() {
         }
 
         .premium-link.trial {
-          color: var(--novae-primary);
-          background: var(--novae-primary-soft);
-          border-color: var(--novae-border);
+          position: relative;
+          overflow: hidden;
+          color: var(--novae-text-main);
+          background:
+            linear-gradient(
+              135deg,
+              color-mix(in srgb, var(--novae-metal) 18%, var(--novae-background)),
+              color-mix(in srgb, var(--novae-primary-soft) 72%, var(--novae-background))
+            );
+          border-color: color-mix(in srgb, var(--novae-metal) 58%, var(--novae-border));
+          box-shadow:
+            0 5px 14px color-mix(in srgb, var(--novae-primary) 10%, transparent),
+            inset 0 1px 0 rgba(255, 255, 255, 0.65);
+          font-weight: 800;
+        }
+
+        .premium-link.trial::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,.38) 50%, transparent 75%);
+          transform: translateX(-120%);
+          animation: trialShine 5.5s ease-in-out infinite;
+        }
+
+        @keyframes trialShine {
+          0%, 72%, 100% { transform: translateX(-120%); }
+          86% { transform: translateX(120%); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .premium-link.trial::after { animation: none; }
         }
       `}</style>
     </header>

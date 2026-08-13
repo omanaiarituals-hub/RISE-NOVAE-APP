@@ -299,7 +299,7 @@ function buildEmailHtml(d: {
         <p style="margin:0 0 16px;font-family:Georgia,serif;font-size:17px;font-style:italic;color:#3A1F24;">${d.cta_phrase}</p>
         <a href="https://app.novae-by-omanaia.com?utm_source=email&utm_campaign=test_charge_mentale" style="display:inline-block;padding:14px 32px;border-radius:999px;background:linear-gradient(135deg,#C4848E,#9B5A65);color:#fff;text-decoration:none;font-size:13px;font-weight:600;letter-spacing:.4px;box-shadow:0 8px 22px rgba(155,90,101,.3);">✦ Essaie NOVAÉ 14 jours gratuits</a>
       </div>
-      <p style="font-size:11px;color:#B08890;margin:0;">Pas de carte bancaire · Annulable en un clic · 7,90€/mois après</p>
+      <p style="font-size:11px;color:#B08890;margin:0;">Pas de carte bancaire · Annulable en un clic · 12,90€/mois après</p>
     </td>
   </tr>
 
