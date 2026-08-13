@@ -25,7 +25,6 @@ interface NotifPrefs {
   notif_evening_prepare: boolean
   notif_weekly_review: boolean
   notif_planner_reminders: boolean
-  notif_communaute: boolean
   notif_anniversaires: boolean
 }
 
@@ -50,7 +49,6 @@ const NOTIF_CATEGORIES: NotifCategory[] = [
   { key: 'notif_morning_brief', emoji: '☀️', label: 'Mon programme du jour', desc: 'Planning et tâches utiles pour démarrer la journée.', schedule: 'morning' },
   { key: 'notif_evening_prepare', emoji: '🌙', label: 'Anticiper demain', desc: "Seulement quand quelque chose mérite d'être préparé pour demain.", schedule: 'evening' },
   { key: 'notif_weekly_review', emoji: '✦', label: 'Bilan de ma semaine', desc: 'Tâches terminées, tâches restantes et invitation à les replacer avec Nova.', schedule: 'weekly' },
-  { key: 'notif_communaute', emoji: '💬', label: 'Communauté', desc: 'Réponses et interactions dans la communauté.' },
   { key: 'notif_anniversaires', emoji: '🎂', label: 'Anniversaires', desc: 'Rappels J-7 et le jour J pour ta famille.' },
 ]
 
@@ -73,7 +71,6 @@ export default function SettingsPage() {
     notif_evening_prepare: true,
     notif_weekly_review: true,
     notif_planner_reminders: true,
-    notif_communaute: true,
     notif_anniversaires: true,
   })
   const [userPrefs, setUserPrefs] = useState<UserPrefs>({
@@ -109,7 +106,7 @@ export default function SettingsPage() {
 
     const { data: sub } = await supabase
       .from('push_subscriptions')
-      .select('notif_morning_brief, notif_evening_prepare, notif_weekly_review, notif_planner_reminders, notif_communaute, notif_anniversaires')
+      .select('notif_morning_brief, notif_evening_prepare, notif_weekly_review, notif_planner_reminders, notif_anniversaires')
       .eq('user_id', user.id)
       .limit(1)
       .maybeSingle()
@@ -120,7 +117,6 @@ export default function SettingsPage() {
         notif_evening_prepare: sub.notif_evening_prepare ?? true,
         notif_weekly_review: sub.notif_weekly_review ?? true,
         notif_planner_reminders: sub.notif_planner_reminders ?? true,
-        notif_communaute: sub.notif_communaute ?? true,
         notif_anniversaires: sub.notif_anniversaires ?? true,
       })
     }
@@ -450,6 +446,7 @@ export default function SettingsPage() {
           
           {/* ZONE SENSIBLE UNIFIÉE */}
           <section
+            id="zone-sensible"
             aria-labelledby="sensitive-zone-title"
             style={{
               background: 'rgba(255, 240, 240, 0.64)',
@@ -576,6 +573,62 @@ export default function SettingsPage() {
                 </button>
               </div>
             </div>
+          </section>
+
+          {/* INFORMATIONS & LÉGAL */}
+          <section
+            aria-labelledby="legal-info-title"
+            style={{
+              marginTop: 26,
+              padding: '4px 2px 0',
+            }}
+          >
+            <h2
+              id="legal-info-title"
+              style={{
+                margin: '0 0 10px',
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: C.brownMid,
+              }}
+            >
+              Informations & légal
+            </h2>
+
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: '8px 14px',
+                fontSize: 11,
+                lineHeight: 1.5,
+              }}
+            >
+              <Link href="/cgu" style={legalLinkStyle}>
+                Conditions générales
+              </Link>
+              <Link href="/confidentialite" style={legalLinkStyle}>
+                Politique de confidentialité
+              </Link>
+              <a href="#zone-sensible" style={legalLinkStyle}>
+                Données & suppression du compte
+              </a>
+            </div>
+
+            <p
+              style={{
+                margin: '10px 0 0',
+                fontSize: 10,
+                lineHeight: 1.45,
+                color: C.brownLight,
+                opacity: 0.72,
+              }}
+            >
+              NOVAÉ · Informations relatives à ton compte et à tes données personnelles.
+            </p>
           </section>
         </main>
       </div>
@@ -931,6 +984,13 @@ const glassCard: React.CSSProperties = {
   border: '1px solid rgba(255, 255, 255, 0.5)',
   borderRadius: 20, padding: 22, marginBottom: 16,
   boxShadow: '0 4px 16px rgba(55, 35, 25, 0.06)',
+}
+
+const legalLinkStyle: React.CSSProperties = {
+  color: C.brownLight,
+  textDecoration: 'underline',
+  textUnderlineOffset: 3,
+  textDecorationColor: 'rgba(139, 90, 60, 0.28)',
 }
 
 const sectionTitle: React.CSSProperties = {

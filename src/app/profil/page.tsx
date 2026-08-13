@@ -110,18 +110,13 @@ export default function ProfilPage() {
       meta: 'Adapter Nova',
     },
     {
-      href: '/planner',
-      icon: 'calendar',
-      title: 'Organisation du quotidien',
-      description: 'Ton planning, les routines et les repères de garde qui donnent du contexte à tes journées.',
-      meta: stats.custodyConfigured ? 'Garde configurée' : 'À compléter si besoin',
-    },
-    {
-      href: '/subscription',
-      icon: 'sparkle',
-      title: 'Abonnement',
-      description: 'Retrouve ton offre actuelle et les informations liées à ton accès Premium.',
-      meta: 'Gérer mon offre',
+      href: '/family#locations-panel',
+      icon: 'home',
+      title: 'Mes adresses',
+      description: 'Domicile, travail, école et autres lieux récurrents que Nova peut utiliser pour mieux organiser tes trajets.',
+      meta: stats.places > 0
+        ? `${stats.places} configuration de lieux enregistrée`
+        : 'Ajouter mes repères',
     },
     {
       href: '/settings',
