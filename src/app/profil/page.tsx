@@ -1,323 +1,336 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { DemoBanner } from '@/components/DemoBanner'
+import PremiumIcon, { type PremiumIconName } from '@/components/ui/PremiumIcon'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
-import Link from 'next/link'
-import { DemoBanner } from '@/components/DemoBanner'
 
-interface Profile {
-  objectif: string
-  bloqueurs: string
-  etat_emotionnel: string
-  temps_disponible: string
-  motivation: string
-  reaction_echec: string
-  environnement_social: string
-  domaine_prioritaire: string
-  signal_succes: string
-  ton_souhaite: string
-  debrief: string
-  completed_at: string
+type ContextStats = {
+  members: number
+  children: number
+  places: number
+  custodyConfigured: boolean
 }
 
-interface WeeklyDebrief {
-  id: string
-  week_number: number
-  week_start: string
-  debrief_text: string
-  stats: any
-  created_at: string
+type UniverseCard = {
+  href: string
+  icon: PremiumIconName
+  title: string
+  description: string
+  meta?: string
+}
+
+const C = {
+  cream: '#FBF6EE',
+  paper: '#FFFDFC',
+  ink: '#3D2618',
+  muted: '#7D6C61',
+  copper: '#B9784B',
+  copperSoft: 'rgba(185,120,75,0.10)',
+  border: 'rgba(185,120,75,0.18)',
+  green: '#5E9A82',
 }
 
 export default function ProfilPage() {
   const { user, loading } = useSupabaseAuth()
   const router = useRouter()
-  const [tab, setTab] = useState<'profil' | 'bilans'>('profil')
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [debriefs, setDebriefs] = useState<WeeklyDebrief[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [regenerating, setRegenerating] = useState(false)
+  const [stats, setStats] = useState<ContextStats>({
+    members: 0,
+    children: 0,
+    places: 0,
+    custodyConfigured: false,
+  })
+  const [contextLoading, setContextLoading] = useState(true)
 
   useEffect(() => {
     if (!loading && !user) router.push('/auth')
-    if (user) loadData()
-  }, [user, loading])
+  }, [loading, user, router])
 
   useEffect(() => {
-    try {
-      const t = new URLSearchParams(window.location.search).get('tab')
-      if (t === 'bilans' || t === 'profil') setTab(t as any)
-    } catch {}
-  }, [])
-
-  const loadData = async () => {
     if (!user) return
-    setIsLoading(true)
-    try {
-      const [profileRes, debriefsRes] = await Promise.all([
-        supabase.from('ai_personality_profile').select('*').eq('user_id', user.id).single(),
-        supabase.from('weekly_debriefs').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
-      ])
-      setProfile(profileRes.data)
-      setDebriefs(debriefsRes.data || [])
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
-  const regenerateDebrief = async () => {
-    if (!profile || !user) return
-    setRegenerating(true)
-    try {
-      const prompt = `Tu es une experte en psychologie positive et neurosciences. Analyse ce profil et génère un debrief personnalisé, chaleureux et inspirant en français.
+    let cancelled = false
 
-PROFIL :
-- Objectif : ${profile.objectif}
-- Bloqueurs : ${profile.bloqueurs}
-- État émotionnel : ${profile.etat_emotionnel}
-- Temps disponible : ${profile.temps_disponible}
-- Motivation : ${profile.motivation}
-- Réaction échec : ${profile.reaction_echec}
-- Environnement social : ${profile.environnement_social}
-- Domaine prioritaire : ${profile.domaine_prioritaire}
-- Vision succès 90j : ${profile.signal_succes}
-- Ton souhaité : ${profile.ton_souhaite}
+    const loadContext = async () => {
+      setContextLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from('family_data')
+          .select('data_type, data, is_active')
+          .eq('user_id', user.id)
+          .neq('is_active', false)
 
-Génère un debrief en 4 parties :
-1. **TON PROFIL** (2-3 phrases) : profil psychologique positif et précis
-2. **TES FORCES CACHÉES** (2-3 phrases) : forces réelles avec explication neuroscientifique
-3. **TON DÉFI PRINCIPAL** (2 phrases) : défi central avec stratégie concrète
-4. **TON PROGRAMME PERSONNALISÉ** (3-4 phrases) : comment NOVAÉ adapte l'accompagnement sur 90j
+        if (error) throw error
+        if (cancelled) return
 
-Ton : ${profile.ton_souhaite}. Tutoie. Maximum 300 mots.`
+        const rows = data || []
+        const members = rows.filter((row: any) => row.data_type === 'member')
+        const children = members.filter((row: any) => row.data?.relation === 'enfant')
+        const places = rows.filter((row: any) => row.data_type === 'location_config')
+        const custodyConfigured = rows.some((row: any) => row.data_type === 'custody_config')
 
-      const { data: { session: chatSession } } = await supabase.auth.getSession()
-      if (!chatSession?.access_token) {
-        alert('Session expirée. Reconnecte-toi.')
-        return
-      }
-
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${chatSession.access_token}`,
-        },
-        body: JSON.stringify({
-          message: prompt,
-          systemPrompt: 'Tu es une experte en psychologie positive, neurosciences et coaching de vie. Réponds en français, en tutoyant.'
+        setStats({
+          members: members.length,
+          children: children.length,
+          places: places.length,
+          custodyConfigured,
         })
-      })
-
-      if (response.status === 403) {
-        alert("La régénération de ton profil est réservée aux membres Premium.")
-        return
+      } catch (error) {
+        console.error('[MonUnivers] load context error', error)
+      } finally {
+        if (!cancelled) setContextLoading(false)
       }
-
-      const data = await response.json()
-      const newDebrief = data.response || ''
-
-      await supabase.from('ai_personality_profile')
-        .update({ debrief: newDebrief, updated_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-
-      setProfile(prev => prev ? { ...prev, debrief: newDebrief } : prev)
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setRegenerating(false)
     }
-  }
 
-  const formatText = (text: string) => {
-    return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br/>')
-  }
+    void loadContext()
 
-  const QUESTIONS_LABELS: Record<string, string> = {
-    objectif: '🎯 Objectif principal',
-    bloqueurs: '🧱 Freins identifiés',
-    etat_emotionnel: '💭 État émotionnel',
-    temps_disponible: '⏰ Temps disponible',
-    motivation: '✨ Motivation profonde',
-    reaction_echec: '🔄 Face à l\'échec',
-    environnement_social: '👥 Environnement social',
-    domaine_prioritaire: '🗺️ Domaine prioritaire',
-    signal_succes: '🏆 Vision du succès à 90j',
-    ton_souhaite: '💬 Ton souhaité',
-  }
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
-  if (loading || isLoading) return (
-    <div className="min-h-screen bg-novae-cream flex items-center justify-center">
-      <div className="flex gap-2">
-        {[0,1,2].map(i => (
-          <div key={i} className="w-2 h-2 bg-novae-gold rounded-full animate-bounce" style={{ animationDelay: `${i*150}ms` }} />
-        ))}
+  const cards = useMemo<UniverseCard[]>(() => [
+    {
+      href: '/family',
+      icon: 'family',
+      title: 'Foyer & entourage',
+      description: 'Les personnes importantes, les enfants, la garde, les préférences et les repères utiles à Nova.',
+      meta: contextLoading
+        ? 'Chargement…'
+        : `${stats.members} personne${stats.members > 1 ? 's' : ''}${stats.children ? ` · ${stats.children} enfant${stats.children > 1 ? 's' : ''}` : ''}`,
+    },
+    {
+      href: '/personnalisation',
+      icon: 'sliders',
+      title: 'Personnalisation de Nova',
+      description: 'Le ton, les priorités, les rappels et la façon dont Nova doit t’accompagner au quotidien.',
+      meta: 'Adapter Nova',
+    },
+    {
+      href: '/planner',
+      icon: 'calendar',
+      title: 'Organisation du quotidien',
+      description: 'Ton planning, les routines et les repères de garde qui donnent du contexte à tes journées.',
+      meta: stats.custodyConfigured ? 'Garde configurée' : 'À compléter si besoin',
+    },
+    {
+      href: '/subscription',
+      icon: 'sparkle',
+      title: 'Abonnement',
+      description: 'Retrouve ton offre actuelle et les informations liées à ton accès Premium.',
+      meta: 'Gérer mon offre',
+    },
+    {
+      href: '/settings',
+      icon: 'shield',
+      title: 'Paramètres & confidentialité',
+      description: 'Notifications, sécurité, données personnelles et réglages généraux de ton compte.',
+      meta: 'Ouvrir les paramètres',
+    },
+  ], [contextLoading, stats])
+
+  if (loading || !user) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.cream, display: 'grid', placeItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 7 }}>
+          {[0, 1, 2].map(i => (
+            <span
+              key={i}
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 999,
+                background: C.copper,
+                opacity: 0.55 + i * 0.18,
+              }}
+            />
+          ))}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <>
       <DemoBanner />
-      <div className="min-h-screen bg-novae-cream">
-
-        {/* Header */}
-        <div className="bg-white border-b border-novae-beige/30 px-6 py-4 flex items-center gap-4">
-          <Link href="/" className="text-novae-anthracite/50 hover:text-novae-anthracite transition-colors text-sm flex items-center gap-1">
-            ← Accueil
-          </Link>
-          <h1 className="font-serif text-xl text-novae-anthracite">Mon Profil NOVAÉ</h1>
-        </div>
-
-        {/* Tabs — 2 onglets seulement (Programmes supprimé) */}
-        <div className="bg-white border-b border-novae-beige/20 px-6">
-          <div className="flex gap-0 max-w-2xl">
-            {[
-              { id: 'profil', label: '✨ Mon Profil' },
-              { id: 'bilans', label: `📊 Bilans (${debriefs.length})` },
-            ].map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id as any)}
-                className={`px-5 py-4 text-sm font-medium border-b-2 transition-colors ${
-                  tab === t.id
-                    ? 'border-novae-gold text-novae-gold'
-                    : 'border-transparent text-novae-anthracite/50 hover:text-novae-anthracite'
-                }`}
+      <main style={{ minHeight: '100vh', background: C.cream, padding: '28px 18px 110px' }}>
+        <div style={{ width: 'min(920px, 100%)', margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 30 }}>
+            <div>
+              <Link
+                href="/"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  color: C.muted,
+                  fontSize: 13,
+                  textDecoration: 'none',
+                  marginBottom: 14,
+                }}
               >
-                {t.label}
-              </button>
+                ← Accueil
+              </Link>
+              <p style={{ margin: 0, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.copper, fontWeight: 800 }}>
+                Ce que Nova connaît de toi
+              </p>
+              <h1
+                style={{
+                  margin: '7px 0 6px',
+                  fontFamily: "'Cormorant Garamond', Georgia, serif",
+                  fontSize: 'clamp(34px, 6vw, 52px)',
+                  lineHeight: 1,
+                  color: C.ink,
+                  fontWeight: 500,
+                }}
+              >
+                Mon univers
+              </h1>
+              <p style={{ margin: 0, maxWidth: 620, color: C.muted, fontSize: 14, lineHeight: 1.65 }}>
+                Ici, tu retrouves les informations qui permettent à Nova de comprendre ton quotidien sans que tu aies à tout répéter.
+              </p>
+            </div>
+
+            <div
+              aria-hidden="true"
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 22,
+                display: 'grid',
+                placeItems: 'center',
+                background: C.paper,
+                color: C.copper,
+                border: `1px solid ${C.border}`,
+                boxShadow: '0 14px 34px rgba(76,48,32,0.08)',
+                flexShrink: 0,
+              }}
+            >
+              <PremiumIcon name="sparkle" width={29} height={29} />
+            </div>
+          </div>
+
+          <section
+            style={{
+              background: C.paper,
+              border: `1px solid ${C.border}`,
+              borderRadius: 26,
+              padding: '20px 22px',
+              marginBottom: 18,
+              boxShadow: '0 12px 30px rgba(76,48,32,0.055)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 14,
+                  display: 'grid',
+                  placeItems: 'center',
+                  background: C.copperSoft,
+                  color: C.copper,
+                  flexShrink: 0,
+                }}
+              >
+                <PremiumIcon name="user" width={21} height={21} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, color: C.ink, fontWeight: 800, fontSize: 14 }}>
+                  Ton compte NOVAÉ
+                </p>
+                <p style={{ margin: '4px 0 0', color: C.muted, fontSize: 13, overflowWrap: 'anywhere' }}>
+                  {user.email}
+                </p>
+                <p style={{ margin: '9px 0 0', color: C.muted, fontSize: 12, lineHeight: 1.55 }}>
+                  Les informations de cet espace servent uniquement à personnaliser ton expérience et les réponses de Nova.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: 14,
+            }}
+          >
+            {cards.map(card => (
+              <Link
+                key={card.href}
+                href={card.href}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minHeight: 190,
+                  padding: 20,
+                  color: 'inherit',
+                  textDecoration: 'none',
+                  background: C.paper,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 24,
+                  boxShadow: '0 10px 28px rgba(76,48,32,0.045)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 15,
+                    display: 'grid',
+                    placeItems: 'center',
+                    color: card.href === '/family' ? C.green : C.copper,
+                    background: card.href === '/family' ? 'rgba(94,154,130,0.10)' : C.copperSoft,
+                    marginBottom: 18,
+                  }}
+                >
+                  <PremiumIcon name={card.icon} width={22} height={22} />
+                </div>
+
+                <h2
+                  style={{
+                    margin: 0,
+                    color: C.ink,
+                    fontFamily: "'Cormorant Garamond', Georgia, serif",
+                    fontSize: 24,
+                    fontWeight: 600,
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {card.title}
+                </h2>
+                <p style={{ margin: '9px 0 18px', color: C.muted, fontSize: 13, lineHeight: 1.58 }}>
+                  {card.description}
+                </p>
+
+                <div
+                  style={{
+                    marginTop: 'auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    color: C.copper,
+                    fontSize: 12,
+                    fontWeight: 800,
+                  }}
+                >
+                  <span>{card.meta}</span>
+                  <PremiumIcon name="chevron" width={16} height={16} />
+                </div>
+              </Link>
             ))}
           </div>
+
+          <p style={{ margin: '22px 4px 0', color: C.muted, fontSize: 11.5, lineHeight: 1.55, textAlign: 'center' }}>
+            Tu peux modifier ces informations quand ton quotidien change. Nova utilisera toujours la version la plus récente.
+          </p>
         </div>
-
-        <div className="max-w-2xl mx-auto px-6 py-8">
-
-          {/* ONGLET PROFIL */}
-          {tab === 'profil' && (
-            <div className="space-y-6">
-              {/* Debrief IA */}
-              <div className="bg-white rounded-2xl border border-novae-beige/20 overflow-hidden shadow-sm">
-                <div className="px-6 py-4 border-b border-novae-beige/20 flex items-center justify-between">
-                  <div>
-                    <h2 className="font-serif text-lg text-novae-anthracite">Ton analyse personnalisée</h2>
-                    <p className="text-xs text-novae-anthracite/40 mt-0.5">Psychologie & Neurosciences · NOVAÉ IA</p>
-                  </div>
-                  <button
-                    onClick={regenerateDebrief}
-                    disabled={regenerating}
-                    className="px-3 py-1.5 text-xs bg-novae-gold/10 border border-novae-gold/20 text-novae-gold rounded-lg hover:bg-novae-gold/20 transition-colors disabled:opacity-50"
-                  >
-                    {regenerating ? '...' : '🔄 Régénérer'}
-                  </button>
-                </div>
-                <div className="px-6 py-5">
-                  {profile?.debrief ? (
-                    <div
-                      className="text-sm text-novae-anthracite/80 leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: '<p>' + formatText(profile.debrief) + '</p>' }}
-                    />
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-novae-anthracite/40 text-sm mb-4">Aucun debrief généré</p>
-                      <button
-                        onClick={regenerateDebrief}
-                        disabled={regenerating}
-                        className="px-4 py-2 bg-novae-anthracite text-white rounded-xl text-sm hover:bg-novae-gold transition-colors"
-                      >
-                        {regenerating ? 'Génération...' : '✨ Générer mon analyse'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Réponses onboarding */}
-              <div className="bg-white rounded-2xl border border-novae-beige/20 overflow-hidden shadow-sm">
-                <div className="px-6 py-4 border-b border-novae-beige/20 flex items-center justify-between">
-                  <h2 className="font-serif text-lg text-novae-anthracite">Mes réponses</h2>
-                  <Link href="/onboarding" className="text-xs text-novae-anthracite/40 hover:text-novae-gold transition-colors">
-                    Modifier →
-                  </Link>
-                </div>
-                <div className="divide-y divide-novae-beige/20">
-                  {profile && Object.entries(QUESTIONS_LABELS).map(([key, label]) => (
-                    <div key={key} className="px-6 py-4">
-                      <p className="text-xs font-medium text-novae-anthracite/40 mb-1">{label}</p>
-                      <p className="text-sm text-novae-anthracite leading-relaxed">
-                        {profile[key as keyof Profile] || <span className="text-novae-anthracite/30 italic">Non renseigné</span>}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ONGLET BILANS */}
-          {tab === 'bilans' && (
-            <div className="space-y-4">
-              {debriefs.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-novae-beige/20 p-12 text-center shadow-sm">
-                  <div className="text-4xl mb-4">📊</div>
-                  <h3 className="font-serif text-xl text-novae-anthracite mb-2">Aucun bilan encore</h3>
-                  <p className="text-sm text-novae-anthracite/50 max-w-sm mx-auto leading-relaxed">
-                    Chaque dimanche, ton agent NOVAÉ génère automatiquement un bilan de ta semaine. Il apparaîtra ici.
-                  </p>
-                  <Link href="/agent" className="inline-block mt-6 px-4 py-2 bg-novae-anthracite text-white rounded-xl text-sm hover:bg-novae-gold transition-colors">
-                    Demander un bilan maintenant →
-                  </Link>
-                </div>
-              ) : (
-                debriefs.map(debrief => (
-                  <div key={debrief.id} className="bg-white rounded-2xl border border-novae-beige/20 overflow-hidden shadow-sm">
-                    <div className="px-6 py-4 border-b border-novae-beige/20 flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium text-novae-anthracite text-sm">
-                          Semaine {debrief.week_number}
-                        </h3>
-                        <p className="text-xs text-novae-anthracite/40 mt-0.5">
-                          {new Date(debrief.week_start).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                        </p>
-                      </div>
-                      {debrief.stats && (
-                        <div className="flex gap-3">
-                          {debrief.stats.routines_done !== undefined && (
-                            <div className="text-center">
-                              <div className="text-lg font-serif text-novae-gold">{debrief.stats.routines_done}</div>
-                              <div className="text-xs text-novae-anthracite/40">routines</div>
-                            </div>
-                          )}
-                          {debrief.stats.tasks_done !== undefined && (
-                            <div className="text-center">
-                              <div className="text-lg font-serif text-novae-gold">{debrief.stats.tasks_done}</div>
-                              <div className="text-xs text-novae-anthracite/40">tâches</div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="px-6 py-5">
-                      <div
-                        className="text-sm text-novae-anthracite/80 leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: '<p>' + formatText(debrief.debrief_text) + '</p>' }}
-                      />
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-        </div>
-      </div>
+      </main>
     </>
   )
 }

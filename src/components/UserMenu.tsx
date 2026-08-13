@@ -24,14 +24,6 @@ export function UserMenu() {
   return (
     <div className="relative flex items-center gap-2">
       <button
-        onClick={() => router.push('/profil')}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-novae-gold/10 border border-novae-gold/20 hover:bg-novae-gold/20 transition-colors"
-      >
-        <Sparkles size={13} className="text-novae-gold" />
-        <span className="text-xs font-medium text-novae-gold">Mon Profil</span>
-      </button>
-
-      <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-novae-beige/20 transition-colors"
       >
@@ -65,7 +57,7 @@ export function UserMenu() {
                 className="w-full px-4 py-2 text-left text-sm text-novae-anthracite hover:bg-novae-beige/20 flex items-center gap-2"
               >
                 <Sparkles size={16} />
-                Mon Profil
+                Mon univers
               </button>
               <button
                 onClick={() => { router.push('/settings'); setIsOpen(false) }}
