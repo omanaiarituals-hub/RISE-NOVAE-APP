@@ -12,12 +12,14 @@ import { logEvent } from '@/lib/events'
 
 type MemberCategory = 'foyer' | 'famille' | 'proches' | 'professionnel'
 type MemberRelation = 'conjoint' | 'enfant' | 'parent' | 'frere_soeur' | 'neveu_niece' | 'cousin' | 'grand_parent' | 'ami' | 'collegue' | 'autre'
+type MemberGender = 'female' | 'male' | ''
 
 interface FamilyMember {
   id: string
   firstName: string
   lastName: string
   relation: MemberRelation
+  gender: MemberGender
   category: MemberCategory
   isHouseholdMember: boolean
   birthDate: string
@@ -144,6 +146,7 @@ function fromSupabase(row: any): FamilyMember {
     firstName: d.firstName || d.name || '',
     lastName: d.lastName || '',
     relation,
+    gender: d.gender === 'female' || d.gender === 'male' ? d.gender : '',
     category,
     isHouseholdMember: typeof d.isHouseholdMember === 'boolean' ? d.isHouseholdMember : category === 'foyer',
     birthDate: d.birthDate || d.birthday || '',
@@ -186,6 +189,7 @@ function toSupabase(m: FamilyMember, userId: string) {
       lastName: m.lastName,
       name: m.firstName + (m.lastName ? ' ' + m.lastName : ''),
       relation: m.relation,
+      gender: m.gender || null,
       category: m.category,
       isHouseholdMember: m.isHouseholdMember,
       birthDate: m.birthDate,
@@ -1052,6 +1056,7 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
   const [firstName, setFirstName] = useState(initial?.firstName || '')
   const [lastName, setLastName] = useState(initial?.lastName || '')
   const [relation, setRelation] = useState<MemberRelation>(initial?.relation || 'enfant')
+  const [gender, setGender] = useState<MemberGender>(initial?.gender || '')
   const [category, setCategory] = useState<MemberCategory>(initial?.category || defaultCategory || 'foyer')
   const [isHouseholdMember, setIsHouseholdMember] = useState(initial?.isHouseholdMember ?? ((initial?.category || defaultCategory || 'foyer') === 'foyer'))
   const [birthDate, setBirthDate] = useState(initial?.birthDate || '')
@@ -1093,7 +1098,7 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
       id: initial?.id || Math.random().toString(36).slice(2),
       supabaseId: initial?.supabaseId,
       firstName: firstName.trim(), lastName: lastName.trim(),
-      relation, category, isHouseholdMember, birthDate, photo, photoUrl,
+      relation, gender, category, isHouseholdMember, birthDate, photo, photoUrl,
       clothingSize, shoeSize, allergies, healthNotes, phone, email, isPrimaryContact,
       dietaryRegime, foodPreferences, foodDislikes, giftIdeas, notes,
     })
@@ -1182,6 +1187,34 @@ function MemberModal({ initial, defaultCategory, onSave, onClose }: {
               <button key={k} onClick={() => setRelation(k)}
                 style={{ padding: '6px 10px', borderRadius: 8, border: `1.5px solid ${relation === k ? C.rose : C.grisClair}`, background: relation === k ? C.roseLight : 'white', fontSize: 11, fontWeight: relation === k ? 700 : 400, color: relation === k ? C.rose : C.gris, cursor: 'pointer' }}>
                 {v}
+              </button>
+            ))}
+          </div>
+
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>
+            Genre <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>(facultatif)</span>
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+            {([
+              ['female', '♀ Féminin'],
+              ['male', '♂ Masculin'],
+            ] as [Exclude<MemberGender, ''>, string][]).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setGender(gender === value ? '' : value)}
+                style={{
+                  padding: '9px 12px',
+                  borderRadius: 10,
+                  border: `1.5px solid ${gender === value ? C.rose : C.grisClair}`,
+                  background: gender === value ? C.roseLight : 'white',
+                  color: gender === value ? C.deep : C.gris,
+                  fontSize: 12,
+                  fontWeight: gender === value ? 700 : 500,
+                  cursor: 'pointer',
+                }}
+              >
+                {label}
               </button>
             ))}
           </div>

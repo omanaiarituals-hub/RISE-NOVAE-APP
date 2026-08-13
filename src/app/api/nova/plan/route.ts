@@ -523,6 +523,8 @@ function formatFamilyContext(rows: FamilyMemberRow[] | null, timezone = 'Europe/
             : 'Proche'
       const parts: string[] = [name]
       if (r.relation_to_user) parts.push(r.relation_to_user)
+      if (d.gender === 'female') parts.push('genre : féminin')
+      if (d.gender === 'male') parts.push('genre : masculin')
       if (typeof d.category === 'string' && d.category) parts.push(`cercle : ${d.category}`)
       if (d.isHouseholdMember === true) parts.push('membre du foyer')
       if (typeof d.birthDate === 'string' && d.birthDate) {
