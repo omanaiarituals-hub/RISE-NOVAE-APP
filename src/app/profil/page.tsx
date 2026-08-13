@@ -118,13 +118,6 @@ export default function ProfilPage() {
         ? `${stats.places} configuration de lieux enregistrée`
         : 'Ajouter mes repères',
     },
-    {
-      href: '/settings',
-      icon: 'shield',
-      title: 'Paramètres & confidentialité',
-      description: 'Notifications, sécurité, données personnelles et réglages généraux de ton compte.',
-      meta: 'Ouvrir les paramètres',
-    },
   ], [contextLoading, stats])
 
   if (loading || !user) {
@@ -321,9 +314,62 @@ export default function ProfilPage() {
             ))}
           </div>
 
-          <p style={{ margin: '22px 4px 0', color: C.muted, fontSize: 11.5, lineHeight: 1.55, textAlign: 'center' }}>
-            Tu peux modifier ces informations quand ton quotidien change. Nova utilisera toujours la version la plus récente.
-          </p>
+          <div
+            style={{
+              marginTop: 24,
+              paddingTop: 18,
+              borderTop: `1px solid ${C.border}`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <p style={{ margin: 0, color: C.muted, fontSize: 11.5, lineHeight: 1.55, textAlign: 'center' }}>
+              Tu peux modifier ces informations quand ton quotidien change. Nova utilisera toujours la version la plus récente.
+            </p>
+
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                gap: '8px 16px',
+                fontSize: 11,
+              }}
+            >
+              <Link
+                href="/confidentialite"
+                style={{
+                  color: C.copper,
+                  textDecoration: 'none',
+                  fontWeight: 700,
+                }}
+              >
+                Confidentialité
+              </Link>
+              <Link
+                href="/cgu"
+                style={{
+                  color: C.copper,
+                  textDecoration: 'none',
+                  fontWeight: 700,
+                }}
+              >
+                CGU
+              </Link>
+              <Link
+                href="/settings#zone-sensible"
+                style={{
+                  color: C.copper,
+                  textDecoration: 'none',
+                  fontWeight: 700,
+                }}
+              >
+                Données & compte
+              </Link>
+            </div>
+          </div>
         </div>
       </main>
     </>
