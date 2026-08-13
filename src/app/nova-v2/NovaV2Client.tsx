@@ -111,7 +111,7 @@ function formatConversationDate(value: string): string {
   return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export default function NovaV2Client({ userId, userEmail }: { userId: string; userEmail?: string }) {
+export default function NovaV2Client({ userId }: { userId: string; userEmail?: string }) {
     const searchParams = useSearchParams()
   const voiceMode = searchParams.get('voice') === '1'
   const history = useNovaConversationHistory(userId)
@@ -1678,8 +1678,6 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#796F68]">Assistant de vie</p>
             <h1 className="font-serif text-3xl font-semibold">Nova</h1>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-[#625B55]">Ton espace de test réel. Les tâches, rappels, notifications et fusions sont actifs après validation. Les tâches, rappels, rendez-vous et leurs modifications sont actifs après validation.</p>
-            {userEmail ? <p className="mt-1 text-xs text-[#847A72]">Compte : {userEmail}</p> : null}
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -1689,10 +1687,6 @@ export default function NovaV2Client({ userId, userEmail }: { userId: string; us
           </div>
         </header>
         <section className="overflow-hidden rounded-2xl border border-[#D7D0C8] bg-white shadow-sm">
-          <div className="border-b border-[#E8E2DC] bg-[#FBFAF8] px-5 py-3">
-            <span className="rounded-full bg-[#E8EFE7] px-3 py-1 text-xs font-medium text-[#425642]">Tâches, rappels, agenda, modifications et annulations actifs</span>
-          </div>
-
           <div className="max-h-[62vh] min-h-[440px] space-y-4 overflow-y-auto px-4 py-5 sm:px-5 sm:py-6">
             {messages.map((message) => (
               <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>

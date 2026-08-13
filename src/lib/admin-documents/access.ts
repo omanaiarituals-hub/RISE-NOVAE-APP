@@ -1,8 +1,15 @@
-export const ADMIN_DOCUMENTS_ALLOWED_EMAILS = [
-  'nesserinesediri@gmail.com',
-]
-
-export function canAccessAdminDocuments(email: string | null | undefined): boolean {
-  if (!email) return false
-  return ADMIN_DOCUMENTS_ALLOWED_EMAILS.includes(email.toLowerCase())
+/**
+ * Accès au module Documents administratifs.
+ *
+ * Avant ouverture publique, ce module était limité à une whitelist d'e-mails.
+ * Il est désormais accessible à tout utilisateur authentifié.
+ *
+ * Les routes API conservent leurs contrôles d'authentification, leurs limites
+ * et les protections RLS : ce helper ne remplace pas l'auth, il supprime
+ * uniquement l'ancien verrou de test privé.
+ */
+export function canAccessAdminDocuments(
+  email: string | null | undefined
+): boolean {
+  return Boolean(email)
 }
