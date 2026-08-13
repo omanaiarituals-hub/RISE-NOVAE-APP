@@ -16,7 +16,6 @@ export async function ensureUserEntry(user: User): Promise<{ success: boolean; e
           email: user.email || '',
           full_name: metadata.full_name || metadata.name || null,
           avatar_url: metadata.avatar_url || metadata.picture || null,
-          pseudo: metadata.pseudo || null,
           cgu_accepted_at: metadata.cgu_accepted_at || null,
           cgu_version: metadata.cgu_version || null,
           onboarding_data: {},

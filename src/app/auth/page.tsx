@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth'
+import { ensureUserEntry } from '@/lib/supabase/userInit'
 
 export default function AuthPage() {
   const router = useRouter()
@@ -41,27 +42,47 @@ export default function AuthPage() {
 
     const finishSignIn = async () => {
       try {
-        // useSupabaseAuth initialise déjà public.users.
-        // On attend simplement que cette initialisation soit visible au lieu de la refaire ici.
+        // La session Auth existe déjà à ce stade. On garantit ici que public.users
+        // existe avant toute décision CGU/onboarding. ensureUserEntry est idempotent
+        // (UPSERT ON CONFLICT DO NOTHING depuis AUTH-2), donc cet appel est sûr même
+        // si useSupabaseAuth lance la même initialisation en parallèle.
+        const initResult = await ensureUserEntry(user)
+
+        if (!initResult.success) {
+          const detail =
+            initResult.error?.message ||
+            initResult.error?.details ||
+            initResult.error?.code ||
+            'erreur inconnue'
+          throw new Error(`Initialisation du profil impossible : ${detail}`)
+        }
+
         let profile: { cgu_accepted_at?: string | null; onboarding_completed?: boolean | null } | null = null
 
-        for (let attempt = 0; attempt < 5; attempt += 1) {
+        for (let attempt = 0; attempt < 10; attempt += 1) {
           const { data, error: profileError } = await supabase
             .from('users')
             .select('cgu_accepted_at,onboarding_completed')
             .eq('id', user.id)
             .maybeSingle()
 
+          if (profileError) {
+            console.error('[auth] profile read failed', {
+              message: profileError.message,
+              code: profileError.code,
+            })
+          }
+
           if (!profileError && data) {
             profile = data
             break
           }
 
-          await new Promise(resolve => setTimeout(resolve, 250))
+          await new Promise(resolve => setTimeout(resolve, 300))
         }
 
         if (!profile) {
-          throw new Error('Le profil NOVAÉ n’a pas pu être initialisé.')
+          throw new Error('Le profil NOVAÉ n’a pas pu être chargé après sa création.')
         }
 
         const oauthCguAccepted =
