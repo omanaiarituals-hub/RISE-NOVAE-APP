@@ -1,0 +1,19 @@
+NOVAÉ FINANCE — LOT 0 FONDATIONS
+Date: 2026-08-15
+
+Fichiers principaux:
+- supabase/migrations/20260815190000_finance_foundation_v1.sql
+- src/lib/finance/provider.ts
+- src/lib/finance/provider-factory.ts
+- src/lib/finance/types.ts
+- src/lib/finance/access.ts
+- src/lib/finance/providers/disabled.ts
+- src/app/api/finance/provider-status/route.ts
+- src/components/finance/*
+- src/app/finances/*
+- docs/finance/LOT-0-FOUNDATION.md
+- .env.local.example
+
+Aucun secret n'est inclus.
+Aucun paiement/virement n'est implémenté.
+Aucune API Open Banking réelle n'est encore appelée.
