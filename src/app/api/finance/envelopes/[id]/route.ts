@@ -4,7 +4,6 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { financeBadRequest, financeUnauthorized, integerOr, numberOrNull, requireFinanceIdentity } from '@/lib/finance/api'
 
 const envelopeTypes = new Set(['monthly', 'cumulative', 'goal', 'debt', 'temporary'])
-
 type Context = { params: Promise<{ id: string }> }
 
 export async function GET(request: NextRequest, context: Context) {
@@ -14,14 +13,39 @@ export async function GET(request: NextRequest, context: Context) {
 
   const { data, error } = await supabaseAdmin
     .from('finance_envelopes')
-    .select('id,name,envelope_type,target_amount,current_amount,rollover_enabled,cash_enabled,priority,is_active,created_at,updated_at')
+    .select('id,name,envelope_type,target_amount,current_amount,cash_balance,rollover_enabled,cash_enabled,priority,is_active,created_at,updated_at')
     .eq('id', id)
     .eq('user_id', identity.id)
     .maybeSingle()
 
   if (error) return NextResponse.json({ error: 'finance_envelope_unavailable', detail: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json({ envelope: data })
+
+  const year = new Date().getFullYear()
+  const start = `${year}-01-01`
+  const [{ data: movements, error: movementError }, { data: snapshots, error: snapshotError }] = await Promise.all([
+    supabaseAdmin.from('finance_envelope_movements').select('movement_type,amount,bank_impact,metadata,occurred_on').eq('user_id', identity.id).eq('envelope_id', id).gte('occurred_on', start),
+    supabaseAdmin.from('finance_envelope_cycle_snapshots').select('transferred_to_savings_amount,cycle_end').eq('user_id', identity.id).eq('envelope_id', id).gte('cycle_end', start),
+  ])
+  if (movementError) return NextResponse.json({ error: 'finance_envelope_stats_unavailable', detail: movementError.message }, { status: 500 })
+  if (snapshotError) return NextResponse.json({ error: 'finance_envelope_snapshots_unavailable', detail: snapshotError.message }, { status: 500 })
+
+  let spent = 0, injected = 0, withdrawn = 0, remainderSaved = 0
+  for (const movement of movements ?? []) {
+    const amount = Number(movement.amount || 0)
+    const bankImpact = Number(movement.bank_impact || 0)
+    const metadata = (movement.metadata ?? {}) as Record<string, unknown>
+    const direction = String(metadata.direction ?? '')
+    if (movement.movement_type === 'expense') spent += Math.abs(amount)
+    if (movement.movement_type === 'adjustment' && bankImpact !== 0) {
+      if (direction === 'add' || amount > 0) injected += Math.abs(amount)
+      if (direction === 'remove' || amount < 0) withdrawn += Math.abs(amount)
+    }
+    if (movement.movement_type === 'cash_deposit' && ['goal','cumulative','debt'].includes(String(data.envelope_type))) injected += Math.abs(amount)
+  }
+  for (const snapshot of snapshots ?? []) remainderSaved += Number(snapshot.transferred_to_savings_amount || 0)
+
+  return NextResponse.json({ envelope: { ...data, year_stats: { spent, injected, withdrawn, remainder_saved: remainderSaved } } })
 }
 
 export async function PATCH(request: NextRequest, context: Context) {
@@ -61,7 +85,7 @@ export async function PATCH(request: NextRequest, context: Context) {
     .update(patch)
     .eq('id', id)
     .eq('user_id', identity.id)
-    .select('id,name,envelope_type,target_amount,current_amount,rollover_enabled,cash_enabled,priority,is_active,created_at,updated_at')
+    .select('id,name,envelope_type,target_amount,current_amount,cash_balance,rollover_enabled,cash_enabled,priority,is_active,created_at,updated_at')
     .maybeSingle()
 
   if (error) return NextResponse.json({ error: 'finance_envelope_update_failed', detail: error.message }, { status: 500 })

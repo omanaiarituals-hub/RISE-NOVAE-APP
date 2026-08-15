@@ -1,0 +1,6 @@
+NOVAÉ Finance — Patch 5.1
+- Libellés dynamiques selon le type d'enveloppe
+- Séparation progression / cash physique
+- Historique annuel dérivé des mouvements
+- Préparation des snapshots de clôture de cycle
+- Correctif des fonctions cash pour éviter les doubles sens de current_amount

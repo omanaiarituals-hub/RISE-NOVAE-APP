@@ -1,5 +1,2 @@
-import FinancePlaceholderPage from '@/components/finance/FinancePlaceholderPage'
-
-export default function Page() {
-  return <FinancePlaceholderPage eyebrow="Assistant" title="Nova Finance" description="Espace conversationnel pour demander combien tu peux dépenser, analyser un achat ou comprendre pourquoi le mois dérive." />
-}
+import FinanceNovaCoach from '@/components/finance/FinanceNovaCoach'
+export default function Page() { return <FinanceNovaCoach /> }

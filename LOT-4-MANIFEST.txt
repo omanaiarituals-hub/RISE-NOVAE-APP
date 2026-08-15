@@ -1,0 +1,20 @@
+NOVAÉ FINANCE — LOT 4
+Recommandations Nova + CRUD partagé
+
+Ajouts :
+- profil financier minimal (revenu, jour de paie, découvert facultatif)
+- moteur déterministe de recommandations Finance
+- propositions d’enveloppes avec montants éditables
+- propositions d’objectifs avec cibles / efforts mensuels éditables
+- validation explicite obligatoire avant création
+- endpoint CRUD réservé à Nova, protégé par confirmation explicite
+- priorité affichée en ordre humain (1, 2, 3…) au lieu du poids technique
+- CTA “Laisser Nova proposer” dans Enveloppes et Objectifs
+
+Principes :
+- aucun découvert supposé
+- aucune création silencieuse
+- l’utilisatrice garde le CRUD complet
+- Nova et l’interface écrivent dans les mêmes tables Finance
+- le moteur s’améliore automatiquement quand les transactions bancaires existent
+- aucun paiement / aucun virement
