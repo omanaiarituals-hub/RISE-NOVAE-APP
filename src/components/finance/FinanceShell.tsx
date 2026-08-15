@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import FinanceBackButton from './FinanceBackButton'
 import type { ReactNode } from 'react'
 import Navigation from '@/components/Navigation'
 
@@ -21,7 +22,7 @@ export default function FinanceShell({ children }: { children: ReactNode }) {
       <div className="mx-auto w-[min(calc(100%-24px),1180px)] py-5 sm:w-[min(calc(100%-32px),1180px)] sm:py-8">
         <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <Link href="/" className="text-xs font-bold text-[var(--novae-text-muted)] no-underline">← Accueil</Link>
+            <FinanceBackButton />
             <h1 className="mt-1 font-[var(--novae-font-title)] text-3xl font-semibold sm:text-4xl">Finances</h1>
           </div>
           <span className="rounded-full border border-[var(--novae-border)] bg-[var(--novae-surface)] px-3 py-2 text-xs font-bold text-[var(--novae-text-muted)]">

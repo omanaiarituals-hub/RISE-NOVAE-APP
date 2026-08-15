@@ -1,0 +1,13 @@
+NOVAÉ Finance — LOT 1 — 2026-08-15
+
+- Hotfix accès local Finance inclus
+- Bouton Retour contextuel Finance (remplace le lien Accueil redondant)
+- Adaptateur Powens en lecture seule
+- Aucun paiement / aucun virement / aucune méthode d'initiation de paiement
+- Jeton fournisseur chiffré AES-256-GCM côté serveur
+- Migration finance_provider_credentials sans policy client
+- Routes connect / sync / disconnect
+- Écran Banque interactif et responsive
+- Synchronisation quotidienne privée via cron à 04:30 UTC
+- Le provider reste désactivé tant que FINANCE_BANKING_PROVIDER=disabled
+- Les enveloppes visibles restent des exemples UX jusqu'au lot moteur/enveloppes réelles
