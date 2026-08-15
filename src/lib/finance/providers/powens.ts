@@ -32,7 +32,11 @@ function configured() {
 async function parseJson(response: Response): Promise<JsonRecord> {
   const text = await response.text()
   if (!text) return {}
-  try { return JSON.parse(text) as JsonRecord } catch { return { raw: text } }
+  try {
+    return JSON.parse(text) as JsonRecord
+  } catch {
+    return { raw: text }
+  }
 }
 
 async function powensFetch(url: string, init: RequestInit = {}) {
@@ -51,13 +55,15 @@ async function powensFetch(url: string, init: RequestInit = {}) {
 
 function mapConnection(raw: JsonRecord): BankingConnection {
   const state = String(raw.state || '').toLowerCase()
-  const status: BankingConnection['status'] = !state
-    ? 'connected'
-    : /sca|required|webauth|additional|decoupled|validating/.test(state)
-      ? 'reauth_required'
-      : /sync/.test(state)
-        ? 'syncing'
-        : 'error'
+  const status: BankingConnection['status'] = raw.deleted || raw.disabled
+    ? 'disconnected'
+    : !state || state === 'null'
+      ? 'connected'
+      : /sca|required|webauth|additional|decoupled|validating|wrongpass/.test(state)
+        ? 'reauth_required'
+        : /sync/.test(state)
+          ? 'syncing'
+          : 'error'
 
   return {
     providerConnectionId: String(raw.id ?? raw.id_connection ?? ''),
@@ -70,8 +76,8 @@ function mapConnection(raw: JsonRecord): BankingConnection {
 }
 
 function mapAccount(raw: JsonRecord): FinanceAccount {
-  const iban = String(raw.iban || raw.number || raw.webid || '')
-  const masked = iban ? `•••• ${iban.slice(-4)}` : undefined
+  const identifier = String(raw.iban || raw.number || raw.webid || '')
+  const masked = identifier ? `•••• ${identifier.slice(-4)}` : undefined
   return {
     providerAccountId: String(raw.id ?? ''),
     name: raw.name || raw.original_name || raw.type || 'Compte bancaire',
@@ -85,17 +91,17 @@ function mapAccount(raw: JsonRecord): FinanceAccount {
 }
 
 function mapTransaction(raw: JsonRecord): FinanceTransaction {
-  const amount = Number(raw.value ?? raw.amount ?? 0)
+  const signedAmount = Number(raw.value ?? raw.amount ?? 0)
   return {
     providerTransactionId: String(raw.id ?? ''),
     providerAccountId: String(raw.id_account ?? raw.account_id ?? ''),
     transactionDate: String(raw.date ?? raw.rdate ?? raw.vdate ?? new Date().toISOString().slice(0, 10)).slice(0, 10),
     valueDate: raw.vdate ? String(raw.vdate).slice(0, 10) : undefined,
-    amount: Math.abs(amount),
+    amount: Math.abs(signedAmount),
     currency: raw.currency?.id || raw.currency || 'EUR',
     rawLabel: raw.wording || raw.raw || raw.original_wording || undefined,
     merchantName: raw.simplified_wording || raw.merchant_name || undefined,
-    direction: amount >= 0 ? 'credit' : 'debit',
+    direction: signedAmount >= 0 ? 'credit' : 'debit',
     providerCategory: raw.type || raw.category || undefined,
     metadata: {
       coming: raw.coming ?? undefined,
@@ -122,20 +128,26 @@ export class PowensBankingProvider implements BankingProvider {
     if (existing) return existing
 
     this.assertConfigured()
-    const base = apiBase()!
-    const body = new URLSearchParams({
-      client_id: process.env.POWENS_CLIENT_ID!,
-      client_secret: process.env.POWENS_CLIENT_SECRET!,
-    })
-    const response = await powensFetch(`${base}/auth/init`, {
+    const response = await powensFetch(`${apiBase()}/auth/init`, {
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        client_id: process.env.POWENS_CLIENT_ID!,
+        client_secret: process.env.POWENS_CLIENT_SECRET!,
+      }),
     })
+
     const payload = await parseJson(response)
     const accessToken = payload.access_token || payload.token
-    const providerUserId = payload.id_user != null ? String(payload.id_user) : payload.user?.id != null ? String(payload.user.id) : undefined
-    if (!accessToken) throw new BankingProviderError({ provider, retryable: false, message: 'Powens n’a pas renvoyé de jeton utilisateur.' })
+    const providerUserId = payload.id_user != null
+      ? String(payload.id_user)
+      : payload.user?.id != null
+        ? String(payload.user.id)
+        : undefined
+
+    if (!accessToken) {
+      throw new BankingProviderError({ provider, retryable: false, message: 'Powens n’a pas renvoyé de jeton utilisateur.' })
+    }
 
     await saveProviderCredential({ userId: novaeUserId, provider, providerUserId, accessToken })
     return { providerUserId, accessToken }
@@ -144,12 +156,17 @@ export class PowensBankingProvider implements BankingProvider {
   async createReadOnlyConnectionSession(input: { novaeUserId: string; returnUrl: string }): Promise<BankingConnectionSession> {
     this.assertConfigured()
     const { accessToken } = await this.ensureCredential(input.novaeUserId)
-    const response = await powensFetch(`${apiBase()}/auth/token/code?type=singleAccess`, {
+    const codeUrl = new URL(`${apiBase()}/auth/token/code`)
+    codeUrl.searchParams.set('type', 'singleAccess')
+
+    const response = await powensFetch(codeUrl.toString(), {
       headers: { authorization: `Bearer ${accessToken}` },
     })
     const payload = await parseJson(response)
     const code = payload.code || payload.auth_code
-    if (!code) throw new BankingProviderError({ provider, retryable: false, message: 'Impossible de générer le code Webview Powens.' })
+    if (!code) {
+      throw new BankingProviderError({ provider, retryable: false, message: 'Impossible de générer le code Webview Powens.' })
+    }
 
     const url = new URL(process.env.POWENS_WEBVIEW_URL || 'https://webview.powens.com/connect')
     url.searchParams.set('domain', domainHost()!)
@@ -177,9 +194,15 @@ export class PowensBankingProvider implements BankingProvider {
       .eq('provider', provider)
       .eq('provider_connection_id', providerConnectionId)
       .maybeSingle()
-    if (error || !data?.user_id) throw new BankingProviderError({ provider, retryable: false, message: 'Connexion NOVAÉ/Powens introuvable.' })
+
+    if (error || !data?.user_id) {
+      throw new BankingProviderError({ provider, retryable: false, message: 'Connexion NOVAÉ/Powens introuvable.' })
+    }
+
     const credential = await getProviderCredential(String(data.user_id), provider)
-    if (!credential) throw new BankingProviderError({ provider, retryable: false, message: 'Jeton Powens introuvable.' })
+    if (!credential) {
+      throw new BankingProviderError({ provider, retryable: false, message: 'Jeton Powens introuvable.' })
+    }
     return credential
   }
 
@@ -198,12 +221,14 @@ export class PowensBankingProvider implements BankingProvider {
     const url = new URL(`${apiBase()}/users/me/transactions`)
     url.searchParams.set('limit', '1000')
     if (input.since) url.searchParams.set('min_date', input.since.slice(0, 10))
+
     const response = await powensFetch(url.toString(), {
       headers: { authorization: `Bearer ${credential.accessToken}` },
     })
     const payload = await parseJson(response)
     const items = payload.transactions || payload.data || []
-    return Array.isArray(items) ? items.map(mapTransaction).filter((item) => item.providerTransactionId) : []
+    const mapped = Array.isArray(items) ? items.map(mapTransaction) : []
+    return mapped.filter((item) => item.providerTransactionId && item.providerAccountId)
   }
 
   async syncConnection(providerConnectionId: string): Promise<BankingSyncResult> {
@@ -233,7 +258,11 @@ export class PowensBankingProvider implements BankingProvider {
     const payload = JSON.parse(input.rawBody || '{}') as JsonRecord
     const type = String(payload.type || payload.event || payload.event_type || 'unknown')
     const connection = payload.connection || payload.data?.connection || {}
-    const providerConnectionId = connection.id != null ? String(connection.id) : payload.id_connection != null ? String(payload.id_connection) : undefined
+    const providerConnectionId = connection.id != null
+      ? String(connection.id)
+      : payload.id_connection != null
+        ? String(payload.id_connection)
+        : undefined
     const providerEventId = String(payload.id || payload.event_id || `${type}:${providerConnectionId || 'unknown'}:${payload.timestamp || Date.now()}`)
     return { providerEventId, type, providerConnectionId }
   }

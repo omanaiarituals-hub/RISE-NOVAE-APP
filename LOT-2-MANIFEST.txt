@@ -1,0 +1,18 @@
+NOVAÉ FINANCE — LOT 2 / POWENS SANDBOX READ-ONLY
+Date: 2026-08-15
+
+Fichiers ajoutés/modifiés :
+- src/lib/finance/auth.ts
+- src/lib/finance/providers/powens.ts
+- src/app/api/finance/provider-status/route.ts
+- src/app/api/finance/banking/connect/route.ts
+- src/app/api/finance/banking/sync/route.ts
+- src/app/api/finance/banking/disconnect/route.ts
+- src/app/api/finance/banking/state/route.ts
+- src/components/finance/FinanceBankingClient.tsx
+- src/app/finances/transactions/page.tsx
+- .env.local.example
+- docs/finance/LOT-2-POWENS-SANDBOX.md
+
+Aucune fonction de paiement ou de virement n'est ajoutée.
+Aucune migration nouvelle : ce lot utilise les tables du Lot 0 et la table de jetons chiffrés du Lot 1.

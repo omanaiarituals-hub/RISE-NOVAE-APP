@@ -8,25 +8,94 @@ type Status = {
   adapterReady?: boolean
   paymentsEnabled?: boolean
   transfersEnabled?: boolean
+  authSource?: string
+}
+
+type ConnectionState = {
+  connected?: boolean
+  connections?: Array<{
+    id: string
+    provider: string
+    institution_name: string | null
+    status: string
+    last_synced_at: string | null
+    consent_expires_at: string | null
+    disconnected_at: string | null
+  }>
+  accounts?: Array<{
+    id: string
+    name: string
+    currency: string
+    balance: number | null
+    available_balance: number | null
+    masked_identifier: string | null
+    is_active: boolean
+    last_synced_at: string | null
+  }>
+}
+
+function money(value: number | null | undefined, currency = 'EUR') {
+  if (value == null || !Number.isFinite(Number(value))) return '—'
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(Number(value))
+}
+
+function dateTime(value: string | null | undefined) {
+  if (!value) return 'Jamais'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(date)
 }
 
 export default function FinanceBankingClient({ returnedFromProvider = false }: { returnedFromProvider?: boolean }) {
   const [status, setStatus] = useState<Status | null>(null)
+  const [state, setState] = useState<ConnectionState | null>(null)
   const [busy, setBusy] = useState<'connect' | 'sync' | 'disconnect' | null>(null)
-  const [message, setMessage] = useState(returnedFromProvider ? 'Connexion terminée. Lance la synchronisation pour importer les comptes sélectionnés.' : '')
+  const [message, setMessage] = useState(returnedFromProvider ? 'Connexion terminée. NOVAÉ récupère maintenant les comptes sélectionnés…' : '')
 
   async function refreshStatus() {
     try {
-      const response = await fetch('/api/finance/provider-status', { cache: 'no-store' })
-      const json = await response.json()
-      if (response.ok) setStatus(json)
-    } catch { setStatus(null) }
+      const [statusResponse, stateResponse] = await Promise.all([
+        fetch('/api/finance/provider-status', { cache: 'no-store' }),
+        fetch('/api/finance/banking/state', { cache: 'no-store' }),
+      ])
+      if (statusResponse.ok) setStatus(await statusResponse.json())
+      if (stateResponse.ok) setState(await stateResponse.json())
+    } catch {
+      setStatus(null)
+    }
   }
 
-  useEffect(() => { void refreshStatus() }, [])
+  async function sync({ silent = false } = {}) {
+    setBusy('sync')
+    if (!silent) setMessage('')
+    try {
+      const response = await fetch('/api/finance/banking/sync', { method: 'POST' })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.error || 'Synchronisation impossible')
+      setMessage(`Synchronisation terminée : ${json.accounts ?? 0} compte(s), ${json.transactions ?? 0} opération(s) traitée(s).`)
+      await refreshStatus()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Synchronisation impossible')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  useEffect(() => {
+    void refreshStatus()
+  }, [])
+
+  useEffect(() => {
+    if (!returnedFromProvider) return
+    const timer = window.setTimeout(() => { void sync({ silent: true }) }, 800)
+    return () => window.clearTimeout(timer)
+    // On ne veut lancer l'import de retour qu'une fois.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [returnedFromProvider])
 
   async function connect() {
-    setBusy('connect'); setMessage('')
+    setBusy('connect')
+    setMessage('')
     try {
       const response = await fetch('/api/finance/banking/connect', { method: 'POST' })
       const json = await response.json()
@@ -38,21 +107,10 @@ export default function FinanceBankingClient({ returnedFromProvider = false }: {
     }
   }
 
-  async function sync() {
-    setBusy('sync'); setMessage('')
-    try {
-      const response = await fetch('/api/finance/banking/sync', { method: 'POST' })
-      const json = await response.json()
-      if (!response.ok) throw new Error(json.error || 'Synchronisation impossible')
-      setMessage(`Synchronisation terminée : ${json.accounts ?? 0} compte(s), ${json.transactions ?? 0} opération(s) traitée(s).`)
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Synchronisation impossible')
-    } finally { setBusy(null) }
-  }
-
   async function disconnect() {
     if (!window.confirm('Déconnecter la banque de NOVAÉ Finance ? NOVAÉ ne pourra plus synchroniser de nouvelles opérations.')) return
-    setBusy('disconnect'); setMessage('')
+    setBusy('disconnect')
+    setMessage('')
     try {
       const response = await fetch('/api/finance/banking/disconnect', { method: 'POST' })
       const json = await response.json()
@@ -61,10 +119,13 @@ export default function FinanceBankingClient({ returnedFromProvider = false }: {
       await refreshStatus()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Déconnexion impossible')
-    } finally { setBusy(null) }
+    } finally {
+      setBusy(null)
+    }
   }
 
   const ready = status?.adapterReady === true
+  const connected = state?.connected === true
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
@@ -78,6 +139,7 @@ export default function FinanceBankingClient({ returnedFromProvider = false }: {
         <div className="mt-6 rounded-2xl bg-[var(--novae-background)] p-4 text-sm leading-6">
           <div className="flex justify-between gap-4"><span>Fournisseur</span><strong>{status?.configuredProvider || '—'}</strong></div>
           <div className="mt-2 flex justify-between gap-4"><span>Adaptateur</span><strong>{ready ? 'Prêt' : 'Non configuré'}</strong></div>
+          <div className="mt-2 flex justify-between gap-4"><span>Connexion</span><strong>{connected ? 'Connectée' : 'Non connectée'}</strong></div>
           <div className="mt-2 flex justify-between gap-4"><span>Accès</span><strong>Lecture seule</strong></div>
           <div className="mt-2 flex justify-between gap-4"><span>Paiements / virements</span><strong>Désactivés</strong></div>
         </div>
@@ -86,15 +148,39 @@ export default function FinanceBankingClient({ returnedFromProvider = false }: {
 
         <div className="mt-6 flex flex-wrap gap-3">
           <button type="button" disabled={!ready || busy !== null} onClick={connect} className="min-h-11 rounded-full bg-[var(--novae-primary)] px-5 font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-45">
-            {busy === 'connect' ? 'Ouverture…' : 'Connecter ma banque'}
+            {busy === 'connect' ? 'Ouverture…' : connected ? 'Ajouter / reconnecter une banque' : 'Connecter ma banque'}
           </button>
-          <button type="button" disabled={!ready || busy !== null} onClick={sync} className="min-h-11 rounded-full border border-[var(--novae-border)] bg-[var(--novae-surface)] px-5 font-extrabold disabled:cursor-not-allowed disabled:opacity-45">
+          <button type="button" disabled={!ready || busy !== null} onClick={() => void sync()} className="min-h-11 rounded-full border border-[var(--novae-border)] bg-[var(--novae-surface)] px-5 font-extrabold disabled:cursor-not-allowed disabled:opacity-45">
             {busy === 'sync' ? 'Synchronisation…' : 'Synchroniser maintenant'}
           </button>
-          <button type="button" disabled={!ready || busy !== null} onClick={disconnect} className="min-h-11 rounded-full border border-[var(--novae-border)] bg-transparent px-5 font-bold text-[var(--novae-text-muted)] disabled:cursor-not-allowed disabled:opacity-45">
+          <button type="button" disabled={!ready || !connected || busy !== null} onClick={disconnect} className="min-h-11 rounded-full border border-[var(--novae-border)] bg-transparent px-5 font-bold text-[var(--novae-text-muted)] disabled:cursor-not-allowed disabled:opacity-45">
             Déconnecter
           </button>
         </div>
+
+        {state?.accounts?.length ? (
+          <div className="mt-7">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-black">Comptes synchronisés</h3>
+              <span className="text-xs text-[var(--novae-text-muted)]">{state.accounts.length} compte(s)</span>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {state.accounts.map((account) => (
+                <div key={account.id} className="rounded-2xl border border-[var(--novae-border)] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <strong>{account.name}</strong>
+                      <p className="mt-1 text-xs text-[var(--novae-text-muted)]">{account.masked_identifier || 'Identifiant masqué'}</p>
+                    </div>
+                    <span className="rounded-full bg-black/5 px-2 py-1 text-[11px] font-bold">{account.is_active ? 'Actif' : 'Inactif'}</span>
+                  </div>
+                  <p className="mt-4 text-2xl font-black">{money(account.balance, account.currency)}</p>
+                  <p className="mt-2 text-xs text-[var(--novae-text-muted)]">Dernière synchro : {dateTime(account.last_synced_at)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <aside className="rounded-[28px] border border-[var(--novae-border)] bg-[var(--novae-surface)] p-5 sm:p-6">
@@ -111,6 +197,9 @@ export default function FinanceBankingClient({ returnedFromProvider = false }: {
           <li>× Effectuer ou initier un virement.</li>
           <li>× Voir ton mot de passe bancaire.</li>
         </ul>
+        <div className="mt-6 rounded-2xl bg-[var(--novae-background)] p-4 text-xs leading-5 text-[var(--novae-text-muted)]">
+          Le Lot 2 utilise d’abord la sandbox Powens. Aucune donnée bancaire réelle n’est nécessaire pour valider le parcours technique.
+        </div>
       </aside>
     </div>
   )
