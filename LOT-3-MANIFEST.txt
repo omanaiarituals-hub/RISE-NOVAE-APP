@@ -1,0 +1,17 @@
+NOVAÉ Finance — LOT 3
+Date: 2026-08-15
+
+Objectif:
+- Remplacer les exemples UX par des données utilisateur réelles.
+- CRUD complet des enveloppes.
+- CRUD complet des objectifs.
+- Dashboard dynamique sans supposer un découvert ni un objectif.
+- États vides actionnables.
+
+Aucun paiement / virement.
+Aucune connexion bancaire supplémentaire dans ce lot.
+Les routes utilisent l'identité Finance et restent limitées à la bêta privée.
+
+Pré-requis base:
+- migration 20260815190000_finance_foundation_v1.sql appliquée
+- migration 20260815203000_finance_powens_credentials_v1.sql appliquée avant le branchement Powens réel

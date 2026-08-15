@@ -15,7 +15,8 @@ check (
       'allergy'::text,
       'restriction'::text,
       'custody_config'::text,
-      'custody_exception'::text
+      'custody_exception'::text,
+      'location_config'::text
     ]
   )
 );

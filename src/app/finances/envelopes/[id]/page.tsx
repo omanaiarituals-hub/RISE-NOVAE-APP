@@ -1,5 +1,2 @@
-import FinancePlaceholderPage from '@/components/finance/FinancePlaceholderPage'
-
-export default function Page() {
-  return <FinancePlaceholderPage eyebrow="Enveloppe" title="Détail de l’enveloppe" description="Cette page recevra le solde disponible, l’historique, les mouvements espèces et les ajustements de budget." />
-}
+import FinanceEnvelopeDetail from '@/components/finance/FinanceEnvelopeDetail'
+export default async function Page({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; return <FinanceEnvelopeDetail id={id} /> }

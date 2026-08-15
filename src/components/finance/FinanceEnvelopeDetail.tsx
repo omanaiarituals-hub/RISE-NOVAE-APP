@@ -1,0 +1,13 @@
+'use client'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
+
+type Envelope = { id:string; name:string; envelope_type:string; target_amount:number|string; current_amount:number|string; rollover_enabled:boolean; cash_enabled:boolean; priority:number }
+export default function FinanceEnvelopeDetail({ id }: { id: string }) {
+  const [item,setItem]=useState<Envelope|null>(null); const [error,setError]=useState<string|null>(null)
+  useEffect(()=>{ fetch(`/api/finance/envelopes/${id}`,{cache:'no-store'}).then(async r=>{const p=await r.json().catch(()=>({})); if(!r.ok) throw new Error(p.detail||p.error||'Impossible de charger cette enveloppe.'); setItem(p.envelope)}).catch(e=>setError(e instanceof Error?e.message:'Erreur')) },[id])
+  if(error) return <div className="rounded-[28px] border border-red-200 bg-red-50 p-6 text-red-800">{error}</div>
+  if(!item) return <div className="rounded-[28px] border border-[var(--novae-border)] bg-[var(--novae-surface)] p-6">Chargement…</div>
+  const target=Number(item.target_amount||0), current=Number(item.current_amount||0), percent=target>0?Math.min(100,current/target*100):0
+  return <section className="rounded-[28px] border border-[var(--novae-border)] bg-[var(--novae-surface)] p-6 sm:p-8"><p className="text-xs font-black uppercase tracking-[.18em] text-[var(--novae-primary)]">Enveloppe</p><h2 className="mt-2 font-[var(--novae-font-title)] text-3xl font-semibold">{item.name}</h2><p className="mt-5 text-4xl font-black">{current.toLocaleString('fr-FR')} € <span className="text-base font-semibold text-[var(--novae-text-muted)]">/ {target.toLocaleString('fr-FR')} €</span></p><div className="mt-4 h-3 overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full bg-[var(--novae-primary)]" style={{width:`${percent}%`}}/></div><div className="mt-6 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl bg-black/5 p-4"><p className="text-xs text-[var(--novae-text-muted)]">Type</p><p className="mt-1 font-black">{item.envelope_type}</p></div><div className="rounded-2xl bg-black/5 p-4"><p className="text-xs text-[var(--novae-text-muted)]">Report</p><p className="mt-1 font-black">{item.rollover_enabled?'Oui':'Non'}</p></div><div className="rounded-2xl bg-black/5 p-4"><p className="text-xs text-[var(--novae-text-muted)]">Espèces</p><p className="mt-1 font-black">{item.cash_enabled?'Activées':'Non'}</p></div></div><Link href="/finances/envelopes" className="mt-6 inline-flex rounded-full border border-[var(--novae-border)] px-4 py-2 text-sm font-black text-[var(--novae-text-main)] no-underline">Modifier depuis mes enveloppes</Link></section>
+}
