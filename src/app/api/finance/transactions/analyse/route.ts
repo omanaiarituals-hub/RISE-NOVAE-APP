@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     analysed++
   }
 
-  for (const ruleId of matchedRuleIds) {
+  for (const ruleId of Array.from(matchedRuleIds)) {
     const { data: existing } = await supabaseAdmin.from('finance_merchant_rules').select('apply_count').eq('id', ruleId).eq('user_id', identity.id).maybeSingle()
     await supabaseAdmin.from('finance_merchant_rules').update({ apply_count: Number(existing?.apply_count || 0) + 1, last_applied_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', ruleId).eq('user_id', identity.id)
   }

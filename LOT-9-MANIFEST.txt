@@ -1,0 +1,12 @@
+NOVAÉ Finance — Lot 9 — Onboarding intelligent
+
+Ajouts :
+- /finances/onboarding : assistant de calibration Finance en 4 étapes.
+- profil : revenu, jour de rentrée d'argent, historique 3/6 mois, seuil de sécurité.
+- découvert optionnel : aucune hypothèse si l'utilisateur n'en déclare pas.
+- synthèse des transactions déjà analysées et principales catégories.
+- propositions d'enveloppes et d'objectifs modifiables et sélectionnables.
+- validation explicite avant création via le service de recommandations existant.
+- onboarding_completed_at utilisé pour afficher/masquer le diagnostic sur le dashboard.
+
+Aucune nouvelle migration : onboarding_completed_at et analysis_period_months existent déjà dans finance_user_profiles.

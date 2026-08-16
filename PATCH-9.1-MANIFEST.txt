@@ -1,0 +1,12 @@
+NOVAÉ Finance — Patch 9.1
+Date: 2026-08-16
+
+Objectif: remettre TypeScript au vert après Lot 8 / Patch 8.1, sans modifier la logique métier.
+
+Corrections:
+- Itérations Set/Map compatibles avec la cible TypeScript actuelle via Array.from().
+- Typage explicite des groupes et transactions de catégories.
+- Typage explicite de FinancialNature pour les règles marchands.
+- Suppression de comparaisons impossibles dans la branche système pour exceptional/reimbursable.
+
+Aucune migration Supabase.

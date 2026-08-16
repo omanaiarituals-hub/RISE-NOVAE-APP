@@ -144,7 +144,7 @@ export function detectRecurringPatterns(transactions: TransactionForAnalysis[]):
   }
 
   const patterns: RecurringPattern[] = []
-  for (const [key, txs] of groups) {
+  for (const [key, txs] of Array.from(groups.entries())) {
     if (txs.length < 2) continue
     const ordered = [...txs].sort((a, b) => a.transaction_date.localeCompare(b.transaction_date))
     const intervals = ordered.slice(1).map((item, i) => dateDiffDays(item.transaction_date, ordered[i].transaction_date))
@@ -213,7 +213,7 @@ export function analyseTransactions(input: {
     const recurringPattern = recurringByTx.get(tx.id)
 
     if (rule) {
-      const nature = rule.financial_nature || (tx.direction === 'credit' ? 'income' : 'expense')
+      const nature: FinancialNature = rule.financial_nature || (tx.direction === 'credit' ? 'income' : 'expense')
       return {
         transactionId: tx.id,
         normalizedMerchant: normalized,
@@ -268,8 +268,10 @@ export function analyseTransactions(input: {
       isRecurring: !!recurringPattern,
       isSubscription: nature === 'subscription',
       isInstallment: nature === 'installment',
-      isExceptional: nature === 'exceptional_expense',
-      isReimbursable: nature === 'reimbursable_expense',
+      // These two natures are only produced by explicit user/merchant rules in v1.
+      // The deterministic system branch never assigns them.
+      isExceptional: false,
+      isReimbursable: false,
       isInternalTransfer: nature === 'internal_transfer',
       confidence,
       source: 'system',

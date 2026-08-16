@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { financeBadRequest, financeUnauthorized, numberOrNull, requireFinanceIdentity } from '@/lib/finance/api'
 
-const profileSelect = 'usual_income_day,usual_net_income,current_overdraft,overdraft_limit,cash_mode,analysis_period_months,manual_bank_balance,safety_floor,close_cycle_mode'
+const profileSelect = 'usual_income_day,usual_net_income,current_overdraft,overdraft_limit,cash_mode,analysis_period_months,manual_bank_balance,safety_floor,close_cycle_mode,onboarding_completed_at'
 
 export async function GET(request: NextRequest) {
   const identity = await requireFinanceIdentity(request)
@@ -40,6 +40,11 @@ export async function PATCH(request: NextRequest) {
   if ('manual_bank_balance' in body) payload.manual_bank_balance = manualBalance
   if ('safety_floor' in body) payload.safety_floor = safetyFloor
   if ('close_cycle_mode' in body) payload.close_cycle_mode = String(body.close_cycle_mode || 'manual')
+  if ('analysis_period_months' in body) {
+    const months = Number(body.analysis_period_months)
+    if (Number.isInteger(months) && months >= 1 && months <= 24) payload.analysis_period_months = months
+  }
+  if (body.onboarding_completed === true) payload.onboarding_completed_at = new Date().toISOString()
 
   const { data, error } = await supabaseAdmin.from('finance_user_profiles').upsert(payload, { onConflict: 'user_id' }).select(profileSelect).single()
   if (error) return NextResponse.json({ error: 'finance_profile_update_failed', detail: error.message }, { status: 500 })

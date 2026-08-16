@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 
 type Tx = { id:string; transaction_date:string; amount:number|string; currency:string|null; raw_label:string|null; merchant_name:string|null }
 type Annotation = { transaction_id:string; financial_nature:string|null; is_recurring:boolean; is_subscription:boolean; is_installment:boolean; confidence_score:number|string|null; category:any }
+type CategoryTransaction = { id:string; date:string; label:string; amount:number; currency:string }
+type CategoryGroup = { id:string; slug:string; name:string; amount:number; count:number; transactions:CategoryTransaction[] }
 
 const expenseNatures = new Set(['expense','subscription','installment','exceptional_expense','reimbursable_expense'])
 
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
   const recurringOperations = rows.filter((item) => item.is_recurring).length
   const avgConfidence = total ? rows.reduce((sum, item) => sum + Number(item.confidence_score || 0), 0) / total : 0
 
-  const groups = new Map<string, { id:string; slug:string; name:string; amount:number; count:number; transactions:Array<{id:string;date:string;label:string;amount:number;currency:string}> }>()
+  const groups = new Map<string, CategoryGroup>()
   let expenseTotal = 0
   for (const annotation of rows) {
     if (!expenseNatures.has(annotation.financial_nature || '')) continue
@@ -45,14 +47,14 @@ export async function GET(request: NextRequest) {
     if (!amount) continue
     const category = Array.isArray(annotation.category) ? annotation.category[0] : annotation.category
     const key = category?.id || 'uncategorised'
-    const current = groups.get(key) || { id:key, slug:category?.slug || 'uncategorised', name:category?.name || 'Non catégorisé', amount:0, count:0, transactions:[] }
+    const current: CategoryGroup = groups.get(key) || { id:key, slug:category?.slug || 'uncategorised', name:category?.name || 'Non catégorisé', amount:0, count:0, transactions:[] }
     current.amount += amount
     current.count += 1
     current.transactions.push({ id:tx.id, date:tx.transaction_date, label:tx.merchant_name || tx.raw_label || 'Opération bancaire', amount:Number(tx.amount || 0), currency:tx.currency || 'EUR' })
     groups.set(key, current)
     expenseTotal += amount
   }
-  const categories = [...groups.values()].map((g) => ({ ...g, amount:Math.round(g.amount*100)/100, percentage:expenseTotal ? Math.round((g.amount/expenseTotal)*1000)/10 : 0, transactions:g.transactions.sort((a,b)=>b.date.localeCompare(a.date)).slice(0,20) })).sort((a,b)=>b.amount-a.amount)
+  const categories = Array.from(groups.values()).map((g) => ({ ...g, amount:Math.round(g.amount*100)/100, percentage:expenseTotal ? Math.round((g.amount/expenseTotal)*1000)/10 : 0, transactions:g.transactions.sort((a: CategoryTransaction,b: CategoryTransaction)=>b.date.localeCompare(a.date)).slice(0,20) })).sort((a,b)=>b.amount-a.amount)
 
   return NextResponse.json({
     summary: { total, categorised, uncategorised: total - categorised, subscriptions, installments, recurring: (recurring || []).length, recurring_operations: recurringOperations, average_confidence: avgConfidence },
