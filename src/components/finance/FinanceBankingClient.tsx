@@ -56,6 +56,8 @@ function dateTime(value: string | null | undefined) {
   return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(date)
 }
 
+const enableBankingCompletionInFlight = new Set<string>()
+
 export default function FinanceBankingClient({
   returnedFromProvider = false,
   authorizationCode,
@@ -111,17 +113,27 @@ export default function FinanceBankingClient({
     const finish = async () => {
       try {
         if (authorizationCode) {
+          if (enableBankingCompletionInFlight.has(authorizationCode)) return
+          enableBankingCompletionInFlight.add(authorizationCode)
           setBusy('sync')
-          const response = await fetch('/api/finance/banking/complete', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ code: authorizationCode }),
-          })
-          const json = await response.json()
-          if (!response.ok) throw new Error(json.message || json.error || 'Finalisation bancaire impossible')
-          if (!cancelled) {
-            setMessage(`Connexion réelle terminée : ${json.accounts ?? 0} compte(s), ${json.transactions ?? 0} opération(s) synchronisée(s).`)
-            await refreshStatus()
+          try {
+            const response = await fetch('/api/finance/banking/complete', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ code: authorizationCode }),
+            })
+            const json = await response.json()
+            if (!response.ok) throw new Error(json.message || json.error || 'Finalisation bancaire impossible')
+            if (!cancelled) {
+              setMessage(`Connexion réelle terminée : ${json.accounts ?? 0} compte(s), ${json.transactions ?? 0} opération(s) synchronisée(s).`)
+              // Le code Enable Banking est à usage unique : on le retire de
+              // l'URL immédiatement pour qu'un refresh ne puisse pas le rejouer.
+              window.history.replaceState({}, '', '/finances/banking')
+              await refreshStatus()
+            }
+          } catch (error) {
+            enableBankingCompletionInFlight.delete(authorizationCode)
+            throw error
           }
         } else {
           await sync({ silent: true })

@@ -291,11 +291,42 @@ export class EnableBankingProvider implements BankingProvider {
       })
     }
 
-    const response = await enableFetch('/sessions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code: input.code.trim() }),
-    })
+    // Le code callback Enable Banking est à usage unique. Si NOVAÉ a déjà
+    // finalisé ce consentement (re-render, refresh ou double callback), on ne
+    // doit jamais tenter POST /sessions une deuxième fois.
+    const existing = await this.sessionCredential(input.novaeUserId)
+    if (existing?.sessionId) return
+
+    let response: Response
+    try {
+      response = await enableFetch('/sessions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code: input.code.trim() }),
+      })
+    } catch (error) {
+      if (
+        error instanceof BankingProviderError &&
+        /already authorized/i.test(error.message)
+      ) {
+        // Une requête concurrente peut avoir consommé le code quelques
+        // millisecondes plus tôt. Attendre brièvement que le coffre soit écrit
+        // rend la finalisation idempotente sans réutiliser le code.
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 150))
+          const credential = await this.sessionCredential(input.novaeUserId)
+          if (credential?.sessionId) return
+        }
+        throw new BankingProviderError({
+          provider,
+          status: error.status,
+          retryable: false,
+          message: 'Le consentement bancaire a déjà été finalisé. Relance simplement la connexion depuis NOVAÉ.',
+        })
+      }
+      throw error
+    }
+
     const payload = await parseJson(response)
     const sessionId = payload.session_id
     if (!sessionId) {
