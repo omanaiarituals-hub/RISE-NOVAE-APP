@@ -1,0 +1,17 @@
+NOVAÉ Finance — Lot 8 — Intelligence transactionnelle
+
+NOUVEAUX
+- supabase/migrations/20260816133000_finance_transaction_intelligence_v1.sql
+- src/lib/finance/transaction-intelligence.ts
+- src/app/api/finance/transactions/analyse/route.ts
+- src/app/api/finance/transactions/intelligence/route.ts
+- src/app/api/finance/transactions/[id]/route.ts
+- src/components/finance/FinanceTransactionList.tsx
+- src/components/finance/FinanceTransactionDetail.tsx
+- src/components/finance/FinanceTransactionIntelligence.tsx
+- docs/finance/LOT-8-TRANSACTION-INTELLIGENCE.md
+
+MODIFIÉS
+- src/app/finances/transactions/page.tsx
+- src/app/finances/transactions/[id]/page.tsx
+- src/app/finances/analysis/page.tsx

@@ -1,0 +1,7 @@
+NOVAÉ Finance — Patch 8.1
+- Donut de répartition des dépenses par catégorie
+- Légende cliquable et détail des transactions par catégorie
+- Bloc Non catégorisé actionnable
+- Compteur de récurrences clarifié (séries vs opérations)
+- Prochaine échéance récurrente toujours future
+- Aucune migration Supabase

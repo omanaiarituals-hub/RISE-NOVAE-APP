@@ -1,5 +1,2 @@
-import FinancePlaceholderPage from '@/components/finance/FinancePlaceholderPage'
-
-export default function Page() {
-  return <FinancePlaceholderPage eyebrow="Transaction" title="Détail de l’opération" description="Catégorie, nature financière, enveloppe, caractère exceptionnel ou remboursable et règle d’apprentissage seront modifiables ici." />
-}
+import FinanceTransactionDetail from '@/components/finance/FinanceTransactionDetail'
+export default async function Page({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; return <FinanceTransactionDetail id={id} /> }
