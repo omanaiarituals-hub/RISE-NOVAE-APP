@@ -1,0 +1,26 @@
+NOVAÉ Finance — LOT 11 — Finitions MVP Finance
+Date: 2026-08-16
+
+Objectif:
+- finaliser les états de chargement/erreur du dashboard Finance;
+- afficher la qualité/fraîcheur des données utilisées;
+- corriger la navigation vers la simulation avancée Nova;
+- rendre les états vides Transactions actionnables;
+- protéger le flux espèces contre une dépense supérieure au cash disponible;
+- conserver tous les calculs Finance existants et le mode bancaire lecture seule.
+
+Fichiers modifiés:
+- src/app/api/finance/dashboard/route.ts
+- src/app/api/finance/cash/expense/route.ts
+- src/components/finance/FinanceDashboard.tsx
+- src/components/finance/FinanceTransactionList.tsx
+- src/components/finance/FinanceCashManager.tsx
+
+Migration Supabase: aucune.
+
+Hors périmètre volontaire:
+- audit sécurité général NOVAÉ;
+- ouverture publique;
+- passage d'un fournisseur bancaire sandbox à une offre production;
+- paiements/virements;
+- refonte IA/voix.
