@@ -2,60 +2,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { financeBadRequest, financeUnauthorized, integerOr, numberOrNull, requireFinanceIdentity } from '@/lib/finance/api'
-
-const goalTypes = new Set(['overdraft', 'emergency_fund', 'travel', 'project', 'debt', 'savings', 'custom'])
-
-export async function GET(request: NextRequest) {
-  const identity = await requireFinanceIdentity(request)
-  if (!identity) return financeUnauthorized()
-
-  const { data, error } = await supabaseAdmin
-    .from('finance_goals')
-    .select('id,name,goal_type,target_amount,current_amount,target_date,priority,monthly_target,status,created_at,updated_at')
-    .eq('user_id', identity.id)
-    .neq('status', 'cancelled')
-    .order('priority', { ascending: true })
-    .order('created_at', { ascending: true })
-
-  if (error) return NextResponse.json({ error: 'finance_goals_unavailable', detail: error.message }, { status: 500 })
-  return NextResponse.json({ goals: data ?? [] })
-}
-
-export async function POST(request: NextRequest) {
-  const identity = await requireFinanceIdentity(request)
-  if (!identity) return financeUnauthorized()
-
-  const body = await request.json().catch(() => null) as Record<string, unknown> | null
-  if (!body) return financeBadRequest('Données invalides.')
-
-  const name = String(body.name ?? '').trim()
-  const goalType = String(body.goal_type ?? 'custom')
-  const targetAmount = numberOrNull(body.target_amount)
-  const currentAmount = numberOrNull(body.current_amount) ?? 0
-  const monthlyTarget = numberOrNull(body.monthly_target)
-  const targetDate = body.target_date ? String(body.target_date) : null
-
-  if (!name) return financeBadRequest('Le nom de l’objectif est obligatoire.')
-  if (!goalTypes.has(goalType)) return financeBadRequest('Type d’objectif invalide.')
-  if (targetAmount === null || targetAmount <= 0) return financeBadRequest('Le montant cible doit être supérieur à zéro.')
-  if (currentAmount < 0) return financeBadRequest('Le montant actuel doit être positif ou nul.')
-
-  const { data, error } = await supabaseAdmin
-    .from('finance_goals')
-    .insert({
-      user_id: identity.id,
-      name,
-      goal_type: goalType,
-      target_amount: targetAmount,
-      current_amount: currentAmount,
-      target_date: targetDate,
-      priority: integerOr(body.priority, 100),
-      monthly_target: monthlyTarget,
-      status: 'active',
-    })
-    .select('id,name,goal_type,target_amount,current_amount,target_date,priority,monthly_target,status,created_at,updated_at')
-    .single()
-
-  if (error) return NextResponse.json({ error: 'finance_goal_create_failed', detail: error.message }, { status: 500 })
-  return NextResponse.json({ goal: data }, { status: 201 })
-}
+const modes=new Set(['spend','accumulate','repay']), kinds=new Set(['overdraft','debt','credit'])
+function legacyType(mode:string,kind:string|null){return mode==='repay'?(kind==='overdraft'?'overdraft':'debt'):mode==='accumulate'?'savings':'custom'}
+export async function GET(request:NextRequest){const identity=await requireFinanceIdentity(request);if(!identity)return financeUnauthorized();const{data,error}=await supabaseAdmin.from('finance_goals').select('id,name,goal_type,tracking_mode,repayment_kind,starting_balance,target_balance,target_amount,current_amount,target_date,priority,monthly_target,status,created_at,updated_at').eq('user_id',identity.id).neq('status','cancelled').order('priority',{ascending:true}).order('created_at',{ascending:true});if(error)return NextResponse.json({error:'finance_goals_unavailable',detail:error.message},{status:500});return NextResponse.json({goals:data??[]})}
+export async function POST(request:NextRequest){const identity=await requireFinanceIdentity(request);if(!identity)return financeUnauthorized();const body=await request.json().catch(()=>null) as Record<string,unknown>|null;if(!body)return financeBadRequest('Données invalides.');const name=String(body.name??'').trim(),mode=String(body.tracking_mode??'accumulate'),kind=body.repayment_kind?String(body.repayment_kind):null,target=numberOrNull(body.target_amount),current=numberOrNull(body.current_amount)??0;if(!name)return financeBadRequest('Nom obligatoire.');if(!modes.has(mode))return financeBadRequest('Mode invalide.');if(mode==='repay'&&(!kind||!kinds.has(kind)))return financeBadRequest('Type de remboursement invalide.');if(target===null||target<=0||current<0)return financeBadRequest('Montants invalides.');const{data,error}=await supabaseAdmin.from('finance_goals').insert({user_id:identity.id,name,goal_type:legacyType(mode,kind),tracking_mode:mode,repayment_kind:mode==='repay'?kind:null,starting_balance:numberOrNull(body.starting_balance),target_balance:numberOrNull(body.target_balance)??0,target_amount:target,current_amount:current,target_date:body.target_date?String(body.target_date):null,priority:integerOr(body.priority,100),monthly_target:numberOrNull(body.monthly_target),status:'active'}).select('id,name,goal_type,tracking_mode,repayment_kind,starting_balance,target_balance,target_amount,current_amount,target_date,priority,monthly_target,status,created_at,updated_at').single();if(error)return NextResponse.json({error:'finance_goal_create_failed',detail:error.message},{status:500});return NextResponse.json({goal:data},{status:201})}

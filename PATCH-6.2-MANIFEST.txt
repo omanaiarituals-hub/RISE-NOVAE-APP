@@ -1,0 +1,13 @@
+NOVAÉ Finance — Patch 6.2
+Date: 2026-08-16
+
+Corrections:
+1. Analyse/clôture : ajoute le récapitulatif Épargne (prévu, réalisé, manque, atteint, dépassé) en plus des économies/dépassements de dépenses.
+2. Nova : n'affiche plus l'avertissement sur les « montants proposés » lorsqu'aucune proposition n'existe.
+3. Cash : route dédiée /api/finance/cash/expense pour éviter le 404 observé sur l'enregistrement d'une dépense espèces.
+4. Moteur : les RPC cash/ajustement utilisent tracking_mode comme source de vérité (spend / accumulate / repay), plus envelope_type.
+5. Détail enveloppe : affichage piloté par tracking_mode + statistiques annuelles réelles issues des mouvements.
+
+Important:
+- Le patch ne réécrit pas automatiquement les anciennes valeurs de test déjà stockées dans current_amount afin d'éviter toute correction destructive.
+- Si une ancienne enveloppe Épargne affiche encore 270 € alors que la valeur réelle doit être 100 €, corriger une seule fois sa progression après installation ; les mouvements suivants respecteront la nouvelle logique.

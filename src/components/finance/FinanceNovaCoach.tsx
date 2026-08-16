@@ -209,7 +209,7 @@ export default function FinanceNovaCoach() {
           </div>
         )}
 
-        {recommendations?.warnings.map((warning) => <div key={warning} className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">{warning}</div>)}
+        {(envelopes.length > 0 || goals.length > 0) && recommendations?.warnings.map((warning) => <div key={warning} className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">{warning}</div>)}
 
         {recommendations && envelopes.length === 0 && goals.length === 0 && <div className="mt-5 rounded-2xl border border-dashed border-[var(--novae-border)] p-6 text-sm text-[var(--novae-text-muted)]">Nova n’a rien de nouveau à proposer : tes enveloppes/objectifs existants couvrent déjà les recommandations actuelles, ou il manque encore des données.</div>}
 
