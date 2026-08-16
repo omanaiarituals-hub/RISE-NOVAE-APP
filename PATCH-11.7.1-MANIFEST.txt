@@ -1,0 +1,3 @@
+NOVAÉ Finance — Patch 11.7.1
+Correction TypeScript : remplacement du spread sur Set par Array.from(Set), compatible avec la cible TS actuelle.
+Aucune migration Supabase.

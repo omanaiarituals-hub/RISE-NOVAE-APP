@@ -1,0 +1,16 @@
+NOVAÉ Finance — Patch 11.7 UX ciblé
+
+Demandes intégrées :
+1. Transactions : sélection multiple pour catégorisation en lot.
+2. Dashboard : suppression du bloc « Qualité des données ».
+3. Dashboard « À venir » : aperçu des 3 prochains prélèvements/charges.
+4. Analyse : blocs récurrences et opérations à confirmer rendus cliquables.
+5. Opérations non catégorisées : lien direct avec filtre `?filter=uncategorized`.
+
+IMPORTANT
+Ce patch contient les composants/API dédiés et les points d’intégration.
+Selon la structure exacte actuelle des pages du projet, il faut remplacer les anciens blocs
+par les nouveaux composants aux emplacements correspondants.
+
+Aucune migration Supabase.
+Aucun paiement/virement.
