@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { isFinanceBetaAllowed } from '@/lib/finance/access'
 import { getFinanceRequestIdentity } from '@/lib/finance/auth'
 import { getBankingProvider } from '@/lib/finance/provider-factory'
+import { BankingProviderError } from '@/lib/finance/provider'
 
 export async function POST(request: NextRequest) {
   const identity = await getFinanceRequestIdentity(request)
@@ -21,7 +22,28 @@ export async function POST(request: NextRequest) {
     })
     return NextResponse.json({ url: session.url, mode: 'read_only' })
   } catch (error) {
+    if (error instanceof BankingProviderError) {
+      console.error('[finance][banking][connect]', {
+        provider: error.provider,
+        status: error.status ?? null,
+        retryable: error.retryable,
+        message: error.message,
+      })
+      return NextResponse.json(
+        {
+          error: 'banking_connection_session_failed',
+          message: error.status === 401 || error.status === 403
+            ? 'Powens refuse les identifiants de l’application. Vérifie le Client ID et le Client Secret dans .env.local.'
+            : error.message,
+        },
+        { status: error.status && error.status >= 400 && error.status < 500 ? 502 : 500 },
+      )
+    }
+
     console.error('[finance][banking][connect]', error instanceof Error ? error.message : 'unknown_error')
-    return NextResponse.json({ error: 'banking_connection_session_failed' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'banking_connection_session_failed', message: 'Impossible de créer la session bancaire de test.' },
+      { status: 500 },
+    )
   }
 }

@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   if (activeConnectionIds.length) {
     const { data, error } = await supabaseAdmin
       .from('finance_accounts')
-      .select('id,connection_id,name,account_type,currency,balance,available_balance,masked_identifier,is_active,last_synced_at')
+      .select('id,connection_id,name,custom_name,account_type,currency,balance,available_balance,masked_identifier,is_active,user_enabled,last_synced_at')
       .eq('user_id', identity.id)
       .in('connection_id', activeConnectionIds)
       .order('created_at', { ascending: true })

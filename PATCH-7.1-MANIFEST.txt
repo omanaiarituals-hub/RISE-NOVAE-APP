@@ -1,0 +1,14 @@
+NOVAÉ Finance — Patch 7.1 — Powens auth/init
+Date: 2026-08-16
+
+Correctifs:
+- supporte le champ officiel `auth_token` renvoyé par POST /2.0/auth/init;
+- conserve access_token/token comme fallbacks de compatibilité;
+- ajoute un diagnostic serveur non sensible (status + noms de champs uniquement);
+- améliore le message utilisateur si Powens refuse les identifiants ou renvoie une réponse inattendue;
+- ne journalise jamais Client Secret, auth_token, access_token, mot de passe ou credentials.
+
+Sécurité:
+- lecture seule inchangée;
+- aucune API de paiement/virement ajoutée;
+- token utilisateur toujours stocké via le credential-store chiffré existant.

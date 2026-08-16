@@ -1,0 +1,25 @@
+NOVAÉ Finance — Patch 7.2
+Date: 2026-08-16
+
+Objectifs
+- Respecter strictement la sélection de comptes faite dans la Webview Powens.
+- Ajouter la gestion CRUD utile des comptes synchronisés dans NOVAÉ.
+- Retirer le mode « Sans carte » de la navigation Finance.
+
+Correctifs
+- Powens: suppression du paramètre ?all lors de la lecture des comptes. Les comptes désactivés/non consentis ne sont plus importés comme actifs.
+- Synchronisation: un compte précédemment découvert mais non renvoyé par Powens devient inactif localement.
+- Prévisions, transactions et recommandations: seuls les comptes actifs ET inclus par l'utilisateur sont pris en compte.
+- Banque: renommage local d'un compte, exclusion/réactivation dans NOVAÉ.
+- Historique conservé lors d'une exclusion locale; aucune destruction de données bancaires.
+- « Sans carte » supprimé des onglets; l'ancienne URL redirige vers Espèces.
+
+Migration
+- 20260816092500_finance_account_preferences_v1.sql
+  - finance_accounts.custom_name
+  - finance_accounts.user_enabled
+
+Sécurité
+- Lecture seule inchangée.
+- Aucun paiement ni virement.
+- Aucune donnée d'identification bancaire ajoutée côté NOVAÉ.

@@ -1,7 +1,7 @@
-import Link from 'next/link'
 import FinanceBackButton from './FinanceBackButton'
 import type { ReactNode } from 'react'
 import Navigation from '@/components/Navigation'
+import FinanceTabsScroller from './FinanceTabsScroller'
 
 const items = [
   { href: '/finances', label: 'Vue d’ensemble' },
@@ -12,7 +12,6 @@ const items = [
   { href: '/finances/analysis', label: 'Analyse' },
   { href: '/finances/nova', label: 'Nova' },
   { href: '/finances/cash', label: 'Espèces' },
-  { href: '/finances/card-free', label: 'Sans carte' },
   { href: '/finances/banking', label: 'Banque' },
 ]
 
@@ -30,17 +29,7 @@ export default function FinanceShell({ children }: { children: ReactNode }) {
           </span>
         </header>
 
-        <nav aria-label="Navigation Finance" className="mb-6 flex gap-2 overflow-x-auto pb-2 [scrollbar-width:none]">
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="shrink-0 rounded-full border border-[var(--novae-border)] bg-[var(--novae-surface)] px-4 py-2 text-sm font-bold text-[var(--novae-text-main)] no-underline transition hover:-translate-y-0.5"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <FinanceTabsScroller items={items} />
 
         {children}
       </div>

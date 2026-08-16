@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 function nextIncomeDate(day:number|null,now=new Date()){if(!day)return null;const year=now.getFullYear(),month=now.getMonth(),endThisMonth=new Date(year,month+1,0).getDate();let date=new Date(year,month,Math.min(day,endThisMonth));if(date<=now){const endNext=new Date(year,month+2,0).getDate();date=new Date(year,month+1,Math.min(day,endNext))}return date.toISOString().slice(0,10)}
 export async function buildFinanceForecast(userId:string,overrides?:{bankBalance?:number|null;extraSpend?:number;extraSavings?:number}){
  const[accounts,profile,pending,commitments,cashEnvelopes,provisions]=await Promise.all([
-  supabaseAdmin.from('finance_accounts').select('balance,available_balance').eq('user_id',userId).eq('is_active',true),
+  supabaseAdmin.from('finance_accounts').select('balance,available_balance').eq('user_id',userId).eq('is_active',true).eq('user_enabled',true),
   supabaseAdmin.from('finance_user_profiles').select('usual_income_day,manual_bank_balance,safety_floor,usual_net_income').eq('user_id',userId).maybeSingle(),
   supabaseAdmin.from('finance_manual_bank_movements').select('bank_delta,movement_type').eq('user_id',userId).eq('status','pending'),
   supabaseAdmin.from('finance_recurring_commitments').select('name,commitment_type,amount,next_due_date,end_date,is_active').eq('user_id',userId).eq('is_active',true),

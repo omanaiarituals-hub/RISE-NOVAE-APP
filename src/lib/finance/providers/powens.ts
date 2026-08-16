@@ -14,19 +14,28 @@ const provider = 'powens' as const
 
 type JsonRecord = Record<string, any>
 
-function domainHost() {
+/**
+ * POWENS_DOMAIN accepts either "myproject-sandbox" or the complete
+ * "myproject-sandbox.biapi.pro" value copied from the Powens Console.
+ */
+function domainName() {
   const raw = process.env.POWENS_DOMAIN?.trim()
   if (!raw) return null
-  return raw.replace(/^https?:\/\//, '').replace(/\.biapi\.pro\/?$/, '').replace(/\/$/, '')
+  const host = raw.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+  return host.endsWith('.biapi.pro') ? host : `${host}.biapi.pro`
 }
 
 function apiBase() {
-  const d = domainHost()
-  return d ? `https://${d}.biapi.pro/2.0` : null
+  const domain = domainName()
+  return domain ? `https://${domain}/2.0` : null
 }
 
 function configured() {
-  return Boolean(domainHost() && process.env.POWENS_CLIENT_ID && process.env.POWENS_CLIENT_SECRET)
+  return Boolean(domainName() && process.env.POWENS_CLIENT_ID?.trim() && process.env.POWENS_CLIENT_SECRET?.trim())
+}
+
+function sandboxMode() {
+  return Boolean(domainName()?.includes('-sandbox.biapi.pro'))
 }
 
 async function parseJson(response: Response): Promise<JsonRecord> {
@@ -117,6 +126,10 @@ export class PowensBankingProvider implements BankingProvider {
     return configured()
   }
 
+  isSandbox() {
+    return sandboxMode()
+  }
+
   private assertConfigured() {
     if (!this.isConfigured()) {
       throw new BankingProviderError({ provider, retryable: false, message: 'Powens n’est pas configuré.' })
@@ -132,13 +145,15 @@ export class PowensBankingProvider implements BankingProvider {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        client_id: process.env.POWENS_CLIENT_ID!,
-        client_secret: process.env.POWENS_CLIENT_SECRET!,
+        client_id: process.env.POWENS_CLIENT_ID!.trim(),
+        client_secret: process.env.POWENS_CLIENT_SECRET!.trim(),
       }),
     })
 
     const payload = await parseJson(response)
-    const accessToken = payload.access_token || payload.token
+    // Powens /auth/init returns `auth_token` for the newly-created user.
+    // Keep the legacy fallbacks to remain tolerant if the provider payload evolves.
+    const accessToken = payload.auth_token || payload.access_token || payload.token
     const providerUserId = payload.id_user != null
       ? String(payload.id_user)
       : payload.user?.id != null
@@ -146,7 +161,17 @@ export class PowensBankingProvider implements BankingProvider {
         : undefined
 
     if (!accessToken) {
-      throw new BankingProviderError({ provider, retryable: false, message: 'Powens n’a pas renvoyé de jeton utilisateur.' })
+      // Diagnostic volontairement non sensible : jamais de valeurs, tokens ou secrets.
+      console.error('[finance][powens][auth-init] missing_user_token', {
+        status: response.status,
+        fields: Object.keys(payload).filter((key) => !/token|secret|password|credential/i.test(key)).slice(0, 20),
+      })
+      throw new BankingProviderError({
+        provider,
+        status: response.status,
+        retryable: false,
+        message: 'Powens a répondu, mais le jeton utilisateur attendu est absent.',
+      })
     }
 
     await saveProviderCredential({ userId: novaeUserId, provider, providerUserId, accessToken })
@@ -169,10 +194,16 @@ export class PowensBankingProvider implements BankingProvider {
     }
 
     const url = new URL(process.env.POWENS_WEBVIEW_URL || 'https://webview.powens.com/connect')
-    url.searchParams.set('domain', domainHost()!)
-    url.searchParams.set('client_id', process.env.POWENS_CLIENT_ID!)
+    url.searchParams.set('domain', domainName()!)
+    url.searchParams.set('client_id', process.env.POWENS_CLIENT_ID!.trim())
     url.searchParams.set('redirect_uri', input.returnUrl)
     url.searchParams.set('code', String(code))
+    // Explicitly restrict this Finance V1 flow to bank aggregation.
+    url.searchParams.set('connector_capabilities', 'bank')
+
+    const connectorIds = process.env.POWENS_CONNECTOR_IDS?.trim()
+    if (connectorIds) url.searchParams.set('connector_ids', connectorIds)
+
     return { url: url.toString() }
   }
 
@@ -208,7 +239,7 @@ export class PowensBankingProvider implements BankingProvider {
 
   async listAccounts(providerConnectionId: string): Promise<FinanceAccount[]> {
     const credential = await this.credentialForConnection(providerConnectionId)
-    const response = await powensFetch(`${apiBase()}/users/me/connections/${encodeURIComponent(providerConnectionId)}/accounts?all`, {
+    const response = await powensFetch(`${apiBase()}/users/me/connections/${encodeURIComponent(providerConnectionId)}/accounts`, {
       headers: { authorization: `Bearer ${credential.accessToken}` },
     })
     const payload = await parseJson(response)

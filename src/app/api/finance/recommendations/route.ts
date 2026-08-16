@@ -11,9 +11,16 @@ export async function GET(request: NextRequest) {
   if (!identity) return financeUnauthorized()
 
   const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
+  const accountsResult = await supabaseAdmin.from('finance_accounts').select('id').eq('user_id', identity.id).eq('is_active', true).eq('user_enabled', true)
+  if (accountsResult.error) return NextResponse.json({ error: 'finance_recommendations_unavailable', detail: accountsResult.error.message }, { status: 500 })
+  const accountIds = (accountsResult.data ?? []).map((item) => item.id)
+  const transactionsPromise = accountIds.length
+    ? supabaseAdmin.from('finance_transactions').select('id,transaction_date,amount,direction').eq('user_id', identity.id).in('account_id', accountIds).gte('transaction_date', ninetyDaysAgo).order('transaction_date', { ascending: true })
+    : Promise.resolve({ data: [], error: null })
+
   const [profileResult, transactionsResult, annotationsResult, categoriesResult, commitmentsResult, envelopesResult, goalsResult] = await Promise.all([
     supabaseAdmin.from('finance_user_profiles').select('usual_net_income,current_overdraft,overdraft_limit').eq('user_id', identity.id).maybeSingle(),
-    supabaseAdmin.from('finance_transactions').select('id,transaction_date,amount,direction').eq('user_id', identity.id).gte('transaction_date', ninetyDaysAgo).order('transaction_date', { ascending: true }),
+    transactionsPromise,
     supabaseAdmin.from('finance_transaction_annotations').select('transaction_id,category_id,financial_nature,is_exceptional,is_internal_transfer').eq('user_id', identity.id),
     supabaseAdmin.from('finance_categories').select('id,slug').or(`user_id.is.null,user_id.eq.${identity.id}`),
     supabaseAdmin.from('finance_recurring_commitments').select('amount,frequency,is_active').eq('user_id', identity.id).eq('is_active', true),

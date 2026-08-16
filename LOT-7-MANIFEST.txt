@@ -1,0 +1,21 @@
+NOVAÉ FINANCE — LOT 7 — POWENS SANDBOX + UX TABS
+Date: 2026-08-16
+
+FILES
+- src/components/finance/FinanceTabsScroller.tsx (new)
+- src/components/finance/FinanceShell.tsx
+- src/components/finance/FinanceBankingClient.tsx
+- src/lib/finance/providers/powens.ts
+- src/app/api/finance/provider-status/route.ts
+- docs/finance/LOT-7-POWENS-SANDBOX-UX.md (new)
+- LOT-7-MANIFEST.txt (new)
+
+NO DATABASE MIGRATION IN THIS LOT.
+
+KEY CHANGES
+- Mobile/tablet Finance tab arrows + edge fades + active tab auto-scroll.
+- Powens domain normalization supports short slug or full *.biapi.pro domain.
+- Webview now receives the complete Powens domain and connector_capabilities=bank.
+- Optional POWENS_CONNECTOR_IDS support for sandbox connector restriction.
+- Banking screen explicitly reports sandbox vs non-sandbox and configuration readiness.
+- Payments/transfers remain disabled by design.
