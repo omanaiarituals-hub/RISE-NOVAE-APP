@@ -1,0 +1,13 @@
+NOVAÉ Finance — LOT 10 — Nova Finance avancée
+Date: 2026-08-16
+
+Ajouts:
+- Simulations « Et si ? » sans effet de bord : dépense imprévue, épargne supplémentaire, réduction de dépenses, variation de revenu.
+- Calcul déterministe de l'impact sur le réellement disponible.
+- Arbitrage des objectifs selon priorité utilisateur + cible mensuelle, avec remboursement prioritaire à priorité égale.
+- Projection simple des objectifs (reste, cible mensuelle, estimation en mois).
+- Recalibrage des enveloppes de dépense après ajustements répétés, toujours avec validation explicite.
+- Endpoint POST protégé : aucune modification sans confirmed=true et filtrage strict user_id.
+
+Aucune migration Supabase.
+Aucun paiement ni virement bancaire.

@@ -1,0 +1,4 @@
+NOVAÉ Finance — Patch 10.1
+Correction Lot 10: suppression de la référence à la colonne inexistante finance_envelopes.spent_current_cycle.
+Le moteur utilise current_amount pour le suivi courant des enveloppes, conformément au schéma Finance existant.
+Aucune migration Supabase.
