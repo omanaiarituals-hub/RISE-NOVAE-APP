@@ -42,6 +42,12 @@ type Recommendations = {
     months_analysed: number
     transactions_count: number
     recurring_commitments: number
+    fixed_commitments: number
+    provisions: number
+    safety_floor: number
+    pilotable_amount: number
+    existing_envelopes_budget: number
+    available_for_new_plans: number
     basis: string[]
   }
   envelopes: EnvelopeSuggestion[]
@@ -202,11 +208,16 @@ export default function FinanceNovaCoach() {
         </div>
 
         {recommendations && (
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
-            <div className="rounded-2xl bg-black/[.03] p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--novae-text-muted)]">Revenu de référence</p><p className="mt-2 text-2xl font-black">{money(recommendations.context.observed_monthly_income ?? recommendations.context.usual_income)}</p></div>
-            <div className="rounded-2xl bg-black/[.03] p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--novae-text-muted)]">Dépenses observées</p><p className="mt-2 text-2xl font-black">{money(recommendations.context.observed_monthly_expenses)}</p></div>
-            <div className="rounded-2xl bg-black/[.03] p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--novae-text-muted)]">Historique analysé</p><p className="mt-2 text-2xl font-black">{recommendations.context.transactions_count} opérations</p></div>
-          </div>
+          <>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="rounded-2xl bg-black/[.03] p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--novae-text-muted)]">Revenu de référence</p><p className="mt-2 text-2xl font-black">{money(recommendations.context.observed_monthly_income ?? recommendations.context.usual_income)}</p></div>
+              <div className="rounded-2xl bg-black/[.03] p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--novae-text-muted)]">Charges fixes confirmées</p><p className="mt-2 text-2xl font-black">{money(recommendations.context.fixed_commitments)}</p></div>
+              <div className="rounded-2xl bg-black/[.03] p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--novae-text-muted)]">Provisions + sécurité</p><p className="mt-2 text-2xl font-black">{money(recommendations.context.provisions + recommendations.context.safety_floor)}</p></div>
+              <div className="rounded-2xl border border-[var(--novae-primary)] bg-[var(--novae-primary)]/[.04] p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--novae-text-muted)]">Reste pilotable</p><p className="mt-2 text-2xl font-black">{money(recommendations.context.pilotable_amount)}</p></div>
+              <div className="rounded-2xl bg-black/[.03] p-4"><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--novae-text-muted)]">Encore libre pour de nouveaux plans</p><p className="mt-2 text-2xl font-black">{money(recommendations.context.available_for_new_plans)}</p></div>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-[var(--novae-text-muted)]">Nova réserve d’abord les charges obligatoires confirmées, les provisions et ton plancher de sécurité. Les enveloppes et objectifs proposés ne sont calculés qu’avec ce qu’il reste.</p>
+          </>
         )}
 
         {(envelopes.length > 0 || goals.length > 0) && recommendations?.warnings.map((warning) => <div key={warning} className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">{warning}</div>)}

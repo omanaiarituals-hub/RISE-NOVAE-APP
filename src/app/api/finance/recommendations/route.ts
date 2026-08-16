@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { financeUnauthorized, requireFinanceIdentity } from '@/lib/finance/api'
 import { buildFinanceRecommendations } from '@/lib/finance/recommendations'
+import { monthlyEquivalent } from '@/lib/finance/cycle'
 
 const daysBetween = (a: string, b: string) => Math.max(1, Math.ceil((new Date(b).getTime() - new Date(a).getTime()) / 86400000))
 
@@ -18,22 +19,28 @@ export async function GET(request: NextRequest) {
     ? supabaseAdmin.from('finance_transactions').select('id,transaction_date,amount,direction').eq('user_id', identity.id).in('account_id', accountIds).gte('transaction_date', ninetyDaysAgo).order('transaction_date', { ascending: true })
     : Promise.resolve({ data: [], error: null })
 
-  const [profileResult, transactionsResult, annotationsResult, categoriesResult, commitmentsResult, envelopesResult, goalsResult] = await Promise.all([
-    supabaseAdmin.from('finance_user_profiles').select('usual_net_income,current_overdraft,overdraft_limit').eq('user_id', identity.id).maybeSingle(),
+  const [profileResult, transactionsResult, annotationsResult, categoriesResult, commitmentsResult, provisionsResult, envelopesResult, goalsResult] = await Promise.all([
+    supabaseAdmin.from('finance_user_profiles').select('usual_net_income,current_overdraft,overdraft_limit,safety_floor').eq('user_id', identity.id).maybeSingle(),
     transactionsPromise,
     supabaseAdmin.from('finance_transaction_annotations').select('transaction_id,category_id,financial_nature,is_exceptional,is_internal_transfer').eq('user_id', identity.id),
     supabaseAdmin.from('finance_categories').select('id,slug').or(`user_id.is.null,user_id.eq.${identity.id}`),
-    supabaseAdmin.from('finance_recurring_commitments').select('amount,frequency,is_active').eq('user_id', identity.id).eq('is_active', true),
-    supabaseAdmin.from('finance_envelopes').select('name').eq('user_id', identity.id).eq('is_active', true),
+    supabaseAdmin.from('finance_recurring_commitments').select('amount,frequency,is_active,source,commitment_type').eq('user_id', identity.id).eq('is_active', true),
+    supabaseAdmin.from('finance_future_provisions').select('monthly_amount').eq('user_id', identity.id).eq('is_active', true),
+    supabaseAdmin.from('finance_envelopes').select('name,target_amount,tracking_mode').eq('user_id', identity.id).eq('is_active', true),
     supabaseAdmin.from('finance_goals').select('goal_type').eq('user_id', identity.id).eq('status', 'active'),
   ])
 
-  const fatal = [transactionsResult.error, annotationsResult.error, categoriesResult.error, commitmentsResult.error, envelopesResult.error, goalsResult.error].find(Boolean)
+  const fatal = [transactionsResult.error, annotationsResult.error, categoriesResult.error, commitmentsResult.error, provisionsResult.error, envelopesResult.error, goalsResult.error].find(Boolean)
   if (fatal) return NextResponse.json({ error: 'finance_recommendations_unavailable', detail: fatal.message }, { status: 500 })
 
   const profile = profileResult.error ? null : profileResult.data
   const transactions = transactionsResult.data ?? []
-  const annotations = new Map((annotationsResult.data ?? []).map((item) => [item.transaction_id, item]))
+  const transactionIdSet = new Set(transactions.map((item) => item.id))
+  const annotations = new Map(
+    (annotationsResult.data ?? [])
+      .filter((item) => transactionIdSet.has(item.transaction_id))
+      .map((item) => [item.transaction_id, item]),
+  )
   const categorySlug = new Map((categoriesResult.data ?? []).map((item) => [item.id, item.slug]))
 
   const firstDate = transactions[0]?.transaction_date ?? null
@@ -60,13 +67,25 @@ export async function GET(request: NextRequest) {
   const monthlyCategory: Record<string, number> = {}
   for (const [slug, total] of Object.entries(categoryTotals)) monthlyCategory[slug] = months > 0 ? total / months : total
 
-  const commitments = (commitmentsResult.data ?? []).reduce((sum, item) => {
-    const amount = Math.abs(Number(item.amount || 0))
-    const frequency = String(item.frequency || 'monthly').toLowerCase()
-    if (frequency === 'yearly' || frequency === 'annual') return sum + amount / 12
-    if (frequency === 'weekly') return sum + amount * 52 / 12
-    return sum + amount
-  }, 0)
+  const commitments = (commitmentsResult.data ?? []).reduce(
+    (sum, item) => sum + monthlyEquivalent(Number(item.amount || 0), item.frequency),
+    0,
+  )
+  const confirmedFixed = (commitmentsResult.data ?? [])
+    .filter((item) => item.source === 'user' && item.commitment_type !== 'income')
+    .reduce((sum, item) => sum + monthlyEquivalent(Number(item.amount || 0), item.frequency), 0)
+  const provisionsMonthly = (provisionsResult.data ?? []).reduce(
+    (sum, item) => sum + Math.max(0, Number(item.monthly_amount || 0)),
+    0,
+  )
+  const safetyFloor = Math.max(0, Number(profile?.safety_floor || 0))
+  const referenceIncome = months > 0 && income > 0
+    ? income / months
+    : Math.max(0, Number(profile?.usual_net_income || 0))
+  const pilotableIncome = Math.max(0, referenceIncome - confirmedFixed - provisionsMonthly - safetyFloor)
+  const existingEnvelopeMonthlyTotal = (envelopesResult.data ?? [])
+    .filter((item) => item.tracking_mode === 'spend')
+    .reduce((sum, item) => sum + Math.max(0, Number(item.target_amount || 0)), 0)
 
   const recommendations = buildFinanceRecommendations({
     usualIncome: profile?.usual_net_income == null ? null : Number(profile.usual_net_income),
@@ -77,6 +96,11 @@ export async function GET(request: NextRequest) {
     monthsAnalysed: Math.round(months * 10) / 10,
     transactionsCount: transactions.length,
     recurringCommitmentsMonthly: commitments,
+    confirmedFixedMonthly: confirmedFixed,
+    provisionsMonthly,
+    safetyFloor,
+    pilotableIncome,
+    existingEnvelopeMonthlyTotal,
     categoryMonthly: monthlyCategory,
     existingEnvelopeNames: (envelopesResult.data ?? []).map((item) => item.name),
     existingGoalTypes: (goalsResult.data ?? []).map((item) => item.goal_type),

@@ -82,7 +82,20 @@ export async function POST(request: NextRequest) {
     await supabaseAdmin.from('finance_merchant_rules').update({ apply_count: Number(existing?.apply_count || 0) + 1, last_applied_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', ruleId).eq('user_id', identity.id)
   }
 
+  const { data: userRecurringDecisions } = await supabaseAdmin
+    .from('finance_recurring_commitments')
+    .select('detection_key')
+    .eq('user_id', identity.id)
+    .eq('source', 'user')
+    .not('detection_key', 'is', null)
+  const protectedDetectionKeys = new Set(
+    (userRecurringDecisions || []).map((item) => String(item.detection_key)),
+  )
+
   for (const pattern of result.recurring) {
+    const detectionKey = `merchant:${pattern.key}`
+    if (protectedDetectionKeys.has(detectionKey)) continue
+
     await supabaseAdmin.from('finance_recurring_commitments').upsert({
       user_id: identity.id,
       name: pattern.merchant,
@@ -92,7 +105,7 @@ export async function POST(request: NextRequest) {
       next_due_date: pattern.nextDueDate,
       is_active: true,
       source: 'transaction_engine',
-      detection_key: `merchant:${pattern.key}`,
+      detection_key: detectionKey,
       confidence: pattern.confidence,
       last_detected_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

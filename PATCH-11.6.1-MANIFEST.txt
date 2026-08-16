@@ -1,0 +1,3 @@
+NOVAÉ Finance — Patch 11.6.1
+Correction JSX FinanceNovaCoach : les deux éléments adjacents sont maintenant regroupés dans un fragment React.
+Aucune migration Supabase.
