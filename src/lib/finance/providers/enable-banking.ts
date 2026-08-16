@@ -439,12 +439,22 @@ export class EnableBankingProvider implements BankingProvider {
       let page = 0
       do {
         const params = new URLSearchParams()
+        // Enable Banking documente `strategy=longest` pour récupérer la période
+        // historique la plus longue disponible. On conserve exactement les mêmes
+        // paramètres sur toutes les pages, continuation_key compris.
+        params.set('strategy', 'longest')
         if (input.since) params.set('date_from', input.since.slice(0, 10))
         if (continuationKey) params.set('continuation_key', continuationKey)
         const suffix = params.toString() ? `?${params.toString()}` : ''
         const response = await enableFetch(`/accounts/${encodeURIComponent(uid)}/transactions${suffix}`)
         const payload = await parseJson(response)
         const transactions: JsonRecord[] = Array.isArray(payload.transactions) ? payload.transactions : []
+        console.info('[finance][enable_banking][transactions]', {
+          account: uid.slice(0, 8),
+          page,
+          count: transactions.length,
+          continuation: Boolean(payload.continuation_key),
+        })
 
         for (const raw of transactions) {
           // Pending transactions may not have stable identifiers. Keep them visible

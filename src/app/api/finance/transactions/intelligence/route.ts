@@ -13,7 +13,33 @@ export async function GET(request: NextRequest) {
   const identity = await requireFinanceIdentity(request)
   if (!identity) return financeUnauthorized()
 
+  const { data: activeAccounts, error: activeAccountError } = await supabaseAdmin
+    .from('finance_accounts')
+    .select('id')
+    .eq('user_id', identity.id)
+    .eq('is_active', true)
+    .eq('user_enabled', true)
+  if (activeAccountError) return NextResponse.json({ error: 'active_accounts_load_failed', detail: activeAccountError.message }, { status: 500 })
+
+  const activeAccountIds = (activeAccounts || []).map((item) => item.id)
+  let activeTransactionIds: string[] = []
+  if (activeAccountIds.length) {
+    const { data: activeTransactions, error: activeTxError } = await supabaseAdmin
+      .from('finance_transactions')
+      .select('id')
+      .eq('user_id', identity.id)
+      .in('account_id', activeAccountIds)
+    if (activeTxError) return NextResponse.json({ error: 'active_transactions_load_failed', detail: activeTxError.message }, { status: 500 })
+    activeTransactionIds = (activeTransactions || []).map((item) => item.id)
+  }
+
+  const annotationQuery = supabaseAdmin
+    .from('finance_transaction_annotations')
+    .select('transaction_id,financial_nature,is_recurring,is_subscription,is_installment,confidence_score,category:finance_categories(id,slug,name)')
+    .eq('user_id', identity.id)
+
   const [{ data: annotations, error: annotationError }, { data: recurring, error: recurringError }, { data: insights, error: insightError }] = await Promise.all([
+    activeTransactionIds.length ? annotationQuery.in('transaction_id', activeTransactionIds) : Promise.resolve({ data: [], error: null }),
     supabaseAdmin.from('finance_transaction_annotations').select('transaction_id,financial_nature,is_recurring,is_subscription,is_installment,confidence_score,category:finance_categories(id,slug,name)').eq('user_id', identity.id),
     supabaseAdmin.from('finance_recurring_commitments').select('id,name,commitment_type,amount,frequency,next_due_date,confidence').eq('user_id', identity.id).eq('source', 'transaction_engine').eq('is_active', true).order('amount', { ascending: false }).limit(12),
     supabaseAdmin.from('finance_insights').select('id,title,summary,confidence').eq('user_id', identity.id).eq('source', 'transaction_engine').is('dismissed_at', null).order('created_at', { ascending: false }).limit(6),

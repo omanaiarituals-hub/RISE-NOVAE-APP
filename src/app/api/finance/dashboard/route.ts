@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const identity = await requireFinanceIdentity(request)
   if (!identity) return financeUnauthorized()
 
-  const [envelopes, goals, profile, accounts, transactionCount] = await Promise.all([
+  const [envelopes, goals, profile, accounts] = await Promise.all([
     supabaseAdmin
       .from('finance_envelopes')
       .select('id,name,envelope_type,target_amount,current_amount,rollover_enabled,cash_enabled,priority')
@@ -33,20 +33,25 @@ export async function GET(request: NextRequest) {
       .select('id,last_synced_at')
       .eq('user_id', identity.id)
       .eq('is_active', true)
-      .eq('user_enabled', true),
-    supabaseAdmin
-      .from('finance_transactions')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', identity.id),
-  ])
+      .eq('user_enabled', true)  ])
 
-  const error = envelopes.error || goals.error || accounts.error || transactionCount.error
+  const error = envelopes.error || goals.error || accounts.error
   if (error) return NextResponse.json({ error: 'finance_dashboard_unavailable', detail: error.message }, { status: 500 })
 
   try {
     const forecast = await buildFinanceForecast(identity.id)
     const p = profile.error ? null : profile.data
     const activeAccounts = accounts.data ?? []
+    const activeAccountIds = activeAccounts.map((account) => account.id)
+    const transactionCount = activeAccountIds.length
+      ? await supabaseAdmin
+          .from('finance_transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', identity.id)
+          .in('account_id', activeAccountIds)
+      : { count: 0, error: null as null | { message: string } }
+    if (transactionCount.error) throw new Error(transactionCount.error.message)
+
     const syncDates = activeAccounts
       .map((account) => account.last_synced_at)
       .filter((value): value is string => Boolean(value))

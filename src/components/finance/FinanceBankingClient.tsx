@@ -69,7 +69,7 @@ export default function FinanceBankingClient({
 }) {
   const [status, setStatus] = useState<Status | null>(null)
   const [state, setState] = useState<ConnectionState | null>(null)
-  const [busy, setBusy] = useState<'connect' | 'sync' | 'disconnect' | `account:${string}` | null>(null)
+  const [busy, setBusy] = useState<'connect' | 'sync' | 'disconnect' | 'reset' | `account:${string}` | null>(null)
   const [message, setMessage] = useState(providerError ? `Connexion bancaire interrompue : ${providerError}` : returnedFromProvider ? 'Connexion terminée. NOVAÉ récupère maintenant les comptes sélectionnés…' : '')
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState('')
@@ -179,6 +179,37 @@ export default function FinanceBankingClient({
       await refreshStatus()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Déconnexion impossible')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function resetTestData() {
+    const confirmed = window.confirm(
+      'RAZ des données de test Finance ?\n\nCela supprime les comptes/transactions Powens sandbox, analyses, charges détectées, provisions et mouvements cash de test.\n\nTa connexion Enable Banking réelle, ton profil et les définitions de tes enveloppes/objectifs sont conservés.'
+    )
+    if (!confirmed) return
+
+    setBusy('reset')
+    setMessage('')
+    try {
+      const response = await fetch('/api/finance/banking/reset-test-data', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ confirm: 'RESET_TEST_DATA' }),
+      })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.detail || json.error || 'RAZ impossible')
+
+      const syncResponse = await fetch('/api/finance/banking/sync', { method: 'POST' })
+      const syncJson = await syncResponse.json()
+      if (!syncResponse.ok) throw new Error(syncJson.detail || syncJson.error || 'RAZ effectuée, mais synchronisation réelle impossible')
+
+      setMessage(`RAZ terminée. ${syncJson.accounts ?? 0} compte(s) réel(s), ${syncJson.transactions ?? 0} opération(s) réelle(s) synchronisée(s).`)
+      await refreshStatus()
+      window.location.reload()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'RAZ impossible')
     } finally {
       setBusy(null)
     }
@@ -304,6 +335,16 @@ export default function FinanceBankingClient({
           <button type="button" disabled={!ready || busy !== null} onClick={connect} className="min-h-11 rounded-full bg-[var(--novae-primary)] px-5 font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-45">{busy === 'connect' ? 'Ouverture…' : connected ? 'Reconnecter ma banque' : sandbox ? 'Connecter une banque de test' : 'Connecter mon compte réel'}</button>
           <button type="button" disabled={!ready || busy !== null} onClick={() => void sync()} className="min-h-11 rounded-full border border-[var(--novae-border)] bg-[var(--novae-surface)] px-5 font-extrabold disabled:cursor-not-allowed disabled:opacity-45">{busy === 'sync' ? 'Synchronisation…' : 'Synchroniser maintenant'}</button>
           <button type="button" disabled={!ready || !connected || busy !== null} onClick={disconnect} className="min-h-11 rounded-full border border-[var(--novae-border)] bg-transparent px-5 font-bold text-[var(--novae-text-muted)] disabled:cursor-not-allowed disabled:opacity-45">Déconnecter</button>
+          {status?.configuredProvider === 'enable_banking' && connected ? (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={resetTestData}
+              className="min-h-11 rounded-full border border-amber-300 bg-amber-50 px-5 font-bold text-amber-900 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {busy === 'reset' ? 'Nettoyage…' : 'RAZ données de test'}
+            </button>
+          ) : null}
         </div>
 
         {state?.accounts?.length ? (
