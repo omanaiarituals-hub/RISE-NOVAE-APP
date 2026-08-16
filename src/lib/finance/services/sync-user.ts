@@ -42,13 +42,12 @@ export async function syncFinanceUser(userId: string) {
 
     if (connectionError || !savedConnection) throw new Error(connectionError?.message || 'Connexion Finance non enregistrée')
 
-    // Powens default account listing excludes disabled accounts. That list therefore
-    // reflects the accounts the end user actually consented to share in the Webview.
+    // Le fournisseur renvoie uniquement les comptes autorisés pour la session courante.
     const accounts = await provider.listAccounts(connection.providerConnectionId)
     const providerAccountIds = accounts.map((account) => account.providerAccountId)
     const accountIdByProvider = new Map<string, string>()
 
-    // Anything previously discovered but no longer returned by Powens must stop
+    // Tout compte précédemment découvert mais plus renvoyé doit cesser
     // contributing to balances, analyses and transaction imports.
     const { data: existingAccounts, error: existingAccountsError } = await supabaseAdmin
       .from('finance_accounts')
@@ -115,6 +114,37 @@ export async function syncFinanceUser(userId: string) {
       }, { onConflict: 'account_id,provider_transaction_id' })
       if (txError) throw new Error(txError.message)
       transactionCount++
+    }
+  }
+
+  // Dès qu'un fournisseur actif renvoie une connexion valide, les anciens
+  // fournisseurs (ex. sandbox Powens) sont archivés localement pour éviter tout
+  // mélange entre données de test et finances réelles. L'historique est conservé.
+  if (connections.length > 0) {
+    const { data: legacyConnections, error: legacyError } = await supabaseAdmin
+      .from('finance_connections')
+      .select('id')
+      .eq('user_id', userId)
+      .neq('provider', provider.id)
+      .is('disconnected_at', null)
+    if (legacyError) throw new Error(legacyError.message)
+
+    const legacyIds = (legacyConnections ?? []).map((item) => item.id)
+    if (legacyIds.length) {
+      const now = new Date().toISOString()
+      const { error: accountsArchiveError } = await supabaseAdmin
+        .from('finance_accounts')
+        .update({ is_active: false, user_enabled: false, updated_at: now })
+        .eq('user_id', userId)
+        .in('connection_id', legacyIds)
+      if (accountsArchiveError) throw new Error(accountsArchiveError.message)
+
+      const { error: connectionArchiveError } = await supabaseAdmin
+        .from('finance_connections')
+        .update({ status: 'disconnected', disconnected_at: now, updated_at: now })
+        .eq('user_id', userId)
+        .in('id', legacyIds)
+      if (connectionArchiveError) throw new Error(connectionArchiveError.message)
     }
   }
 

@@ -22,6 +22,15 @@ export interface BankingProvider {
     returnUrl: string
   }): Promise<BankingConnectionSession>
 
+  /**
+   * Certains fournisseurs (ex. Enable Banking) renvoient un code OAuth-like
+   * qu'il faut échanger côté serveur avant la première synchronisation.
+   */
+  completeReadOnlyConnectionSession?(input: {
+    novaeUserId: string
+    code: string
+  }): Promise<void>
+
   listConnections(novaeUserId: string): Promise<BankingConnection[]>
   listAccounts(providerConnectionId: string): Promise<FinanceAccount[]>
   listTransactions(input: {

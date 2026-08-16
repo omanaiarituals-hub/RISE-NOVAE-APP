@@ -56,11 +56,19 @@ function dateTime(value: string | null | undefined) {
   return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(date)
 }
 
-export default function FinanceBankingClient({ returnedFromProvider = false }: { returnedFromProvider?: boolean }) {
+export default function FinanceBankingClient({
+  returnedFromProvider = false,
+  authorizationCode,
+  providerError,
+}: {
+  returnedFromProvider?: boolean
+  authorizationCode?: string
+  providerError?: string
+}) {
   const [status, setStatus] = useState<Status | null>(null)
   const [state, setState] = useState<ConnectionState | null>(null)
   const [busy, setBusy] = useState<'connect' | 'sync' | 'disconnect' | `account:${string}` | null>(null)
-  const [message, setMessage] = useState(returnedFromProvider ? 'Connexion terminée. NOVAÉ récupère maintenant les comptes sélectionnés…' : '')
+  const [message, setMessage] = useState(providerError ? `Connexion bancaire interrompue : ${providerError}` : returnedFromProvider ? 'Connexion terminée. NOVAÉ récupère maintenant les comptes sélectionnés…' : '')
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState('')
 
@@ -98,12 +106,40 @@ export default function FinanceBankingClient({ returnedFromProvider = false }: {
   }, [])
 
   useEffect(() => {
-    if (!returnedFromProvider) return
-    const timer = window.setTimeout(() => { void sync({ silent: true }) }, 800)
-    return () => window.clearTimeout(timer)
+    if (!returnedFromProvider || providerError) return
+    let cancelled = false
+    const finish = async () => {
+      try {
+        if (authorizationCode) {
+          setBusy('sync')
+          const response = await fetch('/api/finance/banking/complete', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ code: authorizationCode }),
+          })
+          const json = await response.json()
+          if (!response.ok) throw new Error(json.message || json.error || 'Finalisation bancaire impossible')
+          if (!cancelled) {
+            setMessage(`Connexion réelle terminée : ${json.accounts ?? 0} compte(s), ${json.transactions ?? 0} opération(s) synchronisée(s).`)
+            await refreshStatus()
+          }
+        } else {
+          await sync({ silent: true })
+        }
+      } catch (error) {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : 'Finalisation bancaire impossible')
+      } finally {
+        if (!cancelled) setBusy(null)
+      }
+    }
+    const timer = window.setTimeout(() => { void finish() }, 500)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
     // Le retour fournisseur ne doit déclencher qu'un seul import.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [returnedFromProvider])
+  }, [returnedFromProvider, authorizationCode, providerError])
 
   async function connect() {
     setBusy('connect')
@@ -208,7 +244,7 @@ export default function FinanceBankingClient({ returnedFromProvider = false }: {
             <button type="button" disabled={accountBusy || !canEnable} onClick={() => void updateAccount(account.id, { user_enabled: true })} className="rounded-full border border-[var(--novae-border)] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-45">Inclure dans NOVAÉ</button>
           )}
         </div>
-        {!account.is_active ? <p className="mt-3 text-xs leading-5 text-[var(--novae-text-muted)]">Ce compte n’est plus autorisé côté Powens. Utilise « Ajouter / reconnecter une banque » si tu veux le sélectionner à nouveau.</p> : null}
+        {!account.is_active ? <p className="mt-3 text-xs leading-5 text-[var(--novae-text-muted)]">Ce compte n’est plus autorisé par le fournisseur bancaire. Reconnecte la banque si tu veux le sélectionner à nouveau.</p> : null}
       </div>
     )
   }
@@ -220,8 +256,10 @@ export default function FinanceBankingClient({ returnedFromProvider = false }: {
           <p className="text-xs font-black uppercase tracking-[.16em] text-[var(--novae-primary)]">Open Banking · lecture seule</p>
           {status?.configuredProvider === 'powens' ? (
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${sandbox ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
-              {sandbox ? 'Sandbox Powens' : 'Powens hors sandbox'}
+              {sandbox ? 'Sandbox Powens' : 'Powens'}
             </span>
+          ) : status?.configuredProvider === 'enable_banking' ? (
+            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-black text-emerald-800">Enable Banking · compte réel restreint</span>
           ) : null}
         </div>
         <h2 className="mt-2 font-[var(--novae-font-title)] text-3xl font-semibold sm:text-4xl">Connexion bancaire</h2>
@@ -231,7 +269,7 @@ export default function FinanceBankingClient({ returnedFromProvider = false }: {
 
         <div className="mt-6 rounded-2xl bg-[var(--novae-background)] p-4 text-sm leading-6">
           <div className="flex justify-between gap-4"><span>Fournisseur</span><strong>{status?.configuredProvider || '—'}</strong></div>
-          <div className="mt-2 flex justify-between gap-4"><span>Environnement</span><strong>{sandbox ? 'Sandbox' : status?.environment === 'production_or_custom' ? 'Hors sandbox' : 'Désactivé'}</strong></div>
+          <div className="mt-2 flex justify-between gap-4"><span>Environnement</span><strong>{sandbox ? 'Sandbox' : status?.configuredProvider === 'enable_banking' ? 'Production restreinte' : status?.environment === 'production_or_custom' ? 'Production' : 'Désactivé'}</strong></div>
           <div className="mt-2 flex justify-between gap-4"><span>Adaptateur</span><strong>{ready ? 'Prêt' : 'Non configuré'}</strong></div>
           <div className="mt-2 flex justify-between gap-4"><span>Connexion</span><strong>{connected ? 'Connectée' : 'Non connectée'}</strong></div>
           <div className="mt-2 flex justify-between gap-4"><span>Accès</span><strong>Lecture seule</strong></div>
@@ -241,13 +279,17 @@ export default function FinanceBankingClient({ returnedFromProvider = false }: {
         {status?.configuredProvider === 'powens' && !ready ? (
           <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>Configuration incomplète.</strong> Renseigne le domaine sandbox, le Client ID et le Client Secret côté serveur, puis redémarre NOVAÉ.</div>
         ) : null}
-        {status?.configuredProvider === 'powens' && ready && !sandbox ? (
-          <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950">Pour la validation technique, utilise d’abord un domaine Powens <strong>-sandbox.biapi.pro</strong>. Ne connecte pas encore une vraie banque.</div>
+        {status?.configuredProvider === 'enable_banking' && ready ? (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
+            Mode personnel restreint : NOVAÉ ne peut récupérer que les comptes que tu as explicitement liés à cette application Enable Banking.
+          </div>
+        ) : status?.configuredProvider === 'powens' && ready && !sandbox ? (
+          <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950">Connexion Powens configurée hors sandbox.</div>
         ) : null}
         {message ? <p className="mt-4 rounded-2xl border border-[var(--novae-border)] p-4 text-sm">{message}</p> : null}
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <button type="button" disabled={!ready || busy !== null} onClick={connect} className="min-h-11 rounded-full bg-[var(--novae-primary)] px-5 font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-45">{busy === 'connect' ? 'Ouverture…' : connected ? 'Ajouter / reconnecter une banque' : sandbox ? 'Connecter une banque de test' : 'Connecter ma banque'}</button>
+          <button type="button" disabled={!ready || busy !== null} onClick={connect} className="min-h-11 rounded-full bg-[var(--novae-primary)] px-5 font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-45">{busy === 'connect' ? 'Ouverture…' : connected ? 'Reconnecter ma banque' : sandbox ? 'Connecter une banque de test' : 'Connecter mon compte réel'}</button>
           <button type="button" disabled={!ready || busy !== null} onClick={() => void sync()} className="min-h-11 rounded-full border border-[var(--novae-border)] bg-[var(--novae-surface)] px-5 font-extrabold disabled:cursor-not-allowed disabled:opacity-45">{busy === 'sync' ? 'Synchronisation…' : 'Synchroniser maintenant'}</button>
           <button type="button" disabled={!ready || !connected || busy !== null} onClick={disconnect} className="min-h-11 rounded-full border border-[var(--novae-border)] bg-transparent px-5 font-bold text-[var(--novae-text-muted)] disabled:cursor-not-allowed disabled:opacity-45">Déconnecter</button>
         </div>
@@ -274,7 +316,7 @@ export default function FinanceBankingClient({ returnedFromProvider = false }: {
         <ul className="mt-4 space-y-3 text-sm leading-6 text-[var(--novae-text-muted)]"><li>✓ Les comptes que tu choisis explicitement.</li><li>✓ Les soldes nécessaires au calcul du disponible réel.</li><li>✓ Les opérations utiles au budget et aux enveloppes.</li><li>✓ Les dates et libellés nécessaires à la catégorisation.</li></ul>
         <p className="mt-6 text-sm font-black">Ce que NOVAÉ ne peut pas faire</p>
         <ul className="mt-4 space-y-3 text-sm leading-6 text-[var(--novae-text-muted)]"><li>× Effectuer un paiement.</li><li>× Effectuer ou initier un virement.</li><li>× Voir ton mot de passe bancaire.</li></ul>
-        <div className="mt-6 rounded-2xl bg-[var(--novae-background)] p-4 text-xs leading-5 text-[var(--novae-text-muted)]">Un compte retiré de NOVAÉ conserve son historique synchronisé, mais il ne participe plus aux calculs. Pour modifier le consentement bancaire lui-même, repasse par la Webview Powens.</div>
+        <div className="mt-6 rounded-2xl bg-[var(--novae-background)] p-4 text-xs leading-5 text-[var(--novae-text-muted)]">Un compte retiré de NOVAÉ conserve son historique synchronisé, mais il ne participe plus aux calculs. Pour modifier le consentement bancaire lui-même, repasse par le parcours sécurisé du fournisseur.</div>
       </aside>
     </div>
   )

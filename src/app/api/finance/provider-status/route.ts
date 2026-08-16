@@ -18,18 +18,43 @@ export async function GET(request: NextRequest) {
   const provider = getBankingProvider()
   const configuredProvider = getConfiguredBankingProviderId()
   const domain = configuredProvider === 'powens' ? normalizedPowensDomain() : null
+  const enableConfigured = configuredProvider === 'enable_banking'
 
   return NextResponse.json({
     mode: 'read_only',
     configuredProvider,
     adapterReady: provider.isConfigured(),
-    environment: domain?.includes('-sandbox.biapi.pro') ? 'sandbox' : domain ? 'production_or_custom' : 'disabled',
+    environment:
+      domain?.includes('-sandbox.biapi.pro')
+        ? 'sandbox'
+        : configuredProvider === 'enable_banking'
+          ? 'production_or_custom'
+          : domain
+            ? 'production_or_custom'
+            : 'disabled',
     domainConfigured: Boolean(domain),
-    clientConfigured: Boolean(process.env.POWENS_CLIENT_ID?.trim()),
-    secretConfigured: Boolean(process.env.POWENS_CLIENT_SECRET?.trim()),
-    connectorFilterConfigured: Boolean(process.env.POWENS_CONNECTOR_IDS?.trim()),
+    clientConfigured:
+      configuredProvider === 'powens'
+        ? Boolean(process.env.POWENS_CLIENT_ID?.trim())
+        : enableConfigured
+          ? Boolean(process.env.ENABLE_BANKING_APPLICATION_ID?.trim())
+          : false,
+    secretConfigured:
+      configuredProvider === 'powens'
+        ? Boolean(process.env.POWENS_CLIENT_SECRET?.trim())
+        : enableConfigured
+          ? Boolean(process.env.ENABLE_BANKING_PRIVATE_KEY_BASE64?.trim())
+          : false,
+    connectorFilterConfigured:
+      configuredProvider === 'powens'
+        ? Boolean(process.env.POWENS_CONNECTOR_IDS?.trim())
+        : enableConfigured
+          ? Boolean(process.env.ENABLE_BANKING_ASPSP_NAME?.trim())
+          : false,
+    institutionConfigured: enableConfigured ? Boolean(process.env.ENABLE_BANKING_ASPSP_NAME?.trim()) : undefined,
     paymentsEnabled: false,
     transfersEnabled: false,
     authSource: identity.source,
   })
+
 }

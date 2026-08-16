@@ -1,4 +1,4 @@
-export type BankingProviderId = 'powens' | 'bridge' | 'tink' | 'disabled'
+export type BankingProviderId = 'powens' | 'enable_banking' | 'bridge' | 'tink' | 'disabled'
 
 export type BankingConnectionStatus =
   | 'pending'

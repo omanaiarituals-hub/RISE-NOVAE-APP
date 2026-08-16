@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         {
           error: 'banking_connection_session_failed',
           message: error.status === 401 || error.status === 403
-            ? 'Powens refuse les identifiants de l’application. Vérifie le Client ID et le Client Secret dans .env.local.'
+            ? `${error.provider} refuse l’authentification de l’application. Vérifie les secrets serveur du fournisseur.`
             : error.message,
         },
         { status: error.status && error.status >= 400 && error.status < 500 ? 502 : 500 },
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     console.error('[finance][banking][connect]', error instanceof Error ? error.message : 'unknown_error')
     return NextResponse.json(
-      { error: 'banking_connection_session_failed', message: 'Impossible de créer la session bancaire de test.' },
+      { error: 'banking_connection_session_failed', message: 'Impossible de créer la session bancaire en lecture seule.' },
       { status: 500 },
     )
   }
