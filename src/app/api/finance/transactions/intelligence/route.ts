@@ -88,13 +88,19 @@ export async function GET(request: NextRequest) {
 
   let annotations: any[] = []
   if (activeTransactionIds.length) {
+    // Éviter un énorme filtre PostgREST `.in(transaction_id, [...])`.
+    // Avec plusieurs centaines d'opérations réelles, l'URL générée devient
+    // suffisamment longue pour provoquer un HTTP 400 côté Supabase.
+    // On charge donc les annotations du seul utilisateur, puis on filtre
+    // côté serveur NOVAÉ sur les transactions des comptes actifs.
+    const activeTransactionIdSet = new Set(activeTransactionIds)
+
     const { data, error } = await supabaseAdmin
       .from('finance_transaction_annotations')
       .select(
         'transaction_id,financial_nature,is_recurring,is_subscription,is_installment,confidence_score,category:finance_categories(id,slug,name)',
       )
       .eq('user_id', identity.id)
-      .in('transaction_id', activeTransactionIds)
 
     if (error) {
       return NextResponse.json(
@@ -102,7 +108,10 @@ export async function GET(request: NextRequest) {
         { status: 500 },
       )
     }
-    annotations = data || []
+
+    annotations = (data || []).filter((item) =>
+      activeTransactionIdSet.has(String(item.transaction_id)),
+    )
   }
 
   const [{ data: recurring, error: recurringError }, { data: insights, error: insightError }] =
