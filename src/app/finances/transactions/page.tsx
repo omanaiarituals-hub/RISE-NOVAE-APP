@@ -10,12 +10,18 @@ export default async function Page() {
 
   const { data: usableAccounts } = await supabaseAdmin.from('finance_accounts').select('id').eq('user_id', identity.id).eq('is_active', true).eq('user_enabled', true)
   const accountIds = (usableAccounts || []).map((item) => item.id)
-  if (!accountIds.length) return <FinanceTransactionList items={[]} />
+  const { data: categories } = await supabaseAdmin
+    .from('finance_categories')
+    .select('id,name')
+    .or(`user_id.is.null,user_id.eq.${identity.id}`)
+    .order('sort_order', { ascending: true })
+
+  if (!accountIds.length) return <FinanceTransactionList items={[]} categories={categories || []} />
 
   const { data: transactions, error } = await supabaseAdmin.from('finance_transactions')
     .select('id,transaction_date,amount,currency,raw_label,merchant_name,account:finance_accounts(name,custom_name,masked_identifier)')
     .eq('user_id', identity.id).in('account_id', accountIds).order('transaction_date', { ascending: false }).order('created_at', { ascending: false }).limit(150)
-  if (error) return <FinanceTransactionList items={[]} />
+  if (error) return <FinanceTransactionList items={[]} categories={categories || []} />
 
   const ids = (transactions || []).map((item) => item.id)
   const { data: annotations } = ids.length ? await supabaseAdmin.from('finance_transaction_annotations').select('transaction_id,financial_nature,confidence_score,user_corrected,category:finance_categories(name)').eq('user_id', identity.id).in('transaction_id', ids) : { data: [] as any[] }
@@ -39,5 +45,5 @@ export default async function Page() {
       userCorrected: !!annotation?.user_corrected,
     }
   })
-  return <FinanceTransactionList items={items} />
+  return <FinanceTransactionList items={items} categories={categories || []} />
 }

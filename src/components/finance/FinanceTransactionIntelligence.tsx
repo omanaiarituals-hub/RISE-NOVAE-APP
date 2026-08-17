@@ -126,7 +126,12 @@ export default function FinanceTransactionIntelligence(){
     {active&&<div className="mt-6 rounded-2xl bg-black/[.03] p-4"><div className="flex flex-wrap items-end justify-between gap-2"><div><p className="text-xs font-black uppercase tracking-[.14em] text-[var(--novae-primary)]">Détail de la catégorie</p><h4 className="mt-1 text-xl font-black">{active.name}</h4></div><p className="text-sm"><strong>{money(active.amount)}</strong> · {active.count} opération(s) · {active.percentage}%</p></div><div className="mt-3 divide-y divide-[var(--novae-border)]">{active.transactions.map(tx=><Link key={tx.id} href={`/finances/transactions/${tx.id}`} className="grid grid-cols-[82px_1fr_auto] gap-2 py-3 text-sm hover:opacity-75"><span className="text-[var(--novae-text-muted)]">{new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'short'}).format(new Date(`${tx.date}T12:00:00`))}</span><span className="truncate font-semibold">{tx.label}</span><strong className="whitespace-nowrap">{money(tx.amount,tx.currency)}</strong></Link>)}</div>{active.slug==='uncategorised'&&<p className="mt-3 text-xs text-[var(--novae-text-muted)]">Ouvre une opération pour la corriger : Nova pourra ensuite retenir la règle marchand.</p>}</div>}
    </div>
 
-   {data.insights.length>0&&<div className="mt-5 grid gap-3 md:grid-cols-2">{data.insights.map(i=><div key={i.id} className="rounded-2xl border border-[var(--novae-border)] p-4"><strong>{i.title}</strong><p className="mt-2 text-sm text-[var(--novae-text-muted)]">{i.summary}</p></div>)}</div>}
+   {data.insights.length>0&&<div className="mt-5 grid gap-3 md:grid-cols-2">{data.insights.map(i=>{
+    const normalized=i.title.toLowerCase()
+    const href=normalized.includes('récurrent')?'/finances/upcoming':normalized.includes('confirmer')||normalized.includes('catégor')?'/finances/transactions?filter=uncategorized':null
+    const content=<><strong>{i.title}</strong><p className="mt-2 text-sm text-[var(--novae-text-muted)]">{i.summary}</p>{href&&<p className="mt-3 text-xs font-black text-[var(--novae-primary)]">Ouvrir et modifier →</p>}</>
+    return href?<Link key={i.id} href={href} className="rounded-2xl border border-[var(--novae-border)] p-4 text-[var(--novae-text-main)] no-underline transition hover:bg-black/[.025]">{content}</Link>:<div key={i.id} className="rounded-2xl border border-[var(--novae-border)] p-4">{content}</div>
+   })}</div>}
   </>}
 
   {message&&<div className="mt-4 rounded-2xl bg-black/[.04] p-3 text-sm">{message}</div>}

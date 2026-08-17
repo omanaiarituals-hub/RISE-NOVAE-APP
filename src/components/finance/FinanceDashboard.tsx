@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
+import FinanceUpcomingPreview from '@/components/finance/FinanceUpcomingPreview'
 
 type Envelope = { id: string; name: string; target_amount: number | string; current_amount: number | string }
 type Goal = { id: string; name: string; target_amount: number | string; current_amount: number | string }
@@ -119,23 +120,6 @@ export default function FinanceDashboard() {
         </section>
       )}
 
-      <section className="rounded-[24px] border border-[var(--novae-border)] bg-[var(--novae-surface)] p-5 lg:col-span-2">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[.16em] text-[var(--novae-primary)]">Qualité des données</p>
-            <h2 className="mt-1 text-xl font-semibold">Ce que NOVAÉ utilise pour calculer</h2>
-          </div>
-          <Link href={data?.bank.connected ? '/finances/transactions' : '/finances/banking'} className="rounded-full border border-[var(--novae-border)] px-4 py-2 text-sm font-black no-underline">
-            {data?.bank.connected ? 'Voir les opérations →' : 'Connecter une banque →'}
-          </Link>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl bg-black/[.035] p-4"><p className="text-xs font-bold text-[var(--novae-text-muted)]">Banque</p><p className="mt-1 font-black">{data?.bank.connected ? `${data.bank.active_accounts} compte(s) inclus` : 'Aucun compte synchronisé'}</p></div>
-          <div className="rounded-2xl bg-black/[.035] p-4"><p className="text-xs font-bold text-[var(--novae-text-muted)]">Transactions</p><p className="mt-1 font-black">{data?.transactions.count ?? 0} opération(s) enregistrée(s)</p></div>
-          <div className="rounded-2xl bg-black/[.035] p-4"><p className="text-xs font-bold text-[var(--novae-text-muted)]">Dernière synchro</p><p className="mt-1 font-black">{dateTime(data?.bank.last_synced_at)}</p></div>
-        </div>
-      </section>
-
       {data?.overdraft ? (
         <section className="rounded-[24px] border border-amber-200 bg-amber-50 p-5 text-amber-950 lg:col-span-2">
           <p className="text-sm font-black">Découvert configuré</p>
@@ -165,9 +149,7 @@ export default function FinanceDashboard() {
         )}
       </section>
 
-      <Link href="/finances/upcoming" className="rounded-[24px] border border-[var(--novae-border)] bg-[var(--novae-surface)] p-5 text-[var(--novae-text-main)] no-underline">
-        <p className="text-sm font-black">À venir</p><p className="mt-2 text-sm text-[var(--novae-text-muted)]">Charges fixes et grosses dépenses à provisionner.</p>
-      </Link>
+      <FinanceUpcomingPreview />
       <Link href="/finances/nova" className="rounded-[24px] border border-[var(--novae-border)] bg-[var(--novae-surface)] p-5 text-[var(--novae-text-main)] no-underline">
         <p className="text-sm font-black">Et si ?</p><p className="mt-2 text-sm text-[var(--novae-text-muted)]">Tester une dépense, une économie ou une variation de revenu avant de décider.</p>
       </Link>
