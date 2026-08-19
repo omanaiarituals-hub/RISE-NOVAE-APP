@@ -170,6 +170,18 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
   const confirmActionsRef = useRef<null | (() => Promise<void>)>(null)
   const cancelActionsRef = useRef<null | (() => Promise<void>)>(null)
 
+  // Realtime sert uniquement de microphone/transcription.
+  // Le raisonnement, le contexte et les actions restent dans /api/nova/plan.
+  const realtimePeerRef = useRef<RTCPeerConnection | null>(null)
+  const realtimeDataChannelRef = useRef<RTCDataChannel | null>(null)
+  const realtimeStreamRef = useRef<MediaStream | null>(null)
+  const realtimeAudioRef = useRef<HTMLAudioElement | null>(null)
+  const realtimeConnectingRef = useRef(false)
+  const realtimeConnectedRef = useRef(false)
+  const realtimeHandledItemsRef = useRef<Set<string>>(new Set())
+  const realtimeSpeechPendingRef = useRef(false)
+  const realtimeSpeechFallbackTimerRef = useRef<number | null>(null)
+
 
 
   useEffect(() => {
@@ -275,6 +287,14 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
       window.speechSynthesis.onvoiceschanged = null
       window.speechSynthesis.cancel()
     }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      stopRealtimeTranscription()
+    }
+    // Cleanup au démontage uniquement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const filteredConversations = useMemo(() => {
@@ -402,7 +422,7 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
     )
   }
 
-  function speakNova(value: string) {
+  function speakNovaLegacy(value: string) {
     if (!voiceOverlayOpenRef.current || typeof window === 'undefined') return
     if (!('speechSynthesis' in window)) return
 
@@ -430,12 +450,20 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
       setSpeaking(true)
       speakingRef.current = true
       setListening(false)
+
+      realtimeStreamRef.current?.getAudioTracks().forEach((track) => {
+        track.enabled = false
+      })
     }
 
     const reopen = () => {
       setSpeaking(false)
       speakingRef.current = false
       lastNovaSpeechEndedAtRef.current = Date.now()
+
+      realtimeStreamRef.current?.getAudioTracks().forEach((track) => {
+        track.enabled = true
+      })
 
       if (voiceOverlayOpenRef.current && !pausedRef.current) {
         window.setTimeout(() => {
@@ -450,13 +478,166 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
           ) {
             toggleVoiceInput(true)
           }
-        }, 950)
+        }, 300)
       }
     }
 
     utterance.onend = reopen
     utterance.onerror = reopen
     window.speechSynthesis.speak(utterance)
+  }
+
+  function interruptRealtimeSpeech() {
+    const dc = realtimeDataChannelRef.current
+
+    if (
+      realtimeSpeechPendingRef.current &&
+      dc?.readyState === 'open'
+    ) {
+      try {
+        // En WebRTC, vider le buffer de sortie coupe immédiatement l'audio
+        // non encore joué. response.cancel arrête aussi la génération en cours.
+        dc.send(JSON.stringify({ type: 'response.cancel' }))
+        dc.send(JSON.stringify({ type: 'output_audio_buffer.clear' }))
+      } catch (caught) {
+        console.warn('[nova realtime audio] interruption failed', caught)
+      }
+    }
+
+    if (
+      typeof window !== 'undefined' &&
+      realtimeSpeechFallbackTimerRef.current !== null
+    ) {
+      window.clearTimeout(realtimeSpeechFallbackTimerRef.current)
+      realtimeSpeechFallbackTimerRef.current = null
+    }
+
+    realtimeSpeechPendingRef.current = false
+    setSpeaking(false)
+    speakingRef.current = false
+    setListening(true)
+  }
+
+  function finishRealtimeSpeech() {
+    if (typeof window !== 'undefined' && realtimeSpeechFallbackTimerRef.current !== null) {
+      window.clearTimeout(realtimeSpeechFallbackTimerRef.current)
+      realtimeSpeechFallbackTimerRef.current = null
+    }
+
+    realtimeSpeechPendingRef.current = false
+    setSpeaking(false)
+    speakingRef.current = false
+    lastNovaSpeechEndedAtRef.current = Date.now()
+
+    realtimeStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = true
+    })
+
+    if (
+      voiceOverlayOpenRef.current &&
+      !pausedRef.current &&
+      !loadingRef.current &&
+      !requestInFlightRef.current &&
+      statusRef.current !== 'waiting_confirmation' &&
+      statusRef.current !== 'executing'
+    ) {
+      window.setTimeout(() => toggleVoiceInput(true), 180)
+    }
+  }
+
+  function speakNova(value: string) {
+    if (!voiceOverlayOpenRef.current || typeof window === 'undefined') return
+
+    const clean = cleanSpeechText(value)
+    if (!clean) return
+
+    lastNovaSpeechRef.current = clean
+
+    const dc = realtimeDataChannelRef.current
+    const canUseRealtimeAudio =
+      realtimeConnectedRef.current &&
+      dc?.readyState === 'open' &&
+      realtimeAudioRef.current !== null
+
+    if (!canUseRealtimeAudio || !dc) {
+      speakNovaLegacy(clean)
+      return
+    }
+
+    // RealTalk final : on garde le micro actif pendant que Nova parle.
+    // WebRTC echoCancellation limite le retour de sa propre voix et permet
+    // à l'utilisatrice de l'interrompre naturellement (barge-in).
+    realtimeStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = true
+    })
+
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+    }
+
+    setListening(false)
+    setSpeaking(true)
+    speakingRef.current = true
+    realtimeSpeechPendingRef.current = true
+
+    const eventId = `nova-tts-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+    try {
+      dc.send(
+        JSON.stringify({
+          type: 'response.create',
+          event_id: eventId,
+          response: {
+            conversation: 'none',
+            output_modalities: ['audio'],
+            audio: {
+              output: {
+                voice: 'marin',
+              },
+            },
+            instructions: [
+              'Tu es uniquement la voix de restitution de Nova.',
+              'Lis exactement le texte fourni, en français naturel.',
+              'Ne réponds pas au texte, ne le reformule pas, ne complète rien.',
+              'Ne change aucun nom, nombre, date, heure ou montant.',
+              'Ne prononce pas de markdown ni de symbole décoratif.',
+              'Commence immédiatement par le premier mot du texte.',
+            ].join(' '),
+            metadata: {
+              purpose: 'nova_tts',
+            },
+            input: [
+              {
+                type: 'message',
+                role: 'user',
+                content: [
+                  {
+                    type: 'input_text',
+                    text: clean,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      )
+
+      // Si aucun audio Realtime ne démarre, on conserve l'ancien moteur en secours.
+      realtimeSpeechFallbackTimerRef.current = window.setTimeout(() => {
+        if (!realtimeSpeechPendingRef.current) return
+        console.warn('[nova realtime audio] timeout, fallback speechSynthesis')
+        realtimeSpeechPendingRef.current = false
+        setSpeaking(false)
+        speakingRef.current = false
+        speakNovaLegacy(clean)
+      }, 3500)
+    } catch (caught) {
+      console.warn('[nova realtime audio] send failed, fallback classique', caught)
+      realtimeSpeechPendingRef.current = false
+      setSpeaking(false)
+      speakingRef.current = false
+      speakNovaLegacy(clean)
+    }
   }
 
   function previewVoice() {
@@ -515,6 +696,7 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
   }
 
   function closeVoiceOverlay() {
+    stopRealtimeTranscription()
     setVoiceOverlayOpen(false)
     voiceOverlayOpenRef.current = false
     setPaused(false)
@@ -545,6 +727,7 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
     setPaused(true)
     pausedRef.current = true
     setListening(false)
+    stopRealtimeTranscription()
 
     try {
       recognitionRef.current?.abort?.()
@@ -687,9 +870,12 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
 
     try {
       activeConversationId = await ensureConversation(normalized)
-      await addMessage('user', normalized, activeConversationId)
 
-      const { data } = await supabase.auth.getSession()
+// On affiche/sauvegarde le message utilisateur sans bloquer
+// le démarrage de l'appel IA.
+void addMessage('user', normalized, activeConversationId)
+
+const { data } = await supabase.auth.getSession()
       const token = data.session?.access_token
       if (!token) throw new Error('Ta session a expiré. Reconnecte-toi à NOVAÉ.')
 
@@ -699,12 +885,13 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
           'content-type': 'application/json',
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          message: normalized,
-          conversationId: activeConversationId,
-          workflowContext: buildWorkflowContext(),
-          provider: 'auto',
-        }),
+     body: JSON.stringify({
+  message: normalized,
+  conversationId: activeConversationId,
+  workflowContext: buildWorkflowContext(),
+  provider: 'auto',
+  voiceMode,
+}),
       })
 
       const payload = await response.json()
@@ -727,15 +914,16 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
         statusRef.current = 'waiting_information'
         setStatus('waiting_information')
       } else if (nextResult.plan.proposed_actions.some((action) => action.requires_confirmation)) {
+        // REALTALK STEP 1:
+        // On garde la session Realtime ouverte pendant une validation.
+        // Avant, stopRealtimeTranscription() détruisait le peer WebRTC ici :
+        // la réponse suivant "oui, je confirme" retombait donc sur speechSynthesis
+        // et Nova changeait de voix.
         setStatus('waiting_confirmation')
         statusRef.current = 'waiting_confirmation'
-        setPaused(true)
-        pausedRef.current = true
+        setPaused(false)
+        pausedRef.current = false
         setListening(false)
-        try {
-          recognitionRef.current?.abort?.()
-          recognitionRef.current?.stop?.()
-        } catch {}
       } else {
         statusRef.current = 'idle'
         setStatus('idle')
@@ -762,6 +950,14 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
     loadingRef.current = true
     requestInFlightRef.current = true
     statusRef.current = 'executing'
+
+    // Pendant l'exécution, on coupe seulement l'entrée micro.
+    // La connexion Realtime reste vivante afin que le message final
+    // soit restitué avec exactement la même voix.
+    realtimeStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = false
+    })
+    setListening(false)
 
     const activeConversationId = conversationId
     await addMessage('user', 'Oui, je confirme.', activeConversationId)
@@ -824,8 +1020,12 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
       })
       setStatus('waiting_confirmation')
       statusRef.current = 'waiting_confirmation'
-      setPaused(true)
-      pausedRef.current = true
+      // Même en cas d'échec d'exécution, ne pas détruire la session audio.
+      setPaused(false)
+      pausedRef.current = false
+      realtimeStreamRef.current?.getAudioTracks().forEach((track) => {
+        track.enabled = true
+      })
     } finally {
       loadingRef.current = false
       requestInFlightRef.current = false
@@ -1044,7 +1244,268 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
 
       lastVoiceSubmissionRef.current = { text: finalTranscript, submittedAt: Date.now() }
       void requestPlan(finalTranscript)
-    }, 1400)
+    }, 80)
+  }
+
+  function stopRealtimeTranscription() {
+    if (typeof window !== 'undefined' && realtimeSpeechFallbackTimerRef.current !== null) {
+      window.clearTimeout(realtimeSpeechFallbackTimerRef.current)
+      realtimeSpeechFallbackTimerRef.current = null
+    }
+
+    realtimeSpeechPendingRef.current = false
+    realtimeDataChannelRef.current?.close()
+    realtimePeerRef.current?.close()
+    realtimeStreamRef.current?.getTracks().forEach((track) => track.stop())
+
+    if (realtimeAudioRef.current) {
+      realtimeAudioRef.current.srcObject = null
+    }
+
+    realtimeDataChannelRef.current = null
+    realtimePeerRef.current = null
+    realtimeStreamRef.current = null
+    realtimeAudioRef.current = null
+    realtimeConnectingRef.current = false
+    realtimeConnectedRef.current = false
+    realtimeHandledItemsRef.current.clear()
+    setListening(false)
+    setSpeaking(false)
+    speakingRef.current = false
+  }
+
+  async function startRealtimeTranscription(autoSubmit = false): Promise<boolean> {
+    if (typeof window === 'undefined') return false
+
+    if (realtimeConnectedRef.current) {
+      realtimeStreamRef.current?.getAudioTracks().forEach((track) => {
+        track.enabled = true
+      })
+      setListening(true)
+      return true
+    }
+
+    if (realtimeConnectingRef.current) return true
+
+    realtimeConnectingRef.current = true
+    setError('')
+
+    try {
+      const { data } = await supabase.auth.getSession()
+      const token = data.session?.access_token
+      if (!token) throw new Error('Ta session a expiré. Reconnecte-toi à NOVAÉ.')
+
+      const tokenResponse = await fetch('/api/nova/realtime-token', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      })
+
+      const tokenPayload = await tokenResponse.json()
+      if (!tokenResponse.ok || !tokenPayload?.value) {
+        throw new Error(
+          tokenPayload?.message || 'La transcription Realtime est momentanément indisponible.',
+        )
+      }
+
+      const pc = new RTCPeerConnection()
+      realtimePeerRef.current = pc
+
+      const audio = document.createElement('audio')
+      audio.autoplay = true
+      realtimeAudioRef.current = audio
+
+      pc.ontrack = (event) => {
+        audio.srcObject = event.streams[0]
+        void audio.play().catch(() => {
+          // L'autoplay est généralement autorisé après l'action micro de l'utilisatrice.
+        })
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      })
+      realtimeStreamRef.current = stream
+
+      const track = stream.getAudioTracks()[0]
+      if (!track) throw new Error('Aucun microphone disponible.')
+      pc.addTrack(track, stream)
+
+      const dc = pc.createDataChannel('oai-events')
+      realtimeDataChannelRef.current = dc
+
+      dc.addEventListener('open', () => {
+        realtimeConnectingRef.current = false
+        realtimeConnectedRef.current = true
+        setListening(true)
+      })
+
+      dc.addEventListener('close', () => {
+        realtimeConnectedRef.current = false
+        realtimeConnectingRef.current = false
+        setListening(false)
+      })
+
+      dc.addEventListener('error', () => {
+        realtimeConnectedRef.current = false
+        realtimeConnectingRef.current = false
+        setListening(false)
+      })
+
+      dc.addEventListener('message', (event) => {
+        try {
+          const payload = JSON.parse(event.data)
+
+          if (payload.type === 'input_audio_buffer.speech_started') {
+            if (pausedRef.current) return
+
+            if (speakingRef.current || realtimeSpeechPendingRef.current) {
+              interruptRealtimeSpeech()
+              return
+            }
+
+            if (
+              !loadingRef.current &&
+              !requestInFlightRef.current
+            ) {
+              setListening(true)
+            }
+            return
+          }
+
+          if (payload.type === 'input_audio_buffer.speech_stopped') {
+            setListening(false)
+            return
+          }
+
+          if (
+            payload.type ===
+            'conversation.item.input_audio_transcription.completed'
+          ) {
+            const transcript =
+              typeof payload.transcript === 'string'
+                ? payload.transcript.replace(/\s+/g, ' ').trim()
+                : ''
+
+            const itemId =
+              typeof payload.item_id === 'string'
+                ? payload.item_id
+                : ''
+
+            if (!transcript) return
+            if (itemId && realtimeHandledItemsRef.current.has(itemId)) return
+            if (itemId) realtimeHandledItemsRef.current.add(itemId)
+            if (isLikelyNovaEcho(transcript)) return
+
+            // Le tour est complet : on masque l'état d'écoute pendant que
+            // Nova réfléchit, mais on garde le track WebRTC vivant.
+            setListening(false)
+
+            if (statusRef.current === 'waiting_confirmation') {
+              if (isPositiveConfirmation(transcript)) {
+                void confirmActionsRef.current?.()
+                return
+              }
+              if (isNegativeConfirmation(transcript)) {
+                void cancelActionsRef.current?.()
+                return
+              }
+            }
+
+            if (autoSubmit || voiceOverlayOpenRef.current) {
+              queueVoiceTranscript(transcript)
+              return
+            }
+
+            setInput((current) =>
+              current ? `${current} ${transcript}` : transcript,
+            )
+            return
+          }
+
+          if (payload.type === 'response.created') {
+            const purpose = payload.response?.metadata?.purpose
+            if (purpose === 'nova_tts') {
+              realtimeSpeechPendingRef.current = true
+              setSpeaking(true)
+              speakingRef.current = true
+              setListening(false)
+
+              if (typeof window !== 'undefined' && realtimeSpeechFallbackTimerRef.current !== null) {
+                window.clearTimeout(realtimeSpeechFallbackTimerRef.current)
+                realtimeSpeechFallbackTimerRef.current = null
+              }
+            }
+            return
+          }
+
+          if (payload.type === 'response.output_audio.delta') {
+            if (realtimeSpeechPendingRef.current) {
+              setSpeaking(true)
+              speakingRef.current = true
+              setListening(false)
+
+              if (typeof window !== 'undefined' && realtimeSpeechFallbackTimerRef.current !== null) {
+                window.clearTimeout(realtimeSpeechFallbackTimerRef.current)
+                realtimeSpeechFallbackTimerRef.current = null
+              }
+            }
+            return
+          }
+
+          if (payload.type === 'response.done') {
+            const purpose = payload.response?.metadata?.purpose
+            if (purpose === 'nova_tts' || realtimeSpeechPendingRef.current) {
+              finishRealtimeSpeech()
+            }
+            return
+          }
+
+          if (payload.type === 'error') {
+            console.error('[nova realtime]', payload)
+          }
+        } catch (caught) {
+          console.error('[nova realtime transcription] event error', caught)
+        }
+      })
+
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+
+      const sdpResponse = await fetch(
+        'https://api.openai.com/v1/realtime/calls',
+        {
+          method: 'POST',
+          body: offer.sdp,
+          headers: {
+            authorization: `Bearer ${tokenPayload.value}`,
+            'content-type': 'application/sdp',
+          },
+        },
+      )
+
+      if (!sdpResponse.ok) {
+        throw new Error(`Connexion Realtime refusée (${sdpResponse.status}).`)
+      }
+
+      await pc.setRemoteDescription({
+        type: 'answer',
+        sdp: await sdpResponse.text(),
+      })
+
+      return true
+    } catch (caught) {
+      console.warn('[nova realtime transcription] fallback classique', caught)
+      stopRealtimeTranscription()
+      return false
+    } finally {
+      realtimeConnectingRef.current = false
+    }
   }
 
   function toggleVoiceInput(autoSubmit = false) {
@@ -1060,80 +1521,93 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
       return
     }
 
-    const SpeechRecognitionCtor =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition
+    const startLegacyVoiceInput = () => {
+      const SpeechRecognitionCtor =
+        (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition
 
-    if (!SpeechRecognitionCtor) {
-      setError(
-        'La dictée vocale n’est pas disponible dans ce navigateur. Utilise Chrome ou Edge.',
-      )
-      return
-    }
-
-    const recognition = new SpeechRecognitionCtor()
-    recognitionRef.current = recognition
-
-    recognition.lang = 'fr-FR'
-    recognition.interimResults = false
-    recognition.continuous = false
-    recognition.maxAlternatives = 1
-
-    recognition.onstart = () => {
-      setListening(true)
-      setError('')
-    }
-
-    recognition.onend = () => {
-      setListening(false)
-    }
-
-    recognition.onerror = (event: any) => {
-      setListening(false)
-
-      if (event?.error === 'not-allowed') {
+      if (!SpeechRecognitionCtor) {
         setError(
-          'Autorise l’accès au microphone dans ton navigateur, puis touche le logo Nova.',
+          'La dictée vocale n’est pas disponible dans ce navigateur. Utilise Chrome ou Edge.',
         )
         return
       }
 
-      if (event?.error === 'no-speech' || event?.error === 'aborted') return
-      setError("Je n’ai pas réussi à entendre la dictée. Réessaie.")
-    }
+      const recognition = new SpeechRecognitionCtor()
+      recognitionRef.current = recognition
 
-    recognition.onresult = (event: any) => {
-      const transcript = event.results?.[0]?.[0]?.transcript?.trim() || ''
-      setListening(false)
+      recognition.lang = 'fr-FR'
+      recognition.interimResults = false
+      recognition.continuous = false
+      recognition.maxAlternatives = 1
 
-      if (!transcript || isLikelyNovaEcho(transcript)) return
-
-      // Validation orale : si une proposition attend, un « oui » dit à voix
-      // haute déclenche la même exécution que le bouton Confirmer.
-      if (statusRef.current === 'waiting_confirmation') {
-        if (isPositiveConfirmation(transcript)) {
-          void confirmActionsRef.current?.()
-          return
-        }
-        if (isNegativeConfirmation(transcript)) {
-          void cancelActionsRef.current?.()
-          return
-        }
+      recognition.onstart = () => {
+        setListening(true)
+        setError('')
       }
 
-      if (autoSubmit || voiceOverlayOpenRef.current) {
-        queueVoiceTranscript(transcript)
-        return
+      recognition.onend = () => {
+        setListening(false)
       }
 
-      setInput((current) => (current ? `${current} ${transcript}` : transcript))
+      recognition.onerror = (event: any) => {
+        setListening(false)
+
+        if (event?.error === 'not-allowed') {
+          setError(
+            'Autorise l’accès au microphone dans ton navigateur, puis touche le logo Nova.',
+          )
+          return
+        }
+
+        if (event?.error === 'no-speech' || event?.error === 'aborted') return
+        setError("Je n’ai pas réussi à entendre la dictée. Réessaie.")
+      }
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results?.[0]?.[0]?.transcript?.trim() || ''
+        setListening(false)
+
+        if (!transcript || isLikelyNovaEcho(transcript)) return
+
+        if (statusRef.current === 'waiting_confirmation') {
+          if (isPositiveConfirmation(transcript)) {
+            void confirmActionsRef.current?.()
+            return
+          }
+          if (isNegativeConfirmation(transcript)) {
+            void cancelActionsRef.current?.()
+            return
+          }
+        }
+
+        if (autoSubmit || voiceOverlayOpenRef.current) {
+          queueVoiceTranscript(transcript)
+          return
+        }
+
+        setInput((current) => (current ? `${current} ${transcript}` : transcript))
+      }
+
+      try {
+        recognition.start()
+      } catch {
+        setListening(false)
+      }
     }
 
-    try {
-      recognition.start()
-    } catch {
-      setListening(false)
+    // Realtime ne remplace que la reconnaissance vocale.
+    // La vraie Nova reste /api/nova/plan, sans aucun second cerveau.
+    if (voiceMode || voiceOverlayOpenRef.current) {
+      void startRealtimeTranscription(autoSubmit).then((started) => {
+        if (!started && voiceOverlayOpenRef.current && !pausedRef.current) {
+          startLegacyVoiceInput()
+        }
+      })
+      return
     }
+
+    startLegacyVoiceInput()
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {

@@ -1323,7 +1323,8 @@ function capContext(value: string | undefined, maxChars: number, keepEnd = false
 }
 
 export async function POST(request: NextRequest) {
-try {
+  const requestStartedAt = Date.now()
+  try {
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
 
@@ -1405,60 +1406,27 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       ? (body.provider as NovaProviderPreference)
       : 'auto'
 
-    let conversationHistory = ''
-    if (conversationId) {
-      const { data: ownedConversation } = await supabaseAdmin
-        .from('nova_conversations')
-        .select('id')
-        .eq('id', conversationId)
-        .eq('user_id', user.id)
-        .maybeSingle()
+    // LOT 3 LATENCE : on lance en parallèle toutes les lectures indépendantes
+    // (historique, contexte NOVAÉ et éventuelle recherche web) avant de les attendre.
+    // Le contenu et les garde-fous restent identiques : seule l'ordonnancement change.
+    const nowIso = new Date().toISOString()
+    const webSearchKind = detectNovaWebSearchKind(message)
 
-      if (ownedConversation) {
-        const { data: storedMessages, error: historyError } = await supabaseAdmin
+    const historyPromise = conversationId
+      ? supabaseAdmin
           .from('nova_conversation_messages')
           .select('role,content,created_at')
           .eq('conversation_id', conversationId)
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(25)
-
-        if (historyError) {
-          console.warn('[api/nova/plan] historique conversation indisponible', historyError.message)
-        } else {
-          const chronological = [...(storedMessages || [])].reverse()
-          // Le client sauvegarde le message utilisateur juste avant l'appel API.
-          // On retire cette dernière copie identique pour ne pas le présenter deux fois au modèle.
-          const last = chronological[chronological.length - 1]
-          if (last?.role === 'user' && String(last.content || '').trim() === message) {
-            chronological.pop()
-          }
-          conversationHistory = chronological
-            .slice(-24)
-            .map((row) => {
-              const when = row.created_at ? frenchLocal(row.created_at) : 'date inconnue'
-              const speaker = row.role === 'assistant' ? 'Nova' : row.role === 'user' ? 'Utilisateur' : 'Système'
-              return `[message envoyé le ${when}] ${speaker} : ${String(row.content || '').trim()}`
-            })
-            .filter(Boolean)
-            .join('\n')
-          conversationHistory = capContext(conversationHistory, 10_000, true) || ''
-        }
-      }
-    }
-
-    const conversationalRequest = [
-      conversationHistory ? `Historique récent de cette conversation :\n${conversationHistory}` : '',
-      workflowContext ? `État du sujet actif :\n${workflowContext}` : '',
-      `Nouveau message de l’utilisatrice : ${message}`,
-      'Réponds uniquement au nouveau message. Utilise l’historique et les données connues silencieusement. IMPORTANT TEMPOREL : chaque ligne d’historique porte sa date réelle ; les mots relatifs contenus dans un ancien message (« demain », « samedi », « cette semaine », etc.) doivent être interprétés par rapport à la date de CE message, jamais par rapport à aujourd’hui. Le planning actuel fourni par la base est prioritaire pour affirmer qu’un rendez-vous futur existe. Le champ lieu des événements Planner est aussi un contexte de position : utilise-le pour déterminer d’où l’utilisatrice part probablement juste avant un déplacement, sans inventer si le lieu précédent n’est pas renseigné. N’affirme jamais qu’un ancien rendez-vous est encore à venir s’il est déjà passé ou s’il n’apparaît pas comme événement futur dans le contexte Planner. Ne récite jamais le programme complet sauf demande explicite, ne répète pas les informations déjà établies, ne ramène pas automatiquement un ancien sujet et ne pose qu’une question à la fois. Une réponse courante doit rester courte et naturelle. Ne prétends jamais avoir exécuté une action avant le résultat réel du moteur.',
-    ].filter(Boolean).join('\n\n')
+      : Promise.resolve({ data: [], error: null })
 
     const calendarWindowStart = new Date()
     calendarWindowStart.setDate(calendarWindowStart.getDate() - 30)
 
-    // Les trois lectures de contexte sont indépendantes : on les lance en parallèle.
-    const [tasksRes, eventsRes, remindersRes] = await Promise.all([
+    const contextStartedAt = Date.now()
+    const contextPromise = Promise.all([
       supabaseAdmin
         .from('todo_list')
         .select('id,title,description,category,due_date,due_time,status,created_at')
@@ -1481,7 +1449,115 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
         .eq('status', 'pending')
         .order('scheduled_for', { ascending: true })
         .limit(40),
+      supabaseAdmin
+        .from('onboarding_v2_profiles')
+        .select(
+          'display_name, usage_mode, priorities, work_rhythm, household_type, household_context, has_children, custody_mode, custody_pattern'
+        )
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('nova_memories')
+        .select('key, value, scope')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(50),
+      supabaseAdmin
+        .from('family_data')
+        .select('data_type, relation_to_user, is_primary_contact, notes, data')
+        .eq('user_id', user.id)
+        .in('data_type', ['member', 'custody_config', 'custody_exception', 'location_config'])
+        .eq('is_active', true)
+        .limit(20),
+      supabaseAdmin
+        .from('administrative_documents')
+        .select('title, sender, due_date, recommended_next_step, amount, processing_status')
+        .eq('user_id', user.id)
+        .eq('vault_protected', false)
+        .in('processing_status', ['todo', 'in_progress'])
+        .order('due_date', { ascending: true, nullsFirst: false })
+        .limit(20),
+      supabaseAdmin
+        .from('notes')
+        .select('id, title, content, pinned, updated_at')
+        .eq('user_id', user.id)
+        .order('pinned', { ascending: false })
+        .order('updated_at', { ascending: false })
+        .limit(30),
+      supabaseAdmin
+        .from('meal_plan')
+        .select('id, recipe_id, day_of_week, meal_type, custom_meal, headcount')
+        .eq('user_id', user.id)
+        .limit(30),
+      supabaseAdmin
+        .from('shopping_list')
+        .select('ingredient, quantity, unit, priority')
+        .eq('user_id', user.id)
+        .eq('to_buy', true)
+        .limit(30),
+      supabaseAdmin
+        .from('routines')
+        .select('id,title,category,frequency,custom_days,preferred_time,duration_minutes,reminder_enabled,reminder_minutes_before,description')
+        .eq('user_id', user.id)
+        .limit(30),
+      supabaseAdmin
+        .from('recipes')
+        .select('id,title,description,prep_time,cook_time,servings,ingredients,steps')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(40),
     ])
+
+    const webResearchPromise: Promise<NovaWebResearch | null> = webSearchKind
+      ? runNovaWebSearch(webSearchKind, message, nowIso)
+      : Promise.resolve(null)
+
+    let conversationHistory = ''
+    const historyRes = await historyPromise
+    if (historyRes.error) {
+      console.warn('[api/nova/plan] historique conversation indisponible', historyRes.error.message)
+    } else {
+      const chronological = [...(historyRes.data || [])].reverse()
+      // Le client sauvegarde le message utilisateur juste avant l'appel API.
+      // On retire cette dernière copie identique pour ne pas le présenter deux fois au modèle.
+      const last = chronological[chronological.length - 1]
+      if (last?.role === 'user' && String(last.content || '').trim() === message) {
+        chronological.pop()
+      }
+      conversationHistory = chronological
+        .slice(-24)
+        .map((row) => {
+          const when = row.created_at ? frenchLocal(row.created_at) : 'date inconnue'
+          const speaker = row.role === 'assistant' ? 'Nova' : row.role === 'user' ? 'Utilisateur' : 'Système'
+          return `[message envoyé le ${when}] ${speaker} : ${String(row.content || '').trim()}`
+        })
+        .filter(Boolean)
+        .join('\n')
+      conversationHistory = capContext(conversationHistory, 10_000, true) || ''
+    }
+
+    const conversationalRequest = [
+      conversationHistory ? `Historique récent de cette conversation :\n${conversationHistory}` : '',
+      workflowContext ? `État du sujet actif :\n${workflowContext}` : '',
+      `Nouveau message de l’utilisatrice : ${message}`,
+      'Réponds uniquement au nouveau message. Utilise l’historique et les données connues silencieusement. IMPORTANT TEMPOREL : chaque ligne d’historique porte sa date réelle ; les mots relatifs contenus dans un ancien message (« demain », « samedi », « cette semaine », etc.) doivent être interprétés par rapport à la date de CE message, jamais par rapport à aujourd’hui. Le planning actuel fourni par la base est prioritaire pour affirmer qu’un rendez-vous futur existe. Le champ lieu des événements Planner est aussi un contexte de position : utilise-le pour déterminer d’où l’utilisatrice part probablement juste avant un déplacement, sans inventer si le lieu précédent n’est pas renseigné. N’affirme jamais qu’un ancien rendez-vous est encore à venir s’il est déjà passé ou s’il n’apparaît pas comme événement futur dans le contexte Planner. Ne récite jamais le programme complet sauf demande explicite, ne répète pas les informations déjà établies, ne ramène pas automatiquement un ancien sujet et ne pose qu’une question à la fois. Une réponse courante doit rester courte et naturelle. Ne prétends jamais avoir exécuté une action avant le résultat réel du moteur.',
+    ].filter(Boolean).join('\n\n')
+
+    const [
+      tasksRes,
+      eventsRes,
+      remindersRes,
+      profileRes,
+      memoriesRes,
+      familyRes,
+      adminDocsRes,
+      notesRes,
+      mealsRes,
+      shoppingRes,
+      routinesRes,
+      recipesRes,
+    ] = await contextPromise
+    const contextMs = Date.now() - contextStartedAt
 
     const { data: activeTasks, error: activeTasksError } = tasksRes
     const { data: activeEvents, error: activeEventsError } = eventsRes
@@ -1627,66 +1703,6 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
 
     let userContext: string | undefined
     try {
-      const [profileRes, memoriesRes, familyRes, adminDocsRes, notesRes, mealsRes, shoppingRes, routinesRes, recipesRes] = await Promise.all([
-        supabaseAdmin
-          .from('onboarding_v2_profiles')
-          .select(
-            'display_name, usage_mode, priorities, work_rhythm, household_type, household_context, has_children, custody_mode, custody_pattern'
-          )
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        supabaseAdmin
-          .from('nova_memories')
-          .select('key, value, scope')
-          .eq('user_id', user.id)
-          .order('updated_at', { ascending: false })
-          .limit(50),
-        supabaseAdmin
-          .from('family_data')
-          .select('data_type, relation_to_user, is_primary_contact, notes, data')
-          .eq('user_id', user.id)
-          .in('data_type', ['member', 'custody_config', 'custody_exception', 'location_config'])
-          .eq('is_active', true)
-          .limit(20),
-        supabaseAdmin
-          .from('administrative_documents')
-          .select('title, sender, due_date, recommended_next_step, amount, processing_status')
-          .eq('user_id', user.id)
-          .eq('vault_protected', false)
-          .in('processing_status', ['todo', 'in_progress'])
-          .order('due_date', { ascending: true, nullsFirst: false })
-          .limit(20),
-        supabaseAdmin
-          .from('notes')
-          .select('id, title, content, pinned, updated_at')
-          .eq('user_id', user.id)
-          .order('pinned', { ascending: false })
-          .order('updated_at', { ascending: false })
-          .limit(30),
-        supabaseAdmin
-          .from('meal_plan')
-          .select('id, recipe_id, day_of_week, meal_type, custom_meal, headcount')
-          .eq('user_id', user.id)
-          .limit(30),
-        supabaseAdmin
-          .from('shopping_list')
-          .select('ingredient, quantity, unit, priority')
-          .eq('user_id', user.id)
-          .eq('to_buy', true)
-          .limit(30),
-        supabaseAdmin
-          .from('routines')
-          .select('id,title,category,frequency,custom_days,preferred_time,duration_minutes,reminder_enabled,reminder_minutes_before,description')
-          .eq('user_id', user.id)
-          .limit(30),
-        supabaseAdmin
-          .from('recipes')
-          .select('id,title,description,prep_time,cook_time,servings,ingredients,steps')
-          .eq('user_id', user.id)
-          .order('updated_at', { ascending: false })
-          .limit(40),
-      ])
-
       const profileRow = (profileRes.data || null) as Record<string, unknown> | null
       const profileText = buildUserContextFromProfile(profileRow)
       const memoryRows = memoriesRes.data as NovaMemoryRow[] | null
@@ -1719,13 +1735,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       console.warn('[api/nova/plan] contexte indisponible, poursuite sans', contextError)
     }
 
-    const nowIso = new Date().toISOString()
-    const webSearchKind = detectNovaWebSearchKind(message)
-
-    let webResearch: NovaWebResearch | null = null
-    if (webSearchKind) {
-      webResearch = await runNovaWebSearch(webSearchKind, message, nowIso)
-    }
+    const webResearch = await webResearchPromise
 
     const enrichedMessageWithContext = [
       messageWithContext,
@@ -1750,6 +1760,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       '- Exemple : travail jusqu’à 17:00, école à 17:30, trajet 30 min + marge 5 min => départ 16:55 : il y a donc un conflit de 5 minutes avec le travail.',
     ].join('\n')
 
+    const modelStartedAt = Date.now()
     const result = await createNovaActionPlan(
       {
         message: `${enrichedMessageWithContext}\n\n${temporalGuard}`,
@@ -1760,30 +1771,7 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       },
       provider
     )
-
-    // Télémétrie de coût : uniquement des métriques, jamais le prompt ni le contenu utilisateur.
-    try {
-      await supabaseAdmin.from('ai_usage').insert({
-        user_id: user.id,
-        route: 'nova_plan',
-        provider: result.provider,
-        model: result.model,
-        input_tokens: result.usage?.inputTokens ?? null,
-        output_tokens: result.usage?.outputTokens ?? null,
-        duration_ms: result.durationMs ?? null,
-        success: true,
-      })
-    } catch (usageError) {
-      console.warn('[api/nova/plan] ai_usage non enregistré', usageError)
-    }
-
-    // Le quota commercial ne doit être consommé qu'après un appel IA réussi.
-    // Pour trial/premium l'incrément n'a pas d'effet sur l'accès, mais garde une métrique cohérente.
-    try {
-      await incrementAiChatCount(supabaseAdmin, user.id)
-    } catch (quotaError) {
-      console.warn('[api/nova/plan] quota IA non incrémenté', quotaError)
-    }
+    const modelMs = Date.now() - modelStartedAt
 
     result.plan = applyTaskIdentityGuard(
       result.plan,
@@ -1796,57 +1784,95 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
     // toujours produire une vraie action confirmable, jamais une simple promesse.
     result.plan = applyShoppingListClearGuard(result.plan, message)
 
-    // Mémoire épisodique : Nova enregistre automatiquement les faits durables.
-    // Non bloquant : un échec ici ne doit jamais empêcher la réponse à l'utilisatrice.
-    try {
-      const durable = selectDurableMemories(
-        result.plan.memory_candidates as MemoryCandidateLike[]
-      )
-      if (durable.length > 0) {
-        const nowIso = new Date().toISOString()
+    // LOT 3 LATENCE : les écritures secondaires n'altèrent pas la réponse métier.
+    // Elles sont lancées en parallèle au lieu de s'attendre les unes les autres.
+    const postStartedAt = Date.now()
+    const telemetryPromise = (async () => {
+      try {
+        const { error } = await supabaseAdmin
+          .from('ai_usage')
+          .insert({
+            user_id: user.id,
+            route: 'nova_plan',
+            provider: result.provider,
+            model: result.model,
+            input_tokens: result.usage?.inputTokens ?? null,
+            output_tokens: result.usage?.outputTokens ?? null,
+            duration_ms: result.durationMs ?? null,
+            success: true,
+          })
 
-        for (const memory of durable) {
-          const { data: existingMemory, error: existingMemoryError } = await supabaseAdmin
-            .from('nova_memories')
-            .select('confidence,value')
-            .eq('user_id', user.id)
-            .eq('key', memory.key)
-            .maybeSingle()
-
-          if (existingMemoryError) {
-            console.warn('[api/nova/plan] lecture mémoire existante impossible', existingMemoryError.message)
-            continue
-          }
-
-          const existingConfidence = Number(existingMemory?.confidence || 0)
-          if (
-            existingMemory &&
-            existingMemory.value &&
-            existingMemory.value !== memory.value &&
-            existingConfidence > memory.confidence
-          ) {
-            continue
-          }
-
-          await supabaseAdmin
-            .from('nova_memories')
-            .upsert(
-              {
-                user_id: user.id,
-                key: memory.key,
-                value: memory.value,
-                scope: memory.scope,
-                confidence: memory.confidence,
-                source: 'nova_auto',
-                updated_at: nowIso,
-              },
-              { onConflict: 'user_id,key' }
-            )
+        if (error) {
+          console.warn('[api/nova/plan] ai_usage non enregistré', error.message)
         }
+      } catch (usageError) {
+        console.warn('[api/nova/plan] ai_usage non enregistré', usageError)
       }
-    } catch (memoryError) {
-      console.warn('[api/nova/plan] mémoire non enregistrée', memoryError)
-    }
+    })()
+
+    const quotaPromise = incrementAiChatCount(supabaseAdmin, user.id).catch((quotaError) => {
+      console.warn('[api/nova/plan] quota IA non incrémenté', quotaError)
+    })
+
+    const memoryPromise = (async () => {
+      try {
+        const durable = selectDurableMemories(
+          result.plan.memory_candidates as MemoryCandidateLike[]
+        )
+        if (durable.length === 0) return
+
+        const memoryNowIso = new Date().toISOString()
+        await Promise.allSettled(
+          durable.map(async (memory) => {
+            const { data: existingMemory, error: existingMemoryError } = await supabaseAdmin
+              .from('nova_memories')
+              .select('confidence,value')
+              .eq('user_id', user.id)
+              .eq('key', memory.key)
+              .maybeSingle()
+
+            if (existingMemoryError) {
+              console.warn('[api/nova/plan] lecture mémoire existante impossible', existingMemoryError.message)
+              return
+            }
+
+            const existingConfidence = Number(existingMemory?.confidence || 0)
+            if (
+              existingMemory &&
+              existingMemory.value &&
+              existingMemory.value !== memory.value &&
+              existingConfidence > memory.confidence
+            ) {
+              return
+            }
+
+            const { error: upsertError } = await supabaseAdmin
+              .from('nova_memories')
+              .upsert(
+                {
+                  user_id: user.id,
+                  key: memory.key,
+                  value: memory.value,
+                  scope: memory.scope,
+                  confidence: memory.confidence,
+                  source: 'nova_auto',
+                  updated_at: memoryNowIso,
+                },
+                { onConflict: 'user_id,key' }
+              )
+
+            if (upsertError) {
+              console.warn('[api/nova/plan] mémoire non enregistrée', upsertError.message)
+            }
+          })
+        )
+      } catch (memoryError) {
+        console.warn('[api/nova/plan] mémoire non enregistrée', memoryError)
+      }
+    })()
+
+    await Promise.allSettled([telemetryPromise, quotaPromise, memoryPromise])
+    const postMs = Date.now() - postStartedAt
 
     const hasConfirmableAction = result.plan.proposed_actions.some(
       (action) => action.requires_confirmation
@@ -1864,19 +1890,34 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       }
     }
 
-    return NextResponse.json({
-      ...result,
-      executionToken,
-      webSearch: webResearch
-        ? {
-            used: true,
-            kind: webResearch.kind,
-            sources: webResearch.sources,
-          }
-        : webSearchKind
-          ? { used: false, kind: webSearchKind, sources: [] }
-          : undefined,
+    const totalMs = Date.now() - requestStartedAt
+    console.info('[api/nova/plan][perf]', {
+      total_ms: totalMs,
+      context_ms: contextMs,
+      model_ms: modelMs,
+      post_ms: postMs,
     })
+
+    return NextResponse.json(
+      {
+        ...result,
+        executionToken,
+        webSearch: webResearch
+          ? {
+              used: true,
+              kind: webResearch.kind,
+              sources: webResearch.sources,
+            }
+          : webSearchKind
+            ? { used: false, kind: webSearchKind, sources: [] }
+            : undefined,
+      },
+      {
+        headers: {
+          'Server-Timing': `nova_context;dur=${contextMs}, nova_model;dur=${modelMs}, nova_post;dur=${postMs}, nova_total;dur=${totalMs}`,
+        },
+      }
+    )
   } catch (error) {
     console.error('[api/nova/plan] error', error)
     return NextResponse.json(
