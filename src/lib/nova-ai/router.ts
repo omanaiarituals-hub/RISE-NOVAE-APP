@@ -1,4 +1,4 @@
-import type { NovaAIProvider } from './provider'
+import type { NovaAIProvider, NovaPlanStreamOptions } from './provider'
 import { AnthropicNovaProvider } from './providers/anthropic'
 import { OpenAINovaProvider } from './providers/openai'
 import {
@@ -29,7 +29,8 @@ export function availableNovaProviders(): NovaProviderId[] {
 
 export async function createNovaActionPlan(
   input: NovaPlanInput,
-  preference: NovaProviderPreference = 'auto'
+  preference: NovaProviderPreference = 'auto',
+  options?: NovaPlanStreamOptions
 ): Promise<NovaPlanResult> {
   const startedAt = Date.now()
   const order = preference === 'auto' ? configuredOrder() : [preference]
@@ -46,7 +47,7 @@ export async function createNovaActionPlan(
     attemptedProviders.push(providerId)
 
     try {
-      const result = await provider.plan(input)
+      const result = await provider.plan(input, options)
       return {
         ...result,
         attemptedProviders,

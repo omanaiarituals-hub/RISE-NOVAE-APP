@@ -1,6 +1,6 @@
 import { extractJsonObject } from '../json'
 import { normalizeNovaActionPlan } from '../normalize'
-import type { NovaAIProvider } from '../provider'
+import type { NovaAIProvider, NovaPlanStreamOptions } from '../provider'
 import { NovaProviderError } from '../provider'
 import { buildNovaPlannerSystemPrompt, buildNovaPlannerUserPrompt } from '../prompt'
 import type { NovaPlanInput, NovaProviderResult } from '../types'
@@ -28,7 +28,9 @@ export class AnthropicNovaProvider implements NovaAIProvider {
     return Boolean(process.env.ANTHROPIC_API_KEY)
   }
 
-  async plan(input: NovaPlanInput): Promise<NovaProviderResult> {
+  async plan(input: NovaPlanInput, options?: NovaPlanStreamOptions): Promise<NovaProviderResult> {
+    const perfStartedAt=performance.now()
+    let firstDeltaAt:number|null=null
     const apiKey = process.env.ANTHROPIC_API_KEY
     const model = process.env.NOVA_ANTHROPIC_MODEL || 'claude-haiku-4-5'
 
@@ -52,6 +54,7 @@ export class AnthropicNovaProvider implements NovaAIProvider {
             max_tokens: 6000,
             system: buildNovaPlannerSystemPrompt(),
             messages: [{ role: 'user', content: buildNovaPlannerUserPrompt(input) }],
+            stream: Boolean(options?.onSafeAssistantMessage),
           }),
         },
         18_000
@@ -73,19 +76,131 @@ export class AnthropicNovaProvider implements NovaAIProvider {
       })
     }
 
-    const data = (await response.json()) as AnthropicResponse
-    const text = data.content?.find((block) => block.type === 'text' && typeof block.text === 'string')?.text
+    let data: AnthropicResponse
+    let text = ''
 
-    if (!text) {
-      throw new NovaProviderError({ provider: this.id, message: 'Réponse Anthropic vide.' })
+    if (options?.onSafeAssistantMessage) {
+      if (!response.body) throw new NovaProviderError({ provider: this.id, message: 'Flux Anthropic vide.' })
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let stopReason: string | null | undefined
+      let inputTokens: number | undefined
+      let outputTokens: number | undefined
+      let emitted = false
+
+      const maybeEmit = async () => {
+        if (emitted) return
+
+        const actions = text.match(
+          /"proposed_actions"\s*:\s*\[([\s\S]*?)\]\s*,\s*"missing_information"/
+        )
+        if (!actions) return
+
+        // RealTalk garde la sécurité actuelle :
+        // aucune prise de parole anticipée si le modèle propose une écriture.
+        if (/"type"\s*:\s*"(?!no_action")[^"]+"/.test(actions[1])) return
+
+        const key = '"assistant_message"'
+        const keyIndex = text.indexOf(key)
+        if (keyIndex < 0) return
+
+        const colonIndex = text.indexOf(':', keyIndex + key.length)
+        if (colonIndex < 0) return
+
+        const quoteIndex = text.indexOf('"', colonIndex + 1)
+        if (quoteIndex < 0) return
+
+        // On lit le contenu JSON partiel sans attendre la fermeture complète
+        // de assistant_message. On n'émet que la PREMIÈRE phrase terminée.
+        let raw = ''
+        let escaped = false
+        for (let i = quoteIndex + 1; i < text.length; i += 1) {
+          const ch = text[i]
+
+          if (escaped) {
+            raw += `\\${ch}`
+            escaped = false
+            continue
+          }
+
+          if (ch === '\\') {
+            escaped = true
+            continue
+          }
+
+          if (ch === '"') break
+
+          raw += ch
+
+          const enoughText = raw.replace(/\\./g, '').trim().length >= 18
+          const sentenceEnd = /[.!?…]$/.test(raw)
+
+          if (enoughText && sentenceEnd) {
+            try {
+              const message = JSON.parse(`"${raw}"`) as string
+              if (message.trim()) {
+                emitted = true
+                console.log('[realtalk][model-perf]', {
+                  first_model_delta_ms:
+                    firstDeltaAt === null
+                      ? null
+                      : Math.round(firstDeltaAt - perfStartedAt),
+                  first_safe_sentence_ms: Math.round(
+                    performance.now() - perfStartedAt
+                  ),
+                })
+                await options.onSafeAssistantMessage?.(message.trim())
+              }
+            } catch {
+              // Le fragment contient encore une séquence JSON incomplète.
+            }
+            return
+          }
+        }
+      }
+
+      while (true) {
+        const chunk = await reader.read()
+        if (chunk.done) break
+        buffer += decoder.decode(chunk.value, { stream: true })
+        let i = -1
+        while ((i = buffer.indexOf('\n\n')) >= 0) {
+          const block = buffer.slice(0, i); buffer = buffer.slice(i + 2)
+          for (const line of block.split('\n')) {
+            if (!line.startsWith('data:')) continue
+            const raw = line.slice(5).trim()
+            if (!raw || raw === '[DONE]') continue
+            try {
+              const e = JSON.parse(raw) as any
+              if (e.type === 'message_start') inputTokens = e.message?.usage?.input_tokens
+              if (e.type === 'content_block_delta' && e.delta?.type === 'text_delta') {
+                if(firstDeltaAt===null){
+                  firstDeltaAt=performance.now()
+                  console.log('[realtalk][model-perf]',{
+                    first_model_delta_ms:Math.round(firstDeltaAt-perfStartedAt),
+                  })
+                }
+                text += e.delta.text || ''
+                await maybeEmit()
+              }
+              if (e.type === 'message_delta') {
+                stopReason = e.delta?.stop_reason ?? stopReason
+                outputTokens = e.usage?.output_tokens ?? outputTokens
+              }
+            } catch {}
+          }
+        }
+      }
+      data={content:[{type:'text',text}],stop_reason:stopReason,usage:{input_tokens:inputTokens,output_tokens:outputTokens}}
+    } else {
+      data=(await response.json()) as AnthropicResponse
+      text=data.content?.find((b)=>b.type==='text'&&typeof b.text==='string')?.text || ''
     }
 
+    if (!text) throw new NovaProviderError({ provider: this.id, message: 'Réponse Anthropic vide.' })
     if (data.stop_reason === 'max_tokens') {
-      throw new NovaProviderError({
-        provider: this.id,
-        message: 'Réponse Anthropic tronquée avant la fin du JSON.',
-        retryable: true,
-      })
+      throw new NovaProviderError({provider:this.id,message:'Réponse Anthropic tronquée avant la fin du JSON.',retryable:true})
     }
 
     let parsed: unknown

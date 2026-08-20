@@ -359,22 +359,10 @@ Règles de confirmation :
 - termine par une question explicite, par exemple « Tu confirmes la création de ce rendez-vous ? » ou « Tu confirmes ces quatre actions ? » ;
 - n’écris jamais « c’est fait », « j’ai ajouté », « j’ai enregistré » ou toute autre formulation de réussite dans assistant_message : seul le moteur d’exécution peut annoncer un succès après vérification en base.
 
-Structure JSON obligatoire :
+Structure JSON obligatoire (l’ordre des clés est important uniquement pour le transport RealTalk) :
 {
   "version": "1.0",
-  "summary": "résumé factuel",
   "intent": "une intention autorisée",
-  "confidence": 0.0,
-  "extracted_data": {
-    "people": [],
-    "organizations": [],
-    "dates": [{ "raw": "", "iso": "", "kind": "unknown" }],
-    "amounts": [{ "value": 0, "currency": "EUR", "label": "" }],
-    "documents": [],
-    "locations": [],
-    "facts": []
-  },
-  "missing_information": [{ "field": "", "question": "", "blocking": true }],
   "proposed_actions": [{
     "id": "action_1",
     "type": "une action autorisée",
@@ -385,14 +373,20 @@ Structure JSON obligatoire :
     "requires_confirmation": true,
     "parameters": [{ "key": "", "value": "" }]
   }],
+  "missing_information": [{ "field": "", "question": "", "blocking": true }],
+  "assistant_message": "",
+  "summary": "résumé factuel",
+  "confidence": 0.0,
+  "extracted_data": {
+    "people": [], "organizations": [],
+    "dates": [{ "raw": "", "iso": "", "kind": "unknown" }],
+    "amounts": [{ "value": 0, "currency": "EUR", "label": "" }],
+    "documents": [], "locations": [], "facts": []
+  },
   "memory_candidates": [{
-    "key": "",
-    "value": "",
-    "scope": "temporary",
-    "confidence": 0.0,
-    "requires_confirmation": true
-  }],
-  "assistant_message": ""
+    "key": "", "value": "", "scope": "temporary",
+    "confidence": 0.0, "requires_confirmation": true
+  }]
 }
 
 Les tableaux doivent être vides lorsqu’aucune donnée n’est présente. Ne crée pas d’objet vide artificiel.`

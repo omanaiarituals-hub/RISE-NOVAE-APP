@@ -143,6 +143,7 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [historyDeleteBusy, setHistoryDeleteBusy] = useState(false)
   const [listening, setListening] = useState(false)
+  const [realtalkConnected, setRealtalkConnected] = useState(false)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(voiceMode)
   const [speaking, setSpeaking] = useState(false)
   const [paused, setPaused] = useState(false)
@@ -181,6 +182,19 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
   const realtimeHandledItemsRef = useRef<Set<string>>(new Set())
   const realtimeSpeechPendingRef = useRef(false)
   const realtimeSpeechFallbackTimerRef = useRef<number | null>(null)
+  const realtalkTurnStartedAtRef = useRef<number | null>(null)
+  const realtalkFirstAudioLoggedRef = useRef(false)
+  const realtalkEarlySentenceRef = useRef('')
+  const realtalkPendingRemainderRef = useRef('')
+
+  // RealTalk — fluidité conversationnelle.
+  // Ces micro-réactions sont purement déterministes et non informatives :
+  // aucun second modèle, aucune décision, aucune donnée métier.
+  const latencyAckTimerRef = useRef<number | null>(null)
+  const latencyAckActiveRef = useRef(false)
+  const latencyAckSpokenThisTurnRef = useRef(false)
+  const latencyAfterAckSpeechRef = useRef('')
+  const latencyAckHistoryRef = useRef<string[]>([])
 
 
 
@@ -513,9 +527,169 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
     }
 
     realtimeSpeechPendingRef.current = false
+    latencyAckActiveRef.current = false
+    cancelLatencyAcknowledgement()
     setSpeaking(false)
     speakingRef.current = false
     setListening(true)
+  }
+
+  function cancelLatencyAcknowledgement() {
+    if (
+      typeof window !== 'undefined' &&
+      latencyAckTimerRef.current !== null
+    ) {
+      window.clearTimeout(latencyAckTimerRef.current)
+      latencyAckTimerRef.current = null
+    }
+  }
+
+  function chooseLatencyAcknowledgement(transcript: string): string {
+    const normalized = transcript
+      .toLocaleLowerCase('fr-FR')
+      .replace(/[’']/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    const isCorrection =
+      /\b(non|pardon|je voulais dire|je corrige|en fait|attends|ce n'est pas|c'est pas|tu t'es tromp|erreur)\b/.test(
+        normalized,
+      )
+
+    const isAction =
+      /\b(ajoute|ajouter|crée|creer|créer|programme|programmer|planifie|planifier|modifie|modifier|change|changer|supprime|supprimer|annule|annuler|rappel|planning|calendrier|note|liste|courses?)\b/.test(
+        normalized,
+      )
+
+    const isLookup =
+      /\b(quand|où|quel|quelle|quels|quelles|combien|prévu|programme|agenda|planning|aujourd'hui|demain|cette semaine|rappelle-moi|dis-moi|tu sais|est-ce que)\b/.test(
+        normalized,
+      )
+
+    const correction = [
+      'Ah, je vois. Je reprends ça.',
+      'D’accord, je recale ça.',
+      'Oui, je vois ce que tu veux dire.',
+      'Attends, je reprends avec cette correction.',
+      'Je vois. Je vérifie avec ce que tu viens de préciser.',
+      'D’accord, je corrige le fil.',
+      'Hmm, je reprends ça proprement.',
+      'Oui, je te suis. Je recalcule ça.',
+      'Ah oui, je vois mieux.',
+      'D’accord, je repars de là.',
+    ]
+
+    const action = [
+      'D’accord, je vérifie ça.',
+      'Je regarde ce qu’il faut faire.',
+      'Un instant, je prépare ça.',
+      'Je vérifie les éléments avant de te proposer ça.',
+      'D’accord, je regarde ça proprement.',
+      'Je m’assure que tout est cohérent.',
+      'Attends une seconde, je vérifie.',
+      'Je regarde les détails.',
+      'Je te suis, je prépare la suite.',
+      'Hmm, je vérifie avant de te proposer quelque chose.',
+      'Oui, attends, je regarde ça.',
+      'Je vérifie avant d’aller plus loin.',
+    ]
+
+    const lookup = [
+      'Hmm, je regarde.',
+      'Je vérifie ça.',
+      'Attends une seconde, je regarde.',
+      'Je regarde ce que j’ai.',
+      'Oui, je regarde ça.',
+      'Je vérifie les infos.',
+      'Un instant, je rassemble ça.',
+      'Hmm, je regarde précisément.',
+      'Je te suis, je vérifie.',
+      'D’accord, voyons ça.',
+      'Je regarde dans ce que j’ai.',
+      'Attends, je remets les éléments dans l’ordre.',
+      'Je regarde ça de près.',
+      'Une seconde, je vérifie le contexte.',
+      'Hmm… laisse-moi regarder.',
+    ]
+
+    const neutral = [
+      'Hmm…',
+      'D’accord.',
+      'Je vois.',
+      'Oui, je te suis.',
+      'Hmm, je t’écoute.',
+      'D’accord, je regarde.',
+      'Je vois ce que tu veux dire.',
+      'Oui, je suis.',
+      'Je regarde ça.',
+      'Un instant.',
+      'Hmm, laisse-moi regarder.',
+      'D’accord, je reprends le fil.',
+      'Oui, je vois.',
+      'Je te suis.',
+      'Hmm, oui.',
+      'D’accord, attends une seconde.',
+      'Je vois, continue.',
+      'Oui, je comprends.',
+    ]
+
+    const pool = isCorrection
+      ? correction
+      : isAction
+        ? action
+        : isLookup
+          ? lookup
+          : neutral
+
+    const recent = new Set(latencyAckHistoryRef.current.slice(-5))
+    const available = pool.filter((phrase) => !recent.has(phrase))
+    const candidates = available.length > 0 ? available : pool
+
+    const phrase =
+      candidates[Math.floor(Math.random() * candidates.length)] ||
+      'Hmm, je regarde.'
+
+    latencyAckHistoryRef.current = [
+      ...latencyAckHistoryRef.current.slice(-7),
+      phrase,
+    ]
+
+    return phrase
+  }
+
+  function scheduleLatencyAcknowledgement(transcript: string) {
+    if (
+      typeof window === 'undefined' ||
+      !voiceOverlayOpenRef.current ||
+      pausedRef.current
+    ) {
+      return
+    }
+
+    cancelLatencyAcknowledgement()
+    latencyAckSpokenThisTurnRef.current = false
+    latencyAfterAckSpeechRef.current = ''
+
+    // On ne remplit pas chaque micro-silence : Nova a d'abord ~650 ms
+    // pour répondre naturellement. Ensuite seulement, si le cerveau travaille
+    // encore, une réaction courte évite le grand blanc.
+    latencyAckTimerRef.current = window.setTimeout(() => {
+      latencyAckTimerRef.current = null
+
+      if (
+        latencyAckSpokenThisTurnRef.current ||
+        speakingRef.current ||
+        realtimeSpeechPendingRef.current ||
+        !requestInFlightRef.current ||
+        pausedRef.current
+      ) {
+        return
+      }
+
+      latencyAckSpokenThisTurnRef.current = true
+      latencyAckActiveRef.current = true
+      speakNova(chooseLatencyAcknowledgement(transcript))
+    }, 650)
   }
 
   function finishRealtimeSpeech() {
@@ -532,6 +706,24 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
     realtimeStreamRef.current?.getAudioTracks().forEach((track) => {
       track.enabled = true
     })
+
+    if (latencyAckActiveRef.current) {
+      latencyAckActiveRef.current = false
+
+      const queuedAfterAck = latencyAfterAckSpeechRef.current.trim()
+      if (queuedAfterAck) {
+        latencyAfterAckSpeechRef.current = ''
+        window.setTimeout(() => speakNova(queuedAfterAck), 35)
+        return
+      }
+    }
+
+    const remainder = realtalkPendingRemainderRef.current.trim()
+    if (remainder) {
+      realtalkPendingRemainderRef.current = ''
+      window.setTimeout(() => speakNova(remainder), 40)
+      return
+    }
 
     if (
       voiceOverlayOpenRef.current &&
@@ -785,8 +977,12 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
   ) {
     setMessages((current) => [...current, { id: createId(role), role, text }])
 
-    if (role === 'nova') {
-      speakNova(text)
+    if (role === 'nova' && !(metadata as any)?.skipSpeech) {
+      if (latencyAckActiveRef.current && speakingRef.current) {
+        latencyAfterAckSpeechRef.current = text
+      } else {
+        speakNova(text)
+      }
     }
 
     const targetId = activeConversationId || conversationId
@@ -817,6 +1013,50 @@ export default function NovaV2Client({ userId }: { userId: string; userEmail?: s
       `Informations encore manquantes : ${missing || 'aucune'}`,
       `Actions déjà proposées : ${actions || 'aucune'}`,
     ].filter(Boolean).join('\n')
+  }
+
+  async function requestRealtimePlan(
+    token: string,
+    body: Record<string, unknown>,
+    onAssistant: (message: string) => Promise<void>
+  ): Promise<NovaPlanResult> {
+    const response=await fetch('/api/nova/realtalk',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify(body)})
+    if(!response.ok||!response.body) throw new Error('Nova RealTalk est momentanément indisponible.')
+    const reader=response.body.getReader(), decoder=new TextDecoder()
+    let buffer='', finalResult:NovaPlanResult|null=null, earlyMessage=''
+    while(true){
+      const chunk=await reader.read(); if(chunk.done) break
+      buffer+=decoder.decode(chunk.value,{stream:true})
+      let i=-1
+      while((i=buffer.indexOf('\n\n'))>=0){
+        const block=buffer.slice(0,i); buffer=buffer.slice(i+2)
+        const event=block.split('\n').find(l=>l.startsWith('event:'))?.slice(6).trim()
+        const raw=block.split('\n').find(l=>l.startsWith('data:'))?.slice(5).trim()
+        if(!event||!raw) continue
+        const data=JSON.parse(raw)
+        if(event==='assistant'&&typeof data?.message==='string'){
+          earlyMessage=data.message
+          realtalkEarlySentenceRef.current=data.message.trim()
+          cancelLatencyAcknowledgement()
+
+          const started=realtalkTurnStartedAtRef.current
+          console.log('[realtalk][client-perf]',{
+            first_safe_sentence_received_ms:started===null?null:Math.round(performance.now()-started),
+          })
+
+          if (latencyAckActiveRef.current && speakingRef.current) {
+            latencyAfterAckSpeechRef.current=data.message
+          } else {
+            await onAssistant(data.message)
+          }
+        }
+        else if(event==='final'){if(!data?.ok) throw new Error(data?.payload?.message||'Nova n’a pas pu analyser cette demande.'); finalResult=data.payload}
+        else if(event==='error') throw new Error(data?.message||'Erreur RealTalk.')
+      }
+    }
+    if(!finalResult) throw new Error('Nova RealTalk n’a pas reçu le plan final.')
+    ;(finalResult as any).__realtalkEarlyMessage=earlyMessage
+    return finalResult
   }
 
   async function requestPlan(visibleMessage: string) {
@@ -879,35 +1119,60 @@ const { data } = await supabase.auth.getSession()
       const token = data.session?.access_token
       if (!token) throw new Error('Ta session a expiré. Reconnecte-toi à NOVAÉ.')
 
-      const response = await fetch('/api/nova/plan', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${token}`,
-        },
-     body: JSON.stringify({
-  message: normalized,
-  conversationId: activeConversationId,
-  workflowContext: buildWorkflowContext(),
-  provider: 'auto',
-  voiceMode,
-}),
-      })
-
-      const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload?.message || 'Nova n’a pas pu analyser cette demande pour le moment.')
+      const requestBody = {
+        message: normalized,
+        conversationId: activeConversationId,
+        workflowContext: buildWorkflowContext(),
+        provider: 'auto',
+        voiceMode,
       }
 
-      const nextResult = payload as NovaPlanResult
+      const nextResult = voiceMode || voiceOverlayOpenRef.current
+        ? await requestRealtimePlan(token, requestBody, async (earlyMessage) => {
+            if (latencyAckActiveRef.current && speakingRef.current) {
+              latencyAfterAckSpeechRef.current=earlyMessage
+              return
+            }
+            speakNova(earlyMessage)
+          })
+        : await (async () => {
+            const response = await fetch('/api/nova/plan', {
+              method: 'POST',
+              headers: {'content-type':'application/json', authorization:`Bearer ${token}`},
+              body: JSON.stringify(requestBody),
+            })
+            const payload=await response.json()
+            if(!response.ok) throw new Error(payload?.message||'Nova n’a pas pu analyser cette demande pour le moment.')
+            return payload as NovaPlanResult
+          })()
+
+      cancelLatencyAcknowledgement()
       resultRef.current = nextResult
       setResult(nextResult)
       if (!rootRequest) setRootRequest(normalized)
 
-      await addMessage('nova', nextResult.plan.assistant_message, activeConversationId, {
-        type: 'plan',
-        intent: nextResult.plan.intent,
-        action_types: nextResult.plan.proposed_actions.map((action) => action.type),
+      const realtimeEarlyMessage=(nextResult as any).__realtalkEarlyMessage as string|undefined
+      const finalAssistantMessage=nextResult.plan.assistant_message.trim()
+      const earlySentence=realtimeEarlyMessage?.trim() || ''
+
+      let speechRemainder=''
+      if (earlySentence && finalAssistantMessage.startsWith(earlySentence)) {
+        speechRemainder=finalAssistantMessage.slice(earlySentence.length).trim()
+      }
+
+      if (speechRemainder) {
+        if (realtimeSpeechPendingRef.current || speakingRef.current) {
+          realtalkPendingRemainderRef.current=speechRemainder
+        } else {
+          speakNova(speechRemainder)
+        }
+      }
+
+      await addMessage('nova', finalAssistantMessage, activeConversationId, {
+        type:'plan',
+        intent:nextResult.plan.intent,
+        action_types:nextResult.plan.proposed_actions.map((action)=>action.type),
+        skipSpeech:Boolean(earlySentence) && finalAssistantMessage.startsWith(earlySentence),
       })
 
       if (nextResult.plan.missing_information.length > 0) {
@@ -929,6 +1194,10 @@ const { data } = await supabase.auth.getSession()
         setStatus('idle')
       }
     } catch (caught) {
+      cancelLatencyAcknowledgement()
+      latencyAckActiveRef.current = false
+      latencyAfterAckSpeechRef.current = ''
+
       const message = caught instanceof Error ? caught.message : 'Une erreur est survenue pendant l’analyse.'
       setError(message)
       await addMessage('system', message, activeConversationId)
@@ -1248,6 +1517,10 @@ const { data } = await supabase.auth.getSession()
   }
 
   function stopRealtimeTranscription() {
+    cancelLatencyAcknowledgement()
+    latencyAckActiveRef.current = false
+    latencyAfterAckSpeechRef.current = ''
+
     if (typeof window !== 'undefined' && realtimeSpeechFallbackTimerRef.current !== null) {
       window.clearTimeout(realtimeSpeechFallbackTimerRef.current)
       realtimeSpeechFallbackTimerRef.current = null
@@ -1268,6 +1541,7 @@ const { data } = await supabase.auth.getSession()
     realtimeAudioRef.current = null
     realtimeConnectingRef.current = false
     realtimeConnectedRef.current = false
+    setRealtalkConnected(false)
     realtimeHandledItemsRef.current.clear()
     setListening(false)
     setSpeaking(false)
@@ -1342,18 +1616,21 @@ const { data } = await supabase.auth.getSession()
       dc.addEventListener('open', () => {
         realtimeConnectingRef.current = false
         realtimeConnectedRef.current = true
+        setRealtalkConnected(true)
         setListening(true)
       })
 
       dc.addEventListener('close', () => {
         realtimeConnectedRef.current = false
         realtimeConnectingRef.current = false
+        setRealtalkConnected(false)
         setListening(false)
       })
 
       dc.addEventListener('error', () => {
         realtimeConnectedRef.current = false
         realtimeConnectingRef.current = false
+        setRealtalkConnected(false)
         setListening(false)
       })
 
@@ -1398,9 +1675,14 @@ const { data } = await supabase.auth.getSession()
                 : ''
 
             if (!transcript) return
+            realtalkTurnStartedAtRef.current=performance.now()
+            realtalkFirstAudioLoggedRef.current=false
+            console.log('[realtalk][client-perf]',{transcription_end_ms:0})
             if (itemId && realtimeHandledItemsRef.current.has(itemId)) return
             if (itemId) realtimeHandledItemsRef.current.add(itemId)
             if (isLikelyNovaEcho(transcript)) return
+
+            scheduleLatencyAcknowledgement(transcript)
 
             // Le tour est complet : on masque l'état d'écoute pendant que
             // Nova réfléchit, mais on garde le track WebRTC vivant.
@@ -1431,6 +1713,10 @@ const { data } = await supabase.auth.getSession()
           if (payload.type === 'response.created') {
             const purpose = payload.response?.metadata?.purpose
             if (purpose === 'nova_tts') {
+              const started=realtalkTurnStartedAtRef.current
+              console.log('[realtalk][client-perf]',{
+                realtime_response_created_ms:started===null?null:Math.round(performance.now()-started),
+              })
               realtimeSpeechPendingRef.current = true
               setSpeaking(true)
               speakingRef.current = true
@@ -1445,6 +1731,13 @@ const { data } = await supabase.auth.getSession()
           }
 
           if (payload.type === 'response.output_audio.delta') {
+            if(!realtalkFirstAudioLoggedRef.current){
+              realtalkFirstAudioLoggedRef.current=true
+              const started=realtalkTurnStartedAtRef.current
+              console.log('[realtalk][client-perf]',{
+                speech_start_ms:started===null?null:Math.round(performance.now()-started),
+              })
+            }
             if (realtimeSpeechPendingRef.current) {
               setSpeaking(true)
               speakingRef.current = true
@@ -1999,7 +2292,9 @@ const { data } = await supabase.auth.getSession()
           <p className="nova-voice-hint">
             {paused
               ? 'Touche le micro pour reprendre.'
-              : 'Le micro se réactive après chaque réponse.'}
+              : realtalkConnected
+                ? 'RealTalk connecté'
+                : 'Mode vocal classique'}
           </p>
 
 

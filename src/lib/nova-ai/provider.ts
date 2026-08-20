@@ -1,9 +1,13 @@
 import type { NovaPlanInput, NovaProviderId, NovaProviderResult } from './types'
 
+export interface NovaPlanStreamOptions {
+  onSafeAssistantMessage?: (message: string) => void | Promise<void>
+}
+
 export interface NovaAIProvider {
   readonly id: NovaProviderId
   isConfigured(): boolean
-  plan(input: NovaPlanInput): Promise<NovaProviderResult>
+  plan(input: NovaPlanInput, options?: NovaPlanStreamOptions): Promise<NovaProviderResult>
 }
 
 export class NovaProviderError extends Error {
